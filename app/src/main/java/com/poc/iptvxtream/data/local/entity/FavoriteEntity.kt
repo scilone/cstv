@@ -1,0 +1,13 @@
+package com.poc.iptvxtream.data.local.entity
+
+import androidx.room.Entity
+
+@Entity(tableName = "favorites", primaryKeys = ["id", "type"])
+data class FavoriteEntity(
+    val id: Int,
+    val type: String, // "live", "movie", "series"
+    val name: String,
+    val cover: String?,
+    val categoryId: String,
+    val addedAt: Long
+)

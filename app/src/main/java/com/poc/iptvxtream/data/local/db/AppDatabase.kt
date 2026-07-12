@@ -1,0 +1,39 @@
+package com.poc.iptvxtream.data.local.db
+
+import androidx.room.Database
+import androidx.room.RoomDatabase
+import com.poc.iptvxtream.data.local.dao.LiveTvDao
+import com.poc.iptvxtream.data.local.dao.SeriesDao
+import com.poc.iptvxtream.data.local.dao.VodDao
+import com.poc.iptvxtream.data.local.dao.FavoritesDao
+import com.poc.iptvxtream.data.local.entity.LiveCategoryEntity
+import com.poc.iptvxtream.data.local.entity.LiveStreamEntity
+import com.poc.iptvxtream.data.local.entity.PlaybackPositionEntity
+import com.poc.iptvxtream.data.local.entity.SeriesCategoryEntity
+import com.poc.iptvxtream.data.local.entity.SeriesStreamEntity
+import com.poc.iptvxtream.data.local.entity.VodCategoryEntity
+import com.poc.iptvxtream.data.local.entity.VodStreamEntity
+import com.poc.iptvxtream.data.local.entity.FavoriteEntity
+import com.poc.iptvxtream.data.local.entity.RecentlyWatchedLiveEntity
+
+@Database(
+    entities = [
+        LiveCategoryEntity::class, 
+        LiveStreamEntity::class,
+        VodCategoryEntity::class,
+        VodStreamEntity::class,
+        SeriesCategoryEntity::class,
+        SeriesStreamEntity::class,
+        PlaybackPositionEntity::class,
+        FavoriteEntity::class,
+        RecentlyWatchedLiveEntity::class
+    ],
+    version = 7,
+    exportSchema = false
+)
+abstract class AppDatabase : RoomDatabase() {
+    abstract fun liveTvDao(): LiveTvDao
+    abstract fun vodDao(): VodDao
+    abstract fun seriesDao(): SeriesDao
+    abstract fun favoritesDao(): FavoritesDao
+}

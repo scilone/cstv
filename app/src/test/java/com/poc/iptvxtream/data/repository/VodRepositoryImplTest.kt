@@ -1,0 +1,272 @@
+package com.poc.iptvxtream.data.repository
+
+import com.google.gson.JsonPrimitive
+import com.google.gson.JsonArray
+import com.poc.iptvxtream.data.local.dao.VodDao
+import com.poc.iptvxtream.data.local.entity.PlaybackPositionEntity
+import com.poc.iptvxtream.data.local.entity.VodCategoryEntity
+import com.poc.iptvxtream.data.local.entity.VodStreamEntity
+import com.poc.iptvxtream.data.local.storage.CredentialsManager
+import com.poc.iptvxtream.data.remote.api.XtreamApiService
+import com.poc.iptvxtream.data.remote.dto.*
+import com.poc.iptvxtream.domain.model.Credentials
+import com.poc.iptvxtream.domain.model.VodStream
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.runTest
+import org.junit.Assert.*
+import org.junit.Before
+import org.junit.Test
+import org.mockito.Mock
+import org.mockito.MockitoAnnotations
+import org.mockito.kotlin.*
+
+@OptIn(ExperimentalCoroutinesApi::class)
+class VodRepositoryImplTest {
+
+    @Mock
+    private lateinit var apiService: XtreamApiService
+
+    @Mock
+    private lateinit var vodDao: VodDao
+
+    @Mock
+    private lateinit var credentialsManager: CredentialsManager
+
+    private lateinit var repository: VodRepositoryImpl
+
+    private val credentials = Credentials("test.com", 80, "username", "password", true)
+
+    @Before
+    fun setUp() {
+        MockitoAnnotations.openMocks(this)
+        whenever(credentialsManager.getCredentials()).thenReturn(credentials)
+        repository = VodRepositoryImpl(apiService, vodDao, credentialsManager)
+    }
+
+    // --- 1. PLAY URL CONSTRUCTION TESTS ---
+    @Test
+    fun test_vodPlayUrlConstruction_isCorrect() {
+        val movie = VodStream(
+            streamId = 999,
+            name = "Inception",
+            streamIcon = "inception.jpg",
+            rating = "8.8",
+            added = "123456",
+            categoryId = "5"
+        )
+
+        // Case A: normal base URL and mp4 extension
+        val urlA = movie.getPlayUrl("http://myprovider.com:8080", "user", "pass", "mp4")
+        assertEquals("http://myprovider.com:8080/movie/user/pass/999.mp4", urlA)
+
+        // Case B: trailing slash and mkv extension
+        val urlB = movie.getPlayUrl("https://myprovider.com/", "user", "pass", ".mkv")
+        assertEquals("https://myprovider.com/movie/user/pass/999.mkv", urlB)
+    }
+
+    // --- 2. CACHING & EXPIRATION LOGIC TESTS ---
+    @Test
+    fun test_getVodCategories_servedFromCache_whenNotExpired() = runTest {
+        val currentTime = System.currentTimeMillis()
+        val cachedCategories = listOf(
+            VodCategoryEntity("1", "Action", 0, currentTime - 5000L) // cached 5s ago (not expired)
+        )
+
+        whenever(vodDao.getAllCategories()).thenReturn(cachedCategories)
+
+        val result = repository.getVodCategories(forceRefresh = false)
+
+        assertEquals(1, result.size)
+        assertEquals("1", result[0].categoryId)
+        assertEquals("Action", result[0].categoryName)
+
+        verifyNoInteractions(apiService)
+    }
+
+    @Test
+    fun test_getVodCategories_fetchedFromNetwork_whenExpired() = runTest {
+        val currentTime = System.currentTimeMillis()
+        // cached 48 hours ago (expired)
+        val cachedCategories = listOf(
+            VodCategoryEntity("1", "Action", 0, currentTime - (48 * 3600 * 1000L))
+        )
+
+        whenever(vodDao.getAllCategories()).thenReturn(cachedCategories)
+
+        val remoteCategories = listOf(
+            VodCategoryDto("1", "Action Updated", 0),
+            VodCategoryDto("2", "Sci-Fi", 0)
+        )
+        whenever(apiService.getVodCategories("username", "password")).thenReturn(remoteCategories)
+
+        val result = repository.getVodCategories(forceRefresh = false)
+
+        assertEquals(2, result.size)
+        assertEquals("Action Updated", result[0].categoryName)
+        assertEquals("Sci-Fi", result[1].categoryName)
+
+        verify(vodDao).clearCategories()
+        verify(vodDao).insertCategories(any())
+    }
+
+    // --- 3. DIRTY PARSING / MAPPING TESTS ---
+    @Test
+    fun test_getVodStreams_defensivelySkipsNullIdsOrNames() = runTest {
+        whenever(vodDao.getStreamsByCategory(any())).thenReturn(emptyList())
+
+        val remoteStreamsWithDirtyData = listOf(
+            VodStreamDto(999, "Inception", "cover.jpg", "8.8", "added_str", "5"),
+            VodStreamDto(null, "Null ID Film", null, null, null, null), // dirty: null ID
+            VodStreamDto(1000, null, null, null, null, null)            // dirty: null name
+        )
+        whenever(apiService.getVodStreams("username", "password", "5")).thenReturn(remoteStreamsWithDirtyData)
+
+        val result = repository.getVodStreams("5", forceRefresh = false)
+
+        // Slices out dirty inputs defensively (only 1 valid film remains)
+        assertEquals(1, result.size)
+        assertEquals(999, result[0].streamId)
+        assertEquals("Inception", result[0].name)
+    }
+
+    // --- 4. DETAILED VOD INFO & RESUME PERSISTENCE TESTS ---
+    @Test
+    fun test_getVodDetails_returnsFullDetailsWithSavedPlaybackPosition() = runTest {
+        val infoDto = VodInfoDto(
+            name = "Inception",
+            director = "Christopher Nolan",
+            actors = JsonPrimitive("Leonardo DiCaprio, Elliot Page"),
+            cast = null,
+            releaseDate = "2010",
+            genre = "Sci-Fi",
+            plot = "A thief who steals corporate secrets through the use of dream-sharing technology.",
+            rating = "8.8",
+            rating5 = "4.4",
+            coverBig = "inception_big.jpg",
+            movieImage = "inception_img.jpg",
+            duration = JsonPrimitive("6120") // 6120s = 102m = 1h 42min
+        )
+        val movieDataDto = VodMovieDataDto(999, "mkv")
+        val remoteResponse = VodInfoResponseDto(infoDto, movieDataDto)
+
+        whenever(apiService.getVodInfo("username", "password", 999)).thenReturn(remoteResponse)
+
+        // Mock saved resume position in Room DB (e.g., played up to 45m 30s)
+        val savedPosition = PlaybackPositionEntity(999, 2730000L, 9000000L, System.currentTimeMillis())
+        whenever(vodDao.getPlaybackPosition(999)).thenReturn(savedPosition)
+
+        val result = repository.getVodDetails(999)
+
+        assertNotNull(result)
+        assertEquals(999, result.streamId)
+        assertEquals("Inception", result.name)
+        assertEquals("Christopher Nolan", result.director)
+        assertEquals("Leonardo DiCaprio, Elliot Page", result.actors)
+        assertEquals("2010", result.releaseDate)
+        assertEquals("Sci-Fi", result.genre)
+        assertEquals("mkv", result.containerExtension)
+        assertEquals("1h 42min", result.duration)
+        
+        // Sensationally verify that resume positions are correctly retrieved and adjoined!
+        assertEquals(2730000L, result.resumePositionMs)
+        assertEquals(9000000L, result.durationMs)
+    }
+
+    @Test
+    fun test_getVodDetails_defensiveAndPhase10Parsing() = runTest {
+        // Prepare some extremely dirty mock data:
+        // - actors is a JSON array
+        // - cast is a comma-separated string containing "Inconnu" and duplicates
+        // - duration is in minutes instead of seconds (e.g. 102)
+        // - rating is 7.85 (should round to 7.9)
+        val actorsArray = JsonArray().apply {
+            add("Leonardo DiCaprio")
+            add("Elliot Page")
+        }
+        val infoDto = VodInfoDto(
+            name = "Inception",
+            director = "Christopher Nolan",
+            actors = actorsArray,
+            cast = JsonPrimitive("Leonardo DiCaprio, Tom Hardy, Inconnu"),
+            releaseDate = "2010",
+            genre = "Sci-Fi",
+            plot = "A thief.",
+            rating = "7.85",
+            rating5 = null,
+            coverBig = null,
+            movieImage = null,
+            duration = JsonPrimitive("102") // 102 minutes -> should map to 1h 42min as well!
+        )
+        val movieDataDto = VodMovieDataDto(999, "mp4")
+        val remoteResponse = VodInfoResponseDto(infoDto, movieDataDto)
+
+        whenever(apiService.getVodInfo("username", "password", 999)).thenReturn(remoteResponse)
+        whenever(vodDao.getPlaybackPosition(999)).thenReturn(null)
+
+        val result = repository.getVodDetails(999)
+
+        assertNotNull(result)
+        // Leonardo DiCaprio, Elliot Page, Tom Hardy (deduplicated, "Inconnu" stripped out)
+        assertEquals("Leonardo DiCaprio, Elliot Page, Tom Hardy", result.actors)
+        assertEquals("7.9", result.rating)
+        assertEquals("1h 42min", result.duration)
+
+        // Verify alternative rating with 8 -> 8.0 rounding
+        val infoDto2 = infoDto.copy(rating = "8", duration = JsonPrimitive("45")) // 45m -> "45min"
+        val remoteResponse2 = VodInfoResponseDto(infoDto2, movieDataDto)
+        whenever(apiService.getVodInfo("username", "password", 999)).thenReturn(remoteResponse2)
+        val result2 = repository.getVodDetails(999)
+        assertEquals("8.0", result2.rating)
+        assertEquals("45min", result2.duration)
+
+        // Verify colon-separated duration formatting (e.g. "01:42:00" -> "1h 42min")
+        val infoDto3 = infoDto.copy(duration = JsonPrimitive("01:42:00"))
+        val remoteResponse3 = VodInfoResponseDto(infoDto3, movieDataDto)
+        whenever(apiService.getVodInfo("username", "password", 999)).thenReturn(remoteResponse3)
+        val result3 = repository.getVodDetails(999)
+        assertEquals("1h 42min", result3.duration)
+    }
+
+    @Test
+    fun test_savePlaybackPosition_preservesExistingData_whenNewValuesAreNull() = runTest {
+        // Mock existing entity in DB
+        val existingEntity = PlaybackPositionEntity(
+            streamId = 123,
+            positionMs = 1000L,
+            durationMs = 5000L,
+            lastAccessedAt = 100L,
+            title = "Breaking Bad S1E1",
+            coverUrl = "bb_cover.jpg",
+            type = "series"
+        )
+        whenever(vodDao.getPlaybackPosition(123)).thenReturn(existingEntity)
+
+        // Save position with nulls (resuming from Home)
+        repository.savePlaybackPosition(
+            streamId = 123,
+            positionMs = 2000L,
+            durationMs = 5000L,
+            title = null,
+            coverUrl = null,
+            type = null,
+            containerExtension = null,
+            seriesId = null,
+            episodeNum = null,
+            seasonNum = null,
+            plot = null,
+            duration = null,
+            releaseDate = null
+        )
+
+        // Sensationally verify that it loaded existing, merged them, and saved correctly!
+        verify(vodDao).getPlaybackPosition(123)
+        verify(vodDao).savePlaybackPosition(argThat {
+            streamId == 123 &&
+            positionMs == 2000L &&
+            durationMs == 5000L &&
+            title == "Breaking Bad S1E1" &&
+            coverUrl == "bb_cover.jpg" &&
+            type == "series"
+        })
+    }
+}
