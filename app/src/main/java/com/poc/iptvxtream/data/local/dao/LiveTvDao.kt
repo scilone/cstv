@@ -20,6 +20,9 @@ interface LiveTvDao {
     @Query("DELETE FROM live_categories")
     suspend fun clearCategories()
 
+    @Query("SELECT * FROM live_streams ORDER BY num ASC")
+    suspend fun getAllStreams(): List<LiveStreamEntity>
+
     @Query("SELECT * FROM live_streams WHERE categoryId = :categoryId ORDER BY num ASC")
     suspend fun getStreamsByCategory(categoryId: String): List<LiveStreamEntity>
 

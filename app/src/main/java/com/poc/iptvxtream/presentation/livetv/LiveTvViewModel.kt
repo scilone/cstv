@@ -62,18 +62,19 @@ class LiveTvViewModel @Inject constructor(
             _state.update { it.copy(isLoadingCategories = true, error = null) }
             try {
                 val categories = getLiveCategoriesUseCase(forceRefresh)
+                val finalCategories = listOf(LiveCategory("all", "Tout", 0)) + categories
                 _state.update { 
                     it.copy(
-                        categories = categories, 
-                        selectedCategory = categories.firstOrNull(),
+                        categories = finalCategories, 
+                        selectedCategory = finalCategories.firstOrNull(),
                         isLoadingCategories = false
                     ) 
                 }
-                categories.firstOrNull()?.let { 
+                finalCategories.firstOrNull()?.let { 
                     loadStreams(it.categoryId, forceRefresh)
                 }
             } catch (e: Exception) {
-                _state.update { it.copy(isLoadingCategories = false, error = e.message ?: "Impossible de charger les catégories.") }
+                _state.update { it.copy(isLoadingCategories = false, error = e.message ?: "Une erreur est survenue.") }
             }
         }
     }

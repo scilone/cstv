@@ -162,7 +162,7 @@ class AuthRepositoryImplTest {
         override suspend fun getLiveStreams(
             username: String,
             password: String,
-            categoryId: String,
+            categoryId: String?,
             action: String
         ): List<LiveStreamDto> {
             return emptyList()
@@ -179,7 +179,7 @@ class AuthRepositoryImplTest {
         override suspend fun getVodStreams(
             username: String,
             password: String,
-            categoryId: String,
+            categoryId: String?,
             action: String
         ): List<VodStreamDto> {
             return emptyList()
@@ -205,7 +205,7 @@ class AuthRepositoryImplTest {
         override suspend fun getSeriesStreams(
             username: String,
             password: String,
-            categoryId: String,
+            categoryId: String?,
             action: String
         ): List<SeriesStreamDto> {
             return emptyList()

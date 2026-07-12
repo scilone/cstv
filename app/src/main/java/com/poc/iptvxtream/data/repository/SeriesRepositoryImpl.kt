@@ -119,9 +119,10 @@ class SeriesRepositoryImpl @Inject constructor(
 
     override suspend fun getSeriesStreams(categoryId: String, forceRefresh: Boolean): List<SeriesStream> {
         val currentTime = System.currentTimeMillis()
+        val apiCategoryId = if (categoryId == "all") null else categoryId
 
         if (!forceRefresh) {
-            val localStreams = seriesDao.getStreamsByCategory(categoryId)
+            val localStreams = if (categoryId == "all") seriesDao.getAllStreams() else seriesDao.getStreamsByCategory(categoryId)
             if (localStreams.isNotEmpty()) {
                 val lastCachedAt = localStreams.first().cachedAt
                 if (currentTime - lastCachedAt < CACHE_EXPIRY_MILLIS) {
@@ -135,11 +136,12 @@ class SeriesRepositoryImpl @Inject constructor(
         val creds = credentialsManager.getCredentials()
             ?: throw InvalidCredentialsException("Utilisateur non connecté.")
 
-        val remoteStreams = apiService.getSeriesStreams(creds.username, creds.password, categoryId)
+        val remoteStreams = apiService.getSeriesStreams(creds.username, creds.password, apiCategoryId)
 
         val entities = remoteStreams.mapNotNull { dto ->
             val id = dto.seriesId
             val name = dto.name
+            val itemCategoryId = dto.categoryId ?: categoryId
             if (id != null && name != null) {
                 SeriesStreamEntity(
                     seriesId = id,
@@ -147,13 +149,18 @@ class SeriesRepositoryImpl @Inject constructor(
                     cover = dto.cover,
                     rating = dto.rating,
                     added = dto.added,
-                    categoryId = categoryId,
+                    categoryId = itemCategoryId,
                     cachedAt = currentTime
                 )
             } else null
         }
 
-        seriesDao.clearStreamsByCategory(categoryId)
+        if (categoryId == "all") {
+            seriesDao.clearAllStreams()
+        } else {
+            seriesDao.clearStreamsByCategory(categoryId)
+        }
+        
         if (entities.isNotEmpty()) {
             seriesDao.insertStreams(entities)
         }

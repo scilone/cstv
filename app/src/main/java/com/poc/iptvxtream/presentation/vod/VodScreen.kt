@@ -4,7 +4,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.focusGroup
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -103,7 +103,6 @@ fun VodScreen(
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun TvLayout(
     state: VodState,
@@ -115,61 +114,76 @@ private fun TvLayout(
     onSearchQueryChanged: (String) -> Unit,
     isSpecificCategory: Boolean
 ) {
-    Row(modifier = Modifier.fillMaxSize()) {
-        // Left Column: VOD Categories
-        Column(
-            modifier = Modifier
-                .width(260.dp)
-                .fillMaxHeight()
-                .background(Color(0xFF16161D))
-                .padding(8.dp)
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 12.dp)
-            ) {
-                Text(
-                    text = "CATÉGORIES VOD",
-                    color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 15.sp
-                )
-                IconButton(onClick = onRefresh) {
-                    Icon(Icons.Default.Refresh, contentDescription = "Rafraîchir", tint = Color.White)
-                }
-            }
+    val isAllSelected = state.selectedCategory?.categoryId == "all"
 
-            LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(6.dp),
-                modifier = Modifier.weight(1f).focusGroup()
+    val groupedStreams = remember(filteredStreams) {
+        filteredStreams.groupBy { it.categoryId }
+    }
+    val actualCategories = remember(state.categories) {
+        state.categories.filter { it.categoryId != "all" }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+    ) {
+        // Top categories filter row
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 12.dp)
+        ) {
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier.weight(1f)
             ) {
                 items(state.categories) { category ->
                     val isSelected = state.selectedCategory?.categoryId == category.categoryId
-                    CategoryTvItem(
+                    CategoryFilterChip(
                         category = category,
                         isSelected = isSelected,
-                        onFocus = { onCategorySelected(category) }
+                        onClick = { onCategorySelected(category) }
                     )
                 }
             }
+            IconButton(onClick = onRefresh) {
+                Icon(Icons.Default.Refresh, contentDescription = "Rafraîchir", tint = Color.White)
+            }
         }
 
-        // Right Section: Movie Grid
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxHeight()
-                .padding(16.dp)
-        ) {
+        if (state.isLoadingStreams || state.isLoadingCategories) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+            }
+        } else if (isAllSelected) {
+            // Mode "Tout" : vertical categories list of horizontal rows
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                modifier = Modifier.fillMaxSize()
+            ) {
+                items(actualCategories) { category ->
+                    val catMovies = groupedStreams[category.categoryId] ?: emptyList()
+                    if (catMovies.isNotEmpty()) {
+                        CategorySectionRow(
+                            title = category.categoryName,
+                            movies = catMovies,
+                            onMovieSelected = onMovieSelected,
+                            isTv = true
+                        )
+                    }
+                }
+            }
+        } else {
+            // Mode "Catégorie spécifique" : Search & Vertical Grid
             Text(
                 text = state.selectedCategory?.categoryName?.uppercase() ?: "FILMS",
                 color = Color.White,
                 fontWeight = FontWeight.Bold,
                 fontSize = 18.sp,
-                modifier = Modifier.padding(bottom = 16.dp)
+                modifier = Modifier.padding(bottom = 12.dp)
             )
 
             if (isSpecificCategory) {
@@ -191,11 +205,7 @@ private fun TvLayout(
                 )
             }
 
-            if (state.isLoadingStreams || state.isLoadingCategories) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
-                }
-            } else if (filteredStreams.isEmpty()) {
+            if (filteredStreams.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(
                         text = if (searchQuery.isBlank()) "Aucun film dans cette catégorie" else "Aucun résultat pour « $searchQuery »",
@@ -204,10 +214,10 @@ private fun TvLayout(
                 }
             } else {
                 LazyVerticalGrid(
-                    columns = GridCells.Fixed(4), // 4 columns for beautiful movie poster layout
+                    columns = GridCells.Fixed(4),
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
-                    modifier = Modifier.fillMaxSize().focusGroup()
+                    modifier = Modifier.fillMaxSize()
                 ) {
                     items(filteredStreams) { stream ->
                         MovieTvCard(
@@ -218,6 +228,318 @@ private fun TvLayout(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun MobileLayout(
+    state: VodState,
+    onCategorySelected: (VodCategory) -> Unit,
+    onMovieSelected: (VodStream) -> Unit,
+    onRefresh: () -> Unit,
+    filteredStreams: List<VodStream>,
+    searchQuery: String,
+    onSearchQueryChanged: (String) -> Unit,
+    isSpecificCategory: Boolean
+) {
+    val isAllSelected = state.selectedCategory?.categoryId == "all"
+
+    val groupedStreams = remember(filteredStreams) {
+        filteredStreams.groupBy { it.categoryId }
+    }
+    val actualCategories = remember(state.categories) {
+        state.categories.filter { it.categoryId != "all" }
+    }
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        // Top categories row
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color(0xFF16161D))
+                .padding(vertical = 4.dp, horizontal = 12.dp)
+        ) {
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.weight(1f)
+            ) {
+                items(state.categories) { category ->
+                    val isSelected = state.selectedCategory?.categoryId == category.categoryId
+                    CategoryFilterChip(
+                        category = category,
+                        isSelected = isSelected,
+                        onClick = { onCategorySelected(category) }
+                    )
+                }
+            }
+
+            IconButton(onClick = onRefresh) {
+                Icon(Icons.Default.Refresh, contentDescription = "Rafraîchir", tint = Color.White)
+            }
+        }
+
+        if (state.isLoadingStreams || state.isLoadingCategories) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+            }
+        } else if (isAllSelected) {
+            // Mode "Tout" : list of horizontal movie sections
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                contentPadding = PaddingValues(vertical = 8.dp)
+            ) {
+                items(actualCategories) { category ->
+                    val catMovies = groupedStreams[category.categoryId] ?: emptyList()
+                    if (catMovies.isNotEmpty()) {
+                        CategorySectionRow(
+                            title = category.categoryName,
+                            movies = catMovies,
+                            onMovieSelected = onMovieSelected,
+                            isTv = false
+                        )
+                    }
+                }
+            }
+        } else {
+            // Mode "Catégorie spécifique" : Search & Vertical Grid
+            if (isSpecificCategory) {
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = onSearchQueryChanged,
+                    placeholder = { Text("Rechercher dans cette catégorie...", color = Color.Gray, fontSize = 13.sp) },
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp)) },
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = Color.DarkGray,
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                )
+            }
+
+            if (filteredStreams.isEmpty()) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text(
+                        text = if (searchQuery.isBlank()) "Aucun film dans cette catégorie" else "Aucun résultat pour « $searchQuery »",
+                        color = Color.Gray
+                    )
+                }
+            } else {
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(2), // 2 columns on mobile
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(12.dp)
+                ) {
+                    items(filteredStreams) { stream ->
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E24)),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onMovieSelected(stream) }
+                        ) {
+                            Column {
+                                // Poster Box
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .aspectRatio(2f / 3f)
+                                        .background(Color(0xFF0F0F13)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    if (!stream.streamIcon.isNullOrBlank()) {
+                                        AsyncImage(
+                                            model = stream.streamIcon,
+                                            contentDescription = stream.name,
+                                            contentScale = ContentScale.Crop,
+                                            modifier = Modifier.fillMaxSize()
+                                        )
+                                    } else {
+                                        Icon(
+                                            imageVector = Icons.Default.PlayArrow,
+                                            contentDescription = null,
+                                            tint = Color.DarkGray,
+                                            modifier = Modifier.size(36.dp)
+                                        )
+                                    }
+
+                                    // Rating Badge
+                                    val cleanRating = stream.rating?.trim()
+                                    if (!cleanRating.isNullOrBlank() && cleanRating != "0" && cleanRating != "0.0") {
+                                        Box(
+                                            modifier = Modifier
+                                                .align(Alignment.TopEnd)
+                                                .padding(6.dp)
+                                                .clip(RoundedCornerShape(4.dp))
+                                                .background(Color(0xCC000000))
+                                                .padding(horizontal = 6.dp, vertical = 3.dp)
+                                        ) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Icon(Icons.Default.Star, contentDescription = null, tint = Color.Yellow, modifier = Modifier.size(10.dp))
+                                                Spacer(modifier = Modifier.width(3.dp))
+                                                Text(cleanRating, color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // Movie Title
+                                Text(
+                                    text = stream.name,
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(8.dp),
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CategorySectionRow(
+    title: String,
+    movies: List<VodStream>,
+    onMovieSelected: (VodStream) -> Unit,
+    isTv: Boolean
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+    ) {
+        Text(
+            text = title.uppercase(),
+            color = Color.LightGray,
+            fontWeight = FontWeight.Bold,
+            fontSize = 14.sp,
+            modifier = Modifier.padding(start = 12.dp, bottom = 6.dp)
+        )
+
+        LazyRow(
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            contentPadding = PaddingValues(horizontal = 12.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            items(movies) { stream ->
+                if (isTv) {
+                    MovieTvCard(
+                        stream = stream,
+                        onClick = { onMovieSelected(stream) }
+                    )
+                } else {
+                    MobileMovieCard(
+                        stream = stream,
+                        onClick = { onMovieSelected(stream) }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MobileMovieCard(
+    stream: VodStream,
+    onClick: () -> Unit
+) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E24)),
+        modifier = Modifier
+            .width(115.dp)
+            .clickable { onClick() }
+    ) {
+        Column {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(2f / 3f)
+                    .background(Color(0xFF0F0F13)),
+                contentAlignment = Alignment.Center
+            ) {
+                if (!stream.streamIcon.isNullOrBlank()) {
+                    AsyncImage(
+                        model = stream.streamIcon,
+                        contentDescription = stream.name,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Default.PlayArrow,
+                        contentDescription = null,
+                        tint = Color.DarkGray,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+            }
+
+            Text(
+                text = stream.name,
+                color = Color.White,
+                fontWeight = FontWeight.Bold,
+                fontSize = 11.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(6.dp),
+                textAlign = TextAlign.Center
+            )
+        }
+    }
+}
+
+@Composable
+private fun CategoryFilterChip(
+    category: VodCategory,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    var isFocused by remember { mutableStateOf(false) }
+
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(16.dp))
+            .onFocusChanged { isFocused = it.isFocused }
+            .border(
+                width = 2.dp,
+                color = if (isFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
+                shape = RoundedCornerShape(16.dp)
+            )
+            .background(
+                when {
+                    isSelected -> MaterialTheme.colorScheme.primary
+                    isFocused -> Color(0xFF2C2C35)
+                    else -> Color(0xFF2A2A35)
+                }
+            )
+            .clickable { onClick() }
+            .padding(horizontal = 14.dp, vertical = 6.dp)
+    ) {
+        Text(
+            text = category.categoryName,
+            color = if (isSelected) Color.Black else Color.White,
+            fontSize = 13.sp,
+            fontWeight = if (isSelected || isFocused) FontWeight.Bold else FontWeight.Normal
+        )
     }
 }
 
@@ -245,15 +567,13 @@ private fun CategoryTvItem(
                 }
             )
             .clickable { onFocus() }
-            .padding(horizontal = 12.dp, vertical = 10.dp)
+            .padding(10.dp)
     ) {
         Text(
             text = category.categoryName,
             color = if (isFocused) Color.Black else Color.White,
-            fontWeight = if (isSelected || isFocused) FontWeight.Bold else FontWeight.Normal,
-            fontSize = 14.sp,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
+            fontWeight = FontWeight.Bold,
+            fontSize = 13.sp
         )
     }
 }
@@ -265,7 +585,10 @@ private fun MovieTvCard(
 ) {
     var isFocused by remember { mutableStateOf(false) }
 
-    Column(
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = if (isFocused) Color(0xFF23232D) else Color(0xFF1E1E24)
+        ),
         modifier = Modifier
             .width(150.dp)
             .onFocusChanged { isFocused = it.isFocused }
@@ -276,225 +599,65 @@ private fun MovieTvCard(
             )
             .clip(RoundedCornerShape(12.dp))
             .clickable { onClick() }
-            .background(Color(0xFF1E1E24))
     ) {
-        // Poster Box
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(2f / 3f)
-                .background(Color(0xFF0F0F13)),
-            contentAlignment = Alignment.Center
-        ) {
-            if (!stream.streamIcon.isNullOrBlank()) {
-                AsyncImage(
-                    model = stream.streamIcon,
-                    contentDescription = stream.name,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
-                )
-            } else {
-                Icon(
-                    imageVector = Icons.Default.Warning,
-                    contentDescription = null,
-                    tint = Color.DarkGray,
-                    modifier = Modifier.size(44.dp)
-                )
-            }
-
-            // Rating Badge (top right)
-            val cleanRating = stream.rating?.trim()
-            if (!cleanRating.isNullOrBlank() && cleanRating != "0" && cleanRating != "0.0") {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(8.dp)
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(Color(0xCC000000))
-                        .padding(horizontal = 6.dp, vertical = 3.dp)
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Star, contentDescription = null, tint = Color.Yellow, modifier = Modifier.size(12.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(cleanRating, color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
-        }
-
-        // Movie Title (bottom)
-        Text(
-            text = stream.name,
-            color = Color.White,
-            fontWeight = FontWeight.Bold,
-            fontSize = 12.sp,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(8.dp),
-            textAlign = TextAlign.Center
-        )
-    }
-}
-
-@Composable
-private fun MobileLayout(
-    state: VodState,
-    onCategorySelected: (VodCategory) -> Unit,
-    onMovieSelected: (VodStream) -> Unit,
-    onRefresh: () -> Unit,
-    filteredStreams: List<VodStream>,
-    searchQuery: String,
-    onSearchQueryChanged: (String) -> Unit,
-    isSpecificCategory: Boolean
-) {
-    Column(modifier = Modifier.fillMaxSize()) {
-        // VOD Categories LazyRow
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(Color(0xFF16161D))
-                .padding(vertical = 4.dp, horizontal = 12.dp)
-        ) {
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.weight(1f)
-            ) {
-                items(state.categories) { category ->
-                    val isSelected = state.selectedCategory?.categoryId == category.categoryId
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(if (isSelected) MaterialTheme.colorScheme.primary else Color(0xFF2A2A35))
-                            .clickable { onCategorySelected(category) }
-                            .padding(horizontal = 14.dp, vertical = 6.dp)
-                    ) {
-                        Text(
-                            text = category.categoryName,
-                            color = if (isSelected) Color.Black else Color.White,
-                            fontSize = 13.sp,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                        )
-                    }
-                }
-            }
-
-            IconButton(onClick = onRefresh) {
-                Icon(Icons.Default.Refresh, contentDescription = "Rafraîchir", tint = Color.White)
-            }
-        }
-
-        if (isSpecificCategory) {
-            OutlinedTextField(
-                value = searchQuery,
-                onValueChange = onSearchQueryChanged,
-                placeholder = { Text("Rechercher dans cette catégorie...", color = Color.Gray, fontSize = 13.sp) },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp)) },
-                singleLine = true,
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = MaterialTheme.colorScheme.primary,
-                    unfocusedBorderColor = Color.DarkGray,
-                    focusedTextColor = Color.White,
-                    unfocusedTextColor = Color.White
-                ),
+        Column {
+            // Poster Box
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 6.dp)
-            )
-        }
-
-        // List of Movies (Grid)
-        if (state.isLoadingStreams || state.isLoadingCategories) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
-            }
-        } else if (filteredStreams.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(
-                    text = if (searchQuery.isBlank()) "Aucun film dans cette catégorie" else "Aucun résultat pour « $searchQuery »",
-                    color = Color.Gray
-                )
-            }
-        } else {
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(2), // 2 columns on mobile
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(12.dp)
+                    .aspectRatio(2f / 3f)
+                    .background(Color(0xFF0F0F13)),
+                contentAlignment = Alignment.Center
             ) {
-                items(filteredStreams) { stream ->
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E24)),
+                if (!stream.streamIcon.isNullOrBlank()) {
+                    AsyncImage(
+                        model = stream.streamIcon,
+                        contentDescription = stream.name,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Default.Warning,
+                        contentDescription = null,
+                        tint = Color.DarkGray,
+                        modifier = Modifier.size(36.dp)
+                    )
+                }
+
+                // Rating Badge (on top of poster)
+                val cleanRating = stream.rating?.trim()
+                if (!cleanRating.isNullOrBlank() && cleanRating != "0" && cleanRating != "0.0") {
+                    Box(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onMovieSelected(stream) }
+                            .align(Alignment.TopEnd)
+                            .padding(8.dp)
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(Color(0xCC000000))
+                            .padding(horizontal = 6.dp, vertical = 3.dp)
                     ) {
-                        Column {
-                            // Poster Box
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .aspectRatio(2f / 3f)
-                                    .background(Color(0xFF0F0F13)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                if (!stream.streamIcon.isNullOrBlank()) {
-                                    AsyncImage(
-                                        model = stream.streamIcon,
-                                        contentDescription = stream.name,
-                                        contentScale = ContentScale.Crop,
-                                        modifier = Modifier.fillMaxSize()
-                                    )
-                                } else {
-                                    Icon(
-                                        imageVector = Icons.Default.PlayArrow,
-                                        contentDescription = null,
-                                        tint = Color.DarkGray,
-                                        modifier = Modifier.size(36.dp)
-                                    )
-                                }
-
-                                // Rating Badge
-                                val cleanRating = stream.rating?.trim()
-                                if (!cleanRating.isNullOrBlank() && cleanRating != "0" && cleanRating != "0.0") {
-                                    Box(
-                                        modifier = Modifier
-                                            .align(Alignment.TopEnd)
-                                            .padding(6.dp)
-                                            .clip(RoundedCornerShape(4.dp))
-                                            .background(Color(0xCC000000))
-                                            .padding(horizontal = 6.dp, vertical = 3.dp)
-                                    ) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Icon(Icons.Default.Star, contentDescription = null, tint = Color.Yellow, modifier = Modifier.size(10.dp))
-                                            Spacer(modifier = Modifier.width(3.dp))
-                                            Text(cleanRating, color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                                        }
-                                    }
-                                }
-                            }
-
-                            // Movie Title
-                            Text(
-                                text = stream.name,
-                                color = Color.White,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 13.sp,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(8.dp),
-                                textAlign = TextAlign.Center
-                            )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Star, contentDescription = null, tint = Color.Yellow, modifier = Modifier.size(12.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(cleanRating, color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
             }
+
+            // Title
+            Text(
+                text = stream.name,
+                color = Color.White,
+                fontWeight = FontWeight.Bold,
+                fontSize = 11.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(6.dp),
+                textAlign = TextAlign.Center
+            )
         }
     }
 }

@@ -177,9 +177,10 @@ class VodRepositoryImpl @Inject constructor(
 
     override suspend fun getVodStreams(categoryId: String, forceRefresh: Boolean): List<VodStream> {
         val currentTime = System.currentTimeMillis()
+        val apiCategoryId = if (categoryId == "all") null else categoryId
 
         if (!forceRefresh) {
-            val localStreams = vodDao.getStreamsByCategory(categoryId)
+            val localStreams = if (categoryId == "all") vodDao.getAllStreams() else vodDao.getStreamsByCategory(categoryId)
             if (localStreams.isNotEmpty()) {
                 val lastCachedAt = localStreams.first().cachedAt
                 if (currentTime - lastCachedAt < CACHE_EXPIRY_MILLIS) {
@@ -193,11 +194,12 @@ class VodRepositoryImpl @Inject constructor(
         val creds = credentialsManager.getCredentials()
             ?: throw InvalidCredentialsException("Utilisateur non connecté.")
 
-        val remoteStreams = apiService.getVodStreams(creds.username, creds.password, categoryId)
+        val remoteStreams = apiService.getVodStreams(creds.username, creds.password, apiCategoryId)
 
         val entities = remoteStreams.mapNotNull { dto ->
             val id = dto.streamId
             val name = dto.name
+            val itemCategoryId = dto.categoryId ?: categoryId
             if (id != null && name != null) {
                 VodStreamEntity(
                     streamId = id,
@@ -205,13 +207,18 @@ class VodRepositoryImpl @Inject constructor(
                     streamIcon = dto.streamIcon,
                     rating = dto.rating,
                     added = dto.added,
-                    categoryId = categoryId,
+                    categoryId = itemCategoryId,
                     cachedAt = currentTime
                 )
             } else null
         }
 
-        vodDao.clearStreamsByCategory(categoryId)
+        if (categoryId == "all") {
+            vodDao.clearAllStreams()
+        } else {
+            vodDao.clearStreamsByCategory(categoryId)
+        }
+        
         if (entities.isNotEmpty()) {
             vodDao.insertStreams(entities)
         }

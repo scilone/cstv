@@ -22,6 +22,9 @@ interface VodDao {
     suspend fun clearCategories()
 
     // --- Streams ---
+    @Query("SELECT * FROM vod_streams ORDER BY name ASC")
+    suspend fun getAllStreams(): List<VodStreamEntity>
+
     @Query("SELECT * FROM vod_streams WHERE categoryId = :categoryId ORDER BY name ASC")
     suspend fun getStreamsByCategory(categoryId: String): List<VodStreamEntity>
 

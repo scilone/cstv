@@ -31,7 +31,7 @@ interface XtreamApiService {
     suspend fun getLiveStreams(
         @Query("username") username: String,
         @Query("password") password: String,
-        @Query("category_id") categoryId: String,
+        @Query("category_id") categoryId: String? = null,
         @Query("action") action: String = "get_live_streams"
     ): List<LiveStreamDto>
 
@@ -46,7 +46,7 @@ interface XtreamApiService {
     suspend fun getVodStreams(
         @Query("username") username: String,
         @Query("password") password: String,
-        @Query("category_id") categoryId: String,
+        @Query("category_id") categoryId: String? = null,
         @Query("action") action: String = "get_vod_streams"
     ): List<VodStreamDto>
 
@@ -69,7 +69,7 @@ interface XtreamApiService {
     suspend fun getSeriesStreams(
         @Query("username") username: String,
         @Query("password") password: String,
-        @Query("category_id") categoryId: String,
+        @Query("category_id") categoryId: String? = null,
         @Query("action") action: String = "get_series"
     ): List<SeriesStreamDto>
 

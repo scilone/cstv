@@ -4,7 +4,6 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -112,7 +111,6 @@ fun LiveTvScreen(
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun TvLayout(
     state: LiveTvState,
@@ -127,85 +125,103 @@ private fun TvLayout(
     onSearchQueryChanged: (String) -> Unit,
     isSpecificCategory: Boolean
 ) {
-    Row(modifier = Modifier.fillMaxSize()) {
-        // Left Column: Categories
-        Column(
-            modifier = Modifier
-                .width(260.dp)
-                .fillMaxHeight()
-                .background(Color(0xFF16161D))
-                .padding(8.dp)
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 12.dp)
-            ) {
-                Text(
-                    text = "CATÉGORIES",
-                    color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp
-                )
-                IconButton(onClick = onRefresh) {
-                    Icon(Icons.Default.Refresh, contentDescription = "Rafraîchir", tint = Color.White)
-                }
-            }
+    val isAllSelected = state.selectedCategory?.categoryId == "all"
 
-            LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(6.dp),
-                modifier = Modifier.weight(1f).focusGroup()
+    val groupedStreams = remember(filteredStreams) {
+        filteredStreams.groupBy { it.categoryId }
+    }
+    val actualCategories = remember(state.categories) {
+        state.categories.filter { it.categoryId != "all" }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+    ) {
+        // Top categories filter row
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 12.dp)
+        ) {
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier.weight(1f)
             ) {
                 items(state.categories) { category ->
                     val isSelected = state.selectedCategory?.categoryId == category.categoryId
-                    CategoryTvItem(
+                    CategoryFilterChip(
                         category = category,
                         isSelected = isSelected,
-                        onFocus = { onCategorySelected(category) }
+                        onClick = { onCategorySelected(category) }
+                    )
+                }
+            }
+            IconButton(onClick = onRefresh) {
+                Icon(Icons.Default.Refresh, contentDescription = "Rafraîchir", tint = Color.White)
+            }
+        }
+
+        // Recently Watched TV row (if present)
+        if (state.recentlyWatched.isNotEmpty()) {
+            Text(
+                text = "RÉCEMMENT REGARDÉES",
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.Bold,
+                fontSize = 13.sp,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp)
+            ) {
+                items(state.recentlyWatched) { stream ->
+                    RecentlyWatchedTvItem(
+                        stream = stream,
+                        onClick = { onRecentlyWatchedSelected(stream) }
                     )
                 }
             }
         }
 
-        // Right Section: Streams Grid
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxHeight()
-                .padding(16.dp)
-        ) {
-            if (state.recentlyWatched.isNotEmpty()) {
-                Text(
-                    text = "RÉCEMMENT REGARDÉES",
-                    color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 13.sp,
-                    modifier = Modifier.padding(bottom = 8.dp)
-                )
-
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 16.dp)
-                ) {
-                    items(state.recentlyWatched) { stream ->
-                        RecentlyWatchedTvItem(
-                            stream = stream,
-                            onClick = { onRecentlyWatchedSelected(stream) }
+        if (state.isLoadingStreams || state.isLoadingCategories) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+            }
+        } else if (isAllSelected) {
+            // Mode "Tout" : vertical categories horizontal rows list
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                modifier = Modifier.fillMaxSize()
+            ) {
+                items(actualCategories) { category ->
+                    val catStreams = groupedStreams[category.categoryId] ?: emptyList()
+                    if (catStreams.isNotEmpty()) {
+                        CategorySectionRow(
+                            title = category.categoryName,
+                            streams = catStreams,
+                            favoritesList = favoritesList,
+                            onToggleFavorite = onToggleFavorite,
+                            onStreamSelected = onStreamSelected,
+                            isTv = true
                         )
                     }
                 }
             }
-
+        } else {
+            // Mode "Catégorie spécifique" : Search & Vertical Grid
             Text(
                 text = state.selectedCategory?.categoryName?.uppercase() ?: "CHAÎNES",
                 color = Color.White,
                 fontWeight = FontWeight.Bold,
                 fontSize = 18.sp,
-                modifier = Modifier.padding(bottom = 16.dp)
+                modifier = Modifier.padding(bottom = 12.dp)
             )
 
             if (isSpecificCategory) {
@@ -227,11 +243,7 @@ private fun TvLayout(
                 )
             }
 
-            if (state.isLoadingStreams || state.isLoadingCategories) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
-                }
-            } else if (filteredStreams.isEmpty()) {
+            if (filteredStreams.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(
                         text = if (searchQuery.isBlank()) "Aucune chaîne dans cette catégorie" else "Aucun résultat pour « $searchQuery »",
@@ -243,7 +255,7 @@ private fun TvLayout(
                     columns = GridCells.Fixed(3),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
-                    modifier = Modifier.fillMaxSize().focusGroup()
+                    modifier = Modifier.fillMaxSize()
                 ) {
                     items(filteredStreams) { stream ->
                         val isFav = favoritesList.any { it.id == stream.streamId && it.type == "live" }
@@ -255,134 +267,6 @@ private fun TvLayout(
                         )
                     }
                 }
-            }
-        }
-    }
-}
-
-@Composable
-private fun CategoryTvItem(
-    category: LiveCategory,
-    isSelected: Boolean,
-    onFocus: () -> Unit
-) {
-    var isFocused by remember { mutableStateOf(false) }
-
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
-            .onFocusChanged { 
-                isFocused = it.isFocused
-                if (it.isFocused) onFocus()
-            }
-            .background(
-                when {
-                    isFocused -> MaterialTheme.colorScheme.primary
-                    isSelected -> Color(0xFF2C2C35)
-                    else -> Color.Transparent
-                }
-            )
-            .clickable { onFocus() }
-            .padding(horizontal = 12.dp, vertical = 10.dp)
-    ) {
-        Text(
-            text = category.categoryName,
-            color = if (isFocused) Color.Black else Color.White,
-            fontWeight = if (isSelected || isFocused) FontWeight.Bold else FontWeight.Normal,
-            fontSize = 14.sp,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
-    }
-}
-
-@Composable
-private fun StreamTvCard(
-    stream: LiveStream,
-    isFavorite: Boolean,
-    onToggleFavorite: () -> Unit,
-    onClick: () -> Unit
-) {
-    var isFocused by remember { mutableStateOf(false) }
-
-    Card(
-        colors = CardDefaults.cardColors(
-            containerColor = if (isFocused) Color(0xFF23232D) else Color(0xFF1A1A24)
-        ),
-        modifier = Modifier
-            .fillMaxWidth()
-            .onFocusChanged { isFocused = it.isFocused }
-            .border(
-                width = 2.dp,
-                color = if (isFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
-                shape = RoundedCornerShape(12.dp)
-            )
-            .clickable { onClick() }
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(8.dp)
-        ) {
-            // Channel Logo
-            Box(
-                modifier = Modifier
-                    .size(54.dp)
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(Color(0xFF0F0F13)),
-                contentAlignment = Alignment.Center
-            ) {
-                if (!stream.streamIcon.isNullOrBlank()) {
-                    AsyncImage(
-                        model = stream.streamIcon,
-                        contentDescription = stream.name,
-                        contentScale = ContentScale.Fit,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                } else {
-                    Icon(
-                        imageVector = Icons.Default.PlayArrow,
-                        contentDescription = null,
-                        tint = Color.Gray,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.width(12.dp))
-
-            // Info
-            Column(modifier = Modifier.weight(1f)) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(
-                        text = "CH ${stream.num}",
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 11.sp
-                    )
-                    
-                    // Tiny Star indicator inside the card
-                    Icon(
-                        imageVector = Icons.Default.Star,
-                        contentDescription = null,
-                        tint = if (isFavorite) Color.Yellow else Color(0x33FFFFFF),
-                        modifier = Modifier
-                            .size(16.dp)
-                            .clickable { onToggleFavorite() }
-                    )
-                }
-                Text(
-                    text = stream.name,
-                    color = Color.White,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 13.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
             }
         }
     }
@@ -402,8 +286,17 @@ private fun MobileLayout(
     onSearchQueryChanged: (String) -> Unit,
     isSpecificCategory: Boolean
 ) {
+    val isAllSelected = state.selectedCategory?.categoryId == "all"
+
+    val groupedStreams = remember(filteredStreams) {
+        filteredStreams.groupBy { it.categoryId }
+    }
+    val actualCategories = remember(state.categories) {
+        state.categories.filter { it.categoryId != "all" }
+    }
+
     Column(modifier = Modifier.fillMaxSize()) {
-        // Categories Row
+        // Top categories row
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
@@ -417,20 +310,11 @@ private fun MobileLayout(
             ) {
                 items(state.categories) { category ->
                     val isSelected = state.selectedCategory?.categoryId == category.categoryId
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(if (isSelected) MaterialTheme.colorScheme.primary else Color(0xFF2A2A35))
-                            .clickable { onCategorySelected(category) }
-                            .padding(horizontal = 14.dp, vertical = 6.dp)
-                    ) {
-                        Text(
-                            text = category.categoryName,
-                            color = if (isSelected) Color.Black else Color.White,
-                            fontSize = 13.sp,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                        )
-                    }
+                    CategoryFilterChip(
+                        category = category,
+                        isSelected = isSelected,
+                        onClick = { onCategorySelected(category) }
+                    )
                 }
             }
 
@@ -439,6 +323,7 @@ private fun MobileLayout(
             }
         }
 
+        // Recently watched list (if present)
         if (state.recentlyWatched.isNotEmpty()) {
             Column(
                 modifier = Modifier
@@ -467,121 +352,305 @@ private fun MobileLayout(
             }
         }
 
-        if (isSpecificCategory) {
-            OutlinedTextField(
-                value = searchQuery,
-                onValueChange = onSearchQueryChanged,
-                placeholder = { Text("Rechercher dans cette catégorie...", color = Color.Gray, fontSize = 13.sp) },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp)) },
-                singleLine = true,
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = MaterialTheme.colorScheme.primary,
-                    unfocusedBorderColor = Color.DarkGray,
-                    focusedTextColor = Color.White,
-                    unfocusedTextColor = Color.White
-                ),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 6.dp)
-            )
-        }
-
-        // List of Streams
         if (state.isLoadingStreams || state.isLoadingCategories) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
             }
-        } else if (filteredStreams.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(
-                    text = if (searchQuery.isBlank()) "Aucune chaîne dans cette catégorie" else "Aucun résultat pour « $searchQuery »",
-                    color = Color.Gray
-                )
+        } else if (isAllSelected) {
+            // Mode "Tout" : list of horizontal rows
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                contentPadding = PaddingValues(vertical = 8.dp)
+            ) {
+                items(actualCategories) { category ->
+                    val catStreams = groupedStreams[category.categoryId] ?: emptyList()
+                    if (catStreams.isNotEmpty()) {
+                        CategorySectionRow(
+                            title = category.categoryName,
+                            streams = catStreams,
+                            favoritesList = favoritesList,
+                            onToggleFavorite = onToggleFavorite,
+                            onStreamSelected = onStreamSelected,
+                            isTv = false
+                        )
+                    }
+                }
             }
         } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(filteredStreams) { stream ->
-                    val isFav = favoritesList.any { it.id == stream.streamId && it.type == "live" }
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E24)),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onStreamSelected(stream) }
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(10.dp)
+            // Mode "Catégorie spécifique" : Search & Vertical List
+            if (isSpecificCategory) {
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = onSearchQueryChanged,
+                    placeholder = { Text("Rechercher dans cette catégorie...", color = Color.Gray, fontSize = 13.sp) },
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp)) },
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = Color.DarkGray,
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                )
+            }
+
+            if (filteredStreams.isEmpty()) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text(
+                        text = if (searchQuery.isBlank()) "Aucune chaîne dans cette catégorie" else "Aucun résultat pour « $searchQuery »",
+                        color = Color.Gray
+                    )
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(filteredStreams) { stream ->
+                        val isFav = favoritesList.any { it.id == stream.streamId && it.type == "live" }
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E24)),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onStreamSelected(stream) }
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(60.dp)
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(Color(0xFF0F0F13)),
-                                contentAlignment = Alignment.Center
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(10.dp)
                             ) {
-                                if (!stream.streamIcon.isNullOrBlank()) {
-                                    AsyncImage(
-                                        model = stream.streamIcon,
-                                        contentDescription = stream.name,
-                                        contentScale = ContentScale.Fit,
-                                        modifier = Modifier.fillMaxSize()
+                                Box(
+                                    modifier = Modifier
+                                        .size(60.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(Color(0xFF0F0F13)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    if (!stream.streamIcon.isNullOrBlank()) {
+                                        AsyncImage(
+                                            model = stream.streamIcon,
+                                            contentDescription = stream.name,
+                                            contentScale = ContentScale.Fit,
+                                            modifier = Modifier.fillMaxSize()
+                                        )
+                                    } else {
+                                        Icon(
+                                            imageVector = Icons.Default.PlayArrow,
+                                            contentDescription = null,
+                                            tint = Color.Gray,
+                                            modifier = Modifier.size(28.dp)
+                                        )
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.width(12.dp))
+
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "CH ${stream.num}",
+                                        color = MaterialTheme.colorScheme.primary,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold
                                     )
-                                } else {
-                                    Icon(
-                                        imageVector = Icons.Default.PlayArrow,
-                                        contentDescription = null,
-                                        tint = Color.Gray,
-                                        modifier = Modifier.size(28.dp)
+                                    Text(
+                                        text = stream.name,
+                                        color = Color.White,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
                                     )
                                 }
-                            }
 
-                            Spacer(modifier = Modifier.width(12.dp))
+                                IconButton(onClick = { onToggleFavorite(stream) }) {
+                                    Icon(
+                                        imageVector = Icons.Default.Star,
+                                        contentDescription = "Favori",
+                                        tint = if (isFav) Color.Yellow else Color.DarkGray
+                                    )
+                                }
 
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = "CH ${stream.num}",
-                                    color = MaterialTheme.colorScheme.primary,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Text(
-                                    text = stream.name,
-                                    color = Color.White,
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
+                                Spacer(modifier = Modifier.width(4.dp))
 
-                            // Favorite Toggle Star button next to Play arrow
-                            IconButton(onClick = { onToggleFavorite(stream) }) {
                                 Icon(
-                                    imageVector = Icons.Default.Star,
-                                    contentDescription = "Favori",
-                                    tint = if (isFav) Color.Yellow else Color.DarkGray
+                                    imageVector = Icons.Default.PlayArrow,
+                                    contentDescription = "Play",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(24.dp)
                                 )
                             }
-
-                            Spacer(modifier = Modifier.width(4.dp))
-
-                            Icon(
-                                imageVector = Icons.Default.PlayArrow,
-                                contentDescription = "Play",
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(24.dp)
-                            )
                         }
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun CategorySectionRow(
+    title: String,
+    streams: List<LiveStream>,
+    favoritesList: List<FavoriteItem>,
+    onToggleFavorite: (LiveStream) -> Unit,
+    onStreamSelected: (LiveStream) -> Unit,
+    isTv: Boolean
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+    ) {
+        Text(
+            text = title.uppercase(),
+            color = Color.LightGray,
+            fontWeight = FontWeight.Bold,
+            fontSize = 14.sp,
+            modifier = Modifier.padding(start = 12.dp, bottom = 6.dp)
+        )
+
+        LazyRow(
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            contentPadding = PaddingValues(horizontal = 12.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            items(streams) { stream ->
+                val isFav = favoritesList.any { it.id == stream.streamId && it.type == "live" }
+                if (isTv) {
+                    StreamTvCard(
+                        stream = stream,
+                        isFavorite = isFav,
+                        onToggleFavorite = { onToggleFavorite(stream) },
+                        onClick = { onStreamSelected(stream) }
+                    )
+                } else {
+                    MobileStreamCard(
+                        stream = stream,
+                        isFavorite = isFav,
+                        onToggleFavorite = { onToggleFavorite(stream) },
+                        onClick = { onStreamSelected(stream) }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MobileStreamCard(
+    stream: LiveStream,
+    isFavorite: Boolean,
+    onToggleFavorite: () -> Unit,
+    onClick: () -> Unit
+) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E24)),
+        modifier = Modifier
+            .width(140.dp)
+            .clickable { onClick() }
+    ) {
+        Column(modifier = Modifier.padding(8.dp)) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(80.dp)
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(Color(0xFF0F0F13)),
+                contentAlignment = Alignment.Center
+            ) {
+                if (!stream.streamIcon.isNullOrBlank()) {
+                    AsyncImage(
+                        model = stream.streamIcon,
+                        contentDescription = stream.name,
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Default.PlayArrow,
+                        contentDescription = null,
+                        tint = Color.Gray,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            Text(
+                text = stream.name,
+                color = Color.White,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+            ) {
+                Text(
+                    text = "CH ${stream.num}",
+                    color = MaterialTheme.colorScheme.primary,
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                IconButton(
+                    onClick = onToggleFavorite,
+                    modifier = Modifier.size(20.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Star,
+                        contentDescription = "Favori",
+                        tint = if (isFavorite) Color.Yellow else Color.DarkGray,
+                        modifier = Modifier.size(14.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CategoryFilterChip(
+    category: LiveCategory,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    var isFocused by remember { mutableStateOf(false) }
+
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(16.dp))
+            .onFocusChanged { isFocused = it.isFocused }
+            .border(
+                width = 2.dp,
+                color = if (isFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
+                shape = RoundedCornerShape(16.dp)
+            )
+            .background(
+                when {
+                    isSelected -> MaterialTheme.colorScheme.primary
+                    isFocused -> Color(0xFF2C2C35)
+                    else -> Color(0xFF2A2A35)
+                }
+            )
+            .clickable { onClick() }
+            .padding(horizontal = 14.dp, vertical = 6.dp)
+    ) {
+        Text(
+            text = category.categoryName,
+            color = if (isSelected) Color.Black else Color.White,
+            fontSize = 13.sp,
+            fontWeight = if (isSelected || isFocused) FontWeight.Bold else FontWeight.Normal
+        )
     }
 }
 
@@ -653,6 +722,127 @@ private fun RecentlyWatchedTvItem(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CategoryTvItem(
+    category: LiveCategory,
+    isSelected: Boolean,
+    onFocus: () -> Unit
+) {
+    var isFocused by remember { mutableStateOf(false) }
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .onFocusChanged { 
+                isFocused = it.isFocused
+                if (it.isFocused) onFocus()
+            }
+            .background(
+                when {
+                    isFocused -> MaterialTheme.colorScheme.primary
+                    isSelected -> Color(0xFF2C2C35)
+                    else -> Color.Transparent
+                }
+            )
+            .clickable { onFocus() }
+            .padding(10.dp)
+    ) {
+        Text(
+            text = category.categoryName,
+            color = if (isFocused) Color.Black else Color.White,
+            fontWeight = FontWeight.Bold,
+            fontSize = 13.sp
+        )
+    }
+}
+
+@Composable
+private fun StreamTvCard(
+    stream: LiveStream,
+    isFavorite: Boolean,
+    onToggleFavorite: () -> Unit,
+    onClick: () -> Unit
+) {
+    var isFocused by remember { mutableStateOf(false) }
+
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = if (isFocused) Color(0xFF23232D) else Color(0xFF1E1E24)
+        ),
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(72.dp)
+            .onFocusChanged { isFocused = it.isFocused }
+            .border(
+                width = 2.dp,
+                color = if (isFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
+                shape = RoundedCornerShape(12.dp)
+            )
+            .clip(RoundedCornerShape(12.dp))
+            .clickable { onClick() }
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(8.dp).fillMaxSize()
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(56.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color(0xFF0F0F13)),
+                contentAlignment = Alignment.Center
+            ) {
+                if (!stream.streamIcon.isNullOrBlank()) {
+                    AsyncImage(
+                        model = stream.streamIcon,
+                        contentDescription = stream.name,
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Default.PlayArrow,
+                        contentDescription = null,
+                        tint = Color.Gray,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "CH ${stream.num}",
+                    color = MaterialTheme.colorScheme.primary,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = stream.name,
+                    color = Color.White,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+
+            // Favorite Star on focus or favorite status
+            if (isFocused || isFavorite) {
+                IconButton(onClick = onToggleFavorite) {
+                    Icon(
+                        imageVector = Icons.Default.Star,
+                        contentDescription = "Favori",
+                        tint = if (isFavorite) Color.Yellow else Color.DarkGray
+                    )
+                }
             }
         }
     }

@@ -72,9 +72,10 @@ class LiveTvRepositoryImpl @Inject constructor(
 
     override suspend fun getLiveStreams(categoryId: String, forceRefresh: Boolean): List<LiveStream> {
         val currentTime = System.currentTimeMillis()
+        val apiCategoryId = if (categoryId == "all") null else categoryId
 
         if (!forceRefresh) {
-            val localStreams = liveTvDao.getStreamsByCategory(categoryId)
+            val localStreams = if (categoryId == "all") liveTvDao.getAllStreams() else liveTvDao.getStreamsByCategory(categoryId)
             if (localStreams.isNotEmpty()) {
                 val lastCachedAt = localStreams.first().cachedAt
                 if (currentTime - lastCachedAt < CACHE_EXPIRY_MILLIS) {
@@ -89,12 +90,13 @@ class LiveTvRepositoryImpl @Inject constructor(
         val creds = credentialsManager.getCredentials() 
             ?: throw InvalidCredentialsException("Utilisateur non connecté ou session expirée.")
 
-        val remoteStreams = apiService.getLiveStreams(creds.username, creds.password, categoryId)
+        val remoteStreams = apiService.getLiveStreams(creds.username, creds.password, apiCategoryId)
 
         // Defensive Mapping & Storage
         val entities = remoteStreams.mapNotNull { dto ->
             val id = dto.streamId
             val name = dto.name
+            val itemCategoryId = dto.categoryId ?: categoryId
             if (id != null && name != null) {
                 LiveStreamEntity(
                     streamId = id,
@@ -102,14 +104,19 @@ class LiveTvRepositoryImpl @Inject constructor(
                     streamIcon = dto.streamIcon,
                     epgChannelId = dto.epgChannelId,
                     num = dto.num ?: 0,
-                    categoryId = categoryId,
+                    categoryId = itemCategoryId,
                     cachedAt = currentTime
                 )
             } else null
         }
 
         // Insert into cache
-        liveTvDao.clearStreamsByCategory(categoryId)
+        if (categoryId == "all") {
+            liveTvDao.clearAllStreams()
+        } else {
+            liveTvDao.clearStreamsByCategory(categoryId)
+        }
+
         if (entities.isNotEmpty()) {
             liveTvDao.insertStreams(entities)
         }

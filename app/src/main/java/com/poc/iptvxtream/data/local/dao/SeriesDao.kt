@@ -21,6 +21,9 @@ interface SeriesDao {
     suspend fun clearCategories()
 
     // --- Streams ---
+    @Query("SELECT * FROM series_streams ORDER BY name ASC")
+    suspend fun getAllStreams(): List<SeriesStreamEntity>
+
     @Query("SELECT * FROM series_streams WHERE categoryId = :categoryId ORDER BY name ASC")
     suspend fun getStreamsByCategory(categoryId: String): List<SeriesStreamEntity>
 

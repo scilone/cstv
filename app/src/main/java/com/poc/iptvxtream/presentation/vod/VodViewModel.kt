@@ -40,14 +40,15 @@ class VodViewModel @Inject constructor(
             _state.update { it.copy(isLoadingCategories = true, error = null) }
             try {
                 val categories = getVodCategoriesUseCase(forceRefresh)
+                val finalCategories = listOf(VodCategory("all", "Tout", 0)) + categories
                 _state.update { 
                     it.copy(
-                        categories = categories, 
-                        selectedCategory = categories.firstOrNull(),
+                        categories = finalCategories, 
+                        selectedCategory = finalCategories.firstOrNull(),
                         isLoadingCategories = false
                     ) 
                 }
-                categories.firstOrNull()?.let { 
+                finalCategories.firstOrNull()?.let { 
                     loadStreams(it.categoryId, forceRefresh)
                 }
             } catch (e: Exception) {

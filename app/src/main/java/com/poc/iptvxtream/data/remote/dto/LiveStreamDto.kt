@@ -8,5 +8,6 @@ data class LiveStreamDto(
     @SerializedName("stream_icon") val streamIcon: String?,
     @SerializedName("epg_channel_id") val epgChannelId: String?,
     @SerializedName("num") val num: Int?,
-    @SerializedName("added") val added: String?
+    @SerializedName("added") val added: String?,
+    @SerializedName("category_id") val categoryId: String? = null
 )
