@@ -27,6 +27,10 @@ class VodRepositoryImpl @Inject constructor(
         private const val CACHE_EXPIRY_MILLIS = 24 * 60 * 60 * 1000L // 24 hours
     }
 
+    // Tracks whether a full ("all") bulk fetch has been done, so a partial
+    // per-category cache is never mistaken for the complete "Tout" cache.
+    private var lastAllStreamsSyncAt: Long = 0L
+
     private fun extractActors(actorsElement: JsonElement?, castElement: JsonElement?): String {
         val actorList = mutableListOf<String>()
 
@@ -180,12 +184,21 @@ class VodRepositoryImpl @Inject constructor(
         val apiCategoryId = if (categoryId == "all") null else categoryId
 
         if (!forceRefresh) {
-            val localStreams = if (categoryId == "all") vodDao.getAllStreams() else vodDao.getStreamsByCategory(categoryId)
-            if (localStreams.isNotEmpty()) {
-                val lastCachedAt = localStreams.first().cachedAt
-                if (currentTime - lastCachedAt < CACHE_EXPIRY_MILLIS) {
-                    return localStreams.map { 
+            if (categoryId == "all") {
+                if (lastAllStreamsSyncAt != 0L && currentTime - lastAllStreamsSyncAt < CACHE_EXPIRY_MILLIS) {
+                    val localStreams = vodDao.getAllStreams()
+                    return localStreams.map {
                         VodStream(it.streamId, it.name, it.streamIcon, it.rating, it.added, it.categoryId)
+                    }
+                }
+            } else {
+                val localStreams = vodDao.getStreamsByCategory(categoryId)
+                if (localStreams.isNotEmpty()) {
+                    val lastCachedAt = localStreams.first().cachedAt
+                    if (currentTime - lastCachedAt < CACHE_EXPIRY_MILLIS) {
+                        return localStreams.map {
+                            VodStream(it.streamId, it.name, it.streamIcon, it.rating, it.added, it.categoryId)
+                        }
                     }
                 }
             }
@@ -199,8 +212,11 @@ class VodRepositoryImpl @Inject constructor(
         val entities = remoteStreams.mapNotNull { dto ->
             val id = dto.streamId
             val name = dto.name
-            val itemCategoryId = dto.categoryId ?: categoryId
-            if (id != null && name != null) {
+            // In "all" mode there's no known category to fall back to; a stream without
+            // a category_id would otherwise be tagged with the literal "all" and become
+            // invisible in every section, so skip it instead.
+            val itemCategoryId = dto.categoryId ?: categoryId.takeIf { it != "all" }
+            if (id != null && name != null && itemCategoryId != null) {
                 VodStreamEntity(
                     streamId = id,
                     name = name,
@@ -218,9 +234,13 @@ class VodRepositoryImpl @Inject constructor(
         } else {
             vodDao.clearStreamsByCategory(categoryId)
         }
-        
+
         if (entities.isNotEmpty()) {
             vodDao.insertStreams(entities)
+        }
+
+        if (categoryId == "all") {
+            lastAllStreamsSyncAt = currentTime
         }
 
         return entities.map { 

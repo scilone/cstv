@@ -25,6 +25,10 @@ class SeriesRepositoryImpl @Inject constructor(
         private const val CACHE_EXPIRY_MILLIS = 24 * 60 * 60 * 1000L // 24 hours
     }
 
+    // Tracks whether a full ("all") bulk fetch has been done, so a partial
+    // per-category cache is never mistaken for the complete "Tout" cache.
+    private var lastAllStreamsSyncAt: Long = 0L
+
     private fun extractActors(actorsElement: JsonElement?, castElement: JsonElement?): String {
         val actorList = mutableListOf<String>()
 
@@ -122,12 +126,21 @@ class SeriesRepositoryImpl @Inject constructor(
         val apiCategoryId = if (categoryId == "all") null else categoryId
 
         if (!forceRefresh) {
-            val localStreams = if (categoryId == "all") seriesDao.getAllStreams() else seriesDao.getStreamsByCategory(categoryId)
-            if (localStreams.isNotEmpty()) {
-                val lastCachedAt = localStreams.first().cachedAt
-                if (currentTime - lastCachedAt < CACHE_EXPIRY_MILLIS) {
-                    return localStreams.map { 
+            if (categoryId == "all") {
+                if (lastAllStreamsSyncAt != 0L && currentTime - lastAllStreamsSyncAt < CACHE_EXPIRY_MILLIS) {
+                    val localStreams = seriesDao.getAllStreams()
+                    return localStreams.map {
                         SeriesStream(it.seriesId, it.name, it.cover, it.rating, it.added, it.categoryId)
+                    }
+                }
+            } else {
+                val localStreams = seriesDao.getStreamsByCategory(categoryId)
+                if (localStreams.isNotEmpty()) {
+                    val lastCachedAt = localStreams.first().cachedAt
+                    if (currentTime - lastCachedAt < CACHE_EXPIRY_MILLIS) {
+                        return localStreams.map {
+                            SeriesStream(it.seriesId, it.name, it.cover, it.rating, it.added, it.categoryId)
+                        }
                     }
                 }
             }
@@ -141,8 +154,11 @@ class SeriesRepositoryImpl @Inject constructor(
         val entities = remoteStreams.mapNotNull { dto ->
             val id = dto.seriesId
             val name = dto.name
-            val itemCategoryId = dto.categoryId ?: categoryId
-            if (id != null && name != null) {
+            // In "all" mode there's no known category to fall back to; a stream without
+            // a category_id would otherwise be tagged with the literal "all" and become
+            // invisible in every section, so skip it instead.
+            val itemCategoryId = dto.categoryId ?: categoryId.takeIf { it != "all" }
+            if (id != null && name != null && itemCategoryId != null) {
                 SeriesStreamEntity(
                     seriesId = id,
                     name = name,
@@ -160,9 +176,13 @@ class SeriesRepositoryImpl @Inject constructor(
         } else {
             seriesDao.clearStreamsByCategory(categoryId)
         }
-        
+
         if (entities.isNotEmpty()) {
             seriesDao.insertStreams(entities)
+        }
+
+        if (categoryId == "all") {
+            lastAllStreamsSyncAt = currentTime
         }
 
         return entities.map { 

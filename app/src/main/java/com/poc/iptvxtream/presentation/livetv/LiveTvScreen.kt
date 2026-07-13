@@ -23,6 +23,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.focusGroup
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -149,7 +150,7 @@ private fun TvLayout(
         ) {
             LazyRow(
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f).focusGroup()
             ) {
                 items(state.categories) { category ->
                     val isSelected = state.selectedCategory?.categoryId == category.categoryId
@@ -255,7 +256,7 @@ private fun TvLayout(
                     columns = GridCells.Fixed(3),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier.fillMaxSize().focusGroup()
                 ) {
                     items(filteredStreams) { stream ->
                         val isFav = favoritesList.any { it.id == stream.streamId && it.type == "live" }
@@ -517,7 +518,7 @@ private fun CategorySectionRow(
         LazyRow(
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             contentPadding = PaddingValues(horizontal = 12.dp),
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth().focusGroup()
         ) {
             items(streams) { stream ->
                 val isFav = favoritesList.any { it.id == stream.streamId && it.type == "live" }
@@ -724,41 +725,6 @@ private fun RecentlyWatchedTvItem(
                 )
             }
         }
-    }
-}
-
-@Composable
-private fun CategoryTvItem(
-    category: LiveCategory,
-    isSelected: Boolean,
-    onFocus: () -> Unit
-) {
-    var isFocused by remember { mutableStateOf(false) }
-
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
-            .onFocusChanged { 
-                isFocused = it.isFocused
-                if (it.isFocused) onFocus()
-            }
-            .background(
-                when {
-                    isFocused -> MaterialTheme.colorScheme.primary
-                    isSelected -> Color(0xFF2C2C35)
-                    else -> Color.Transparent
-                }
-            )
-            .clickable { onFocus() }
-            .padding(10.dp)
-    ) {
-        Text(
-            text = category.categoryName,
-            color = if (isFocused) Color.Black else Color.White,
-            fontWeight = FontWeight.Bold,
-            fontSize = 13.sp
-        )
     }
 }
 

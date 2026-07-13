@@ -42,14 +42,16 @@ class SeriesViewModel @Inject constructor(
             try {
                 val categories = getSeriesCategoriesUseCase(forceRefresh)
                 val finalCategories = listOf(SeriesCategory("all", "Tout", 0)) + categories
-                _state.update { 
+                val previousSelectedId = _state.value.selectedCategory?.categoryId
+                val newSelected = finalCategories.find { it.categoryId == previousSelectedId } ?: finalCategories.firstOrNull()
+                _state.update {
                     it.copy(
-                        categories = finalCategories, 
-                        selectedCategory = finalCategories.firstOrNull(),
+                        categories = finalCategories,
+                        selectedCategory = newSelected,
                         isLoadingCategories = false
-                    ) 
+                    )
                 }
-                finalCategories.firstOrNull()?.let { 
+                newSelected?.let {
                     loadStreams(it.categoryId, forceRefresh)
                 }
             } catch (e: Exception) {
