@@ -31,6 +31,7 @@ import coil.compose.AsyncImage
 import com.poc.iptvxtream.domain.model.LiveStream
 import com.poc.iptvxtream.domain.model.SeriesStream
 import com.poc.iptvxtream.domain.model.VodStream
+import com.poc.iptvxtream.domain.model.SearchSuggestion
 import com.poc.iptvxtream.presentation.favorites.FavoritesViewModel
 
 @Composable
@@ -82,100 +83,144 @@ fun SearchScreen(
                 )
             }
 
-            if (state.searchQuery.trim().isBlank()) {
-                Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    Text("Saisissez un mot-clé pour lancer la recherche locale.", color = Color.Gray, fontSize = 14.sp)
-                }
-            } else if (state.isSearching) {
-                Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
-                }
-            } else if (state.searchResult.isEmpty) {
-                Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    Text("Aucun résultat trouvé pour « ${state.searchQuery} ».", color = Color.Gray, fontSize = 14.sp)
-                }
-            } else {
-                LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(24.dp),
-                    modifier = Modifier.weight(1f).fillMaxWidth()
-                ) {
-                    // 1. Live TV Results Row
-                    if (state.searchResult.liveResults.isNotEmpty()) {
-                        item {
-                            Column(modifier = Modifier.fillMaxWidth()) {
-                                Text(
-                                    text = "CHAÎNES EN DIRECT (${state.searchResult.liveResults.size})",
-                                    color = MaterialTheme.colorScheme.primary,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 13.sp,
-                                    modifier = Modifier.padding(bottom = 10.dp, start = 4.dp)
-                                )
-                                LazyRow(
-                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                    modifier = Modifier.fillMaxWidth().focusGroup()
-                                ) {
-                                    items(state.searchResult.liveResults) { stream ->
-                                        SearchCardItem(
-                                            name = stream.name,
-                                            cover = stream.streamIcon,
-                                            isLive = true,
-                                            onClick = { onPlayLive(stream) }
-                                        )
+            Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                // Main search result or empty placeholder
+                if (state.searchQuery.trim().isBlank()) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text("Saisissez un mot-clé pour lancer la recherche locale.", color = Color.Gray, fontSize = 14.sp)
+                    }
+                } else if (state.isSearching) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                    }
+                } else if (state.searchResult.isEmpty) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text("Aucun résultat trouvé pour « ${state.searchQuery} ».", color = Color.Gray, fontSize = 14.sp)
+                    }
+                } else {
+                    LazyColumn(
+                        verticalArrangement = Arrangement.spacedBy(24.dp),
+                        modifier = Modifier.fillMaxSize()
+                    ) {
+                        // 1. Live TV Results Row
+                        if (state.searchResult.liveResults.isNotEmpty()) {
+                            item {
+                                Column(modifier = Modifier.fillMaxWidth()) {
+                                    Text(
+                                        text = "CHAÎNES EN DIRECT (${state.searchResult.liveResults.size})",
+                                        color = MaterialTheme.colorScheme.primary,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.sp,
+                                        modifier = Modifier.padding(bottom = 10.dp, start = 4.dp)
+                                    )
+                                    LazyRow(
+                                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                        modifier = Modifier.fillMaxWidth().focusGroup()
+                                    ) {
+                                        items(state.searchResult.liveResults) { stream ->
+                                            SearchCardItem(
+                                                name = stream.name,
+                                                cover = stream.streamIcon,
+                                                isLive = true,
+                                                onClick = { onPlayLive(stream) }
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // 2. VOD Movie Results Row
+                        if (state.searchResult.vodResults.isNotEmpty()) {
+                            item {
+                                Column(modifier = Modifier.fillMaxWidth()) {
+                                    Text(
+                                        text = "FILMS & VOD (${state.searchResult.vodResults.size})",
+                                        color = MaterialTheme.colorScheme.primary,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.sp,
+                                        modifier = Modifier.padding(bottom = 10.dp, start = 4.dp)
+                                    )
+                                    LazyRow(
+                                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                        modifier = Modifier.fillMaxWidth().focusGroup()
+                                    ) {
+                                        items(state.searchResult.vodResults) { stream ->
+                                            SearchCardItem(
+                                                name = stream.name,
+                                                cover = stream.streamIcon,
+                                                isLive = false,
+                                                onClick = { onSelectMovie(stream) }
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // 3. Series Results Row
+                        if (state.searchResult.seriesResults.isNotEmpty()) {
+                            item {
+                                Column(modifier = Modifier.fillMaxWidth()) {
+                                    Text(
+                                        text = "SÉRIES (${state.searchResult.seriesResults.size})",
+                                        color = MaterialTheme.colorScheme.primary,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.sp,
+                                        modifier = Modifier.padding(bottom = 10.dp, start = 4.dp)
+                                    )
+                                    LazyRow(
+                                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                        modifier = Modifier.fillMaxWidth().focusGroup()
+                                    ) {
+                                        items(state.searchResult.seriesResults) { stream ->
+                                            SearchCardItem(
+                                                name = stream.name,
+                                                cover = stream.cover,
+                                                isLive = false,
+                                                onClick = { onSelectSeries(stream) }
+                                            )
+                                        }
                                     }
                                 }
                             }
                         }
                     }
+                }
 
-                    // 2. VOD Movie Results Row
-                    if (state.searchResult.vodResults.isNotEmpty()) {
-                        item {
-                            Column(modifier = Modifier.fillMaxWidth()) {
-                                Text(
-                                    text = "FILMS & VOD (${state.searchResult.vodResults.size})",
-                                    color = MaterialTheme.colorScheme.primary,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 13.sp,
-                                    modifier = Modifier.padding(bottom = 10.dp, start = 4.dp)
-                                )
-                                LazyRow(
-                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                    modifier = Modifier.fillMaxWidth().focusGroup()
-                                ) {
-                                    items(state.searchResult.vodResults) { stream ->
-                                        SearchCardItem(
-                                            name = stream.name,
-                                            cover = stream.streamIcon,
-                                            isLive = false,
-                                            onClick = { onSelectMovie(stream) }
+                // Floating suggestions overlay
+                if (state.suggestions.isNotEmpty()) {
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E24)),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 12.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .wrapContentHeight()
+                            .align(Alignment.TopCenter)
+                    ) {
+                        LazyColumn(
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                            modifier = Modifier.fillMaxWidth().padding(8.dp).focusGroup()
+                        ) {
+                            items(state.suggestions) { suggestion ->
+                                when (suggestion) {
+                                    is SearchSuggestion.Term -> {
+                                        SuggestionTermRow(
+                                            term = suggestion.term,
+                                            onClick = { viewModel.selectSuggestionTerm(suggestion.term) }
                                         )
                                     }
-                                }
-                            }
-                        }
-                    }
-
-                    // 3. Series Results Row
-                    if (state.searchResult.seriesResults.isNotEmpty()) {
-                        item {
-                            Column(modifier = Modifier.fillMaxWidth()) {
-                                Text(
-                                    text = "SÉRIES (${state.searchResult.seriesResults.size})",
-                                    color = MaterialTheme.colorScheme.primary,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 13.sp,
-                                    modifier = Modifier.padding(bottom = 10.dp, start = 4.dp)
-                                )
-                                LazyRow(
-                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                    modifier = Modifier.fillMaxWidth().focusGroup()
-                                ) {
-                                    items(state.searchResult.seriesResults) { stream ->
-                                        SearchCardItem(
-                                            name = stream.name,
-                                            cover = stream.cover,
-                                            isLive = false,
-                                            onClick = { onSelectSeries(stream) }
+                                    is SearchSuggestion.Item -> {
+                                        SuggestionItemRow(
+                                            item = suggestion,
+                                            onClick = {
+                                                viewModel.clearSuggestions()
+                                                when (suggestion.type) {
+                                                    "live" -> onPlayLive(suggestion.underlyingItem as LiveStream)
+                                                    "movie" -> onSelectMovie(suggestion.underlyingItem as VodStream)
+                                                    "series" -> onSelectSeries(suggestion.underlyingItem as SeriesStream)
+                                                }
+                                            }
                                         )
                                     }
                                 }
@@ -185,6 +230,117 @@ fun SearchScreen(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun SuggestionTermRow(
+    term: String,
+    onClick: () -> Unit
+) {
+    var isFocused by remember { mutableStateOf(false) }
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(if (isFocused) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else Color.Transparent)
+            .border(1.dp, if (isFocused) MaterialTheme.colorScheme.primary else Color.Transparent, RoundedCornerShape(8.dp))
+            .clickable { onClick() }
+            .onFocusChanged { isFocused = it.isFocused }
+            .padding(horizontal = 12.dp, vertical = 10.dp)
+    ) {
+        Icon(
+            imageVector = Icons.Default.Search,
+            contentDescription = null,
+            tint = Color.Gray,
+            modifier = Modifier.size(18.dp)
+        )
+        Spacer(modifier = Modifier.width(12.dp))
+        Text(
+            text = term,
+            color = Color.White,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier.weight(1f)
+        )
+        Text(
+            text = "RECHERCHER",
+            color = MaterialTheme.colorScheme.primary,
+            fontSize = 9.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier
+                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f), RoundedCornerShape(4.dp))
+                .padding(horizontal = 6.dp, vertical = 2.dp)
+        )
+    }
+}
+
+@Composable
+private fun SuggestionItemRow(
+    item: SearchSuggestion.Item,
+    onClick: () -> Unit
+) {
+    var isFocused by remember { mutableStateOf(false) }
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(if (isFocused) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else Color.Transparent)
+            .border(1.dp, if (isFocused) MaterialTheme.colorScheme.primary else Color.Transparent, RoundedCornerShape(8.dp))
+            .clickable { onClick() }
+            .onFocusChanged { isFocused = it.isFocused }
+            .padding(horizontal = 12.dp, vertical = 8.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(width = 36.dp, height = 48.dp)
+                .clip(RoundedCornerShape(4.dp))
+                .background(Color.Black),
+            contentAlignment = Alignment.Center
+        ) {
+            if (!item.iconOrCover.isNullOrBlank()) {
+                AsyncImage(
+                    model = item.iconOrCover,
+                    contentDescription = item.name,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            } else {
+                Icon(
+                    imageVector = Icons.Default.PlayArrow,
+                    contentDescription = null,
+                    tint = Color.DarkGray,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+        }
+        Spacer(modifier = Modifier.width(12.dp))
+        Text(
+            text = item.name,
+            color = Color.White,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Medium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f)
+        )
+        val (label, labelColor) = when (item.type) {
+            "live" -> Pair("Direct TV", Color(0xFFE50914))
+            "movie" -> Pair("Film", Color(0xFF007A3E))
+            "series" -> Pair("Série", Color(0xFF0056B3))
+            else -> Pair("Élément", Color.Gray)
+        }
+        Text(
+            text = label.uppercase(),
+            color = Color.White,
+            fontSize = 9.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier
+                .background(labelColor, RoundedCornerShape(4.dp))
+                .padding(horizontal = 6.dp, vertical = 2.dp)
+        )
     }
 }
 

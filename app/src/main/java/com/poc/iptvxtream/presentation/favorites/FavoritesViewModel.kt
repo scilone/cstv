@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.poc.iptvxtream.domain.model.FavoriteItem
 import com.poc.iptvxtream.domain.model.SearchResult
+import com.poc.iptvxtream.domain.model.SearchSuggestion
 import com.poc.iptvxtream.domain.usecase.*
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -18,7 +19,8 @@ data class FavoritesUiState(
     val searchResult: SearchResult = SearchResult(),
     val searchQuery: String = "",
     val isSearching: Boolean = false,
-    val isLoadingFavorites: Boolean = false
+    val isLoadingFavorites: Boolean = false,
+    val suggestions: List<SearchSuggestion> = emptyList()
 )
 
 @HiltViewModel
@@ -27,7 +29,8 @@ class FavoritesViewModel @Inject constructor(
     private val addFavoriteUseCase: AddFavoriteUseCase,
     private val removeFavoriteUseCase: RemoveFavoriteUseCase,
     private val isFavoriteUseCase: IsFavoriteUseCase,
-    private val searchUnifiedUseCase: SearchUnifiedUseCase
+    private val searchUnifiedUseCase: SearchUnifiedUseCase,
+    private val getSearchSuggestionsUseCase: GetSearchSuggestionsUseCase
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(FavoritesUiState())
@@ -66,11 +69,36 @@ class FavoritesViewModel @Inject constructor(
     fun onSearchQueryChanged(query: String) {
         _state.update { it.copy(searchQuery = query) }
         performSearch(query)
+        loadSuggestions(query)
+    }
+
+    fun selectSuggestionTerm(term: String) {
+        _state.update { it.copy(searchQuery = term, suggestions = emptyList()) }
+        performSearch(term)
+    }
+
+    fun clearSuggestions() {
+        _state.update { it.copy(suggestions = emptyList()) }
+    }
+
+    private fun loadSuggestions(query: String) {
+        if (query.trim().isBlank()) {
+            _state.update { it.copy(suggestions = emptyList()) }
+            return
+        }
+        viewModelScope.launch {
+            try {
+                val suggs = getSearchSuggestionsUseCase(query)
+                _state.update { it.copy(suggestions = suggs) }
+            } catch (e: Exception) {
+                // Ignore suggestion fetching errors
+            }
+        }
     }
 
     private fun performSearch(query: String) {
         if (query.trim().isBlank()) {
-            _state.update { it.copy(searchResult = SearchResult(), isSearching = false) }
+            _state.update { it.copy(searchResult = SearchResult(), isSearching = false, suggestions = emptyList()) }
             return
         }
         viewModelScope.launch {
