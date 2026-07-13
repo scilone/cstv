@@ -2,6 +2,7 @@ package com.poc.iptvxtream.presentation.settings
 
 import com.poc.iptvxtream.data.local.storage.CategorySorting
 import com.poc.iptvxtream.data.local.storage.SettingsManager
+import com.poc.iptvxtream.data.local.storage.SyncFrequency
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -17,6 +18,9 @@ class SettingsViewModelTest {
     @Mock
     private lateinit var settingsManager: SettingsManager
 
+    @Mock
+    private lateinit var context: android.content.Context
+
     private lateinit var viewModel: SettingsViewModel
 
     @Before
@@ -27,8 +31,9 @@ class SettingsViewModelTest {
         whenever(settingsManager.getTvCategorySorting()).thenReturn(CategorySorting.DEFAULT)
         whenever(settingsManager.getVodCategorySorting()).thenReturn(CategorySorting.DEFAULT)
         whenever(settingsManager.getSeriesCategorySorting()).thenReturn(CategorySorting.DEFAULT)
+        whenever(settingsManager.getSyncFrequency()).thenReturn(SyncFrequency.DISABLED)
         
-        viewModel = SettingsViewModel(settingsManager)
+        viewModel = SettingsViewModel(settingsManager, context)
     }
 
     @Test
@@ -61,5 +66,13 @@ class SettingsViewModelTest {
         
         verify(settingsManager).setSeriesCategorySorting(CategorySorting.ALPHABETICAL)
         assertEquals(CategorySorting.ALPHABETICAL, viewModel.state.value.seriesSorting)
+    }
+
+    @Test
+    fun test_updateSyncFrequency_savesToSettingsManager_andUpdatesState() {
+        viewModel.updateSyncFrequency(SyncFrequency.DAILY)
+        
+        verify(settingsManager).setSyncFrequency(SyncFrequency.DAILY)
+        assertEquals(SyncFrequency.DAILY, viewModel.state.value.syncFrequency)
     }
 }

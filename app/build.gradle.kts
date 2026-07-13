@@ -110,6 +110,9 @@ dependencies {
     
     // Coil (Image loading)
     implementation("io.coil-kt:coil-compose:2.6.0")
+
+    // WorkManager
+    implementation("androidx.work:work-runtime-ktx:2.9.0")
     
     // Media3 ExoPlayer (Video playing)
     val media3Version = "1.3.1"

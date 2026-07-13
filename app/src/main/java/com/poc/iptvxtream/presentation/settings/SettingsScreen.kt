@@ -1,5 +1,6 @@
 package com.poc.iptvxtream.presentation.settings
 
+import com.poc.iptvxtream.data.local.storage.SyncFrequency
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -49,6 +50,7 @@ fun SettingsScreen(
                 onTvSortingChanged = { viewModel.updateTvSorting(it) },
                 onVodSortingChanged = { viewModel.updateVodSorting(it) },
                 onSeriesSortingChanged = { viewModel.updateSeriesSorting(it) },
+                onSyncFrequencyChanged = { viewModel.updateSyncFrequency(it) },
                 onBack = onBack,
                 onLogout = onLogout
             )
@@ -58,6 +60,7 @@ fun SettingsScreen(
                 onTvSortingChanged = { viewModel.updateTvSorting(it) },
                 onVodSortingChanged = { viewModel.updateVodSorting(it) },
                 onSeriesSortingChanged = { viewModel.updateSeriesSorting(it) },
+                onSyncFrequencyChanged = { viewModel.updateSyncFrequency(it) },
                 onBack = onBack,
                 onLogout = onLogout
             )
@@ -72,6 +75,7 @@ private fun TvSettingsLayout(
     onTvSortingChanged: (CategorySorting) -> Unit,
     onVodSortingChanged: (CategorySorting) -> Unit,
     onSeriesSortingChanged: (CategorySorting) -> Unit,
+    onSyncFrequencyChanged: (SyncFrequency) -> Unit,
     onBack: () -> Unit,
     onLogout: () -> Unit
 ) {
@@ -114,7 +118,7 @@ private fun TvSettingsLayout(
         }
 
         TvText(
-            text = "Configurez l'ordre d'affichage des catégories par défaut (ordre renvoyé par l'API) ou alphabétique pour chaque type de contenu.",
+            text = "Configurez l'ordre d'affichage des catégories par défaut (ordre renvoyé par l'API) ou alphabétique, ainsi que la mise à jour automatique en arrière-plan.",
             color = Color.Gray,
             style = TvTheme.typography.bodyMedium,
             modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
@@ -137,6 +141,11 @@ private fun TvSettingsLayout(
             title = "CATÉGORIES SÉRIES",
             currentSorting = state.seriesSorting,
             onSortingChanged = onSeriesSortingChanged
+        )
+
+        TvSyncFrequencyCard(
+            currentFrequency = state.syncFrequency,
+            onFrequencyChanged = onSyncFrequencyChanged
         )
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -252,6 +261,7 @@ private fun MobileSettingsLayout(
     onTvSortingChanged: (CategorySorting) -> Unit,
     onVodSortingChanged: (CategorySorting) -> Unit,
     onSeriesSortingChanged: (CategorySorting) -> Unit,
+    onSyncFrequencyChanged: (SyncFrequency) -> Unit,
     onBack: () -> Unit,
     onLogout: () -> Unit
 ) {
@@ -284,7 +294,7 @@ private fun MobileSettingsLayout(
         }
 
         Text(
-            text = "Configurez vos préférences de tri pour les catégories de contenus.",
+            text = "Configurez vos préférences de tri et de mise à jour en arrière-plan.",
             color = Color.Gray,
             fontSize = 14.sp,
             textAlign = TextAlign.Start,
@@ -315,6 +325,12 @@ private fun MobileSettingsLayout(
             description = "Ordre des catégories pour le catalogue de séries.",
             currentSorting = state.seriesSorting,
             onSortingChanged = onSeriesSortingChanged
+        )
+
+        // Background Sync Frequency
+        MobileSyncFrequencyCard(
+            currentFrequency = state.syncFrequency,
+            onFrequencyChanged = onSyncFrequencyChanged
         )
 
         Spacer(modifier = Modifier.height(24.dp))
@@ -417,5 +433,126 @@ private fun MobileSortingOptionButton(
             fontSize = 12.sp,
             fontWeight = FontWeight.Bold
         )
+    }
+}
+
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+private fun TvSyncFrequencyCard(
+    currentFrequency: SyncFrequency,
+    onFrequencyChanged: (SyncFrequency) -> Unit
+) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E24)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            TvText(
+                text = "FRÉQUENCE DE RAFRAÎCHISSEMENT DU CACHE",
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.Bold,
+                style = TvTheme.typography.titleMedium
+            )
+
+            TvText(
+                text = "Mise à jour automatique en arrière-plan des catégories et listes de chaînes, films et séries.",
+                color = Color.Gray,
+                style = TvTheme.typography.bodySmall
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                listOf(
+                    SyncFrequency.DISABLED to "DÉSACTIVÉ",
+                    SyncFrequency.DAILY to "QUOTIDIEN (24H)",
+                    SyncFrequency.WEEKLY to "HEBDOMADAIRE (7J)",
+                    SyncFrequency.MONTHLY to "MENSUEL (30J)"
+                ).forEach { (freq, label) ->
+                    TvSortingOptionButton(
+                        label = label,
+                        isSelected = currentFrequency == freq,
+                        onClick = { onFrequencyChanged(freq) },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MobileSyncFrequencyCard(
+    currentFrequency: SyncFrequency,
+    onFrequencyChanged: (SyncFrequency) -> Unit
+) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E24)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Column {
+                Text(
+                    text = "Mise à jour automatique du cache",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp
+                )
+                Text(
+                    text = "Mise à jour automatique en arrière-plan des catégories et listes de chaînes, films et séries.",
+                    color = Color.Gray,
+                    fontSize = 12.sp
+                )
+            }
+
+            Column(
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    MobileSortingOptionButton(
+                        label = "Désactivé",
+                        isSelected = currentFrequency == SyncFrequency.DISABLED,
+                        onClick = { onFrequencyChanged(SyncFrequency.DISABLED) },
+                        modifier = Modifier.weight(1f)
+                    )
+
+                    MobileSortingOptionButton(
+                        label = "Quotidien (24h)",
+                        isSelected = currentFrequency == SyncFrequency.DAILY,
+                        onClick = { onFrequencyChanged(SyncFrequency.DAILY) },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    MobileSortingOptionButton(
+                        label = "Hebdomadaire (7j)",
+                        isSelected = currentFrequency == SyncFrequency.WEEKLY,
+                        onClick = { onFrequencyChanged(SyncFrequency.WEEKLY) },
+                        modifier = Modifier.weight(1f)
+                    )
+
+                    MobileSortingOptionButton(
+                        label = "Mensuel (30j)",
+                        isSelected = currentFrequency == SyncFrequency.MONTHLY,
+                        onClick = { onFrequencyChanged(SyncFrequency.MONTHLY) },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+        }
     }
 }

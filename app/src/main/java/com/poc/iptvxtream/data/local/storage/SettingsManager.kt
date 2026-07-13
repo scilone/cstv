@@ -10,6 +10,13 @@ enum class CategorySorting {
     ALPHABETICAL
 }
 
+enum class SyncFrequency {
+    DISABLED,
+    DAILY,
+    WEEKLY,
+    MONTHLY
+}
+
 @Singleton
 class SettingsManager @Inject constructor(context: Context) {
 
@@ -23,6 +30,7 @@ class SettingsManager @Inject constructor(context: Context) {
         private const val KEY_SERIES_SORTING = "series_category_sorting"
         private const val KEY_PREFERRED_AUDIO = "preferred_audio"
         private const val KEY_PREFERRED_SUBTITLE = "preferred_subtitle"
+        private const val KEY_SYNC_FREQUENCY = "background_sync_frequency"
     }
 
     fun getPreferredAudio(): String? {
@@ -78,5 +86,18 @@ class SettingsManager @Inject constructor(context: Context) {
 
     fun setSeriesCategorySorting(sorting: CategorySorting) {
         sharedPreferences.edit().putString(KEY_SERIES_SORTING, sorting.name).apply()
+    }
+
+    fun getSyncFrequency(): SyncFrequency {
+        val name = sharedPreferences.getString(KEY_SYNC_FREQUENCY, SyncFrequency.DISABLED.name)
+        return try {
+            SyncFrequency.valueOf(name ?: SyncFrequency.DISABLED.name)
+        } catch (e: Exception) {
+            SyncFrequency.DISABLED
+        }
+    }
+
+    fun setSyncFrequency(frequency: SyncFrequency) {
+        sharedPreferences.edit().putString(KEY_SYNC_FREQUENCY, frequency.name).apply()
     }
 }
