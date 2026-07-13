@@ -7,6 +7,8 @@ import com.poc.iptvxtream.domain.model.SearchResult
 import com.poc.iptvxtream.domain.model.SearchSuggestion
 import com.poc.iptvxtream.domain.usecase.*
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -35,6 +37,9 @@ class FavoritesViewModel @Inject constructor(
 
     private val _state = MutableStateFlow(FavoritesUiState())
     val state: StateFlow<FavoritesUiState> = _state.asStateFlow()
+
+    private var suggestionsJob: Job? = null
+    private var searchJob: Job? = null
 
     init {
         loadFavorites()
@@ -82,11 +87,16 @@ class FavoritesViewModel @Inject constructor(
     }
 
     private fun loadSuggestions(query: String) {
+        // Annuler la requête précédente : sans cela, deux frappes rapprochées
+        // lancent des requêtes Room concurrentes qui peuvent résoudre dans le
+        // désordre et écraser les suggestions fraîches par des périmées.
+        suggestionsJob?.cancel()
         if (query.trim().isBlank()) {
             _state.update { it.copy(suggestions = emptyList()) }
             return
         }
-        viewModelScope.launch {
+        suggestionsJob = viewModelScope.launch {
+            delay(SUGGESTION_DEBOUNCE_MS)
             try {
                 val suggs = getSearchSuggestionsUseCase(query)
                 _state.update { it.copy(suggestions = suggs) }
@@ -97,14 +107,23 @@ class FavoritesViewModel @Inject constructor(
     }
 
     private fun performSearch(query: String) {
+        // Idem : annuler la recherche précédente pour éviter qu'un résultat
+        // périmé n'écrase un résultat plus récent (frappes rapprochées).
+        searchJob?.cancel()
         if (query.trim().isBlank()) {
             _state.update { it.copy(searchResult = SearchResult(), isSearching = false, suggestions = emptyList()) }
             return
         }
-        viewModelScope.launch {
+        searchJob = viewModelScope.launch {
+            delay(SEARCH_DEBOUNCE_MS)
             _state.update { it.copy(isSearching = true) }
             val result = searchUnifiedUseCase(query)
             _state.update { it.copy(searchResult = result, isSearching = false) }
         }
+    }
+
+    companion object {
+        private const val SUGGESTION_DEBOUNCE_MS = 200L
+        private const val SEARCH_DEBOUNCE_MS = 300L
     }
 }

@@ -153,7 +153,15 @@ class FavoritesRepositoryImpl @Inject constructor(
             if (it is SearchSuggestion.Item) it.name else ""
         })
 
-        val combined = terms + sortedItems
-        return combined.take(limit)
+        // Réserver au moins la moitié des emplacements aux items : sinon une
+        // requête matchant beaucoup d'acteurs/réalisateurs remplirait toute la
+        // limite de termes et masquerait les fiches précises (chaînes/films/séries),
+        // que l'utilisateur doit pouvoir sélectionner pour aller à leur détail.
+        val maxTerms = limit / 2
+        val cappedTerms = terms.take(maxTerms)
+        val remaining = limit - cappedTerms.size
+        val cappedItems = sortedItems.take(remaining)
+
+        return cappedTerms + cappedItems
     }
 }
