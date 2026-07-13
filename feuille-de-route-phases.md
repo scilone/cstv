@@ -250,3 +250,37 @@ connexion.
      fusionné à partir des valeurs existantes), sans forcer l'utilisateur
      à ressaisir ses identifiants.
 
+---
+
+Phase 29 : mémorisation de la langue audio et des sous-titres choisis, par
+film et par série (voir Phase 3/16 pour la sélection des pistes en cours de
+lecture).
+
+Actuellement la préférence de langue audio/sous-titres choisie dans le
+player est stockée de façon globale (un seul réglage partagé par toute
+l'app) : changer de piste sur un film écrase le choix fait sur un autre
+film ou une série, et réciproquement.
+
+Attendu :
+- Le choix de langue audio et de sous-titres fait pendant la lecture doit
+  être mémorisé individuellement par fiche :
+  - Par film (clé = streamId du film).
+  - Par série (clé = seriesId de la série) — le choix est commun à tous
+    les épisodes de cette série, pas mémorisé épisode par épisode. Si
+    l'utilisateur change de piste en regardant un épisode, ce choix
+    s'applique aussi aux autres épisodes de la même série.
+- Au lancement de la lecture d'un film ou d'un épisode, appliquer en
+  priorité la préférence déjà mémorisée pour ce film/cette série si elle
+  existe.
+- Si aucune préférence n'a encore été mémorisée pour ce film/cette série,
+  revenir au comportement par défaut actuel (dernière langue utilisée
+  globalement, ou langue par défaut du flux).
+- Revoir le schéma de stockage (Room ou DataStore selon ce qui est le plus
+  adapté) pour associer la préférence audio/sous-titres à un streamId
+  (film) ou un seriesId (série), en remplacement du réglage global actuel
+  dans SettingsManager — sans perdre les autres réglages existants qui,
+  eux, restent globaux (fréquence de sync, apparence des sous-titres de
+  la Phase 26, tri des catégories, etc.).
+- Si des profils multiples sont déjà implémentés (Phase 27) au moment de
+  développer cette phase, cette préférence doit elle aussi être spécifique
+  au profil actif, comme les Favoris/Historique/Position de lecture.
