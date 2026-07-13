@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -49,7 +50,8 @@ fun SeriesDetailsScreen(
     onToggleFavorite: () -> Unit,
     onEpisodeSelected: (SeriesEpisode) -> Unit,
     onBack: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onSearchQueryTriggered: (String) -> Unit = {}
 ) {
     var selectedSeasonNumber by remember { mutableStateOf(details.seasons.firstOrNull()?.seasonNumber ?: 1) }
     val currentEpisodes = remember(selectedSeasonNumber, details.episodes) {
@@ -105,7 +107,8 @@ fun SeriesDetailsScreen(
                     selectedSeason = selectedSeasonNumber,
                     episodes = currentEpisodes,
                     onSeasonSelected = { selectedSeasonNumber = it },
-                    onEpisodeClick = onEpisodeSelected
+                    onEpisodeClick = onEpisodeSelected,
+                    onSearchQueryTriggered = onSearchQueryTriggered
                 )
             } else {
                 MobileLayout(
@@ -115,7 +118,8 @@ fun SeriesDetailsScreen(
                     selectedSeason = selectedSeasonNumber,
                     episodes = currentEpisodes,
                     onSeasonSelected = { selectedSeasonNumber = it },
-                    onEpisodeClick = onEpisodeSelected
+                    onEpisodeClick = onEpisodeSelected,
+                    onSearchQueryTriggered = onSearchQueryTriggered
                 )
             }
         }
@@ -131,7 +135,8 @@ private fun TvLayout(
     selectedSeason: Int,
     episodes: List<SeriesEpisode>,
     onSeasonSelected: (Int) -> Unit,
-    onEpisodeClick: (SeriesEpisode) -> Unit
+    onEpisodeClick: (SeriesEpisode) -> Unit,
+    onSearchQueryTriggered: (String) -> Unit
 ) {
     val allEpisodes = details.episodes.values.flatten()
     val incompleteEpisodes = allEpisodes.filter { ep ->
@@ -294,9 +299,10 @@ private fun TvLayout(
 
                 HorizontalDivider(color = Color.DarkGray, thickness = 0.5.dp, modifier = Modifier.padding(vertical = 10.dp))
 
-                // Credits
-                Text("Réalisateur : ${details.director ?: "Inconnu"}", color = Color.Gray, fontSize = 13.sp)
-                Text("Acteurs : ${details.actors ?: "Inconnu"}", color = Color.Gray, fontSize = 13.sp)
+                // Clickable Credits: Director & Cast
+                ClickableCreditsRow(label = "Réalisateur", names = details.director ?: "Inconnu", onClickName = onSearchQueryTriggered)
+                Spacer(modifier = Modifier.height(6.dp))
+                ClickableCreditsRow(label = "Acteurs", names = details.actors ?: "Inconnu", onClickName = onSearchQueryTriggered)
 
                 Spacer(modifier = Modifier.height(16.dp))
 
@@ -361,7 +367,8 @@ private fun MobileLayout(
     selectedSeason: Int,
     episodes: List<SeriesEpisode>,
     onSeasonSelected: (Int) -> Unit,
-    onEpisodeClick: (SeriesEpisode) -> Unit
+    onEpisodeClick: (SeriesEpisode) -> Unit,
+    onSearchQueryTriggered: (String) -> Unit
 ) {
     val allEpisodes = details.episodes.values.flatten()
     val incompleteEpisodes = allEpisodes.filter { ep ->
@@ -467,11 +474,12 @@ private fun MobileLayout(
 
         HorizontalDivider(color = Color.DarkGray, thickness = 0.5.dp, modifier = Modifier.padding(vertical = 8.dp))
 
-        // Credits
-        Column(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
-            Text("Réalisateur : ${details.director ?: "Inconnu"}", color = Color.Gray, fontSize = 12.sp)
-            Text("Acteurs : ${details.actors ?: "Inconnu"}", color = Color.Gray, fontSize = 12.sp)
-        }
+        // Clickable Credits: Director & Cast
+        ClickableCreditsRow(label = "Réalisateur", names = details.director ?: "Inconnu", onClickName = onSearchQueryTriggered)
+        Spacer(modifier = Modifier.height(8.dp))
+        ClickableCreditsRow(label = "Acteurs", names = details.actors ?: "Inconnu", onClickName = onSearchQueryTriggered)
+
+        Spacer(modifier = Modifier.height(24.dp))
 
         // Playback resume button
         if (targetEpisode != null) {
@@ -552,6 +560,69 @@ private fun MobileLayout(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun ClickableCreditsRow(
+    label: String,
+    names: String,
+    onClickName: (String) -> Unit
+) {
+    if (names.isBlank() || names == "Inconnu") return
+
+    val nameList = remember(names) { names.split(",").map { it.trim() }.filter { it.isNotBlank() } }
+
+    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(
+                text = "$label : ",
+                color = Color.Gray,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold
+            )
+            
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.weight(1f).focusGroup()
+            ) {
+                items(nameList) { name ->
+                    CreditNameChip(name = name, onClick = { onClickName(name) })
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CreditNameChip(
+    name: String,
+    onClick: () -> Unit
+) {
+    var isFocused by remember { mutableStateOf(false) }
+
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(12.dp))
+            .onFocusChanged { isFocused = it.isFocused }
+            .border(
+                width = 1.dp,
+                color = if (isFocused) MaterialTheme.colorScheme.primary else Color.DarkGray,
+                shape = RoundedCornerShape(12.dp)
+            )
+            .background(if (isFocused) Color(0xFF2C2C35) else Color(0xFF1E1E24))
+            .clickable { onClick() }
+            .padding(horizontal = 10.dp, vertical = 4.dp)
+    ) {
+        Text(
+            text = name,
+            color = if (isFocused) MaterialTheme.colorScheme.primary else Color.LightGray,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold
+        )
     }
 }
 

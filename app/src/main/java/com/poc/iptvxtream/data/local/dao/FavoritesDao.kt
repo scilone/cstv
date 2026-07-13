@@ -28,9 +28,9 @@ interface FavoritesDao {
     @Query("SELECT * FROM live_streams WHERE name LIKE :query ORDER BY name ASC")
     suspend fun searchLiveStreams(query: String): List<LiveStreamEntity>
 
-    @Query("SELECT * FROM vod_streams WHERE name LIKE :query ORDER BY name ASC")
+    @Query("SELECT * FROM vod_streams WHERE name LIKE :query OR actors LIKE :query OR director LIKE :query OR genre LIKE :query ORDER BY name ASC")
     suspend fun searchVodStreams(query: String): List<VodStreamEntity>
 
-    @Query("SELECT * FROM series_streams WHERE name LIKE :query ORDER BY name ASC")
+    @Query("SELECT * FROM series_streams WHERE name LIKE :query OR actors LIKE :query OR director LIKE :query OR genre LIKE :query ORDER BY name ASC")
     suspend fun searchSeriesStreams(query: String): List<SeriesStreamEntity>
 }

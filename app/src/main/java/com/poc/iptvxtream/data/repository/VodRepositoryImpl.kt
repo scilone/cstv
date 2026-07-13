@@ -271,6 +271,18 @@ class VodRepositoryImpl @Inject constructor(
         // Fetch resume position from local DB if exists
         val savedPosition = vodDao.getPlaybackPosition(streamId)
 
+        // Sensationally enrich cached stream entity with actors, director, and genre details
+        val cachedStream = vodDao.getStreamById(streamId)
+        if (cachedStream != null) {
+            vodDao.insertStreams(listOf(
+                cachedStream.copy(
+                    actors = actors,
+                    director = director,
+                    genre = genre
+                )
+            ))
+        }
+
         return VodDetails(
             streamId = streamId,
             name = name,

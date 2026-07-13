@@ -28,7 +28,7 @@ import com.poc.iptvxtream.data.local.entity.RecentlyWatchedLiveEntity
         FavoriteEntity::class,
         RecentlyWatchedLiveEntity::class
     ],
-    version = 7,
+    version = 8,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

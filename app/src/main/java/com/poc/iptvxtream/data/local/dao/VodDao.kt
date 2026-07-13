@@ -31,6 +31,9 @@ interface VodDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertStreams(streams: List<VodStreamEntity>)
 
+    @Query("SELECT * FROM vod_streams WHERE streamId = :streamId LIMIT 1")
+    suspend fun getStreamById(streamId: Int): VodStreamEntity?
+
     @Query("DELETE FROM vod_streams WHERE categoryId = :categoryId")
     suspend fun clearStreamsByCategory(categoryId: String)
 

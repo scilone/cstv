@@ -258,6 +258,17 @@ class SeriesRepositoryImpl @Inject constructor(
         val seriesName = infoDto?.name ?: cachedSeries?.name ?: seasons.firstOrNull()?.name?.substringBefore(" Season") ?: "Série"
         val coverUrl = infoDto?.cover ?: cachedSeries?.cover ?: seasons.firstOrNull()?.cover
 
+        // Sensationally enrich cached stream entity with actors, director, and genre details
+        if (cachedSeries != null) {
+            seriesDao.insertStreams(listOf(
+                cachedSeries.copy(
+                    actors = actors,
+                    director = director,
+                    genre = genre
+                )
+            ))
+        }
+
         return SeriesDetails(
             seriesId = seriesId,
             name = seriesName,

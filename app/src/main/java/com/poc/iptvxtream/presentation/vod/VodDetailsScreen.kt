@@ -4,7 +4,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -46,7 +49,8 @@ fun VodDetailsScreen(
     onPlayFromBeginning: () -> Unit,
     onResumePlayback: (Long) -> Unit,
     onBack: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onSearchQueryTriggered: (String) -> Unit = {}
 ) {
     Box(
         modifier = modifier
@@ -88,16 +92,16 @@ fun VodDetailsScreen(
                 Text("Détails du Film", color = Color.Gray, fontSize = 14.sp, fontWeight = FontWeight.Light)
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-            // Main Details Row
             if (isTv) {
                 TvLayoutDetails(
                     details = details,
                     isFavorite = isFavorite,
                     onToggleFavorite = onToggleFavorite,
                     onPlayFromBeginning = onPlayFromBeginning,
-                    onResumePlayback = onResumePlayback
+                    onResumePlayback = onResumePlayback,
+                    onSearchQueryTriggered = onSearchQueryTriggered
                 )
             } else {
                 MobileLayoutDetails(
@@ -105,7 +109,8 @@ fun VodDetailsScreen(
                     isFavorite = isFavorite,
                     onToggleFavorite = onToggleFavorite,
                     onPlayFromBeginning = onPlayFromBeginning,
-                    onResumePlayback = onResumePlayback
+                    onResumePlayback = onResumePlayback,
+                    onSearchQueryTriggered = onSearchQueryTriggered
                 )
             }
         }
@@ -119,45 +124,75 @@ private fun TvLayoutDetails(
     isFavorite: Boolean,
     onToggleFavorite: () -> Unit,
     onPlayFromBeginning: () -> Unit,
-    onResumePlayback: (Long) -> Unit
+    onResumePlayback: (Long) -> Unit,
+    onSearchQueryTriggered: (String) -> Unit
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(32.dp)
+        horizontalArrangement = Arrangement.spacedBy(28.dp)
     ) {
-        // Left Column: Large Poster Card
-        Card(
-            modifier = Modifier
-                .width(240.dp)
-                .height(360.dp)
-                .clip(RoundedCornerShape(16.dp))
-                .border(1.dp, Color.DarkGray, RoundedCornerShape(16.dp))
-        ) {
-            Box(
-                modifier = Modifier.fillMaxSize().background(Color(0xFF1E1E24)),
-                contentAlignment = Alignment.Center
+        // Left Column: Poster Cover & Favorite Toggle Button
+        Column(modifier = Modifier.width(220.dp)) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(310.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .border(1.dp, Color.DarkGray, RoundedCornerShape(16.dp))
             ) {
-                if (!details.coverBig.isNullOrBlank()) {
-                    AsyncImage(
-                        model = details.coverBig,
-                        contentDescription = details.name,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
+                Box(
+                    modifier = Modifier.fillMaxSize().background(Color(0xFF1E1E24)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (!details.coverBig.isNullOrBlank()) {
+                        AsyncImage(
+                            model = details.coverBig,
+                            contentDescription = details.name,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    } else {
+                        Icon(Icons.Default.Warning, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(54.dp))
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // TV Favorite Button in left sidebar
+            var isFocusedFav by remember { mutableStateOf(false) }
+            TvButton(
+                onClick = onToggleFavorite,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(36.dp)
+                    .onFocusChanged { isFocusedFav = it.isFocused }
+                    .border(width = 2.dp, color = if (isFocusedFav) Color.Yellow else Color.Transparent, shape = RoundedCornerShape(8.dp))
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Star,
+                        contentDescription = null,
+                        tint = if (isFavorite) Color.Yellow else if (isFocusedFav) Color.Black else Color.White,
+                        modifier = Modifier.size(16.dp)
                     )
-                } else {
-                    Icon(Icons.Default.Warning, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(64.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    TvText(
+                        text = if (isFavorite) "DANS LES FAVORIS" else "AJOUTER FAVORIS",
+                        fontWeight = FontWeight.Bold,
+                        style = TvTheme.typography.labelSmall
+                    )
                 }
             }
         }
 
-        // Right Column: Text & Play Buttons
+        // Right Column: Full description, metadata, play options, and cast
         Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = details.name.uppercase(),
-                color = Color.White,
-                fontSize = 28.sp,
-                fontWeight = FontWeight.Bold
-            )
+            Text(details.name.uppercase(), color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.Bold)
 
             Spacer(modifier = Modifier.height(8.dp))
 
@@ -189,9 +224,8 @@ private fun TvLayoutDetails(
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
-            // Plot
             Text(
                 text = details.plot,
                 color = Color.LightGray,
@@ -200,22 +234,21 @@ private fun TvLayoutDetails(
                 modifier = Modifier.padding(bottom = 16.dp)
             )
 
-            HorizontalDivider(color = Color.DarkGray, thickness = 0.5.dp, modifier = Modifier.padding(vertical = 12.dp))
+            HorizontalDivider(color = Color.DarkGray, thickness = 0.5.dp, modifier = Modifier.padding(vertical = 10.dp))
 
-            // Credits
-            Text("Réalisateur : ${details.director}", color = Color.Gray, fontSize = 13.sp)
-            Text("Acteurs : ${details.actors}", color = Color.Gray, fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            // Clickable Credits: Director & Cast
+            ClickableCreditsRow(label = "Réalisateur", names = details.director, onClickName = onSearchQueryTriggered)
+            Spacer(modifier = Modifier.height(6.dp))
+            ClickableCreditsRow(label = "Acteurs", names = details.actors, onClickName = onSearchQueryTriggered)
 
-            Spacer(modifier = Modifier.height(28.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
             // Playback Options
             PlayButtonsRow(
-                details = details,
-                isTv = true,
-                isFavorite = isFavorite,
-                onToggleFavorite = onToggleFavorite,
+                resumePositionMs = details.resumePositionMs,
                 onPlayFromBeginning = onPlayFromBeginning,
-                onResumePlayback = onResumePlayback
+                onResumePlayback = { onResumePlayback(details.resumePositionMs) },
+                isTv = true
             )
         }
     }
@@ -227,13 +260,14 @@ private fun MobileLayoutDetails(
     isFavorite: Boolean,
     onToggleFavorite: () -> Unit,
     onPlayFromBeginning: () -> Unit,
-    onResumePlayback: (Long) -> Unit
+    onResumePlayback: (Long) -> Unit,
+    onSearchQueryTriggered: (String) -> Unit
 ) {
     Column(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // Centered Poster Card
+        // Centered Poster Card (just like in the movie details layout)
         Card(
             modifier = Modifier
                 .width(180.dp)
@@ -261,14 +295,28 @@ private fun MobileLayoutDetails(
         Spacer(modifier = Modifier.height(20.dp))
 
         // Text details
-        Text(
-            text = details.name,
-            color = Color.White,
-            fontSize = 22.sp,
-            fontWeight = FontWeight.Bold,
-            textAlign = TextAlign.Center,
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
             modifier = Modifier.fillMaxWidth()
-        )
+        ) {
+            Text(
+                text = details.name,
+                color = Color.White,
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.weight(1f)
+            )
+
+            IconButton(onClick = onToggleFavorite) {
+                Icon(
+                    imageVector = Icons.Default.Star,
+                    contentDescription = "Favoris",
+                    tint = if (isFavorite) Color.Yellow else Color.DarkGray,
+                    modifier = Modifier.size(28.dp)
+                )
+            }
+        }
 
         Spacer(modifier = Modifier.height(8.dp))
 
@@ -312,200 +360,190 @@ private fun MobileLayoutDetails(
 
         HorizontalDivider(color = Color.DarkGray, thickness = 0.5.dp, modifier = Modifier.padding(vertical = 12.dp))
 
-        Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.Start) {
-            Text("Réalisateur : ${details.director}", color = Color.Gray, fontSize = 12.sp)
-            Text("Acteurs : ${details.actors}", color = Color.Gray, fontSize = 12.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
-        }
+        // Clickable Credits: Director & Cast
+        ClickableCreditsRow(label = "Réalisateur", names = details.director, onClickName = onSearchQueryTriggered)
+        Spacer(modifier = Modifier.height(8.dp))
+        ClickableCreditsRow(label = "Acteurs", names = details.actors, onClickName = onSearchQueryTriggered)
 
         Spacer(modifier = Modifier.height(24.dp))
 
         // Playback Options
         PlayButtonsRow(
-            details = details,
-            isTv = false,
-            isFavorite = isFavorite,
-            onToggleFavorite = onToggleFavorite,
+            resumePositionMs = details.resumePositionMs,
             onPlayFromBeginning = onPlayFromBeginning,
-            onResumePlayback = onResumePlayback
+            onResumePlayback = { onResumePlayback(details.resumePositionMs) },
+            isTv = false
         )
     }
 }
 
-@OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
-private fun PlayButtonsRow(
-    details: VodDetails,
-    isTv: Boolean,
-    isFavorite: Boolean,
-    onToggleFavorite: () -> Unit,
-    onPlayFromBeginning: () -> Unit,
-    onResumePlayback: (Long) -> Unit
+private fun ClickableCreditsRow(
+    label: String,
+    names: String,
+    onClickName: (String) -> Unit
 ) {
-    val hasSavedProgress = details.resumePositionMs > 0L && details.resumePositionMs < (details.durationMs - 15000L)
-    
-    val formattedTime = remember(details.resumePositionMs) {
-        formatPlaybackTime(details.resumePositionMs)
-    }
+    if (names.isBlank() || names == "Inconnu") return
 
-    if (isTv) {
+    val nameList = remember(names) { names.split(",").map { it.trim() }.filter { it.isNotBlank() } }
+
+    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
         Row(
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth()
         ) {
-            if (hasSavedProgress) {
-                var isFocusedResume by remember { mutableStateOf(false) }
-                TvButton(
-                    onClick = { onResumePlayback(details.resumePositionMs) },
-                    modifier = Modifier
-                        .height(44.dp)
-                        .onFocusChanged { isFocusedResume = it.isFocused }
-                        .border(width = 2.dp, color = if (isFocusedResume) Color.Yellow else Color.Transparent, shape = RoundedCornerShape(8.dp))
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.PlayArrow, contentDescription = null, tint = if (isFocusedResume) Color.Black else Color.White)
-                        Spacer(modifier = Modifier.width(6.dp))
-                        TvText("REPRENDRE À $formattedTime", fontWeight = FontWeight.Bold, style = TvTheme.typography.labelMedium)
-                    }
-                }
-
-                var isFocusedRestart by remember { mutableStateOf(false) }
-                TvButton(
-                    onClick = onPlayFromBeginning,
-                    modifier = Modifier
-                        .height(44.dp)
-                        .onFocusChanged { isFocusedRestart = it.isFocused }
-                        .border(width = 2.dp, color = if (isFocusedRestart) Color.Yellow else Color.Transparent, shape = RoundedCornerShape(8.dp))
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Refresh, contentDescription = null, tint = if (isFocusedRestart) Color.Black else Color.White)
-                        Spacer(modifier = Modifier.width(6.dp))
-                        TvText("RECOMMENCER", fontWeight = FontWeight.Bold, style = TvTheme.typography.labelMedium)
-                    }
-                }
-            } else {
-                var isFocusedPlay by remember { mutableStateOf(false) }
-                TvButton(
-                    onClick = onPlayFromBeginning,
-                    modifier = Modifier
-                        .height(44.dp)
-                        .onFocusChanged { isFocusedPlay = it.isFocused }
-                        .border(width = 2.dp, color = if (isFocusedPlay) Color.Yellow else Color.Transparent, shape = RoundedCornerShape(8.dp))
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.PlayArrow, contentDescription = null, tint = if (isFocusedPlay) Color.Black else Color.White)
-                        Spacer(modifier = Modifier.width(6.dp))
-                        TvText("LIRE LE FILM", fontWeight = FontWeight.Bold, style = TvTheme.typography.labelMedium)
-                    }
-                }
-            }
-
-            // TV Favorite Button
-            var isFocusedFav by remember { mutableStateOf(false) }
-            TvButton(
-                onClick = onToggleFavorite,
-                modifier = Modifier
-                    .height(44.dp)
-                    .onFocusChanged { isFocusedFav = it.isFocused }
-                    .border(width = 2.dp, color = if (isFocusedFav) Color.Yellow else Color.Transparent, shape = RoundedCornerShape(8.dp))
+            Text(
+                text = "$label : ",
+                color = Color.Gray,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold
+            )
+            
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.weight(1f).focusGroup()
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.Star,
-                        contentDescription = null,
-                        tint = if (isFavorite) Color.Yellow else if (isFocusedFav) Color.Black else Color.White
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    TvText(
-                        text = if (isFavorite) "RETIRER DES FAVORIS" else "AJOUTER AUX FAVORIS",
-                        fontWeight = FontWeight.Bold,
-                        style = TvTheme.typography.labelMedium
-                    )
-                }
-            }
-        }
-    } else {
-        Column(
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            if (hasSavedProgress) {
-                Button(
-                    onClick = { onResumePlayback(details.resumePositionMs) },
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(48.dp)
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.PlayArrow, contentDescription = null)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("REPRENDRE À $formattedTime", fontWeight = FontWeight.Bold)
-                    }
-                }
-
-                OutlinedButton(
-                    onClick = onPlayFromBeginning,
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(48.dp)
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Refresh, contentDescription = null, tint = Color.White)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("RECOMMENCER", fontWeight = FontWeight.Bold)
-                    }
-                }
-            } else {
-                Button(
-                    onClick = onPlayFromBeginning,
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(48.dp)
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.PlayArrow, contentDescription = null)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("LIRE LE FILM", fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
-
-            // Mobile Favorite Toggle Button
-            OutlinedButton(
-                onClick = onToggleFavorite,
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(48.dp)
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.Star,
-                        contentDescription = null,
-                        tint = if (isFavorite) Color.Yellow else Color.White
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = if (isFavorite) "RETIRER DES FAVORIS" else "AJOUTER AUX FAVORIS",
-                        fontWeight = FontWeight.Bold
-                    )
+                items(nameList) { name ->
+                    CreditNameChip(name = name, onClick = { onClickName(name) })
                 }
             }
         }
     }
 }
 
-private fun formatPlaybackTime(ms: Long): String {
-    val totalSec = ms / 1000
-    val hr = totalSec / 3600
-    val min = (totalSec % 3600) / 60
-    val sec = totalSec % 60
-    return if (hr > 0) {
-        "${hr}h ${min}m"
-    } else {
-        "${min}:${String.format("%02d", sec)}"
+@Composable
+private fun CreditNameChip(
+    name: String,
+    onClick: () -> Unit
+) {
+    var isFocused by remember { mutableStateOf(false) }
+
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(12.dp))
+            .onFocusChanged { isFocused = it.isFocused }
+            .border(
+                width = 1.dp,
+                color = if (isFocused) MaterialTheme.colorScheme.primary else Color.DarkGray,
+                shape = RoundedCornerShape(12.dp)
+            )
+            .background(if (isFocused) Color(0xFF2C2C35) else Color(0xFF1E1E24))
+            .clickable { onClick() }
+            .padding(horizontal = 10.dp, vertical = 4.dp)
+    ) {
+        Text(
+            text = name,
+            color = if (isFocused) MaterialTheme.colorScheme.primary else Color.LightGray,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold
+        )
+    }
+}
+
+@Composable
+private fun PlayButtonsRow(
+    resumePositionMs: Long,
+    onPlayFromBeginning: () -> Unit,
+    onResumePlayback: () -> Unit,
+    isTv: Boolean
+) {
+    val hasHistory = resumePositionMs > 0L
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        if (isTv) {
+            if (hasHistory) {
+                var isFocusedResume by remember { mutableStateOf(false) }
+                TvButton(
+                    onClick = onResumePlayback,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(40.dp)
+                        .onFocusChanged { isFocusedResume = it.isFocused }
+                        .border(width = 2.dp, color = if (isFocusedResume) Color.Yellow else Color.Transparent, shape = RoundedCornerShape(8.dp))
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.PlayArrow, contentDescription = null, tint = if (isFocusedResume) Color.Black else Color.White)
+                        Spacer(modifier = Modifier.width(6.dp))
+                        TvText(
+                            text = "REPRENDRE LA LECTURE",
+                            fontWeight = FontWeight.Bold,
+                            style = TvTheme.typography.labelMedium,
+                            color = if (isFocusedResume) Color.Black else Color.White
+                        )
+                    }
+                }
+            }
+
+            var isFocusedPlay by remember { mutableStateOf(false) }
+            TvButton(
+                onClick = onPlayFromBeginning,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(40.dp)
+                    .onFocusChanged { isFocusedPlay = it.isFocused }
+                    .border(width = 2.dp, color = if (isFocusedPlay) Color.Yellow else Color.Transparent, shape = RoundedCornerShape(8.dp))
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Default.PlayArrow, contentDescription = null, tint = if (isFocusedPlay) Color.Black else Color.White)
+                    Spacer(modifier = Modifier.width(6.dp))
+                    TvText(
+                        text = if (hasHistory) "RELIRE DEPUIS LE DÉBUT" else "LIRE LE FILM",
+                        fontWeight = FontWeight.Bold,
+                        style = TvTheme.typography.labelMedium,
+                        color = if (isFocusedPlay) Color.Black else Color.White
+                    )
+                }
+            }
+        } else {
+            if (hasHistory) {
+                Button(
+                    onClick = onResumePlayback,
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.fillMaxWidth().height(44.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Color.Black)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("REPRENDRE LA LECTURE", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    }
+                }
+            }
+
+            Button(
+                onClick = onPlayFromBeginning,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (hasHistory) Color(0xFF2A2A35) else MaterialTheme.colorScheme.primary
+                ),
+                shape = RoundedCornerShape(8.dp),
+                modifier = Modifier.fillMaxWidth().height(44.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.PlayArrow,
+                        contentDescription = null,
+                        tint = if (hasHistory) Color.White else Color.Black
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = if (hasHistory) "RELIRE DEPUIS LE DÉBUT" else "LIRE LE FILM",
+                        color = if (hasHistory) Color.White else Color.Black,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp
+                    )
+                }
+            }
+        }
     }
 }

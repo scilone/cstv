@@ -345,6 +345,10 @@ class MainActivity : ComponentActivity() {
                                         },
                                         onBack = {
                                             navigateBack()
+                                        },
+                                        onSearchQueryTriggered = { query ->
+                                            favoritesViewModel.onSearchQueryChanged(query)
+                                            navigateTo(AppScreen.SEARCH)
                                         }
                                     )
                                 } ?: Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -419,6 +423,10 @@ class MainActivity : ComponentActivity() {
                                         },
                                         onBack = {
                                             navigateBack()
+                                        },
+                                        onSearchQueryTriggered = { query ->
+                                            favoritesViewModel.onSearchQueryChanged(query)
+                                            navigateTo(AppScreen.SEARCH)
                                         }
                                     )
                                 } ?: Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -822,6 +830,10 @@ class MainActivity : ComponentActivity() {
                                             },
                                             onBack = {
                                                 navController.popBackStack()
+                                            },
+                                            onSearchQueryTriggered = { query ->
+                                                favoritesViewModel.onSearchQueryChanged(query)
+                                                navController.navigate("search")
                                             }
                                         )
                                     } ?: Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -867,6 +879,10 @@ class MainActivity : ComponentActivity() {
                                             },
                                             onBack = {
                                                 navController.popBackStack()
+                                            },
+                                            onSearchQueryTriggered = { query ->
+                                                favoritesViewModel.onSearchQueryChanged(query)
+                                                navController.navigate("search")
                                             }
                                         )
                                     } ?: Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {

@@ -11,5 +11,8 @@ data class VodStreamEntity(
     val rating: String?,
     val added: String?,
     val categoryId: String,
-    val cachedAt: Long
+    val cachedAt: Long,
+    val actors: String? = null,
+    val director: String? = null,
+    val genre: String? = null
 )
