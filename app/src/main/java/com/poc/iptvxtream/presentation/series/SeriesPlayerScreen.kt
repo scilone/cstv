@@ -43,6 +43,7 @@ import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.Tracks
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
+import com.poc.iptvxtream.presentation.player.applySubtitleStyle
 import com.poc.iptvxtream.domain.model.Credentials
 import com.poc.iptvxtream.domain.model.SeriesEpisode
 import kotlinx.coroutines.delay
@@ -67,6 +68,7 @@ data class TrackInfo(
     val mediaTrackGroup: androidx.media3.common.TrackGroup
 )
 
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 @Composable
 fun SeriesPlayerScreen(
     episode: SeriesEpisode,
@@ -372,6 +374,7 @@ fun SeriesPlayerScreen(
                             ViewGroup.LayoutParams.MATCH_PARENT,
                             ViewGroup.LayoutParams.MATCH_PARENT
                         )
+                        subtitleView?.applySubtitleStyle(viewModel.getSubtitleStyle())
                     }
                 },
                 modifier = Modifier.fillMaxSize()

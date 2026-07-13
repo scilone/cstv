@@ -63,6 +63,8 @@ class VodViewModel @Inject constructor(
         return settingsManager.getPreferredSubtitle()
     }
 
+    fun getSubtitleStyle() = settingsManager.getSubtitleStyle()
+
     fun loadCategories(forceRefresh: Boolean = false) {
         viewModelScope.launch {
             _state.update { it.copy(isLoadingCategories = true, error = null) }

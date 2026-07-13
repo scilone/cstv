@@ -1,6 +1,10 @@
 package com.poc.iptvxtream.presentation.settings
 
 import com.poc.iptvxtream.data.local.storage.SyncFrequency
+import com.poc.iptvxtream.domain.model.SubtitleBackground
+import com.poc.iptvxtream.domain.model.SubtitleStyle
+import com.poc.iptvxtream.domain.model.SubtitleTextColor
+import com.poc.iptvxtream.domain.model.SubtitleTextSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -52,6 +56,9 @@ fun SettingsScreen(
                 onSeriesSortingChanged = { viewModel.updateSeriesSorting(it) },
                 onSyncFrequencyChanged = { viewModel.updateSyncFrequency(it) },
                 onForceSyncNow = { viewModel.forceSyncNow() },
+                onSubtitleSizeChanged = { viewModel.updateSubtitleSize(it) },
+                onSubtitleColorChanged = { viewModel.updateSubtitleColor(it) },
+                onSubtitleBackgroundChanged = { viewModel.updateSubtitleBackground(it) },
                 onBack = onBack,
                 onLogout = onLogout
             )
@@ -63,6 +70,9 @@ fun SettingsScreen(
                 onSeriesSortingChanged = { viewModel.updateSeriesSorting(it) },
                 onSyncFrequencyChanged = { viewModel.updateSyncFrequency(it) },
                 onForceSyncNow = { viewModel.forceSyncNow() },
+                onSubtitleSizeChanged = { viewModel.updateSubtitleSize(it) },
+                onSubtitleColorChanged = { viewModel.updateSubtitleColor(it) },
+                onSubtitleBackgroundChanged = { viewModel.updateSubtitleBackground(it) },
                 onBack = onBack,
                 onLogout = onLogout
             )
@@ -79,6 +89,9 @@ private fun TvSettingsLayout(
     onSeriesSortingChanged: (CategorySorting) -> Unit,
     onSyncFrequencyChanged: (SyncFrequency) -> Unit,
     onForceSyncNow: () -> Unit,
+    onSubtitleSizeChanged: (SubtitleTextSize) -> Unit,
+    onSubtitleColorChanged: (SubtitleTextColor) -> Unit,
+    onSubtitleBackgroundChanged: (SubtitleBackground) -> Unit,
     onBack: () -> Unit,
     onLogout: () -> Unit
 ) {
@@ -153,8 +166,15 @@ private fun TvSettingsLayout(
             onForceSyncNow = onForceSyncNow
         )
 
+        TvSubtitleStyleCard(
+            style = state.subtitleStyle,
+            onSizeChanged = onSubtitleSizeChanged,
+            onColorChanged = onSubtitleColorChanged,
+            onBackgroundChanged = onSubtitleBackgroundChanged
+        )
+
         Spacer(modifier = Modifier.height(16.dp))
-        
+
         TvButton(
             onClick = onLogout,
             modifier = Modifier.fillMaxWidth().height(44.dp)
@@ -268,6 +288,9 @@ private fun MobileSettingsLayout(
     onSeriesSortingChanged: (CategorySorting) -> Unit,
     onSyncFrequencyChanged: (SyncFrequency) -> Unit,
     onForceSyncNow: () -> Unit,
+    onSubtitleSizeChanged: (SubtitleTextSize) -> Unit,
+    onSubtitleColorChanged: (SubtitleTextColor) -> Unit,
+    onSubtitleBackgroundChanged: (SubtitleBackground) -> Unit,
     onBack: () -> Unit,
     onLogout: () -> Unit
 ) {
@@ -339,6 +362,14 @@ private fun MobileSettingsLayout(
             onFrequencyChanged = onSyncFrequencyChanged,
             isSyncingNow = state.isSyncingNow,
             onForceSyncNow = onForceSyncNow
+        )
+
+        // Subtitle appearance
+        MobileSubtitleStyleCard(
+            style = state.subtitleStyle,
+            onSizeChanged = onSubtitleSizeChanged,
+            onColorChanged = onSubtitleColorChanged,
+            onBackgroundChanged = onSubtitleBackgroundChanged
         )
 
         Spacer(modifier = Modifier.height(24.dp))
@@ -601,6 +632,178 @@ private fun MobileSyncFrequencyCard(
                     Text("Synchronisation...", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
                 } else {
                     Text("Forcer la mise à jour maintenant", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                }
+            }
+        }
+    }
+}
+
+// --- Sous-titres (Phase 26) ---
+
+/** Taille approximative (sp) utilisée uniquement pour l'aperçu dans les
+ *  Paramètres ; le rendu réel du player s'appuie sur la fraction Media3. */
+private fun SubtitleTextSize.previewSp() = when (this) {
+    SubtitleTextSize.SMALL -> 14.sp
+    SubtitleTextSize.MEDIUM -> 18.sp
+    SubtitleTextSize.LARGE -> 24.sp
+}
+
+@Composable
+private fun SubtitlePreview(style: SubtitleStyle, modifier: Modifier = Modifier) {
+    // Fond sombre imitant une image vidéo, avec le texte d'exemple stylé.
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(72.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(Color(0xFF2A2A33)),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = "Exemple de sous-titre",
+            color = Color(style.textColor.argb),
+            fontSize = style.size.previewSp(),
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier
+                .background(Color(style.background.argb))
+                .padding(horizontal = 6.dp, vertical = 2.dp)
+        )
+    }
+}
+
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+private fun TvSubtitleStyleCard(
+    style: SubtitleStyle,
+    onSizeChanged: (SubtitleTextSize) -> Unit,
+    onColorChanged: (SubtitleTextColor) -> Unit,
+    onBackgroundChanged: (SubtitleBackground) -> Unit
+) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E24)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            TvText(
+                text = "APPARENCE DES SOUS-TITRES",
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.Bold,
+                style = TvTheme.typography.titleMedium
+            )
+            TvText(
+                text = "Taille, couleur du texte et fond appliqués aux lectures de films et d'épisodes.",
+                color = Color.Gray,
+                style = TvTheme.typography.bodySmall
+            )
+
+            SubtitlePreview(style)
+
+            TvText("TAILLE", color = Color.White, style = TvTheme.typography.labelMedium)
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                SubtitleTextSize.values().forEach { size ->
+                    TvSortingOptionButton(
+                        label = size.label.uppercase(),
+                        isSelected = style.size == size,
+                        onClick = { onSizeChanged(size) },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+
+            TvText("COULEUR DU TEXTE", color = Color.White, style = TvTheme.typography.labelMedium)
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                SubtitleTextColor.values().forEach { color ->
+                    TvSortingOptionButton(
+                        label = color.label.uppercase(),
+                        isSelected = style.textColor == color,
+                        onClick = { onColorChanged(color) },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+
+            TvText("FOND", color = Color.White, style = TvTheme.typography.labelMedium)
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                SubtitleBackground.values().forEach { bg ->
+                    TvSortingOptionButton(
+                        label = bg.label.uppercase(),
+                        isSelected = style.background == bg,
+                        onClick = { onBackgroundChanged(bg) },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MobileSubtitleStyleCard(
+    style: SubtitleStyle,
+    onSizeChanged: (SubtitleTextSize) -> Unit,
+    onColorChanged: (SubtitleTextColor) -> Unit,
+    onBackgroundChanged: (SubtitleBackground) -> Unit
+) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E24)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Column {
+                Text(
+                    text = "Apparence des sous-titres",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp
+                )
+                Text(
+                    text = "Taille, couleur du texte et fond appliqués aux lectures de films et d'épisodes.",
+                    color = Color.Gray,
+                    fontSize = 12.sp
+                )
+            }
+
+            SubtitlePreview(style)
+
+            Text("Taille", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                SubtitleTextSize.values().forEach { size ->
+                    MobileSortingOptionButton(
+                        label = size.label,
+                        isSelected = style.size == size,
+                        onClick = { onSizeChanged(size) },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+
+            Text("Couleur du texte", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                SubtitleTextColor.values().forEach { color ->
+                    MobileSortingOptionButton(
+                        label = color.label,
+                        isSelected = style.textColor == color,
+                        onClick = { onColorChanged(color) },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+
+            Text("Fond", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                SubtitleBackground.values().forEach { bg ->
+                    MobileSortingOptionButton(
+                        label = bg.label,
+                        isSelected = style.background == bg,
+                        onClick = { onBackgroundChanged(bg) },
+                        modifier = Modifier.weight(1f)
+                    )
                 }
             }
         }

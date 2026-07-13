@@ -2,6 +2,10 @@ package com.poc.iptvxtream.data.local.storage
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.poc.iptvxtream.domain.model.SubtitleBackground
+import com.poc.iptvxtream.domain.model.SubtitleStyle
+import com.poc.iptvxtream.domain.model.SubtitleTextColor
+import com.poc.iptvxtream.domain.model.SubtitleTextSize
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -31,6 +35,9 @@ class SettingsManager @Inject constructor(context: Context) {
         private const val KEY_PREFERRED_AUDIO = "preferred_audio"
         private const val KEY_PREFERRED_SUBTITLE = "preferred_subtitle"
         private const val KEY_SYNC_FREQUENCY = "background_sync_frequency"
+        private const val KEY_SUBTITLE_SIZE = "subtitle_text_size"
+        private const val KEY_SUBTITLE_COLOR = "subtitle_text_color"
+        private const val KEY_SUBTITLE_BACKGROUND = "subtitle_background"
     }
 
     fun getPreferredAudio(): String? {
@@ -99,5 +106,37 @@ class SettingsManager @Inject constructor(context: Context) {
 
     fun setSyncFrequency(frequency: SyncFrequency) {
         sharedPreferences.edit().putString(KEY_SYNC_FREQUENCY, frequency.name).apply()
+    }
+
+    fun getSubtitleStyle(): SubtitleStyle {
+        val size = enumOrDefault(
+            sharedPreferences.getString(KEY_SUBTITLE_SIZE, null),
+            SubtitleTextSize.MEDIUM
+        )
+        val color = enumOrDefault(
+            sharedPreferences.getString(KEY_SUBTITLE_COLOR, null),
+            SubtitleTextColor.WHITE
+        )
+        val background = enumOrDefault(
+            sharedPreferences.getString(KEY_SUBTITLE_BACKGROUND, null),
+            SubtitleBackground.NONE
+        )
+        return SubtitleStyle(size = size, textColor = color, background = background)
+    }
+
+    fun setSubtitleStyle(style: SubtitleStyle) {
+        sharedPreferences.edit()
+            .putString(KEY_SUBTITLE_SIZE, style.size.name)
+            .putString(KEY_SUBTITLE_COLOR, style.textColor.name)
+            .putString(KEY_SUBTITLE_BACKGROUND, style.background.name)
+            .apply()
+    }
+
+    private inline fun <reified T : Enum<T>> enumOrDefault(name: String?, default: T): T {
+        return try {
+            if (name == null) default else enumValueOf<T>(name)
+        } catch (e: IllegalArgumentException) {
+            default
+        }
     }
 }

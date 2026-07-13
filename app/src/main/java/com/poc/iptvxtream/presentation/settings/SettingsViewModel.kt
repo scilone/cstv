@@ -8,6 +8,9 @@ import com.poc.iptvxtream.data.local.storage.CategorySorting
 import com.poc.iptvxtream.data.local.storage.SettingsManager
 import com.poc.iptvxtream.data.local.storage.SyncFrequency
 import com.poc.iptvxtream.data.worker.DatabaseSyncWorker
+import com.poc.iptvxtream.domain.model.SubtitleBackground
+import com.poc.iptvxtream.domain.model.SubtitleTextColor
+import com.poc.iptvxtream.domain.model.SubtitleTextSize
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -43,9 +46,28 @@ class SettingsViewModel @Inject constructor(
                 tvSorting = settingsManager.getTvCategorySorting(),
                 vodSorting = settingsManager.getVodCategorySorting(),
                 seriesSorting = settingsManager.getSeriesCategorySorting(),
-                syncFrequency = settingsManager.getSyncFrequency()
+                syncFrequency = settingsManager.getSyncFrequency(),
+                subtitleStyle = settingsManager.getSubtitleStyle()
             )
         }
+    }
+
+    fun updateSubtitleSize(size: SubtitleTextSize) {
+        val style = _state.value.subtitleStyle.copy(size = size)
+        settingsManager.setSubtitleStyle(style)
+        _state.update { it.copy(subtitleStyle = style) }
+    }
+
+    fun updateSubtitleColor(color: SubtitleTextColor) {
+        val style = _state.value.subtitleStyle.copy(textColor = color)
+        settingsManager.setSubtitleStyle(style)
+        _state.update { it.copy(subtitleStyle = style) }
+    }
+
+    fun updateSubtitleBackground(background: SubtitleBackground) {
+        val style = _state.value.subtitleStyle.copy(background = background)
+        settingsManager.setSubtitleStyle(style)
+        _state.update { it.copy(subtitleStyle = style) }
     }
 
     fun updateTvSorting(sorting: CategorySorting) {
