@@ -174,3 +174,79 @@ Attendu :
 - Prévoir un aperçu en direct du rendu (texte d'exemple) dans l'écran de
   réglage, pour que l'utilisateur voie l'effet avant de valider.
 
+---
+
+Phase 27 : profils multiples sur un même compte Xtream (type Netflix).
+
+Note périmètre : AGENTS.md exclut "multi-comptes/profils utilisateurs" du
+périmètre initial du projet. Cette phase reste bien un seul compte Xtream
+(un seul identifiant/mot de passe stocké, une seule base de médias) avec
+plusieurs profils LOCAUX dessus — pas des comptes Xtream distincts. À
+confirmer explicitement que c'est bien ça qui est visé avant de démarrer
+le développement.
+
+Le catalogue de médias (chaînes, films, séries, catégories, EPG) reste
+commun à tous les profils : un seul cache Room partagé, pas de
+duplication ni de re-téléchargement par profil.
+
+Ce qui doit devenir spécifique à chaque profil :
+- Favoris (chaînes, films, séries).
+- Historique "Récemment regardées" (chaînes Live TV, Phase 13).
+- État d'avancement de lecture : position sauvegardée sur les films et
+  les épisodes de séries (reprise de lecture), y compris "Continuer à
+  regarder" sur la Home (Phase 6).
+
+Attendu :
+- Écran de sélection de profil (grille de profils avec nom + avatar,
+  façon Netflix) affiché après connexion (ou après auto-login de la
+  Phase 18) si plusieurs profils existent, avant d'accéder à la Home.
+- Si un seul profil existe, sauter directement cet écran (comportement
+  actuel inchangé pour un usage mono-profil).
+- Gestion des profils depuis les Paramètres (Phase 5) : création,
+  renommage, suppression, changement d'avatar. Prévoir un minimum de
+  garde-fou (ex: ne pas supprimer le dernier profil restant).
+- Revoir le schéma Room pour associer un `profileId` aux entités
+  Favoris, Historique et Position de lecture, sans dupliquer les
+  entités de catalogue (chaînes/films/séries/catégories) qui restent
+  non liées à un profil.
+- Un changement de profil en cours d'usage (depuis les Paramètres ou un
+  bouton dédié) doit rafraîchir immédiatement Favoris/Historique/
+  Continuer à regarder sur tous les écrans concernés, sans nécessiter de
+  redémarrage de l'app.
+- Pas de code PIN ni de restriction parentale par profil à ce stade
+  (hors périmètre sauf demande explicite ultérieure) : uniquement la
+  séparation des données listées ci-dessus.
+
+---
+
+Phase 28 : correction de l'accessibilité et de l'ergonomie de l'écran de
+connexion.
+
+1. Bug de contraste : les champs de saisie remplis (host, username,
+   password) utilisent une couleur de fond gris foncé qui se confond
+   avec le fond noir de l'écran, rendant le texte saisi illisible.
+   Corriger les couleurs du champ de texte (fond, bordure, texte) pour
+   garantir un contraste suffisant dans tous les états (vide, rempli,
+   focus) sur fond sombre — respecter les ratios de contraste
+   d'accessibilité standard, WCAG AA minimum, cohérent avec la
+   correction de contraste déjà faite en Phase 24.
+
+2. Fusion des champs host et port : actuellement deux champs séparés
+   (host, port). Remplacer par un seul champ "adresse du serveur" où
+   l'utilisateur saisit l'URL complète avec le port inclus
+   (ex: http://mondns.com:8080 ou http://192.168.1.1:25461).
+   Attendu :
+   - Parser ce champ unique pour en extraire host/port/scheme avant
+     l'appel à player_api.php (réutilise la même logique réseau
+     existante, ne change que la saisie utilisateur).
+   - Être défensif sur le format saisi : accepter avec ou sans
+     "http://"/"https://" en préfixe (ajouter "http://" par défaut si
+     absent), signaler une erreur de saisie claire si le port est
+     manquant ou non numérique plutôt que de laisser échouer la requête
+     silencieusement.
+   - Migration : les identifiants déjà stockés (host + port séparés,
+     Phase 1) doivent continuer à fonctionner après cette phase
+     (reconstituer l'URL complète à l'affichage/pré-remplissage du champ
+     fusionné à partir des valeurs existantes), sans forcer l'utilisateur
+     à ressaisir ses identifiants.
+
