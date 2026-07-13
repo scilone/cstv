@@ -31,7 +31,14 @@ jobs:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
         run: |
           if [ -n "$KEYSTORE_BASE64" ]; then
-            echo "$KEYSTORE_BASE64" | base64 --decode > app/release-keystore.jks
+            KEYSTORE_BASE64_CLEANED="$(printf '%s' "$KEYSTORE_BASE64" \
+              | sed -E 's#^data:[^;]+;base64,##' \
+              | sed 's/\\n//g' \
+              | tr -d '\r\n\t ')"
+            if ! printf '%s' "$KEYSTORE_BASE64_CLEANED" | base64 --decode > app/release-keystore.jks; then
+              echo "::error::Invalid KEYSTORE_BASE64 secret format. Generate with: base64 -w 0 <your-keystore.jks>"
+              exit 1
+            fi
           else
             echo "Warning: KEYSTORE_BASE64 is empty, keystore file not created."
           fi
