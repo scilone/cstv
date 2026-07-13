@@ -282,7 +282,7 @@ class VodRepositoryImplTest {
         whenever(vodDao.getStreamsByCategory("5")).thenReturn(emptyList())
 
         val unenrichedEntity = VodStreamEntity(12, "Star Wars", "icon.png", "8.0", "added", "5", System.currentTimeMillis())
-        whenever(vodDao.getStreamsNeedingEnrichment()).thenReturn(listOf(unenrichedEntity))
+        whenever(vodDao.getStreamsNeedingEnrichment(any())).thenReturn(listOf(unenrichedEntity))
 
         val infoResponse = VodInfoResponseDto(
             info = VodInfoDto(
@@ -309,5 +309,23 @@ class VodRepositoryImplTest {
         verify(vodDao).insertStreams(argThat {
             size == 1 && get(0).streamId == 12 && get(0).actors == "Mark Hamill, Harrison Ford" && get(0).director == "George Lucas" && get(0).genre == "Sci-Fi"
         })
+    }
+
+    @Test
+    fun test_backgroundEnrichment_requestsBoundedBatch() = runTest {
+        val testDispatcher = kotlinx.coroutines.test.UnconfinedTestDispatcher(testScheduler)
+        val localRepository = VodRepositoryImpl(apiService, vodDao, credentialsManager, testDispatcher)
+
+        whenever(apiService.getVodStreams("username", "password", "5")).thenReturn(emptyList())
+        whenever(vodDao.getStreamsByCategory("5")).thenReturn(emptyList())
+        whenever(vodDao.getStreamsNeedingEnrichment(any())).thenReturn(emptyList())
+
+        localRepository.getVodStreams("5", forceRefresh = true)
+
+        // Le balayage d'enrichissement doit demander un lot borné (LIMIT SQL),
+        // jamais l'intégralité du catalogue non enrichi d'un coup.
+        val limitCaptor = argumentCaptor<Int>()
+        verify(vodDao).getStreamsNeedingEnrichment(limitCaptor.capture())
+        assertTrue(limitCaptor.firstValue in 1..50)
     }
 }

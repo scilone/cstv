@@ -251,7 +251,7 @@ class SeriesRepositoryImplTest {
         whenever(seriesDao.getStreamsByCategory("5")).thenReturn(emptyList())
 
         val unenrichedEntity = SeriesStreamEntity(12, "Game of Thrones", "cover.png", "9.0", "added", "5", System.currentTimeMillis())
-        whenever(seriesDao.getStreamsNeedingEnrichment()).thenReturn(listOf(unenrichedEntity))
+        whenever(seriesDao.getStreamsNeedingEnrichment(any())).thenReturn(listOf(unenrichedEntity))
 
         val infoResponse = SeriesInfoResponseDto(
             seasons = emptyList(),
@@ -278,5 +278,23 @@ class SeriesRepositoryImplTest {
         verify(seriesDao).insertStreams(argThat {
             size == 1 && get(0).seriesId == 12 && get(0).actors == "Kit Harington, Emilia Clarke" && get(0).director == "David Benioff" && get(0).genre == "Fantasy"
         })
+    }
+
+    @Test
+    fun test_backgroundEnrichment_requestsBoundedBatch() = runTest {
+        val testDispatcher = kotlinx.coroutines.test.UnconfinedTestDispatcher(testScheduler)
+        val localRepository = SeriesRepositoryImpl(apiService, seriesDao, vodDao, credentialsManager, testDispatcher)
+
+        whenever(apiService.getSeriesStreams("username", "password", "5")).thenReturn(emptyList())
+        whenever(seriesDao.getStreamsByCategory("5")).thenReturn(emptyList())
+        whenever(seriesDao.getStreamsNeedingEnrichment(any())).thenReturn(emptyList())
+
+        localRepository.getSeriesStreams("5", forceRefresh = true)
+
+        // Le balayage d'enrichissement doit demander un lot borné (LIMIT SQL),
+        // jamais l'intégralité du catalogue non enrichi d'un coup.
+        val limitCaptor = argumentCaptor<Int>()
+        verify(seriesDao).getStreamsNeedingEnrichment(limitCaptor.capture())
+        assertTrue(limitCaptor.firstValue in 1..50)
     }
 }

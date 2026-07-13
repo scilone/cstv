@@ -40,8 +40,8 @@ interface VodDao {
     @Query("DELETE FROM vod_streams")
     suspend fun clearAllStreams()
 
-    @Query("SELECT * FROM vod_streams WHERE actors IS NULL OR director IS NULL OR genre IS NULL")
-    suspend fun getStreamsNeedingEnrichment(): List<VodStreamEntity>
+    @Query("SELECT * FROM vod_streams WHERE actors IS NULL OR director IS NULL OR genre IS NULL LIMIT :limit")
+    suspend fun getStreamsNeedingEnrichment(limit: Int): List<VodStreamEntity>
 
     // --- Playback Positions (Resume) ---
     @Query("SELECT * FROM playback_positions ORDER BY lastAccessedAt DESC")

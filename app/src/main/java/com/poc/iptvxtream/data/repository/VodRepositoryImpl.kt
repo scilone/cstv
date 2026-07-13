@@ -43,7 +43,11 @@ class VodRepositoryImpl @Inject constructor(
         enrichmentJob = repositoryScope.launch {
             try {
                 val creds = credentialsManager.getCredentials() ?: return@launch
-                val needingEnrichment = vodDao.getStreamsNeedingEnrichment()
+                // Enrichit par lot borné pour ne pas déclencher une rafale de requêtes
+                // getVodInfo sur tout le catalogue d'un coup. Chaque chargement de liste
+                // reprend le lot suivant (les entités enrichies sortent de la requête),
+                // ce qui étale la charge serveur sur plusieurs navigations.
+                val needingEnrichment = vodDao.getStreamsNeedingEnrichment(ENRICHMENT_BATCH_SIZE)
                 for (stream in needingEnrichment) {
                     if (!isActive) break
                     try {
@@ -76,6 +80,7 @@ class VodRepositoryImpl @Inject constructor(
 
     companion object {
         private const val CACHE_EXPIRY_MILLIS = 24 * 60 * 60 * 1000L // 24 hours
+        private const val ENRICHMENT_BATCH_SIZE = 50
     }
 
     // Tracks whether a full ("all") bulk fetch has been done, so a partial

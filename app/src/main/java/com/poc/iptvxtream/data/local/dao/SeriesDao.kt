@@ -39,6 +39,6 @@ interface SeriesDao {
     @Query("SELECT * FROM series_streams WHERE seriesId = :seriesId LIMIT 1")
     suspend fun getStreamById(seriesId: Int): SeriesStreamEntity?
 
-    @Query("SELECT * FROM series_streams WHERE actors IS NULL OR director IS NULL OR genre IS NULL")
-    suspend fun getStreamsNeedingEnrichment(): List<SeriesStreamEntity>
+    @Query("SELECT * FROM series_streams WHERE actors IS NULL OR director IS NULL OR genre IS NULL LIMIT :limit")
+    suspend fun getStreamsNeedingEnrichment(limit: Int): List<SeriesStreamEntity>
 }
