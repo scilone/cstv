@@ -648,10 +648,8 @@ private fun HomeLiveTvCard(
                     .padding(horizontal = 8.dp, vertical = 2.dp),
                 textAlign = TextAlign.Center
             )
-            LinearProgressIndicator(
-                progress = { epgProgram.getProgressFraction() },
-                color = MaterialTheme.colorScheme.primary,
-                trackColor = Color.DarkGray,
+            HomeEpgProgressBar(
+                program = epgProgram,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 8.dp, vertical = 4.dp)
@@ -672,6 +670,27 @@ private fun HomeLiveTvCard(
             )
         }
     }
+}
+
+@Composable
+private fun HomeEpgProgressBar(
+    program: com.poc.iptvxtream.domain.model.LiveEpgProgram,
+    modifier: Modifier = Modifier
+) {
+    // Recomputed periodically so the bar keeps advancing while the program plays
+    var progress by remember(program) { mutableStateOf(program.getProgressFraction()) }
+    LaunchedEffect(program) {
+        while (true) {
+            progress = program.getProgressFraction()
+            kotlinx.coroutines.delay(30_000)
+        }
+    }
+    LinearProgressIndicator(
+        progress = { progress },
+        color = MaterialTheme.colorScheme.primary,
+        trackColor = Color.DarkGray,
+        modifier = modifier
+    )
 }
 
 @Composable

@@ -260,9 +260,12 @@ class LiveTvRepositoryImpl @Inject constructor(
         if (input.isNullOrBlank()) return ""
         val trimmed = input.trim()
         return try {
+            // java.util path needs API 26+ and is also what runs in JVM unit tests;
+            // the MIME decoder tolerates line breaks like android.util's DEFAULT does.
+            // Fallback covers older devices (NoClassDefFoundError) and strict-decode failures.
             val bytes = try {
-                java.util.Base64.getDecoder().decode(trimmed)
-            } catch (e: NoClassDefFoundError) {
+                java.util.Base64.getMimeDecoder().decode(trimmed)
+            } catch (e: Throwable) {
                 android.util.Base64.decode(trimmed, android.util.Base64.DEFAULT)
             }
             val decodedStr = String(bytes, Charsets.UTF_8)

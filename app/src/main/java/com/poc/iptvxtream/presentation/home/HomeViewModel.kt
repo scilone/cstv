@@ -59,19 +59,32 @@ class HomeViewModel @Inject constructor(
         loadHomeData()
     }
 
+    // Guards against duplicate concurrent fetches and hammering channels without EPG data
+    private val epgInFlight = mutableSetOf<Int>()
+    private val epgLastAttempt = mutableMapOf<Int, Long>()
+
     fun loadEpgForStream(streamId: Int) {
+        val now = System.currentTimeMillis()
         val current = _state.value.epgPrograms[streamId]
-        val nowSec = System.currentTimeMillis() / 1000L
-        if (current != null && nowSec < current.endTimestamp) {
+        if (current != null && now / 1000L < current.endTimestamp) {
             return
         }
+        if (streamId in epgInFlight || now - (epgLastAttempt[streamId] ?: 0L) < 60_000L) {
+            return
+        }
+        epgInFlight.add(streamId)
+        epgLastAttempt[streamId] = now
 
         viewModelScope.launch {
-            val program = getLiveEpgUseCase(streamId)
-            if (program != null) {
-                _state.update { 
-                    it.copy(epgPrograms = it.epgPrograms + (streamId to program))
+            try {
+                val program = getLiveEpgUseCase(streamId)
+                if (program != null) {
+                    _state.update {
+                        it.copy(epgPrograms = it.epgPrograms + (streamId to program))
+                    }
                 }
+            } finally {
+                epgInFlight.remove(streamId)
             }
         }
     }

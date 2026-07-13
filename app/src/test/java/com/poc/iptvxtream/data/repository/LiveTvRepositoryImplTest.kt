@@ -197,9 +197,7 @@ class LiveTvRepositoryImplTest {
     @Test
     fun test_getLiveEpg_success_and_decodesBase64() = runTest {
         val streamId = 12345
-        // "Q29ubmUgZGUgY29tYmF0" is base64 for "Conne de combat"
-        // Let's use "VGVzdCBQcm9ncmFtbWU=" which is Base64 for "Test Programme"
-        val base64Title = "VGVzdCBQcm9ncmFtbWU="
+        val base64Title = "VGVzdCBQcm9ncmFtbWU=" // "Test Programme"
         val base64Desc = "VGVzdCBEZXNjcmlwdGlvbg==" // "Test Description"
         
         val nowSec = System.currentTimeMillis() / 1000L

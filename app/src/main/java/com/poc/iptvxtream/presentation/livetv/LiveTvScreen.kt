@@ -19,7 +19,6 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -29,7 +28,6 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -72,6 +70,11 @@ fun LiveTvScreen(
         } else {
             state.streams.filter { it.name.contains(searchQuery, ignoreCase = true) }
         }
+    }
+
+    // Refresh recently watched when returning from the player (the ViewModel outlives this screen)
+    LaunchedEffect(Unit) {
+        viewModel.loadRecentlyWatched()
     }
 
     Box(
@@ -467,10 +470,8 @@ private fun MobileLayout(
                                             modifier = Modifier.padding(top = 2.dp)
                                         )
                                         Spacer(modifier = Modifier.height(4.dp))
-                                        LinearProgressIndicator(
-                                            progress = { epgProgram.getProgressFraction() },
-                                            color = MaterialTheme.colorScheme.primary,
-                                            trackColor = Color.DarkGray,
+                                        EpgProgressBar(
+                                            program = epgProgram,
                                             modifier = Modifier
                                                 .fillMaxWidth(0.9f)
                                                 .height(3.dp)
@@ -628,10 +629,8 @@ private fun MobileStreamCard(
                     modifier = Modifier.padding(top = 2.dp)
                 )
                 Spacer(modifier = Modifier.height(4.dp))
-                LinearProgressIndicator(
-                    progress = { epgProgram.getProgressFraction() },
-                    color = MaterialTheme.colorScheme.primary,
-                    trackColor = Color.DarkGray,
+                EpgProgressBar(
+                    program = epgProgram,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(3.dp)
@@ -700,6 +699,27 @@ private fun CategoryFilterChip(
             fontWeight = if (isSelected || isFocused) FontWeight.Bold else FontWeight.Normal
         )
     }
+}
+
+@Composable
+private fun EpgProgressBar(
+    program: LiveEpgProgram,
+    modifier: Modifier = Modifier
+) {
+    // Recomputed periodically so the bar keeps advancing while the program plays
+    var progress by remember(program) { mutableStateOf(program.getProgressFraction()) }
+    LaunchedEffect(program) {
+        while (true) {
+            progress = program.getProgressFraction()
+            delay(30_000)
+        }
+    }
+    LinearProgressIndicator(
+        progress = { progress },
+        color = MaterialTheme.colorScheme.primary,
+        trackColor = Color.DarkGray,
+        modifier = modifier
+    )
 }
 
 @Composable
@@ -820,10 +840,8 @@ private fun RecentlyWatchedTvItem(
                         overflow = TextOverflow.Ellipsis
                     )
                     Spacer(modifier = Modifier.height(2.dp))
-                    LinearProgressIndicator(
-                        progress = { epgProgram.getProgressFraction() },
-                        color = MaterialTheme.colorScheme.primary,
-                        trackColor = Color.DarkGray,
+                    EpgProgressBar(
+                        program = epgProgram,
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(2.dp)
@@ -920,10 +938,8 @@ private fun StreamTvCard(
                         modifier = Modifier.padding(top = 2.dp)
                     )
                     Spacer(modifier = Modifier.height(4.dp))
-                    LinearProgressIndicator(
-                        progress = { epgProgram.getProgressFraction() },
-                        color = MaterialTheme.colorScheme.primary,
-                        trackColor = Color.DarkGray,
+                    EpgProgressBar(
+                        program = epgProgram,
                         modifier = Modifier
                             .fillMaxWidth(0.9f)
                             .height(3.dp)
