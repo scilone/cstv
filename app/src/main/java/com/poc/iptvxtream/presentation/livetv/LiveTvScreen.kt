@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -18,31 +19,34 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.foundation.focusGroup
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.poc.iptvxtream.domain.model.FavoriteItem
 import com.poc.iptvxtream.domain.model.LiveCategory
+import com.poc.iptvxtream.domain.model.LiveEpgProgram
 import com.poc.iptvxtream.domain.model.LiveStream
+import kotlinx.coroutines.delay
 
 @Composable
 fun LiveTvScreen(
     viewModel: LiveTvViewModel,
     favoritesList: List<FavoriteItem>,
-    onToggleFavorite: (LiveStream) -> Unit,
     isTv: Boolean,
     onStreamSelected: (LiveStream, List<LiveStream>) -> Unit,
+    onToggleFavorite: (LiveStream) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val state by viewModel.state.collectAsState()
@@ -70,11 +74,6 @@ fun LiveTvScreen(
         }
     }
 
-    LaunchedEffect(Unit) {
-        viewModel.loadCategories(forceRefresh = false)
-        viewModel.loadRecentlyWatched()
-    }
-
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -83,30 +82,32 @@ fun LiveTvScreen(
         if (isTv) {
             TvLayout(
                 state = state,
-                favoritesList = favoritesList,
-                onToggleFavorite = onToggleFavorite,
                 onCategorySelected = { viewModel.selectCategory(it) },
                 onStreamSelected = { stream -> onStreamSelected(stream, filteredStreams) },
-                onRecentlyWatchedSelected = { stream -> onStreamSelected(stream, state.recentlyWatched) },
                 onRefresh = { viewModel.loadCategories(forceRefresh = true) },
+                favoritesList = favoritesList,
+                onToggleFavorite = onToggleFavorite,
                 filteredStreams = filteredStreams,
                 searchQuery = searchQuery,
                 onSearchQueryChanged = { searchQuery = it },
-                isSpecificCategory = isSpecificCategory
+                isSpecificCategory = isSpecificCategory,
+                epgPrograms = state.epgPrograms,
+                onLoadEpg = { viewModel.loadEpgForStream(it) }
             )
         } else {
             MobileLayout(
                 state = state,
-                favoritesList = favoritesList,
-                onToggleFavorite = onToggleFavorite,
                 onCategorySelected = { viewModel.selectCategory(it) },
                 onStreamSelected = { stream -> onStreamSelected(stream, filteredStreams) },
-                onRecentlyWatchedSelected = { stream -> onStreamSelected(stream, state.recentlyWatched) },
                 onRefresh = { viewModel.loadCategories(forceRefresh = true) },
+                favoritesList = favoritesList,
+                onToggleFavorite = onToggleFavorite,
                 filteredStreams = filteredStreams,
                 searchQuery = searchQuery,
                 onSearchQueryChanged = { searchQuery = it },
-                isSpecificCategory = isSpecificCategory
+                isSpecificCategory = isSpecificCategory,
+                epgPrograms = state.epgPrograms,
+                onLoadEpg = { viewModel.loadEpgForStream(it) }
             )
         }
     }
@@ -115,16 +116,17 @@ fun LiveTvScreen(
 @Composable
 private fun TvLayout(
     state: LiveTvState,
-    favoritesList: List<FavoriteItem>,
-    onToggleFavorite: (LiveStream) -> Unit,
     onCategorySelected: (LiveCategory) -> Unit,
     onStreamSelected: (LiveStream) -> Unit,
-    onRecentlyWatchedSelected: (LiveStream) -> Unit,
     onRefresh: () -> Unit,
+    favoritesList: List<FavoriteItem>,
+    onToggleFavorite: (LiveStream) -> Unit,
     filteredStreams: List<LiveStream>,
     searchQuery: String,
     onSearchQueryChanged: (String) -> Unit,
-    isSpecificCategory: Boolean
+    isSpecificCategory: Boolean,
+    epgPrograms: Map<Int, LiveEpgProgram>,
+    onLoadEpg: (Int) -> Unit
 ) {
     val isAllSelected = state.selectedCategory?.categoryId == "all"
 
@@ -166,41 +168,29 @@ private fun TvLayout(
             }
         }
 
-        // Recently Watched TV row (if present)
-        if (state.recentlyWatched.isNotEmpty()) {
-            Text(
-                text = "RÉCEMMENT REGARDÉES",
-                color = MaterialTheme.colorScheme.primary,
-                fontWeight = FontWeight.Bold,
-                fontSize = 13.sp,
-                modifier = Modifier.padding(bottom = 8.dp)
-            )
-
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 16.dp)
-            ) {
-                items(state.recentlyWatched) { stream ->
-                    RecentlyWatchedTvItem(
-                        stream = stream,
-                        onClick = { onRecentlyWatchedSelected(stream) }
-                    )
-                }
-            }
-        }
-
         if (state.isLoadingStreams || state.isLoadingCategories) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
             }
         } else if (isAllSelected) {
-            // Mode "Tout" : vertical categories horizontal rows list
+            // Mode "Tout" : vertical categories list of horizontal rows
             LazyColumn(
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 modifier = Modifier.fillMaxSize()
             ) {
+                // Section 1: Récemment regardées (if not empty)
+                if (state.recentlyWatched.isNotEmpty()) {
+                    item {
+                        RecentlyWatchedRow(
+                            streams = state.recentlyWatched,
+                            onStreamSelected = onStreamSelected,
+                            isTv = true,
+                            epgPrograms = epgPrograms,
+                            onLoadEpg = onLoadEpg
+                        )
+                    }
+                }
+
                 items(actualCategories) { category ->
                     val catStreams = groupedStreams[category.categoryId] ?: emptyList()
                     if (catStreams.isNotEmpty()) {
@@ -210,7 +200,9 @@ private fun TvLayout(
                             favoritesList = favoritesList,
                             onToggleFavorite = onToggleFavorite,
                             onStreamSelected = onStreamSelected,
-                            isTv = true
+                            isTv = true,
+                            epgPrograms = epgPrograms,
+                            onLoadEpg = onLoadEpg
                         )
                     }
                 }
@@ -218,7 +210,7 @@ private fun TvLayout(
         } else {
             // Mode "Catégorie spécifique" : Search & Vertical Grid
             Text(
-                text = state.selectedCategory?.categoryName?.uppercase() ?: "CHAÎNES",
+                text = state.selectedCategory?.categoryName?.uppercase() ?: "DIRECT",
                 color = Color.White,
                 fontWeight = FontWeight.Bold,
                 fontSize = 18.sp,
@@ -229,7 +221,7 @@ private fun TvLayout(
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = onSearchQueryChanged,
-                    placeholder = { Text("Rechercher dans cette catégorie...", color = Color.Gray, fontSize = 13.sp) },
+                    placeholder = { Text("Rechercher une chaîne...", color = Color.Gray, fontSize = 13.sp) },
                     leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp)) },
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
@@ -254,8 +246,8 @@ private fun TvLayout(
             } else {
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(3),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
                     modifier = Modifier.fillMaxSize().focusGroup()
                 ) {
                     items(filteredStreams) { stream ->
@@ -263,6 +255,8 @@ private fun TvLayout(
                         StreamTvCard(
                             stream = stream,
                             isFavorite = isFav,
+                            epgProgram = epgPrograms[stream.streamId],
+                            onLoadEpg = { onLoadEpg(stream.streamId) },
                             onToggleFavorite = { onToggleFavorite(stream) },
                             onClick = { onStreamSelected(stream) }
                         )
@@ -276,16 +270,17 @@ private fun TvLayout(
 @Composable
 private fun MobileLayout(
     state: LiveTvState,
-    favoritesList: List<FavoriteItem>,
-    onToggleFavorite: (LiveStream) -> Unit,
     onCategorySelected: (LiveCategory) -> Unit,
     onStreamSelected: (LiveStream) -> Unit,
-    onRecentlyWatchedSelected: (LiveStream) -> Unit,
     onRefresh: () -> Unit,
+    favoritesList: List<FavoriteItem>,
+    onToggleFavorite: (LiveStream) -> Unit,
     filteredStreams: List<LiveStream>,
     searchQuery: String,
     onSearchQueryChanged: (String) -> Unit,
-    isSpecificCategory: Boolean
+    isSpecificCategory: Boolean,
+    epgPrograms: Map<Int, LiveEpgProgram>,
+    onLoadEpg: (Int) -> Unit
 ) {
     val isAllSelected = state.selectedCategory?.categoryId == "all"
 
@@ -324,46 +319,30 @@ private fun MobileLayout(
             }
         }
 
-        // Recently watched list (if present)
-        if (state.recentlyWatched.isNotEmpty()) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 10.dp, start = 12.dp, end = 12.dp, bottom = 4.dp)
-            ) {
-                Text(
-                    text = "RÉCEMMENT REGARDÉES",
-                    color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 12.sp,
-                    modifier = Modifier.padding(bottom = 6.dp)
-                )
-
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    items(state.recentlyWatched) { stream ->
-                        RecentlyWatchedTvItem(
-                            stream = stream,
-                            onClick = { onRecentlyWatchedSelected(stream) }
-                        )
-                    }
-                }
-            }
-        }
-
         if (state.isLoadingStreams || state.isLoadingCategories) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
             }
         } else if (isAllSelected) {
-            // Mode "Tout" : list of horizontal rows
+            // Mode "Tout" : list of horizontal streams sections
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 contentPadding = PaddingValues(vertical = 8.dp)
             ) {
+                // Récemment regardées
+                if (state.recentlyWatched.isNotEmpty()) {
+                    item {
+                        RecentlyWatchedRow(
+                            streams = state.recentlyWatched,
+                            onStreamSelected = onStreamSelected,
+                            isTv = false,
+                            epgPrograms = epgPrograms,
+                            onLoadEpg = onLoadEpg
+                        )
+                    }
+                }
+
                 items(actualCategories) { category ->
                     val catStreams = groupedStreams[category.categoryId] ?: emptyList()
                     if (catStreams.isNotEmpty()) {
@@ -373,7 +352,9 @@ private fun MobileLayout(
                             favoritesList = favoritesList,
                             onToggleFavorite = onToggleFavorite,
                             onStreamSelected = onStreamSelected,
-                            isTv = false
+                            isTv = false,
+                            epgPrograms = epgPrograms,
+                            onLoadEpg = onLoadEpg
                         )
                     }
                 }
@@ -384,7 +365,7 @@ private fun MobileLayout(
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = onSearchQueryChanged,
-                    placeholder = { Text("Rechercher dans cette catégorie...", color = Color.Gray, fontSize = 13.sp) },
+                    placeholder = { Text("Rechercher une chaîne...", color = Color.Gray, fontSize = 13.sp) },
                     leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp)) },
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
@@ -410,11 +391,20 @@ private fun MobileLayout(
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(8.dp),
+                        .padding(horizontal = 12.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(filteredStreams) { stream ->
                         val isFav = favoritesList.any { it.id == stream.streamId && it.type == "live" }
+                        val epgProgram = epgPrograms[stream.streamId]
+
+                        LaunchedEffect(stream.streamId) {
+                            while (true) {
+                                onLoadEpg(stream.streamId)
+                                delay(60000)
+                            }
+                        }
+
                         Card(
                             colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E24)),
                             modifier = Modifier
@@ -466,6 +456,27 @@ private fun MobileLayout(
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )
+
+                                    if (epgProgram != null) {
+                                        Text(
+                                            text = epgProgram.title,
+                                            color = MaterialTheme.colorScheme.primary,
+                                            fontSize = 11.sp,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.padding(top = 2.dp)
+                                        )
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        LinearProgressIndicator(
+                                            progress = { epgProgram.getProgressFraction() },
+                                            color = MaterialTheme.colorScheme.primary,
+                                            trackColor = Color.DarkGray,
+                                            modifier = Modifier
+                                                .fillMaxWidth(0.9f)
+                                                .height(3.dp)
+                                                .clip(RoundedCornerShape(1.5.dp))
+                                        )
+                                    }
                                 }
 
                                 IconButton(onClick = { onToggleFavorite(stream) }) {
@@ -500,7 +511,9 @@ private fun CategorySectionRow(
     favoritesList: List<FavoriteItem>,
     onToggleFavorite: (LiveStream) -> Unit,
     onStreamSelected: (LiveStream) -> Unit,
-    isTv: Boolean
+    isTv: Boolean,
+    epgPrograms: Map<Int, LiveEpgProgram>,
+    onLoadEpg: (Int) -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -526,6 +539,8 @@ private fun CategorySectionRow(
                     StreamTvCard(
                         stream = stream,
                         isFavorite = isFav,
+                        epgProgram = epgPrograms[stream.streamId],
+                        onLoadEpg = { onLoadEpg(stream.streamId) },
                         onToggleFavorite = { onToggleFavorite(stream) },
                         onClick = { onStreamSelected(stream) }
                     )
@@ -533,6 +548,8 @@ private fun CategorySectionRow(
                     MobileStreamCard(
                         stream = stream,
                         isFavorite = isFav,
+                        epgProgram = epgPrograms[stream.streamId],
+                        onLoadEpg = { onLoadEpg(stream.streamId) },
                         onToggleFavorite = { onToggleFavorite(stream) },
                         onClick = { onStreamSelected(stream) }
                     )
@@ -546,13 +563,22 @@ private fun CategorySectionRow(
 private fun MobileStreamCard(
     stream: LiveStream,
     isFavorite: Boolean,
+    epgProgram: LiveEpgProgram?,
+    onLoadEpg: () -> Unit,
     onToggleFavorite: () -> Unit,
     onClick: () -> Unit
 ) {
+    LaunchedEffect(stream.streamId) {
+        while (true) {
+            onLoadEpg()
+            delay(60000)
+        }
+    }
+
     Card(
         colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E24)),
         modifier = Modifier
-            .width(140.dp)
+            .width(150.dp)
             .clickable { onClick() }
     ) {
         Column(modifier = Modifier.padding(8.dp)) {
@@ -591,6 +617,27 @@ private fun MobileStreamCard(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
+
+            if (epgProgram != null) {
+                Text(
+                    text = epgProgram.title,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontSize = 10.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 2.dp)
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                LinearProgressIndicator(
+                    progress = { epgProgram.getProgressFraction() },
+                    color = MaterialTheme.colorScheme.primary,
+                    trackColor = Color.DarkGray,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(3.dp)
+                        .clip(RoundedCornerShape(1.5.dp))
+                )
+            }
 
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -656,19 +703,66 @@ private fun CategoryFilterChip(
 }
 
 @Composable
+private fun RecentlyWatchedRow(
+    streams: List<LiveStream>,
+    onStreamSelected: (LiveStream) -> Unit,
+    isTv: Boolean,
+    epgPrograms: Map<Int, LiveEpgProgram>,
+    onLoadEpg: (Int) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+    ) {
+        Text(
+            text = "RÉCEMMENT REGARDÉES",
+            color = Color.LightGray,
+            fontWeight = FontWeight.Bold,
+            fontSize = 14.sp,
+            modifier = Modifier.padding(start = 12.dp, bottom = 6.dp)
+        )
+
+        LazyRow(
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            contentPadding = PaddingValues(horizontal = 12.dp),
+            modifier = Modifier.fillMaxWidth().focusGroup()
+        ) {
+            items(streams) { stream ->
+                RecentlyWatchedTvItem(
+                    stream = stream,
+                    epgProgram = epgPrograms[stream.streamId],
+                    onLoadEpg = { onLoadEpg(stream.streamId) },
+                    onClick = { onStreamSelected(stream) }
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun RecentlyWatchedTvItem(
     stream: LiveStream,
+    epgProgram: LiveEpgProgram?,
+    onLoadEpg: () -> Unit,
     onClick: () -> Unit
 ) {
     var isFocused by remember { mutableStateOf(false) }
+
+    LaunchedEffect(stream.streamId) {
+        while (true) {
+            onLoadEpg()
+            delay(60000)
+        }
+    }
 
     Card(
         colors = CardDefaults.cardColors(
             containerColor = if (isFocused) Color(0xFF23232D) else Color(0xFF1E1E24)
         ),
         modifier = Modifier
-            .width(160.dp)
-            .height(54.dp)
+            .width(180.dp)
+            .height(72.dp)
             .onFocusChanged { isFocused = it.isFocused }
             .border(
                 width = 2.dp,
@@ -684,7 +778,7 @@ private fun RecentlyWatchedTvItem(
         ) {
             Box(
                 modifier = Modifier
-                    .size(40.dp)
+                    .size(44.dp)
                     .clip(RoundedCornerShape(6.dp))
                     .background(Color(0xFF0F0F13)),
                 contentAlignment = Alignment.Center
@@ -710,19 +804,32 @@ private fun RecentlyWatchedTvItem(
 
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "CH ${stream.num}",
-                    color = MaterialTheme.colorScheme.primary,
-                    fontSize = 9.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    text = stream.name,
+                    text = "CH ${stream.num} ${stream.name}",
                     color = Color.White,
-                    fontSize = 12.sp,
+                    fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
+                if (epgProgram != null) {
+                    Text(
+                        text = epgProgram.title,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontSize = 9.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    LinearProgressIndicator(
+                        progress = { epgProgram.getProgressFraction() },
+                        color = MaterialTheme.colorScheme.primary,
+                        trackColor = Color.DarkGray,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(2.dp)
+                            .clip(RoundedCornerShape(1.dp))
+                    )
+                }
             }
         }
     }
@@ -732,10 +839,19 @@ private fun RecentlyWatchedTvItem(
 private fun StreamTvCard(
     stream: LiveStream,
     isFavorite: Boolean,
+    epgProgram: LiveEpgProgram?,
+    onLoadEpg: () -> Unit,
     onToggleFavorite: () -> Unit,
     onClick: () -> Unit
 ) {
     var isFocused by remember { mutableStateOf(false) }
+
+    LaunchedEffect(stream.streamId) {
+        while (true) {
+            onLoadEpg()
+            delay(60000)
+        }
+    }
 
     Card(
         colors = CardDefaults.cardColors(
@@ -743,7 +859,7 @@ private fun StreamTvCard(
         ),
         modifier = Modifier
             .fillMaxWidth()
-            .height(72.dp)
+            .height(84.dp)
             .onFocusChanged { isFocused = it.isFocused }
             .border(
                 width = 2.dp,
@@ -785,19 +901,44 @@ private fun StreamTvCard(
 
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "CH ${stream.num}",
-                    color = MaterialTheme.colorScheme.primary,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    text = stream.name,
+                    text = "CH ${stream.num} ${stream.name}",
                     color = Color.White,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
+
+                if (epgProgram != null) {
+                    Text(
+                        text = epgProgram.title,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(top = 2.dp)
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    LinearProgressIndicator(
+                        progress = { epgProgram.getProgressFraction() },
+                        color = MaterialTheme.colorScheme.primary,
+                        trackColor = Color.DarkGray,
+                        modifier = Modifier
+                            .fillMaxWidth(0.9f)
+                            .height(3.dp)
+                            .clip(RoundedCornerShape(1.5.dp))
+                    )
+                } else {
+                    Text(
+                        text = "Aucune information de programme",
+                        color = Color.Gray,
+                        fontSize = 11.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(top = 2.dp)
+                    )
+                }
             }
 
             // Favorite Star on focus or favorite status

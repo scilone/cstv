@@ -1,5 +1,6 @@
 package com.poc.iptvxtream.data.remote.api
 
+import com.poc.iptvxtream.data.remote.dto.EpgResponseDto
 import com.poc.iptvxtream.data.remote.dto.LiveCategoryDto
 import com.poc.iptvxtream.data.remote.dto.LiveStreamDto
 import com.poc.iptvxtream.data.remote.dto.LoginResponseDto
@@ -80,4 +81,12 @@ interface XtreamApiService {
         @Query("series_id") seriesId: Int,
         @Query("action") action: String = "get_series_info"
     ): SeriesInfoResponseDto
+
+    @GET("player_api.php")
+    suspend fun getShortEpg(
+        @Query("username") username: String,
+        @Query("password") password: String,
+        @Query("stream_id") streamId: Int,
+        @Query("action") action: String = "get_short_epg"
+    ): EpgResponseDto
 }

@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import com.poc.iptvxtream.data.local.entity.EpgCacheEntity
 import com.poc.iptvxtream.data.local.entity.LiveCategoryEntity
 import com.poc.iptvxtream.data.local.entity.LiveStreamEntity
 import com.poc.iptvxtream.data.local.entity.RecentlyWatchedLiveEntity
@@ -43,4 +44,16 @@ interface LiveTvDao {
 
     @Query("SELECT * FROM recently_watched_live ORDER BY watchedAt DESC LIMIT :limit")
     suspend fun getRecentlyWatched(limit: Int): List<RecentlyWatchedLiveEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertEpgCache(epg: EpgCacheEntity)
+
+    @Query("SELECT * FROM epg_cache WHERE streamId = :streamId LIMIT 1")
+    suspend fun getEpgCache(streamId: Int): EpgCacheEntity?
+
+    @Query("DELETE FROM epg_cache WHERE streamId = :streamId")
+    suspend fun deleteEpgCache(streamId: Int)
+
+    @Query("DELETE FROM epg_cache")
+    suspend fun clearEpgCache()
 }

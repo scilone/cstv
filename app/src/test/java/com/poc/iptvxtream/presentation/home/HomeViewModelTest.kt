@@ -31,6 +31,9 @@ class HomeViewModelTest {
     @Mock
     private lateinit var favoritesRepository: FavoritesRepository
 
+    @Mock
+    private lateinit var getLiveEpgUseCase: com.poc.iptvxtream.domain.usecase.GetLiveEpgUseCase
+
     private val testDispatcher = UnconfinedTestDispatcher()
 
     private lateinit var viewModel: HomeViewModel
@@ -78,7 +81,7 @@ class HomeViewModelTest {
         whenever(seriesRepository.getSeriesCategories(false)).thenReturn(seriesCats)
         whenever(seriesRepository.getSeriesStreams("1", false)).thenReturn(seriesStreams)
 
-        viewModel = HomeViewModel(vodRepository, liveTvRepository, seriesRepository, favoritesRepository)
+        viewModel = HomeViewModel(vodRepository, liveTvRepository, seriesRepository, favoritesRepository, getLiveEpgUseCase)
 
         val state = viewModel.state.value
         assertFalse(state.isLoading)
@@ -116,7 +119,7 @@ class HomeViewModelTest {
         // Mock Series to be empty
         whenever(seriesRepository.getSeriesCategories(false)).thenReturn(emptyList())
 
-        viewModel = HomeViewModel(vodRepository, liveTvRepository, seriesRepository, favoritesRepository)
+        viewModel = HomeViewModel(vodRepository, liveTvRepository, seriesRepository, favoritesRepository, getLiveEpgUseCase)
 
         val state = viewModel.state.value
         assertFalse(state.isLoading)

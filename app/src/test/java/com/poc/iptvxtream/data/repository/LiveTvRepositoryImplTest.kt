@@ -5,6 +5,9 @@ import com.poc.iptvxtream.data.local.entity.LiveCategoryEntity
 import com.poc.iptvxtream.data.local.entity.LiveStreamEntity
 import com.poc.iptvxtream.data.local.storage.CredentialsManager
 import com.poc.iptvxtream.data.remote.api.XtreamApiService
+import com.poc.iptvxtream.data.remote.dto.EpgResponseDto
+import com.poc.iptvxtream.data.remote.dto.EpgListingDto
+import com.google.gson.JsonPrimitive
 import com.poc.iptvxtream.data.remote.dto.LiveCategoryDto
 import com.poc.iptvxtream.data.remote.dto.LiveStreamDto
 import com.poc.iptvxtream.domain.model.Credentials
@@ -189,5 +192,45 @@ class LiveTvRepositoryImplTest {
         assertEquals("icon.png", result[0].streamIcon)
         assertEquals("10", result[0].categoryId)
         assertEquals(1, result[0].num)
+    }
+
+    @Test
+    fun test_getLiveEpg_success_and_decodesBase64() = runTest {
+        val streamId = 12345
+        // "Q29ubmUgZGUgY29tYmF0" is base64 for "Conne de combat"
+        // Let's use "VGVzdCBQcm9ncmFtbWU=" which is Base64 for "Test Programme"
+        val base64Title = "VGVzdCBQcm9ncmFtbWU="
+        val base64Desc = "VGVzdCBEZXNjcmlwdGlvbg==" // "Test Description"
+        
+        val nowSec = System.currentTimeMillis() / 1000L
+        val startSec = nowSec - 1800L // started 30 mins ago
+        val endSec = nowSec + 1800L   // ends in 30 mins
+
+        val response = EpgResponseDto(
+            epgListings = listOf(
+                EpgListingDto(
+                    title = base64Title,
+                    description = base64Desc,
+                    start = null,
+                    end = null,
+                    startTimestamp = JsonPrimitive(startSec),
+                    endTimestamp = JsonPrimitive(endSec)
+                )
+            )
+        )
+
+        whenever(liveTvDao.getEpgCache(streamId)).thenReturn(null)
+        whenever(apiService.getShortEpg(any(), any(), eq(streamId), any())).thenReturn(response)
+
+        val program = repository.getLiveEpg(streamId, forceRefresh = false)
+
+        assertNotNull(program)
+        assertEquals("Test Programme", program!!.title)
+        assertEquals("Test Description", program.description)
+        assertEquals(startSec, program.startTimestamp)
+        assertEquals(endSec, program.endTimestamp)
+
+        // Verify it was saved to local cache
+        verify(liveTvDao).insertEpgCache(any())
     }
 }

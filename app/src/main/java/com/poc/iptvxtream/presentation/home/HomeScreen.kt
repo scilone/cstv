@@ -271,6 +271,8 @@ fun HomeScreen(
                                 items(state.firstLiveStreams) { stream ->
                                     HomeLiveTvCard(
                                         stream = stream,
+                                        epgProgram = state.epgPrograms[stream.streamId],
+                                        onLoadEpg = { viewModel.loadEpgForStream(stream.streamId) },
                                         onClick = { onPlayLiveStream(stream, state.firstLiveStreams) }
                                     )
                                 }
@@ -550,13 +552,22 @@ private fun HomeFavoriteItemCard(
 @Composable
 private fun HomeLiveTvCard(
     stream: LiveStream,
+    epgProgram: com.poc.iptvxtream.domain.model.LiveEpgProgram?,
+    onLoadEpg: () -> Unit,
     onClick: () -> Unit
 ) {
     var isFocused by remember { mutableStateOf(false) }
 
+    LaunchedEffect(stream.streamId) {
+        while (true) {
+            onLoadEpg()
+            kotlinx.coroutines.delay(60000)
+        }
+    }
+
     Column(
         modifier = Modifier
-            .width(130.dp)
+            .width(140.dp)
             .onFocusChanged { isFocused = it.isFocused }
             .border(
                 width = 2.dp,
@@ -570,7 +581,7 @@ private fun HomeLiveTvCard(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(130.dp)
+                .height(90.dp)
                 .background(Color(0xFF0F0F13)),
             contentAlignment = Alignment.Center
         ) {
@@ -581,7 +592,7 @@ private fun HomeLiveTvCard(
                     contentScale = ContentScale.Fit,
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(12.dp)
+                        .padding(8.dp)
                 )
             } else {
                 Text(
@@ -598,31 +609,68 @@ private fun HomeLiveTvCard(
                     .align(Alignment.BottomStart)
                     .padding(6.dp)
                     .clip(RoundedCornerShape(4.dp))
-                    .background(Color(0xAA000000))
-                    .padding(horizontal = 4.dp, vertical = 2.dp)
+                    .background(Color(0xCC000000))
+                    .padding(horizontal = 6.dp, vertical = 2.dp)
             ) {
                 Text(
-                    text = "#${stream.num}",
-                    color = Color.White,
+                    text = "CH ${stream.num}",
+                    color = MaterialTheme.colorScheme.primary,
                     fontSize = 9.sp,
                     fontWeight = FontWeight.Bold
                 )
             }
         }
 
-        // Title
+        Spacer(modifier = Modifier.height(4.dp))
+
         Text(
             text = stream.name,
             color = Color.White,
             fontWeight = FontWeight.Bold,
-            fontSize = 11.sp,
+            fontSize = 12.sp,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(6.dp),
+                .padding(horizontal = 8.dp),
             textAlign = TextAlign.Center
         )
+
+        if (epgProgram != null) {
+            Text(
+                text = epgProgram.title,
+                color = MaterialTheme.colorScheme.primary,
+                fontSize = 10.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 2.dp),
+                textAlign = TextAlign.Center
+            )
+            LinearProgressIndicator(
+                progress = { epgProgram.getProgressFraction() },
+                color = MaterialTheme.colorScheme.primary,
+                trackColor = Color.DarkGray,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                    .height(3.dp)
+                    .clip(RoundedCornerShape(1.5.dp))
+            )
+        } else {
+            Text(
+                text = "Pas de programme",
+                color = Color.Gray,
+                fontSize = 10.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 2.dp),
+                textAlign = TextAlign.Center
+            )
+        }
     }
 }
 

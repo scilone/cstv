@@ -1,12 +1,15 @@
 package com.poc.iptvxtream.data.repository
 
+import com.google.gson.JsonElement
 import com.poc.iptvxtream.data.local.dao.LiveTvDao
 import com.poc.iptvxtream.data.local.entity.LiveCategoryEntity
 import com.poc.iptvxtream.data.local.entity.LiveStreamEntity
+import com.poc.iptvxtream.data.local.entity.EpgCacheEntity
 import com.poc.iptvxtream.data.local.storage.CredentialsManager
 import com.poc.iptvxtream.data.remote.api.XtreamApiService
 import com.poc.iptvxtream.domain.model.InvalidCredentialsException
 import com.poc.iptvxtream.domain.model.LiveCategory
+import com.poc.iptvxtream.domain.model.LiveEpgProgram
 import com.poc.iptvxtream.domain.model.LiveStream
 import com.poc.iptvxtream.domain.repository.LiveTvRepository
 import javax.inject.Inject
@@ -169,6 +172,107 @@ class LiveTvRepositoryImpl @Inject constructor(
                 num = it.num ?: 0,
                 categoryId = it.categoryId ?: "0"
             )
+        }
+    }
+
+    override suspend fun getLiveEpg(streamId: Int, forceRefresh: Boolean): LiveEpgProgram? {
+        val currentTime = System.currentTimeMillis()
+        val cacheExpiry = 5 * 60 * 1000L // 5 minutes
+
+        if (!forceRefresh) {
+            val cached = liveTvDao.getEpgCache(streamId)
+            if (cached != null && currentTime - cached.cachedAt < cacheExpiry) {
+                val nowSec = currentTime / 1000L
+                if (nowSec < cached.endTimestamp) {
+                    return LiveEpgProgram(
+                        title = cached.title,
+                        description = cached.description,
+                        startTimestamp = cached.startTimestamp,
+                        endTimestamp = cached.endTimestamp
+                    )
+                }
+            }
+        }
+
+        val creds = credentialsManager.getCredentials() ?: return null
+
+        return try {
+            val response = apiService.getShortEpg(creds.username, creds.password, streamId)
+            val listings = response.epgListings
+            if (!listings.isNullOrEmpty()) {
+                val nowSec = System.currentTimeMillis() / 1000L
+                
+                val activeListing = listings.find { dto ->
+                    val start = parseJsonTimestamp(dto.startTimestamp)
+                    val end = parseJsonTimestamp(dto.endTimestamp)
+                    nowSec in start..end
+                } ?: listings.firstOrNull()
+
+                if (activeListing != null) {
+                    val decodedTitle = decodeBase64OrReturnRaw(activeListing.title)
+                    val decodedDesc = decodeBase64OrReturnRaw(activeListing.description)
+                    val startSec = parseJsonTimestamp(activeListing.startTimestamp)
+                    val endSec = parseJsonTimestamp(activeListing.endTimestamp)
+
+                    val program = LiveEpgProgram(
+                        title = if (decodedTitle.isBlank()) "Aucun titre" else decodedTitle,
+                        description = decodedDesc,
+                        startTimestamp = startSec,
+                        endTimestamp = endSec
+                    )
+
+                    liveTvDao.insertEpgCache(
+                        EpgCacheEntity(
+                            streamId = streamId,
+                            title = program.title,
+                            description = program.description,
+                            startTimestamp = program.startTimestamp,
+                            endTimestamp = program.endTimestamp,
+                            cachedAt = currentTime
+                        )
+                    )
+
+                    program
+                } else null
+            } else null
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    private fun parseJsonTimestamp(element: JsonElement?): Long {
+        if (element == null || element.isJsonNull) return 0L
+        return when {
+            element.isJsonPrimitive -> {
+                val p = element.asJsonPrimitive
+                if (p.isNumber) {
+                    p.asLong
+                } else {
+                    p.asString.toLongOrNull() ?: 0L
+                }
+            }
+            else -> 0L
+        }
+    }
+
+    @android.annotation.SuppressLint("NewApi")
+    private fun decodeBase64OrReturnRaw(input: String?): String {
+        if (input.isNullOrBlank()) return ""
+        val trimmed = input.trim()
+        return try {
+            val bytes = try {
+                java.util.Base64.getDecoder().decode(trimmed)
+            } catch (e: NoClassDefFoundError) {
+                android.util.Base64.decode(trimmed, android.util.Base64.DEFAULT)
+            }
+            val decodedStr = String(bytes, Charsets.UTF_8)
+            if (decodedStr.any { it.isISOControl() && it != '\n' && it != '\r' && it != '\t' }) {
+                trimmed
+            } else {
+                decodedStr
+            }
+        } catch (e: Exception) {
+            trimmed
         }
     }
 }

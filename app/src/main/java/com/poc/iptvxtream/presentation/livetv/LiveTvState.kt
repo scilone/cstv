@@ -1,6 +1,7 @@
 package com.poc.iptvxtream.presentation.livetv
 
 import com.poc.iptvxtream.domain.model.LiveCategory
+import com.poc.iptvxtream.domain.model.LiveEpgProgram
 import com.poc.iptvxtream.domain.model.LiveStream
 
 data class LiveTvState(
@@ -11,5 +12,6 @@ data class LiveTvState(
     val isLoadingCategories: Boolean = false,
     val isLoadingStreams: Boolean = false,
     val error: String? = null,
-    val recentlyWatched: List<LiveStream> = emptyList()
+    val recentlyWatched: List<LiveStream> = emptyList(),
+    val epgPrograms: Map<Int, LiveEpgProgram> = emptyMap()
 )

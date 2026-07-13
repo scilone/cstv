@@ -7,6 +7,7 @@ import com.poc.iptvxtream.domain.model.Credentials
 import com.poc.iptvxtream.domain.model.LiveCategory
 import com.poc.iptvxtream.domain.model.LiveStream
 import com.poc.iptvxtream.domain.usecase.GetLiveCategoriesUseCase
+import com.poc.iptvxtream.domain.usecase.GetLiveEpgUseCase
 import com.poc.iptvxtream.domain.usecase.GetLiveStreamsUseCase
 import com.poc.iptvxtream.domain.usecase.GetRecentlyWatchedUseCase
 import com.poc.iptvxtream.domain.usecase.SaveRecentlyWatchedUseCase
@@ -24,6 +25,7 @@ class LiveTvViewModel @Inject constructor(
     private val getLiveStreamsUseCase: GetLiveStreamsUseCase,
     private val getRecentlyWatchedUseCase: GetRecentlyWatchedUseCase,
     private val saveRecentlyWatchedUseCase: SaveRecentlyWatchedUseCase,
+    private val getLiveEpgUseCase: GetLiveEpgUseCase,
     private val credentialsManager: CredentialsManager
 ) : ViewModel() {
 
@@ -33,6 +35,23 @@ class LiveTvViewModel @Inject constructor(
     init {
         loadCategories()
         loadRecentlyWatched()
+    }
+
+    fun loadEpgForStream(streamId: Int) {
+        val current = _state.value.epgPrograms[streamId]
+        val nowSec = System.currentTimeMillis() / 1000L
+        if (current != null && nowSec < current.endTimestamp) {
+            return
+        }
+
+        viewModelScope.launch {
+            val program = getLiveEpgUseCase(streamId)
+            if (program != null) {
+                _state.update { 
+                    it.copy(epgPrograms = it.epgPrograms + (streamId to program))
+                }
+            }
+        }
     }
 
     fun loadRecentlyWatched() {

@@ -22,6 +22,9 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+import com.poc.iptvxtream.domain.model.LiveEpgProgram
+import com.poc.iptvxtream.domain.usecase.GetLiveEpgUseCase
+
 data class HomeState(
     val isLoading: Boolean = false,
     val resumeWatchingList: List<PlaybackPosition> = emptyList(),
@@ -36,7 +39,8 @@ data class HomeState(
     val firstSeriesCategory: SeriesCategory? = null,
     val firstSeriesStreams: List<SeriesStream> = emptyList(),
     
-    val error: String? = null
+    val error: String? = null,
+    val epgPrograms: Map<Int, LiveEpgProgram> = emptyMap()
 )
 
 @HiltViewModel
@@ -44,7 +48,8 @@ class HomeViewModel @Inject constructor(
     private val vodRepository: VodRepository,
     private val liveTvRepository: LiveTvRepository,
     private val seriesRepository: SeriesRepository,
-    private val favoritesRepository: FavoritesRepository
+    private val favoritesRepository: FavoritesRepository,
+    private val getLiveEpgUseCase: GetLiveEpgUseCase
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(HomeState())
@@ -52,6 +57,23 @@ class HomeViewModel @Inject constructor(
 
     init {
         loadHomeData()
+    }
+
+    fun loadEpgForStream(streamId: Int) {
+        val current = _state.value.epgPrograms[streamId]
+        val nowSec = System.currentTimeMillis() / 1000L
+        if (current != null && nowSec < current.endTimestamp) {
+            return
+        }
+
+        viewModelScope.launch {
+            val program = getLiveEpgUseCase(streamId)
+            if (program != null) {
+                _state.update { 
+                    it.copy(epgPrograms = it.epgPrograms + (streamId to program))
+                }
+            }
+        }
     }
 
     fun loadHomeData() {

@@ -3,6 +3,7 @@ package com.poc.iptvxtream.data.repository
 import com.poc.iptvxtream.data.local.storage.CredentialsManager
 import com.poc.iptvxtream.data.remote.api.DynamicBaseUrlInterceptor
 import com.poc.iptvxtream.data.remote.api.XtreamApiService
+import com.poc.iptvxtream.data.remote.dto.EpgResponseDto
 import com.poc.iptvxtream.data.remote.dto.LiveCategoryDto
 import com.poc.iptvxtream.data.remote.dto.LiveStreamDto
 import com.poc.iptvxtream.data.remote.dto.LoginResponseDto
@@ -218,6 +219,15 @@ class AuthRepositoryImplTest {
             action: String
         ): SeriesInfoResponseDto {
             throw IOException("Not stubbed")
+        }
+
+        override suspend fun getShortEpg(
+            username: String,
+            password: String,
+            streamId: Int,
+            action: String
+        ): EpgResponseDto {
+            return EpgResponseDto(emptyList())
         }
     }
 }
