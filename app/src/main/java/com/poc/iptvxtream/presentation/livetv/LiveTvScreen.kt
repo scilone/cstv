@@ -213,6 +213,7 @@ private fun TvLayout(
                     val catStreams = groupedStreams[category.categoryId] ?: emptyList()
                     if (catStreams.isNotEmpty()) {
                         CategorySectionRow(
+                            categoryId = category.categoryId,
                             title = category.categoryName,
                             streams = catStreams,
                             favoritesList = favoritesList,
@@ -375,6 +376,7 @@ private fun MobileLayout(
                     val catStreams = groupedStreams[category.categoryId] ?: emptyList()
                     if (catStreams.isNotEmpty()) {
                         CategorySectionRow(
+                            categoryId = category.categoryId,
                             title = category.categoryName,
                             streams = catStreams,
                             favoritesList = favoritesList,
@@ -536,6 +538,7 @@ private fun MobileLayout(
 
 @Composable
 private fun CategorySectionRow(
+    categoryId: String,
     title: String,
     streams: List<LiveStream>,
     favoritesList: List<FavoriteItem>,
@@ -560,7 +563,7 @@ private fun CategorySectionRow(
             modifier = Modifier.padding(start = 12.dp, bottom = 6.dp)
         )
 
-        val rowState = rememberForeverLazyListState("livetv_row_${title}", getScroll, saveScroll)
+        val rowState = rememberForeverLazyListState("livetv_row_${categoryId}", getScroll, saveScroll)
         LazyRow(
             state = rowState,
             horizontalArrangement = Arrangement.spacedBy(10.dp),

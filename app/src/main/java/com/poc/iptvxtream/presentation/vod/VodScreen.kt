@@ -182,6 +182,7 @@ private fun TvLayout(
                     val catMovies = groupedStreams[category.categoryId] ?: emptyList()
                     if (catMovies.isNotEmpty()) {
                         CategorySectionRow(
+                            categoryId = category.categoryId,
                             title = category.categoryName,
                             movies = catMovies,
                             onMovieSelected = onMovieSelected,
@@ -316,6 +317,7 @@ private fun MobileLayout(
                     val catMovies = groupedStreams[category.categoryId] ?: emptyList()
                     if (catMovies.isNotEmpty()) {
                         CategorySectionRow(
+                            categoryId = category.categoryId,
                             title = category.categoryName,
                             movies = catMovies,
                             onMovieSelected = onMovieSelected,
@@ -441,6 +443,7 @@ private fun MobileLayout(
 
 @Composable
 private fun CategorySectionRow(
+    categoryId: String,
     title: String,
     movies: List<VodStream>,
     onMovieSelected: (VodStream) -> Unit,
@@ -461,7 +464,7 @@ private fun CategorySectionRow(
             modifier = Modifier.padding(start = 12.dp, bottom = 6.dp)
         )
 
-        val rowState = rememberForeverLazyListState("vod_row_${title}", getScroll, saveScroll)
+        val rowState = rememberForeverLazyListState("vod_row_${categoryId}", getScroll, saveScroll)
         LazyRow(
             state = rowState,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
