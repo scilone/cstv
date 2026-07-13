@@ -151,6 +151,11 @@ class SeriesRepositoryImpl @Inject constructor(
 
         val remoteStreams = apiService.getSeriesStreams(creds.username, creds.password, apiCategoryId)
 
+        // Preserve actors/director/genre enrichment (only ever fetched via getSeriesDetails,
+        // never part of this bulk list response) so a routine cache refresh doesn't wipe it.
+        val existingById = (if (categoryId == "all") seriesDao.getAllStreams() else seriesDao.getStreamsByCategory(categoryId))
+            .associateBy { it.seriesId }
+
         val entities = remoteStreams.mapNotNull { dto ->
             val id = dto.seriesId
             val name = dto.name
@@ -159,6 +164,7 @@ class SeriesRepositoryImpl @Inject constructor(
             // invisible in every section, so skip it instead.
             val itemCategoryId = dto.categoryId ?: categoryId.takeIf { it != "all" }
             if (id != null && name != null && itemCategoryId != null) {
+                val existing = existingById[id]
                 SeriesStreamEntity(
                     seriesId = id,
                     name = name,
@@ -166,7 +172,10 @@ class SeriesRepositoryImpl @Inject constructor(
                     rating = dto.rating,
                     added = dto.added,
                     categoryId = itemCategoryId,
-                    cachedAt = currentTime
+                    cachedAt = currentTime,
+                    actors = existing?.actors,
+                    director = existing?.director,
+                    genre = existing?.genre
                 )
             } else null
         }
