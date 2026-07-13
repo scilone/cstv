@@ -19,3 +19,8 @@ out/
 # OS files
 .DS_Store
 Thumbs.db
+
+# Keystores & Signing Keys (Do NOT commit to repository)
+*.jks
+*.keystore
+*.pepk
