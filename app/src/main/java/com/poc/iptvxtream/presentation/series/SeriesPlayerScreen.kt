@@ -31,6 +31,7 @@ import androidx.compose.ui.input.key.*
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -461,9 +462,22 @@ fun SeriesPlayerScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Column {
-                        Text(episode.title, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                        Text("Épisode ${episode.episodeNum}", color = MaterialTheme.colorScheme.primary, fontSize = 12.sp)
+                    Column(modifier = Modifier.weight(1f).padding(end = 16.dp)) {
+                        Text(
+                            text = episode.title,
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = "Épisode ${episode.episodeNum}",
+                            color = MaterialTheme.colorScheme.primary,
+                            fontSize = 12.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
                     }
 
                     Row(verticalAlignment = Alignment.CenterVertically) {

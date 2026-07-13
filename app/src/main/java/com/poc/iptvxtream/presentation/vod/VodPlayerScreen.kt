@@ -31,6 +31,7 @@ import androidx.compose.ui.input.key.*
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -470,9 +471,22 @@ fun VodPlayerScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Column {
-                        Text(details.name, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                        Text(details.genre, color = MaterialTheme.colorScheme.primary, fontSize = 12.sp)
+                    Column(modifier = Modifier.weight(1f).padding(end = 16.dp)) {
+                        Text(
+                            text = details.name,
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = details.genre,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontSize = 12.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
                     }
 
                     Row(verticalAlignment = Alignment.CenterVertically) {
