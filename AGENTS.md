@@ -116,3 +116,18 @@ Toute fonctionnalité réseau doit gérer explicitement : identifiants invalides
 5. Ne modifie pas les fichiers `prompt-app-iptv-xtream.md` ou `feuille-de-route-phases.md` sauf demande explicite.
 6. Exécute `./gradlew assembleDebug` et donne-moi le chemin de l'APK généré.
 7. Effectue systématiquement un commit Git et un push vers le dépôt distant après chaque fonctionnalité ou phase terminée.
+
+## Processus de Release et Tagging SemVer
+
+Pour livrer une nouvelle version de l'application et générer un APK de production signé automatiquement :
+1. Assure-toi que tous les tests passent (`./gradlew testDebugUnitTest`).
+2. Crée et pousse un tag Git respectant SemVer (ex: `v1.0.0`) :
+   ```bash
+   git tag -a v1.0.0 -m "Release v1.0.0 - Fin de la Phase X"
+   git push origin v1.0.0
+   ```
+3. La pipeline **GitHub Actions** (`.github/workflows/release.yml`) interceptera automatiquement ce tag pour :
+   - Compiler l'APK de release.
+   - Le signer à l'aide des clés sécurisées de production fournies dans les secrets GitHub.
+   - Créer une Release GitHub officielle.
+   - Attacher l'APK de release signé à la Release.
