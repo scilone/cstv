@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.poc.iptvxtream.data.local.storage.CredentialsManager
 import com.poc.iptvxtream.domain.model.Credentials
+import com.poc.iptvxtream.data.local.storage.SettingsManager
 import com.poc.iptvxtream.domain.model.VodCategory
 import com.poc.iptvxtream.domain.model.VodDetails
 import com.poc.iptvxtream.domain.model.VodStream
@@ -25,7 +26,8 @@ class VodViewModel @Inject constructor(
     private val getVodStreamsUseCase: GetVodStreamsUseCase,
     private val getVodDetailsUseCase: GetVodDetailsUseCase,
     private val savePlaybackPositionUseCase: SavePlaybackPositionUseCase,
-    private val credentialsManager: CredentialsManager
+    private val credentialsManager: CredentialsManager,
+    private val settingsManager: SettingsManager
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(VodState())
@@ -33,6 +35,22 @@ class VodViewModel @Inject constructor(
 
     init {
         loadCategories()
+    }
+
+    fun savePreferredAudio(lang: String?) {
+        settingsManager.setPreferredAudio(lang)
+    }
+
+    fun savePreferredSubtitle(lang: String?) {
+        settingsManager.setPreferredSubtitle(lang)
+    }
+
+    fun getPreferredAudio(): String? {
+        return settingsManager.getPreferredAudio()
+    }
+
+    fun getPreferredSubtitle(): String? {
+        return settingsManager.getPreferredSubtitle()
     }
 
     fun loadCategories(forceRefresh: Boolean = false) {

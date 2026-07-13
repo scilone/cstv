@@ -20,13 +20,16 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+import com.poc.iptvxtream.data.local.storage.SettingsManager
+
 @HiltViewModel
 class SeriesViewModel @Inject constructor(
     private val getSeriesCategoriesUseCase: GetSeriesCategoriesUseCase,
     private val getSeriesStreamsUseCase: GetSeriesStreamsUseCase,
     private val getSeriesDetailsUseCase: GetSeriesDetailsUseCase,
     private val savePlaybackPositionUseCase: SavePlaybackPositionUseCase,
-    private val credentialsManager: CredentialsManager
+    private val credentialsManager: CredentialsManager,
+    private val settingsManager: SettingsManager
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(SeriesState())
@@ -34,6 +37,22 @@ class SeriesViewModel @Inject constructor(
 
     init {
         loadCategories()
+    }
+
+    fun savePreferredAudio(lang: String?) {
+        settingsManager.setPreferredAudio(lang)
+    }
+
+    fun savePreferredSubtitle(lang: String?) {
+        settingsManager.setPreferredSubtitle(lang)
+    }
+
+    fun getPreferredAudio(): String? {
+        return settingsManager.getPreferredAudio()
+    }
+
+    fun getPreferredSubtitle(): String? {
+        return settingsManager.getPreferredSubtitle()
     }
 
     fun loadCategories(forceRefresh: Boolean = false) {

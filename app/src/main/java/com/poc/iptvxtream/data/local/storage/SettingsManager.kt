@@ -21,6 +21,24 @@ class SettingsManager @Inject constructor(context: Context) {
         private const val KEY_TV_SORTING = "tv_category_sorting"
         private const val KEY_VOD_SORTING = "vod_category_sorting"
         private const val KEY_SERIES_SORTING = "series_category_sorting"
+        private const val KEY_PREFERRED_AUDIO = "preferred_audio"
+        private const val KEY_PREFERRED_SUBTITLE = "preferred_subtitle"
+    }
+
+    fun getPreferredAudio(): String? {
+        return sharedPreferences.getString(KEY_PREFERRED_AUDIO, null)
+    }
+
+    fun setPreferredAudio(lang: String?) {
+        sharedPreferences.edit().putString(KEY_PREFERRED_AUDIO, lang).apply()
+    }
+
+    fun getPreferredSubtitle(): String? {
+        return sharedPreferences.getString(KEY_PREFERRED_SUBTITLE, null)
+    }
+
+    fun setPreferredSubtitle(lang: String?) {
+        sharedPreferences.edit().putString(KEY_PREFERRED_SUBTITLE, lang).apply()
     }
 
     fun getTvCategorySorting(): CategorySorting {
