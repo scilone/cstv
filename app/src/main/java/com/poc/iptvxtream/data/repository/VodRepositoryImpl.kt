@@ -13,6 +13,7 @@ import com.poc.iptvxtream.domain.model.VodDetails
 import com.poc.iptvxtream.domain.model.VodStream
 import com.poc.iptvxtream.domain.repository.VodRepository
 import com.google.gson.JsonElement
+import kotlinx.coroutines.*
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -22,6 +23,56 @@ class VodRepositoryImpl @Inject constructor(
     private val vodDao: VodDao,
     private val credentialsManager: CredentialsManager
 ) : VodRepository {
+
+    private var enrichmentDispatcher: CoroutineDispatcher = Dispatchers.IO
+    private val repositoryScope by lazy { CoroutineScope(SupervisorJob() + enrichmentDispatcher) }
+    private var enrichmentJob: Job? = null
+
+    // Constructor for testing
+    constructor(
+        apiService: XtreamApiService,
+        vodDao: VodDao,
+        credentialsManager: CredentialsManager,
+        dispatcher: CoroutineDispatcher
+    ) : this(apiService, vodDao, credentialsManager) {
+        this.enrichmentDispatcher = dispatcher
+    }
+
+    private fun startBackgroundEnrichment() {
+        if (enrichmentJob?.isActive == true) return
+        enrichmentJob = repositoryScope.launch {
+            try {
+                val creds = credentialsManager.getCredentials() ?: return@launch
+                val needingEnrichment = vodDao.getStreamsNeedingEnrichment()
+                for (stream in needingEnrichment) {
+                    if (!isActive) break
+                    try {
+                        val response = apiService.getVodInfo(creds.username, creds.password, stream.streamId)
+                        val infoDto = response.info
+                        val director = infoDto?.director ?: "Inconnu"
+                        val actors = extractActors(infoDto?.actors, infoDto?.cast)
+                        val genre = infoDto?.genre ?: "Inconnu"
+
+                        val currentStream = vodDao.getStreamById(stream.streamId)
+                        if (currentStream != null) {
+                            vodDao.insertStreams(listOf(
+                                currentStream.copy(
+                                    actors = actors,
+                                    director = director,
+                                    genre = genre
+                                )
+                            ))
+                        }
+                        delay(200)
+                    } catch (e: Exception) {
+                        // ignore individual stream fetch failure and continue
+                    }
+                }
+            } catch (e: Exception) {
+                // handle overall errors gracefully
+            }
+        }
+    }
 
     companion object {
         private const val CACHE_EXPIRY_MILLIS = 24 * 60 * 60 * 1000L // 24 hours
@@ -187,6 +238,7 @@ class VodRepositoryImpl @Inject constructor(
             if (categoryId == "all") {
                 if (lastAllStreamsSyncAt != 0L && currentTime - lastAllStreamsSyncAt < CACHE_EXPIRY_MILLIS) {
                     val localStreams = vodDao.getAllStreams()
+                    startBackgroundEnrichment()
                     return localStreams.map {
                         VodStream(it.streamId, it.name, it.streamIcon, it.rating, it.added, it.categoryId)
                     }
@@ -196,6 +248,7 @@ class VodRepositoryImpl @Inject constructor(
                 if (localStreams.isNotEmpty()) {
                     val lastCachedAt = localStreams.first().cachedAt
                     if (currentTime - lastCachedAt < CACHE_EXPIRY_MILLIS) {
+                        startBackgroundEnrichment()
                         return localStreams.map {
                             VodStream(it.streamId, it.name, it.streamIcon, it.rating, it.added, it.categoryId)
                         }
@@ -251,6 +304,8 @@ class VodRepositoryImpl @Inject constructor(
         if (categoryId == "all") {
             lastAllStreamsSyncAt = currentTime
         }
+
+        startBackgroundEnrichment()
 
         return entities.map { 
             VodStream(it.streamId, it.name, it.streamIcon, it.rating, it.added, it.categoryId)

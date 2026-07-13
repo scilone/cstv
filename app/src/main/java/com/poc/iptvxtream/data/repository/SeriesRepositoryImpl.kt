@@ -10,6 +10,7 @@ import com.poc.iptvxtream.data.remote.api.XtreamApiService
 import com.poc.iptvxtream.domain.model.*
 import com.poc.iptvxtream.domain.repository.SeriesRepository
 import com.google.gson.JsonElement
+import kotlinx.coroutines.*
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -20,6 +21,57 @@ class SeriesRepositoryImpl @Inject constructor(
     private val vodDao: VodDao,
     private val credentialsManager: CredentialsManager
 ) : SeriesRepository {
+
+    private var enrichmentDispatcher: CoroutineDispatcher = Dispatchers.IO
+    private val repositoryScope by lazy { CoroutineScope(SupervisorJob() + enrichmentDispatcher) }
+    private var enrichmentJob: Job? = null
+
+    // Constructor for testing
+    constructor(
+        apiService: XtreamApiService,
+        seriesDao: SeriesDao,
+        vodDao: VodDao,
+        credentialsManager: CredentialsManager,
+        dispatcher: CoroutineDispatcher
+    ) : this(apiService, seriesDao, vodDao, credentialsManager) {
+        this.enrichmentDispatcher = dispatcher
+    }
+
+    private fun startBackgroundEnrichment() {
+        if (enrichmentJob?.isActive == true) return
+        enrichmentJob = repositoryScope.launch {
+            try {
+                val creds = credentialsManager.getCredentials() ?: return@launch
+                val needingEnrichment = seriesDao.getStreamsNeedingEnrichment()
+                for (stream in needingEnrichment) {
+                    if (!isActive) break
+                    try {
+                        val response = apiService.getSeriesInfo(creds.username, creds.password, stream.seriesId)
+                        val infoDto = response.info
+                        val director = infoDto?.director ?: "Inconnu"
+                        val genre = infoDto?.genre ?: "Inconnu"
+                        val actors = extractActors(infoDto?.actors, infoDto?.cast)
+
+                        val currentStream = seriesDao.getStreamById(stream.seriesId)
+                        if (currentStream != null) {
+                            seriesDao.insertStreams(listOf(
+                                currentStream.copy(
+                                    actors = actors,
+                                    director = director,
+                                    genre = genre
+                                )
+                            ))
+                        }
+                        delay(200)
+                    } catch (e: Exception) {
+                        // ignore individual failure
+                    }
+                }
+            } catch (e: Exception) {
+                // handle errors gracefully
+            }
+        }
+    }
 
     companion object {
         private const val CACHE_EXPIRY_MILLIS = 24 * 60 * 60 * 1000L // 24 hours
@@ -129,6 +181,7 @@ class SeriesRepositoryImpl @Inject constructor(
             if (categoryId == "all") {
                 if (lastAllStreamsSyncAt != 0L && currentTime - lastAllStreamsSyncAt < CACHE_EXPIRY_MILLIS) {
                     val localStreams = seriesDao.getAllStreams()
+                    startBackgroundEnrichment()
                     return localStreams.map {
                         SeriesStream(it.seriesId, it.name, it.cover, it.rating, it.added, it.categoryId)
                     }
@@ -138,6 +191,7 @@ class SeriesRepositoryImpl @Inject constructor(
                 if (localStreams.isNotEmpty()) {
                     val lastCachedAt = localStreams.first().cachedAt
                     if (currentTime - lastCachedAt < CACHE_EXPIRY_MILLIS) {
+                        startBackgroundEnrichment()
                         return localStreams.map {
                             SeriesStream(it.seriesId, it.name, it.cover, it.rating, it.added, it.categoryId)
                         }
@@ -193,6 +247,8 @@ class SeriesRepositoryImpl @Inject constructor(
         if (categoryId == "all") {
             lastAllStreamsSyncAt = currentTime
         }
+
+        startBackgroundEnrichment()
 
         return entities.map { 
             SeriesStream(it.seriesId, it.name, it.cover, it.rating, it.added, it.categoryId)

@@ -238,4 +238,45 @@ class SeriesRepositoryImplTest {
         assertEquals(999999999L, episode.lastAccessedAt)
         assertEquals(1, episode.seasonNum)
     }
+
+    @Test
+    fun test_backgroundEnrichment_triggersAndSavesDetails() = runTest {
+        val testDispatcher = kotlinx.coroutines.test.UnconfinedTestDispatcher(testScheduler)
+        val localRepository = SeriesRepositoryImpl(apiService, seriesDao, vodDao, credentialsManager, testDispatcher)
+
+        val remoteStreams = listOf(
+            SeriesStreamDto(12, "Game of Thrones", "cover.png", "9.0", "added", "5")
+        )
+        whenever(apiService.getSeriesStreams("username", "password", "5")).thenReturn(remoteStreams)
+        whenever(seriesDao.getStreamsByCategory("5")).thenReturn(emptyList())
+
+        val unenrichedEntity = SeriesStreamEntity(12, "Game of Thrones", "cover.png", "9.0", "added", "5", System.currentTimeMillis())
+        whenever(seriesDao.getStreamsNeedingEnrichment()).thenReturn(listOf(unenrichedEntity))
+
+        val infoResponse = SeriesInfoResponseDto(
+            seasons = emptyList(),
+            episodes = emptyMap(),
+            info = SeriesInfoMetadataDto(
+                name = "Game of Thrones",
+                cover = "cover.png",
+                plot = "Dragons and swords.",
+                cast = null,
+                actors = JsonPrimitive("Kit Harington, Emilia Clarke"),
+                director = "David Benioff",
+                releaseDate = "2011",
+                releaseDate2 = null,
+                genre = "Fantasy",
+                rating = "9.0",
+                rating5 = null
+            )
+        )
+        whenever(apiService.getSeriesInfo("username", "password", 12)).thenReturn(infoResponse)
+        whenever(seriesDao.getStreamById(12)).thenReturn(unenrichedEntity)
+
+        localRepository.getSeriesStreams("5", forceRefresh = true)
+
+        verify(seriesDao).insertStreams(argThat {
+            size == 1 && get(0).seriesId == 12 && get(0).actors == "Kit Harington, Emilia Clarke" && get(0).director == "David Benioff" && get(0).genre == "Fantasy"
+        })
+    }
 }

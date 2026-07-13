@@ -269,4 +269,45 @@ class VodRepositoryImplTest {
             type == "series"
         })
     }
+
+    @Test
+    fun test_backgroundEnrichment_triggersAndSavesDetails() = runTest {
+        val testDispatcher = kotlinx.coroutines.test.UnconfinedTestDispatcher(testScheduler)
+        val localRepository = VodRepositoryImpl(apiService, vodDao, credentialsManager, testDispatcher)
+
+        val remoteStreams = listOf(
+            VodStreamDto(12, "Star Wars", "icon.png", "8.0", "added", "5")
+        )
+        whenever(apiService.getVodStreams("username", "password", "5")).thenReturn(remoteStreams)
+        whenever(vodDao.getStreamsByCategory("5")).thenReturn(emptyList())
+
+        val unenrichedEntity = VodStreamEntity(12, "Star Wars", "icon.png", "8.0", "added", "5", System.currentTimeMillis())
+        whenever(vodDao.getStreamsNeedingEnrichment()).thenReturn(listOf(unenrichedEntity))
+
+        val infoResponse = VodInfoResponseDto(
+            info = VodInfoDto(
+                name = "Star Wars",
+                director = "George Lucas",
+                actors = JsonPrimitive("Mark Hamill, Harrison Ford"),
+                cast = null,
+                releaseDate = "1977",
+                genre = "Sci-Fi",
+                plot = "Space opera.",
+                rating = "8.0",
+                rating5 = null,
+                coverBig = null,
+                movieImage = null,
+                duration = null
+            ),
+            movieData = null
+        )
+        whenever(apiService.getVodInfo("username", "password", 12)).thenReturn(infoResponse)
+        whenever(vodDao.getStreamById(12)).thenReturn(unenrichedEntity)
+
+        localRepository.getVodStreams("5", forceRefresh = true)
+
+        verify(vodDao).insertStreams(argThat {
+            size == 1 && get(0).streamId == 12 && get(0).actors == "Mark Hamill, Harrison Ford" && get(0).director == "George Lucas" && get(0).genre == "Sci-Fi"
+        })
+    }
 }

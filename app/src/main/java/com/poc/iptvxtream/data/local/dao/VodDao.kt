@@ -40,6 +40,9 @@ interface VodDao {
     @Query("DELETE FROM vod_streams")
     suspend fun clearAllStreams()
 
+    @Query("SELECT * FROM vod_streams WHERE actors IS NULL OR director IS NULL OR genre IS NULL")
+    suspend fun getStreamsNeedingEnrichment(): List<VodStreamEntity>
+
     // --- Playback Positions (Resume) ---
     @Query("SELECT * FROM playback_positions ORDER BY lastAccessedAt DESC")
     suspend fun getAllPlaybackPositions(): List<PlaybackPositionEntity>
