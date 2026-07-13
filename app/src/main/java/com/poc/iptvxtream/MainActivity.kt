@@ -21,10 +21,10 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.LiveTv
+import androidx.compose.material.icons.filled.Movie
+import androidx.compose.material.icons.filled.Tv
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -87,9 +87,9 @@ enum class AppScreen {
 
 enum class MobileTab(val route: String, val title: String, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
     HOME("home", "Accueil", Icons.Default.Home),
-    TV("tv", "TV", Icons.Default.PlayArrow),
-    MOVIES("movies", "Films", Icons.Default.Star),
-    SERIES("series", "Séries", Icons.Default.Refresh),
+    TV("tv", "TV", Icons.Default.LiveTv),
+    MOVIES("movies", "Films", Icons.Default.Movie),
+    SERIES("series", "Séries", Icons.Default.Tv),
     SEARCH("search", "Recherche", Icons.Default.Search)
 }
 
