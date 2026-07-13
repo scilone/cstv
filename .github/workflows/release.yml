@@ -27,21 +27,40 @@ jobs:
         run: chmod +x gradlew
 
       - name: Decode Keystore File
+        shell: python
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
         run: |
-          if [ -n "$KEYSTORE_BASE64" ]; then
-            KEYSTORE_BASE64_CLEANED="$(printf '%s' "$KEYSTORE_BASE64" \
-              | sed -E 's#^data:[^;]+;base64,##' \
-              | sed 's/\\n//g' \
-              | tr -d '\r\n\t ')"
-            if ! printf '%s' "$KEYSTORE_BASE64_CLEANED" | base64 --decode > app/release-keystore.jks; then
-              echo "::error::Invalid KEYSTORE_BASE64 secret format. Generate with: base64 -w 0 <your-keystore.jks>"
-              exit 1
-            fi
-          else
-            echo "Warning: KEYSTORE_BASE64 is empty, keystore file not created."
-          fi
+          import os
+          import base64
+          
+          encoded = os.environ.get('KEYSTORE_BASE64', '')
+          if not encoded:
+              print("Warning: KEYSTORE_BASE64 is empty, keystore file not created.")
+              exit(0)
+              
+          if ',' in encoded:
+              encoded = encoded.split(',')[-1]
+              
+          encoded = encoded.replace('\\n', '').replace('\n', '').replace('\r', '').replace(' ', '').replace('\t', '')
+          
+          try:
+              # Try strict decoding first
+              decoded_data = base64.b64decode(encoded, validate=True)
+              with open('app/release-keystore.jks', 'wb') as f:
+                  f.write(decoded_data)
+              print("Keystore file successfully decoded and saved in strict mode.")
+          except Exception as e:
+              print(f"Strict mode decoding failed: {e}. Trying non-strict mode...")
+              try:
+                  decoded_data = base64.b64decode(encoded)
+                  with open('app/release-keystore.jks', 'wb') as f:
+                      f.write(decoded_data)
+                  print("Keystore file successfully decoded and saved in non-strict mode.")
+              except Exception as e2:
+                  print(f"Error: Keystore base64 decoding failed completely in both strict and non-strict modes.")
+                  print(f"Error details: {e2}")
+                  exit(1)
 
       - name: Build Release APK
         env:
