@@ -356,13 +356,28 @@ private fun HomeSectionRow(
             )
             if (onSeeAll != null) {
                 Spacer(modifier = Modifier.width(16.dp))
+                var isFocused by remember { mutableStateOf(false) }
                 Button(
                     onClick = onSeeAll,
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0x33FFFFFF)),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (isFocused) MaterialTheme.colorScheme.primary else Color(0xFF1E1E24),
+                        contentColor = if (isFocused) Color.Black else MaterialTheme.colorScheme.primary
+                    ),
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                    modifier = Modifier.height(28.dp)
+                    modifier = Modifier
+                        .height(28.dp)
+                        .onFocusChanged { isFocused = it.isFocused }
+                        .border(
+                            width = 1.dp,
+                            color = if (isFocused) Color.White else Color.DarkGray,
+                            shape = RoundedCornerShape(14.dp)
+                        )
                 ) {
-                    Text("Voir tout", fontSize = 11.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                    Text(
+                        text = "Voir tout",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
         }
