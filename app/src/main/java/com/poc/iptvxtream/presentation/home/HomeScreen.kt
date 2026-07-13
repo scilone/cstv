@@ -371,11 +371,6 @@ private fun HomeSectionRow(
                     modifier = Modifier
                         .height(28.dp)
                         .onFocusChanged { isFocused = it.isFocused }
-                        .border(
-                            width = 1.dp,
-                            color = if (isFocused) Color.White else Color.DarkGray,
-                            shape = RoundedCornerShape(14.dp)
-                        )
                 ) {
                     Text(
                         text = "Voir tout",

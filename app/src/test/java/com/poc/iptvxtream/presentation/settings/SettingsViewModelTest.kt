@@ -71,8 +71,23 @@ class SettingsViewModelTest {
     @Test
     fun test_updateSyncFrequency_savesToSettingsManager_andUpdatesState() {
         viewModel.updateSyncFrequency(SyncFrequency.DAILY)
-        
+
         verify(settingsManager).setSyncFrequency(SyncFrequency.DAILY)
         assertEquals(SyncFrequency.DAILY, viewModel.state.value.syncFrequency)
+    }
+
+    @Test
+    fun test_initialState_isNotSyncingNow() {
+        assertEquals(false, viewModel.state.value.isSyncingNow)
+    }
+
+    @Test
+    fun test_forceSyncNow_doesNotThrow_whenWorkManagerNotInitialized() {
+        // WorkManager.getInstance() throws IllegalStateException outside an
+        // instrumented/initialized Android context; forceSyncNow must degrade
+        // gracefully instead of crashing the settings screen.
+        viewModel.forceSyncNow()
+
+        assertEquals(false, viewModel.state.value.isSyncingNow)
     }
 }

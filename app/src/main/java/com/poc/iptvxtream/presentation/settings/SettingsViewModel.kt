@@ -2,6 +2,7 @@ package com.poc.iptvxtream.presentation.settings
 
 import android.content.Context
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import androidx.work.*
 import com.poc.iptvxtream.data.local.storage.CategorySorting
 import com.poc.iptvxtream.data.local.storage.SettingsManager
@@ -13,6 +14,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 
@@ -25,8 +27,14 @@ class SettingsViewModel @Inject constructor(
     private val _state = MutableStateFlow(SettingsState())
     val state: StateFlow<SettingsState> = _state.asStateFlow()
 
+    companion object {
+        private const val PERIODIC_WORK_NAME = "database_sync_work"
+        private const val ONE_TIME_WORK_NAME = "database_sync_work_now"
+    }
+
     init {
         loadSettings()
+        observeForceSyncStatus()
     }
 
     private fun loadSettings() {
@@ -62,16 +70,10 @@ class SettingsViewModel @Inject constructor(
     }
 
     private fun scheduleBackgroundSync(frequency: SyncFrequency) {
-        val workManager = try {
-            WorkManager.getInstance(context)
-        } catch (e: IllegalStateException) {
-            // WorkManager is not initialized in standard unit tests, return gracefully
-            return
-        }
-        val workName = "database_sync_work"
+        val workManager = workManagerOrNull() ?: return
 
         if (frequency == SyncFrequency.DISABLED) {
-            workManager.cancelUniqueWork(workName)
+            workManager.cancelUniqueWork(PERIODIC_WORK_NAME)
             return
         }
 
@@ -100,9 +102,42 @@ class SettingsViewModel @Inject constructor(
             .build()
 
         workManager.enqueueUniquePeriodicWork(
-            workName,
+            PERIODIC_WORK_NAME,
             ExistingPeriodicWorkPolicy.UPDATE,
             syncRequest
         )
+    }
+
+    fun forceSyncNow() {
+        val workManager = workManagerOrNull() ?: return
+
+        val constraints = Constraints.Builder()
+            .setRequiredNetworkType(NetworkType.CONNECTED)
+            .build()
+
+        val request = OneTimeWorkRequestBuilder<DatabaseSyncWorker>()
+            .setConstraints(constraints)
+            .build()
+
+        workManager.enqueueUniqueWork(ONE_TIME_WORK_NAME, ExistingWorkPolicy.KEEP, request)
+    }
+
+    private fun observeForceSyncStatus() {
+        val workManager = workManagerOrNull() ?: return
+        viewModelScope.launch {
+            workManager.getWorkInfosForUniqueWorkFlow(ONE_TIME_WORK_NAME).collect { workInfos ->
+                val isRunning = workInfos.any { !it.state.isFinished }
+                _state.update { it.copy(isSyncingNow = isRunning) }
+            }
+        }
+    }
+
+    private fun workManagerOrNull(): WorkManager? {
+        return try {
+            WorkManager.getInstance(context)
+        } catch (e: IllegalStateException) {
+            // WorkManager is not initialized in standard unit tests, return gracefully
+            null
+        }
     }
 }

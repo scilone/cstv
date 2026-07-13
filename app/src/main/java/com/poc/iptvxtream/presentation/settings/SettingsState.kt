@@ -7,5 +7,6 @@ data class SettingsState(
     val tvSorting: CategorySorting = CategorySorting.DEFAULT,
     val vodSorting: CategorySorting = CategorySorting.DEFAULT,
     val seriesSorting: CategorySorting = CategorySorting.DEFAULT,
-    val syncFrequency: SyncFrequency = SyncFrequency.DISABLED
+    val syncFrequency: SyncFrequency = SyncFrequency.DISABLED,
+    val isSyncingNow: Boolean = false
 )

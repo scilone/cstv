@@ -51,6 +51,7 @@ fun SettingsScreen(
                 onVodSortingChanged = { viewModel.updateVodSorting(it) },
                 onSeriesSortingChanged = { viewModel.updateSeriesSorting(it) },
                 onSyncFrequencyChanged = { viewModel.updateSyncFrequency(it) },
+                onForceSyncNow = { viewModel.forceSyncNow() },
                 onBack = onBack,
                 onLogout = onLogout
             )
@@ -61,6 +62,7 @@ fun SettingsScreen(
                 onVodSortingChanged = { viewModel.updateVodSorting(it) },
                 onSeriesSortingChanged = { viewModel.updateSeriesSorting(it) },
                 onSyncFrequencyChanged = { viewModel.updateSyncFrequency(it) },
+                onForceSyncNow = { viewModel.forceSyncNow() },
                 onBack = onBack,
                 onLogout = onLogout
             )
@@ -76,6 +78,7 @@ private fun TvSettingsLayout(
     onVodSortingChanged: (CategorySorting) -> Unit,
     onSeriesSortingChanged: (CategorySorting) -> Unit,
     onSyncFrequencyChanged: (SyncFrequency) -> Unit,
+    onForceSyncNow: () -> Unit,
     onBack: () -> Unit,
     onLogout: () -> Unit
 ) {
@@ -145,7 +148,9 @@ private fun TvSettingsLayout(
 
         TvSyncFrequencyCard(
             currentFrequency = state.syncFrequency,
-            onFrequencyChanged = onSyncFrequencyChanged
+            onFrequencyChanged = onSyncFrequencyChanged,
+            isSyncingNow = state.isSyncingNow,
+            onForceSyncNow = onForceSyncNow
         )
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -262,6 +267,7 @@ private fun MobileSettingsLayout(
     onVodSortingChanged: (CategorySorting) -> Unit,
     onSeriesSortingChanged: (CategorySorting) -> Unit,
     onSyncFrequencyChanged: (SyncFrequency) -> Unit,
+    onForceSyncNow: () -> Unit,
     onBack: () -> Unit,
     onLogout: () -> Unit
 ) {
@@ -330,7 +336,9 @@ private fun MobileSettingsLayout(
         // Background Sync Frequency
         MobileSyncFrequencyCard(
             currentFrequency = state.syncFrequency,
-            onFrequencyChanged = onSyncFrequencyChanged
+            onFrequencyChanged = onSyncFrequencyChanged,
+            isSyncingNow = state.isSyncingNow,
+            onForceSyncNow = onForceSyncNow
         )
 
         Spacer(modifier = Modifier.height(24.dp))
@@ -440,7 +448,9 @@ private fun MobileSortingOptionButton(
 @Composable
 private fun TvSyncFrequencyCard(
     currentFrequency: SyncFrequency,
-    onFrequencyChanged: (SyncFrequency) -> Unit
+    onFrequencyChanged: (SyncFrequency) -> Unit,
+    isSyncingNow: Boolean,
+    onForceSyncNow: () -> Unit
 ) {
     Card(
         colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E24)),
@@ -481,6 +491,24 @@ private fun TvSyncFrequencyCard(
                     )
                 }
             }
+
+            TvButton(
+                onClick = onForceSyncNow,
+                enabled = !isSyncingNow,
+                modifier = Modifier.fillMaxWidth().height(40.dp)
+            ) {
+                if (isSyncingNow) {
+                    CircularProgressIndicator(
+                        color = Color.White,
+                        strokeWidth = 2.dp,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    TvText("SYNCHRONISATION...", style = TvTheme.typography.labelMedium)
+                } else {
+                    TvText("FORCER LA MISE À JOUR MAINTENANT", style = TvTheme.typography.labelMedium)
+                }
+            }
         }
     }
 }
@@ -488,7 +516,9 @@ private fun TvSyncFrequencyCard(
 @Composable
 private fun MobileSyncFrequencyCard(
     currentFrequency: SyncFrequency,
-    onFrequencyChanged: (SyncFrequency) -> Unit
+    onFrequencyChanged: (SyncFrequency) -> Unit,
+    isSyncingNow: Boolean,
+    onForceSyncNow: () -> Unit
 ) {
     Card(
         colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E24)),
@@ -551,6 +581,26 @@ private fun MobileSyncFrequencyCard(
                         onClick = { onFrequencyChanged(SyncFrequency.MONTHLY) },
                         modifier = Modifier.weight(1f)
                     )
+                }
+            }
+
+            Button(
+                onClick = onForceSyncNow,
+                enabled = !isSyncingNow,
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                shape = RoundedCornerShape(8.dp),
+                modifier = Modifier.fillMaxWidth().height(40.dp)
+            ) {
+                if (isSyncingNow) {
+                    CircularProgressIndicator(
+                        color = Color.White,
+                        strokeWidth = 2.dp,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Synchronisation...", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                } else {
+                    Text("Forcer la mise à jour maintenant", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
                 }
             }
         }
