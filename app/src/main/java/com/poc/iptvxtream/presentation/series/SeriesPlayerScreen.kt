@@ -19,7 +19,6 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -336,6 +335,14 @@ fun SeriesPlayerScreen(
             .onKeyEvent { keyEvent ->
                 if (keyEvent.type == KeyEventType.KeyDown) {
                     when (keyEvent.key) {
+                        Key.DirectionLeft -> {
+                            skipBackward()
+                            true
+                        }
+                        Key.DirectionRight -> {
+                            skipForward()
+                            true
+                        }
                         Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> {
                             togglePlayPause()
                             true
@@ -550,12 +557,28 @@ fun SeriesPlayerScreen(
                                     .background(Color(0x33FFFFFF), shape = RoundedCornerShape(27.dp)),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Icon(
-                                    imageVector = if (isPlaying) Icons.Default.Warning else Icons.Default.PlayArrow, // Pause / Play fallback icons
-                                    contentDescription = if (isPlaying) "Pause" else "Play",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(32.dp)
-                                )
+                                if (isPlaying) {
+                                    // Pause icon absent from core Material icons, drawn manually
+                                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(width = 8.dp, height = 26.dp)
+                                                .background(Color.White, RoundedCornerShape(2.dp))
+                                        )
+                                        Box(
+                                            modifier = Modifier
+                                                .size(width = 8.dp, height = 26.dp)
+                                                .background(Color.White, RoundedCornerShape(2.dp))
+                                        )
+                                    }
+                                } else {
+                                    Icon(
+                                        imageVector = Icons.Default.PlayArrow,
+                                        contentDescription = "Play",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(32.dp)
+                                    )
+                                }
                             }
                         }
 
@@ -608,8 +631,7 @@ fun SeriesPlayerScreen(
                     }
                     updateTracksState(exoPlayer.currentTracks)
                 },
-                onDismiss = { showTrackDialog = false },
-                isTv = isTv
+                onDismiss = { showTrackDialog = false }
             )
         }
     }
@@ -621,8 +643,7 @@ private fun TrackSelectionDialog(
     availableSubtitleTracks: List<TrackInfo>,
     onAudioTrackSelected: (TrackInfo) -> Unit,
     onSubtitleTrackSelected: (TrackInfo?) -> Unit,
-    onDismiss: () -> Unit,
-    isTv: Boolean
+    onDismiss: () -> Unit
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
