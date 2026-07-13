@@ -51,6 +51,8 @@ import com.poc.iptvxtream.presentation.livetv.LiveTvScreen
 import com.poc.iptvxtream.presentation.livetv.LiveTvViewModel
 import com.poc.iptvxtream.presentation.login.LoginScreen
 import com.poc.iptvxtream.presentation.login.LoginViewModel
+import com.poc.iptvxtream.presentation.login.AutoLoginState
+import com.poc.iptvxtream.presentation.login.SplashScreen
 import com.poc.iptvxtream.presentation.player.PlayerScreen
 import com.poc.iptvxtream.presentation.vod.VodDetailsScreen
 import com.poc.iptvxtream.presentation.vod.VodPlayerScreen
@@ -103,9 +105,36 @@ class MainActivity : ComponentActivity() {
                 val loginViewModel: LoginViewModel = hiltViewModel()
                 val favoritesViewModel: FavoritesViewModel = hiltViewModel()
                 val homeViewModel: HomeViewModel = hiltViewModel()
+
+                val autoLoginState by loginViewModel.autoLoginState.collectAsState()
                 
                 var currentScreen by remember { mutableStateOf(AppScreen.LOGIN) }
                 var loggedInUser by remember { mutableStateOf<UserInfo?>(null) }
+
+                LaunchedEffect(autoLoginState) {
+                    when (autoLoginState) {
+                        is AutoLoginState.Success -> {
+                            loggedInUser = (autoLoginState as AutoLoginState.Success).userInfo
+                            if (isTv) {
+                                currentScreen = AppScreen.DASHBOARD
+                            }
+                        }
+                        is AutoLoginState.Error -> {
+                            loginViewModel.setError((autoLoginState as AutoLoginState.Error).message)
+                            if (isTv) {
+                                currentScreen = AppScreen.LOGIN
+                            }
+                        }
+                        is AutoLoginState.NoCredentials -> {
+                            if (isTv) {
+                                currentScreen = AppScreen.LOGIN
+                            }
+                        }
+                        is AutoLoginState.Checking -> {
+                            // Do nothing
+                        }
+                    }
+                }
 
                 val screenHistory = remember { mutableStateListOf<AppScreen>() }
                 val homeLazyListState = rememberLazyListState()
@@ -142,8 +171,18 @@ class MainActivity : ComponentActivity() {
                 // Get global reactive favorites list
                 val favsState by favoritesViewModel.state.collectAsState()
 
-                if (isTv) {
-                    // Safe Back Button Handler for Android TV / Custom Back
+                // Garde le splash tant que la vérification est en cours, ET tant que
+                // l'auto-login a réussi mais que loggedInUser n'est pas encore propagé
+                // par le LaunchedEffect. Sans ça, sur mobile le NavHost se compose avec
+                // loggedInUser==null et latche startDestination sur "login" malgré le succès.
+                val showSplash = autoLoginState is AutoLoginState.Checking ||
+                    (autoLoginState is AutoLoginState.Success && loggedInUser == null)
+
+                if (showSplash) {
+                    SplashScreen()
+                } else {
+                    if (isTv) {
+                        // Safe Back Button Handler for Android TV / Custom Back
                     BackHandler(enabled = currentScreen != AppScreen.LOGIN) {
                         if (currentScreen == AppScreen.DASHBOARD) {
                             loginViewModel.resetState()
@@ -506,7 +545,7 @@ class MainActivity : ComponentActivity() {
                                     navigateBack()
                                 },
                                 onLogout = {
-                                    loginViewModel.resetState()
+                                    loginViewModel.logout()
                                     loggedInUser = null
                                     screenHistory.clear()
                                     currentScreen = AppScreen.LOGIN
@@ -779,7 +818,7 @@ class MainActivity : ComponentActivity() {
                                         navController.popBackStack()
                                     },
                                     onLogout = {
-                                        loginViewModel.resetState()
+                                        loginViewModel.logout()
                                         loggedInUser = null
                                         navController.navigate("login") {
                                             popUpTo(0) { inclusive = true }
@@ -949,6 +988,7 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                     }
+                }
                 }
             }
         }
