@@ -115,7 +115,7 @@ Toute fonctionnalité réseau doit gérer explicitement : identifiants invalides
 4. Signale dans ta réponse tout point du cahier des charges resté ambigu ou non traité.
 5. Ne modifie pas les fichiers `prompt-app-iptv-xtream.md` ou `feuille-de-route-phases.md` sauf demande explicite.
 6. Exécute `./gradlew assembleDebug` et donne-moi le chemin de l'APK généré.
-7. Effectue systématiquement un commit Git et un push vers le dépôt distant après chaque fonctionnalité ou phase terminée.
+7. Effectue systématiquement un commit Git, crée un tag Git associé (ex: v1.x.y respectant SemVer) et pousse-les (y compris les tags avec `git push origin --tags` ou de manière ciblée) vers le dépôt distant après chaque fonctionnalité ou phase terminée.
 
 ## Processus de Release et Tagging SemVer
 
