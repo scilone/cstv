@@ -1,5 +1,6 @@
 package com.poc.iptvxtream.presentation.home
 
+import com.poc.iptvxtream.presentation.rememberForeverLazyListState
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.background
@@ -182,6 +183,7 @@ fun HomeScreen(
                     item {
                         HomeSectionRow(title = "Continuer à regarder") {
                             LazyRow(
+                                state = rememberForeverLazyListState("home_resume", { viewModel.getScrollPosition(it) }, { k, i, o -> viewModel.saveScrollPosition(k, i, o) }),
                                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                                 modifier = Modifier.fillMaxWidth().focusGroup()
                             ) {
@@ -207,6 +209,7 @@ fun HomeScreen(
                     item {
                         HomeSectionRow(title = "Favoris") {
                             LazyRow(
+                                state = rememberForeverLazyListState("home_favorites", { viewModel.getScrollPosition(it) }, { k, i, o -> viewModel.saveScrollPosition(k, i, o) }),
                                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                                 modifier = Modifier.fillMaxWidth().focusGroup()
                             ) {
@@ -265,6 +268,7 @@ fun HomeScreen(
                             onSeeAll = onNavigateToLiveTv
                         ) {
                             LazyRow(
+                                state = rememberForeverLazyListState("home_livetv", { viewModel.getScrollPosition(it) }, { k, i, o -> viewModel.saveScrollPosition(k, i, o) }),
                                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                                 modifier = Modifier.fillMaxWidth().focusGroup()
                             ) {
@@ -289,6 +293,7 @@ fun HomeScreen(
                             onSeeAll = onNavigateToVod
                         ) {
                             LazyRow(
+                                state = rememberForeverLazyListState("home_vod", { viewModel.getScrollPosition(it) }, { k, i, o -> viewModel.saveScrollPosition(k, i, o) }),
                                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                                 modifier = Modifier.fillMaxWidth().focusGroup()
                             ) {
@@ -311,6 +316,7 @@ fun HomeScreen(
                             onSeeAll = onNavigateToSeries
                         ) {
                             LazyRow(
+                                state = rememberForeverLazyListState("home_series", { viewModel.getScrollPosition(it) }, { k, i, o -> viewModel.saveScrollPosition(k, i, o) }),
                                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                                 modifier = Modifier.fillMaxWidth().focusGroup()
                             ) {

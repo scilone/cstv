@@ -1,5 +1,7 @@
 package com.poc.iptvxtream.presentation.vod
 
+import com.poc.iptvxtream.presentation.rememberForeverLazyListState
+import com.poc.iptvxtream.presentation.rememberForeverLazyGridState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -73,6 +75,9 @@ fun VodScreen(
         viewModel.loadCategories(forceRefresh = false)
     }
 
+    val getScroll: (String) -> Pair<Int, Int> = { viewModel.getScrollPosition(it) }
+    val saveScroll: (String, Int, Int) -> Unit = { k, i, o -> viewModel.saveScrollPosition(k, i, o) }
+
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -87,7 +92,9 @@ fun VodScreen(
                 filteredStreams = filteredStreams,
                 searchQuery = searchQuery,
                 onSearchQueryChanged = { searchQuery = it },
-                isSpecificCategory = isSpecificCategory
+                isSpecificCategory = isSpecificCategory,
+                getScroll = getScroll,
+                saveScroll = saveScroll
             )
         } else {
             MobileLayout(
@@ -98,7 +105,9 @@ fun VodScreen(
                 filteredStreams = filteredStreams,
                 searchQuery = searchQuery,
                 onSearchQueryChanged = { searchQuery = it },
-                isSpecificCategory = isSpecificCategory
+                isSpecificCategory = isSpecificCategory,
+                getScroll = getScroll,
+                saveScroll = saveScroll
             )
         }
     }
@@ -113,7 +122,9 @@ private fun TvLayout(
     filteredStreams: List<VodStream>,
     searchQuery: String,
     onSearchQueryChanged: (String) -> Unit,
-    isSpecificCategory: Boolean
+    isSpecificCategory: Boolean,
+    getScroll: (String) -> Pair<Int, Int>,
+    saveScroll: (String, Int, Int) -> Unit
 ) {
     val isAllSelected = state.selectedCategory?.categoryId == "all"
 
@@ -161,7 +172,9 @@ private fun TvLayout(
             }
         } else if (isAllSelected) {
             // Mode "Tout" : vertical categories list of horizontal rows
+            val listState = rememberForeverLazyListState("vod_tv_all_vertical", getScroll, saveScroll)
             LazyColumn(
+                state = listState,
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 modifier = Modifier.fillMaxSize()
             ) {
@@ -172,7 +185,9 @@ private fun TvLayout(
                             title = category.categoryName,
                             movies = catMovies,
                             onMovieSelected = onMovieSelected,
-                            isTv = true
+                            isTv = true,
+                            getScroll = getScroll,
+                            saveScroll = saveScroll
                         )
                     }
                 }
@@ -214,7 +229,9 @@ private fun TvLayout(
                     )
                 }
             } else {
+                val gridState = rememberForeverLazyGridState("vod_tv_cat_" + (state.selectedCategory?.categoryId ?: "0"), getScroll, saveScroll)
                 LazyVerticalGrid(
+                    state = gridState,
                     columns = GridCells.Fixed(4),
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -241,7 +258,9 @@ private fun MobileLayout(
     filteredStreams: List<VodStream>,
     searchQuery: String,
     onSearchQueryChanged: (String) -> Unit,
-    isSpecificCategory: Boolean
+    isSpecificCategory: Boolean,
+    getScroll: (String) -> Pair<Int, Int>,
+    saveScroll: (String, Int, Int) -> Unit
 ) {
     val isAllSelected = state.selectedCategory?.categoryId == "all"
 
@@ -286,7 +305,9 @@ private fun MobileLayout(
             }
         } else if (isAllSelected) {
             // Mode "Tout" : list of horizontal movie sections
+            val listState = rememberForeverLazyListState("vod_mobile_all_vertical", getScroll, saveScroll)
             LazyColumn(
+                state = listState,
                 modifier = Modifier.fillMaxSize(),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 contentPadding = PaddingValues(vertical = 8.dp)
@@ -298,7 +319,9 @@ private fun MobileLayout(
                             title = category.categoryName,
                             movies = catMovies,
                             onMovieSelected = onMovieSelected,
-                            isTv = false
+                            isTv = false,
+                            getScroll = getScroll,
+                            saveScroll = saveScroll
                         )
                     }
                 }
@@ -332,7 +355,9 @@ private fun MobileLayout(
                     )
                 }
             } else {
+                val gridState = rememberForeverLazyGridState("vod_mobile_cat_" + (state.selectedCategory?.categoryId ?: "0"), getScroll, saveScroll)
                 LazyVerticalGrid(
+                    state = gridState,
                     columns = GridCells.Fixed(2), // 2 columns on mobile
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -419,7 +444,9 @@ private fun CategorySectionRow(
     title: String,
     movies: List<VodStream>,
     onMovieSelected: (VodStream) -> Unit,
-    isTv: Boolean
+    isTv: Boolean,
+    getScroll: (String) -> Pair<Int, Int>,
+    saveScroll: (String, Int, Int) -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -434,7 +461,9 @@ private fun CategorySectionRow(
             modifier = Modifier.padding(start = 12.dp, bottom = 6.dp)
         )
 
+        val rowState = rememberForeverLazyListState("vod_row_${title}", getScroll, saveScroll)
         LazyRow(
+            state = rowState,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             contentPadding = PaddingValues(horizontal = 12.dp),
             modifier = Modifier.fillMaxWidth().focusGroup()

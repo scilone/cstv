@@ -55,6 +55,16 @@ class HomeViewModel @Inject constructor(
     private val _state = MutableStateFlow(HomeState())
     val state: StateFlow<HomeState> = _state.asStateFlow()
 
+    private val scrollPositions = mutableMapOf<String, Pair<Int, Int>>()
+
+    fun saveScrollPosition(key: String, index: Int, offset: Int) {
+        scrollPositions[key] = Pair(index, offset)
+    }
+
+    fun getScrollPosition(key: String): Pair<Int, Int> {
+        return scrollPositions[key] ?: Pair(0, 0)
+    }
+
     init {
         loadHomeData()
     }

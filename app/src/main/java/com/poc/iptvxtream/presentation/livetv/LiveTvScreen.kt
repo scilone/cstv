@@ -1,5 +1,7 @@
 package com.poc.iptvxtream.presentation.livetv
 
+import com.poc.iptvxtream.presentation.rememberForeverLazyListState
+import com.poc.iptvxtream.presentation.rememberForeverLazyGridState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -77,6 +79,9 @@ fun LiveTvScreen(
         viewModel.loadRecentlyWatched()
     }
 
+    val getScroll: (String) -> Pair<Int, Int> = { viewModel.getScrollPosition(it) }
+    val saveScroll: (String, Int, Int) -> Unit = { k, i, o -> viewModel.saveScrollPosition(k, i, o) }
+
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -95,7 +100,9 @@ fun LiveTvScreen(
                 onSearchQueryChanged = { searchQuery = it },
                 isSpecificCategory = isSpecificCategory,
                 epgPrograms = state.epgPrograms,
-                onLoadEpg = { viewModel.loadEpgForStream(it) }
+                onLoadEpg = { viewModel.loadEpgForStream(it) },
+                getScroll = getScroll,
+                saveScroll = saveScroll
             )
         } else {
             MobileLayout(
@@ -110,7 +117,9 @@ fun LiveTvScreen(
                 onSearchQueryChanged = { searchQuery = it },
                 isSpecificCategory = isSpecificCategory,
                 epgPrograms = state.epgPrograms,
-                onLoadEpg = { viewModel.loadEpgForStream(it) }
+                onLoadEpg = { viewModel.loadEpgForStream(it) },
+                getScroll = getScroll,
+                saveScroll = saveScroll
             )
         }
     }
@@ -129,7 +138,9 @@ private fun TvLayout(
     onSearchQueryChanged: (String) -> Unit,
     isSpecificCategory: Boolean,
     epgPrograms: Map<Int, LiveEpgProgram>,
-    onLoadEpg: (Int) -> Unit
+    onLoadEpg: (Int) -> Unit,
+    getScroll: (String) -> Pair<Int, Int>,
+    saveScroll: (String, Int, Int) -> Unit
 ) {
     val isAllSelected = state.selectedCategory?.categoryId == "all"
 
@@ -177,7 +188,9 @@ private fun TvLayout(
             }
         } else if (isAllSelected) {
             // Mode "Tout" : vertical categories list of horizontal rows
+            val listState = rememberForeverLazyListState("livetv_tv_all_vertical", getScroll, saveScroll)
             LazyColumn(
+                state = listState,
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 modifier = Modifier.fillMaxSize()
             ) {
@@ -189,7 +202,9 @@ private fun TvLayout(
                             onStreamSelected = onStreamSelected,
                             isTv = true,
                             epgPrograms = epgPrograms,
-                            onLoadEpg = onLoadEpg
+                            onLoadEpg = onLoadEpg,
+                            getScroll = getScroll,
+                            saveScroll = saveScroll
                         )
                     }
                 }
@@ -205,7 +220,9 @@ private fun TvLayout(
                             onStreamSelected = onStreamSelected,
                             isTv = true,
                             epgPrograms = epgPrograms,
-                            onLoadEpg = onLoadEpg
+                            onLoadEpg = onLoadEpg,
+                            getScroll = getScroll,
+                            saveScroll = saveScroll
                         )
                     }
                 }
@@ -247,7 +264,9 @@ private fun TvLayout(
                     )
                 }
             } else {
+                val gridState = rememberForeverLazyGridState("livetv_tv_cat_" + (state.selectedCategory?.categoryId ?: "0"), getScroll, saveScroll)
                 LazyVerticalGrid(
+                    state = gridState,
                     columns = GridCells.Fixed(3),
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -283,7 +302,9 @@ private fun MobileLayout(
     onSearchQueryChanged: (String) -> Unit,
     isSpecificCategory: Boolean,
     epgPrograms: Map<Int, LiveEpgProgram>,
-    onLoadEpg: (Int) -> Unit
+    onLoadEpg: (Int) -> Unit,
+    getScroll: (String) -> Pair<Int, Int>,
+    saveScroll: (String, Int, Int) -> Unit
 ) {
     val isAllSelected = state.selectedCategory?.categoryId == "all"
 
@@ -328,7 +349,9 @@ private fun MobileLayout(
             }
         } else if (isAllSelected) {
             // Mode "Tout" : list of horizontal streams sections
+            val listState = rememberForeverLazyListState("livetv_mobile_all_vertical", getScroll, saveScroll)
             LazyColumn(
+                state = listState,
                 modifier = Modifier.fillMaxSize(),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 contentPadding = PaddingValues(vertical = 8.dp)
@@ -341,7 +364,9 @@ private fun MobileLayout(
                             onStreamSelected = onStreamSelected,
                             isTv = false,
                             epgPrograms = epgPrograms,
-                            onLoadEpg = onLoadEpg
+                            onLoadEpg = onLoadEpg,
+                            getScroll = getScroll,
+                            saveScroll = saveScroll
                         )
                     }
                 }
@@ -357,7 +382,9 @@ private fun MobileLayout(
                             onStreamSelected = onStreamSelected,
                             isTv = false,
                             epgPrograms = epgPrograms,
-                            onLoadEpg = onLoadEpg
+                            onLoadEpg = onLoadEpg,
+                            getScroll = getScroll,
+                            saveScroll = saveScroll
                         )
                     }
                 }
@@ -391,7 +418,9 @@ private fun MobileLayout(
                     )
                 }
             } else {
+                val listState = rememberForeverLazyListState("livetv_mobile_cat_" + (state.selectedCategory?.categoryId ?: "0"), getScroll, saveScroll)
                 LazyColumn(
+                    state = listState,
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(horizontal = 12.dp),
@@ -514,7 +543,9 @@ private fun CategorySectionRow(
     onStreamSelected: (LiveStream) -> Unit,
     isTv: Boolean,
     epgPrograms: Map<Int, LiveEpgProgram>,
-    onLoadEpg: (Int) -> Unit
+    onLoadEpg: (Int) -> Unit,
+    getScroll: (String) -> Pair<Int, Int>,
+    saveScroll: (String, Int, Int) -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -529,7 +560,9 @@ private fun CategorySectionRow(
             modifier = Modifier.padding(start = 12.dp, bottom = 6.dp)
         )
 
+        val rowState = rememberForeverLazyListState("livetv_row_${title}", getScroll, saveScroll)
         LazyRow(
+            state = rowState,
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             contentPadding = PaddingValues(horizontal = 12.dp),
             modifier = Modifier.fillMaxWidth().focusGroup()
@@ -728,7 +761,9 @@ private fun RecentlyWatchedRow(
     onStreamSelected: (LiveStream) -> Unit,
     isTv: Boolean,
     epgPrograms: Map<Int, LiveEpgProgram>,
-    onLoadEpg: (Int) -> Unit
+    onLoadEpg: (Int) -> Unit,
+    getScroll: (String) -> Pair<Int, Int>,
+    saveScroll: (String, Int, Int) -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -743,7 +778,9 @@ private fun RecentlyWatchedRow(
             modifier = Modifier.padding(start = 12.dp, bottom = 6.dp)
         )
 
+        val rowState = rememberForeverLazyListState("livetv_recently_watched", getScroll, saveScroll)
         LazyRow(
+            state = rowState,
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             contentPadding = PaddingValues(horizontal = 12.dp),
             modifier = Modifier.fillMaxWidth().focusGroup()
