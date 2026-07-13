@@ -359,9 +359,13 @@ private fun HomeSectionRow(
                 var isFocused by remember { mutableStateOf(false) }
                 Button(
                     onClick = onSeeAll,
+                    // Contraste WCAG AA garanti dans les deux états (thème M3 par défaut =
+                    // primary Purple40 #6750A4, trop sombre en texte sur fond sombre) :
+                    // repos = texte blanc sur #1E1E24 (16.6:1), focus = texte noir sur
+                    // Purple80 #D0BCFF (12.3:1).
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = if (isFocused) MaterialTheme.colorScheme.primary else Color(0xFF1E1E24),
-                        contentColor = if (isFocused) Color.Black else MaterialTheme.colorScheme.primary
+                        containerColor = if (isFocused) Color(0xFFD0BCFF) else Color(0xFF1E1E24),
+                        contentColor = if (isFocused) Color.Black else Color.White
                     ),
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
                     modifier = Modifier
