@@ -62,6 +62,8 @@ class SyncCacheUseCaseTest {
         verify(vodRepository).getVodStreams(categoryId = "all", forceRefresh = true)
         verify(seriesRepository).getSeriesCategories(forceRefresh = true)
         verify(seriesRepository).getSeriesStreams(categoryId = "all", forceRefresh = true)
+        verify(vodRepository).enrichPendingMovies()
+        verify(seriesRepository).enrichPendingSeries()
     }
 
     @Test

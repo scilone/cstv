@@ -11,4 +11,14 @@ interface SeriesRepository {
     suspend fun savePlaybackPosition(episodeStreamId: Int, positionMs: Long, durationMs: Long)
     suspend fun getPlaybackPosition(episodeStreamId: Int): Pair<Long, Long>?
     suspend fun clearPlaybackPosition(episodeStreamId: Int)
+
+    /**
+     * Enrichit (acteurs/réalisateur/genre) les séries qui en manquent encore,
+     * par lots successifs jusqu'à [maxBatches] ou jusqu'à ce que le catalogue
+     * soit à jour. Contrairement au trickle paresseux déclenché par une simple
+     * consultation de liste, cet appel attend la fin du travail (utilisé par
+     * le rafraîchissement forcé/planifié, Phase 22).
+     * @return le nombre de séries traitées.
+     */
+    suspend fun enrichPendingSeries(maxBatches: Int = 20): Int
 }

@@ -33,6 +33,13 @@ class SyncCacheUseCase @Inject constructor(
             seriesRepository.getSeriesCategories(forceRefresh = true)
             seriesRepository.getSeriesStreams(categoryId = "all", forceRefresh = true)
 
+            // Rafraîchit aussi le casting (acteurs/réalisateur/genre) par lots
+            // successifs, attendus (contrairement au trickle paresseux déclenché
+            // par une simple consultation de liste) — sinon un sync programmé ne
+            // ferait progresser l'enrichissement d'un seul lot de 50 par appel.
+            vodRepository.enrichPendingMovies()
+            seriesRepository.enrichPendingSeries()
+
             SyncCacheResult.SUCCESS
         } catch (e: Exception) {
             SyncCacheResult.FAILED

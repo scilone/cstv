@@ -7,6 +7,7 @@ import com.poc.iptvxtream.data.local.entity.VodStreamEntity
 import com.poc.iptvxtream.data.local.storage.CredentialsManager
 import com.poc.iptvxtream.data.remote.api.XtreamApiService
 import com.poc.iptvxtream.domain.model.PlaybackPosition
+import com.poc.iptvxtream.domain.model.Credentials
 import com.poc.iptvxtream.domain.model.InvalidCredentialsException
 import com.poc.iptvxtream.domain.model.VodCategory
 import com.poc.iptvxtream.domain.model.VodDetails
@@ -43,41 +44,59 @@ class VodRepositoryImpl @Inject constructor(
     private fun startBackgroundEnrichment() {
         if (enrichmentJob?.isActive == true) return
         enrichmentJob = repositoryScope.launch {
-            try {
-                val creds = credentialsManager.getCredentials() ?: return@launch
-                // Enrichit par lot borné pour ne pas déclencher une rafale de requêtes
-                // getVodInfo sur tout le catalogue d'un coup. Chaque chargement de liste
-                // reprend le lot suivant (les entités enrichies sortent de la requête),
-                // ce qui étale la charge serveur sur plusieurs navigations.
-                val needingEnrichment = vodDao.getStreamsNeedingEnrichment(ENRICHMENT_BATCH_SIZE)
-                for (stream in needingEnrichment) {
-                    if (!isActive) break
-                    try {
-                        val response = apiService.getVodInfo(creds.username, creds.password, stream.streamId)
-                        val infoDto = response.info
-                        val director = infoDto?.director ?: "Inconnu"
-                        val actors = extractActors(infoDto?.actors, infoDto?.cast)
-                        val genre = infoDto?.genre ?: "Inconnu"
-
-                        val currentStream = vodDao.getStreamById(stream.streamId)
-                        if (currentStream != null) {
-                            vodDao.insertStreams(listOf(
-                                currentStream.copy(
-                                    actors = actors,
-                                    director = director,
-                                    genre = genre
-                                )
-                            ))
-                        }
-                        delay(200)
-                    } catch (e: Exception) {
-                        // ignore individual stream fetch failure and continue
-                    }
-                }
-            } catch (e: Exception) {
-                // handle overall errors gracefully
-            }
+            val creds = credentialsManager.getCredentials() ?: return@launch
+            enrichBatch(creds, ENRICHMENT_BATCH_SIZE)
         }
+    }
+
+    /**
+     * Enrichit un lot d'au plus [limit] films dont actors/director/genre
+     * manquent encore. Retourne le nombre de films traités (succès ou échec
+     * individuel confondus) : un lot plein signale qu'il reste probablement
+     * du travail, un lot partiel/vide signale un catalogue à jour.
+     */
+    private suspend fun enrichBatch(creds: Credentials, limit: Int): Int {
+        return try {
+            val needingEnrichment = vodDao.getStreamsNeedingEnrichment(limit)
+            for (stream in needingEnrichment) {
+                try {
+                    val response = apiService.getVodInfo(creds.username, creds.password, stream.streamId)
+                    val infoDto = response.info
+                    val director = infoDto?.director ?: "Inconnu"
+                    val actors = extractActors(infoDto?.actors, infoDto?.cast)
+                    val genre = infoDto?.genre ?: "Inconnu"
+
+                    val currentStream = vodDao.getStreamById(stream.streamId)
+                    if (currentStream != null) {
+                        vodDao.insertStreams(listOf(
+                            currentStream.copy(
+                                actors = actors,
+                                director = director,
+                                genre = genre
+                            )
+                        ))
+                    }
+                    delay(200)
+                } catch (e: Exception) {
+                    // ignore individual stream fetch failure and continue
+                }
+            }
+            needingEnrichment.size
+        } catch (e: Exception) {
+            // handle overall errors gracefully
+            0
+        }
+    }
+
+    override suspend fun enrichPendingMovies(maxBatches: Int): Int {
+        val creds = credentialsManager.getCredentials() ?: return 0
+        var total = 0
+        repeat(maxBatches) {
+            val processed = enrichBatch(creds, ENRICHMENT_BATCH_SIZE)
+            total += processed
+            if (processed < ENRICHMENT_BATCH_SIZE) return total
+        }
+        return total
     }
 
     companion object {

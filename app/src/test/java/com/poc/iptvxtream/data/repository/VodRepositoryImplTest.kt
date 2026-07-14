@@ -336,4 +336,75 @@ class VodRepositoryImplTest {
         verify(vodDao).getStreamsNeedingEnrichment(limitCaptor.capture())
         assertTrue(limitCaptor.firstValue in 1..50)
     }
+
+    // --- 5. enrichPendingMovies (sync forcé/planifié, Phase 22) ---
+
+    private fun unenrichedEntity(id: Int) = VodStreamEntity(
+        streamId = id, name = "Film $id", streamIcon = null, rating = null,
+        added = null, categoryId = "1", cachedAt = 0L
+    )
+
+    private val genericInfoResponse = VodInfoResponseDto(
+        VodInfoDto(
+            name = "Titre", director = "Un réalisateur",
+            actors = JsonPrimitive("Un acteur"), cast = null,
+            releaseDate = null, genre = "Drame", plot = null,
+            rating = null, rating5 = null, coverBig = null, movieImage = null,
+            duration = null
+        ),
+        movieData = null
+    )
+
+    @Test
+    fun test_enrichPendingMovies_returnsZero_whenNoCredentials() = runTest {
+        whenever(credentialsManager.getCredentials()).thenReturn(null)
+
+        val result = repository.enrichPendingMovies()
+
+        assertEquals(0, result)
+        verifyNoInteractions(vodDao)
+    }
+
+    @Test
+    fun test_enrichPendingMovies_stopsAfterFirstBatch_whenBatchSmallerThanLimit() = runTest {
+        val partialBatch = listOf(unenrichedEntity(1), unenrichedEntity(2))
+        whenever(vodDao.getStreamsNeedingEnrichment(any())).thenReturn(partialBatch)
+        whenever(vodDao.getStreamById(any())).thenAnswer { unenrichedEntity(it.getArgument(0)) }
+        whenever(apiService.getVodInfo(eq("username"), eq("password"), any(), any())).thenReturn(genericInfoResponse)
+
+        val result = repository.enrichPendingMovies(maxBatches = 5)
+
+        assertEquals(2, result)
+        // Lot < taille max -> catalogue rattrapé, pas de second appel.
+        verify(vodDao, times(1)).getStreamsNeedingEnrichment(any())
+    }
+
+    @Test
+    fun test_enrichPendingMovies_loopsUntilBatchIsNotFull() = runTest {
+        val fullBatch = (1..50).map { unenrichedEntity(it) }
+        val lastPartialBatch = listOf(unenrichedEntity(51), unenrichedEntity(52))
+        whenever(vodDao.getStreamsNeedingEnrichment(any()))
+            .thenReturn(fullBatch)
+            .thenReturn(lastPartialBatch)
+        whenever(vodDao.getStreamById(any())).thenAnswer { unenrichedEntity(it.getArgument(0)) }
+        whenever(apiService.getVodInfo(eq("username"), eq("password"), any(), any())).thenReturn(genericInfoResponse)
+
+        val result = repository.enrichPendingMovies(maxBatches = 5)
+
+        assertEquals(52, result)
+        verify(vodDao, times(2)).getStreamsNeedingEnrichment(any())
+    }
+
+    @Test
+    fun test_enrichPendingMovies_respectsMaxBatchesCap_evenIfCatalogNotExhausted() = runTest {
+        val fullBatch = (1..50).map { unenrichedEntity(it) }
+        whenever(vodDao.getStreamsNeedingEnrichment(any())).thenReturn(fullBatch)
+        whenever(vodDao.getStreamById(any())).thenAnswer { unenrichedEntity(it.getArgument(0)) }
+        whenever(apiService.getVodInfo(eq("username"), eq("password"), any(), any())).thenReturn(genericInfoResponse)
+
+        val result = repository.enrichPendingMovies(maxBatches = 3)
+
+        assertEquals(150, result)
+        verify(vodDao, times(3)).getStreamsNeedingEnrichment(any())
+    }
 }

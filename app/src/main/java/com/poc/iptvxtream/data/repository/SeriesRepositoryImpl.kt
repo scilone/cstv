@@ -42,41 +42,59 @@ class SeriesRepositoryImpl @Inject constructor(
     private fun startBackgroundEnrichment() {
         if (enrichmentJob?.isActive == true) return
         enrichmentJob = repositoryScope.launch {
-            try {
-                val creds = credentialsManager.getCredentials() ?: return@launch
-                // Enrichit par lot borné pour ne pas déclencher une rafale de requêtes
-                // getSeriesInfo sur tout le catalogue d'un coup. Chaque chargement de liste
-                // reprend le lot suivant (les entités enrichies sortent de la requête),
-                // ce qui étale la charge serveur sur plusieurs navigations.
-                val needingEnrichment = seriesDao.getStreamsNeedingEnrichment(ENRICHMENT_BATCH_SIZE)
-                for (stream in needingEnrichment) {
-                    if (!isActive) break
-                    try {
-                        val response = apiService.getSeriesInfo(creds.username, creds.password, stream.seriesId)
-                        val infoDto = response.info
-                        val director = infoDto?.director ?: "Inconnu"
-                        val genre = infoDto?.genre ?: "Inconnu"
-                        val actors = extractActors(infoDto?.actors, infoDto?.cast)
-
-                        val currentStream = seriesDao.getStreamById(stream.seriesId)
-                        if (currentStream != null) {
-                            seriesDao.insertStreams(listOf(
-                                currentStream.copy(
-                                    actors = actors,
-                                    director = director,
-                                    genre = genre
-                                )
-                            ))
-                        }
-                        delay(200)
-                    } catch (e: Exception) {
-                        // ignore individual failure
-                    }
-                }
-            } catch (e: Exception) {
-                // handle errors gracefully
-            }
+            val creds = credentialsManager.getCredentials() ?: return@launch
+            enrichBatch(creds, ENRICHMENT_BATCH_SIZE)
         }
+    }
+
+    /**
+     * Enrichit un lot d'au plus [limit] séries dont actors/director/genre
+     * manquent encore. Retourne le nombre de séries traitées (succès ou échec
+     * individuel confondus) : un lot plein signale qu'il reste probablement
+     * du travail, un lot partiel/vide signale un catalogue à jour.
+     */
+    private suspend fun enrichBatch(creds: Credentials, limit: Int): Int {
+        return try {
+            val needingEnrichment = seriesDao.getStreamsNeedingEnrichment(limit)
+            for (stream in needingEnrichment) {
+                try {
+                    val response = apiService.getSeriesInfo(creds.username, creds.password, stream.seriesId)
+                    val infoDto = response.info
+                    val director = infoDto?.director ?: "Inconnu"
+                    val genre = infoDto?.genre ?: "Inconnu"
+                    val actors = extractActors(infoDto?.actors, infoDto?.cast)
+
+                    val currentStream = seriesDao.getStreamById(stream.seriesId)
+                    if (currentStream != null) {
+                        seriesDao.insertStreams(listOf(
+                            currentStream.copy(
+                                actors = actors,
+                                director = director,
+                                genre = genre
+                            )
+                        ))
+                    }
+                    delay(200)
+                } catch (e: Exception) {
+                    // ignore individual failure
+                }
+            }
+            needingEnrichment.size
+        } catch (e: Exception) {
+            // handle errors gracefully
+            0
+        }
+    }
+
+    override suspend fun enrichPendingSeries(maxBatches: Int): Int {
+        val creds = credentialsManager.getCredentials() ?: return 0
+        var total = 0
+        repeat(maxBatches) {
+            val processed = enrichBatch(creds, ENRICHMENT_BATCH_SIZE)
+            total += processed
+            if (processed < ENRICHMENT_BATCH_SIZE) return total
+        }
+        return total
     }
 
     companion object {

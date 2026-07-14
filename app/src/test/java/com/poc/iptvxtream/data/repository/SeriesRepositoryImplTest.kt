@@ -303,4 +303,61 @@ class SeriesRepositoryImplTest {
         verify(seriesDao).getStreamsNeedingEnrichment(limitCaptor.capture())
         assertTrue(limitCaptor.firstValue in 1..50)
     }
+
+    // --- enrichPendingSeries (sync forcé/planifié, Phase 22) ---
+
+    private fun unenrichedEntity(id: Int) = SeriesStreamEntity(
+        seriesId = id, name = "Série $id", cover = null, rating = null,
+        added = null, categoryId = "1", cachedAt = 0L
+    )
+
+    private val genericInfoResponse = SeriesInfoResponseDto(
+        seasons = null,
+        episodes = null,
+        info = SeriesInfoMetadataDto(
+            name = "Titre", cover = null, plot = null, cast = null,
+            actors = JsonPrimitive("Un acteur"), director = "Un réalisateur",
+            releaseDate = null, releaseDate2 = null, genre = "Drame",
+            rating = null, rating5 = null
+        )
+    )
+
+    @Test
+    fun test_enrichPendingSeries_returnsZero_whenNoCredentials() = runTest {
+        whenever(credentialsManager.getCredentials()).thenReturn(null)
+
+        val result = repository.enrichPendingSeries()
+
+        assertEquals(0, result)
+        verifyNoInteractions(seriesDao)
+    }
+
+    @Test
+    fun test_enrichPendingSeries_stopsAfterFirstBatch_whenBatchSmallerThanLimit() = runTest {
+        val partialBatch = listOf(unenrichedEntity(1), unenrichedEntity(2))
+        whenever(seriesDao.getStreamsNeedingEnrichment(any())).thenReturn(partialBatch)
+        whenever(seriesDao.getStreamById(any())).thenAnswer { unenrichedEntity(it.getArgument(0)) }
+        whenever(apiService.getSeriesInfo(eq("username"), eq("password"), any(), any())).thenReturn(genericInfoResponse)
+
+        val result = repository.enrichPendingSeries(maxBatches = 5)
+
+        assertEquals(2, result)
+        verify(seriesDao, times(1)).getStreamsNeedingEnrichment(any())
+    }
+
+    @Test
+    fun test_enrichPendingSeries_loopsUntilBatchIsNotFull() = runTest {
+        val fullBatch = (1..50).map { unenrichedEntity(it) }
+        val lastPartialBatch = listOf(unenrichedEntity(51), unenrichedEntity(52))
+        whenever(seriesDao.getStreamsNeedingEnrichment(any()))
+            .thenReturn(fullBatch)
+            .thenReturn(lastPartialBatch)
+        whenever(seriesDao.getStreamById(any())).thenAnswer { unenrichedEntity(it.getArgument(0)) }
+        whenever(apiService.getSeriesInfo(eq("username"), eq("password"), any(), any())).thenReturn(genericInfoResponse)
+
+        val result = repository.enrichPendingSeries(maxBatches = 5)
+
+        assertEquals(52, result)
+        verify(seriesDao, times(2)).getStreamsNeedingEnrichment(any())
+    }
 }

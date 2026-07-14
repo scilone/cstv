@@ -27,4 +27,14 @@ interface VodRepository {
     suspend fun getPlaybackPosition(streamId: Int): Pair<Long, Long>?
     suspend fun clearPlaybackPosition(streamId: Int)
     suspend fun getAllPlaybackPositions(): List<PlaybackPosition>
+
+    /**
+     * Enrichit (acteurs/réalisateur/genre) les films qui en manquent encore,
+     * par lots successifs jusqu'à [maxBatches] ou jusqu'à ce que le catalogue
+     * soit à jour. Contrairement au trickle paresseux déclenché par une simple
+     * consultation de liste, cet appel attend la fin du travail (utilisé par
+     * le rafraîchissement forcé/planifié, Phase 22).
+     * @return le nombre de films traités.
+     */
+    suspend fun enrichPendingMovies(maxBatches: Int = 20): Int
 }
