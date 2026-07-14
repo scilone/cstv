@@ -286,7 +286,7 @@ class SeriesRepositoryImplTest {
 
         localRepository.getSeriesStreams("5", forceRefresh = true)
 
-        verify(seriesDao).insertStreams(argThat {
+        verify(seriesDao).insertStreamsWithFts(argThat {
             size == 1 && get(0).seriesId == 12 && get(0).actors == "Kit Harington, Emilia Clarke" && get(0).director == "David Benioff" && get(0).genre == "Fantasy"
         })
     }

@@ -134,12 +134,14 @@ class LiveTvRepositoryImpl @Inject constructor(
         // Insert into cache
         if (categoryId == "all") {
             liveTvDao.clearAllStreams()
+            liveTvDao.clearAllFts()
         } else {
             liveTvDao.clearStreamsByCategory(categoryId)
+            liveTvDao.clearFtsByCategory(categoryId)
         }
 
         if (entities.isNotEmpty()) {
-            liveTvDao.insertStreams(entities)
+            liveTvDao.insertStreamsWithFts(entities)
         }
 
         if (categoryId == "all") {

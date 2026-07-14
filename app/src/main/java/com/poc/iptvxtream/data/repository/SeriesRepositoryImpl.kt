@@ -78,7 +78,7 @@ class SeriesRepositoryImpl @Inject constructor(
 
                     val currentStream = seriesDao.getStreamById(stream.seriesId)
                     if (currentStream != null) {
-                        seriesDao.insertStreams(listOf(
+                        seriesDao.insertStreamsWithFts(listOf(
                             currentStream.copy(
                                 actors = actors,
                                 director = director,
@@ -271,12 +271,14 @@ class SeriesRepositoryImpl @Inject constructor(
 
         if (categoryId == "all") {
             seriesDao.clearAllStreams()
+            seriesDao.clearAllFts()
         } else {
             seriesDao.clearStreamsByCategory(categoryId)
+            seriesDao.clearFtsByCategory(categoryId)
         }
 
         if (entities.isNotEmpty()) {
-            seriesDao.insertStreams(entities)
+            seriesDao.insertStreamsWithFts(entities)
         }
 
         if (categoryId == "all") {
@@ -360,7 +362,7 @@ class SeriesRepositoryImpl @Inject constructor(
 
         // Sensationally enrich cached stream entity with actors, director, and genre details
         if (cachedSeries != null) {
-            seriesDao.insertStreams(listOf(
+            seriesDao.insertStreamsWithFts(listOf(
                 cachedSeries.copy(
                     actors = actors,
                     director = director,

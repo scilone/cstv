@@ -319,7 +319,7 @@ class VodRepositoryImplTest {
 
         localRepository.getVodStreams("5", forceRefresh = true)
 
-        verify(vodDao).insertStreams(argThat {
+        verify(vodDao).insertStreamsWithFts(argThat {
             size == 1 && get(0).streamId == 12 && get(0).actors == "Mark Hamill, Harrison Ford" && get(0).director == "George Lucas" && get(0).genre == "Sci-Fi"
         })
     }

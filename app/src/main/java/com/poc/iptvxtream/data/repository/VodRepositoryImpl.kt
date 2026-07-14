@@ -80,7 +80,7 @@ class VodRepositoryImpl @Inject constructor(
 
                     val currentStream = vodDao.getStreamById(stream.streamId)
                     if (currentStream != null) {
-                        vodDao.insertStreams(listOf(
+                        vodDao.insertStreamsWithFts(listOf(
                             currentStream.copy(
                                 actors = actors,
                                 director = director,
@@ -329,12 +329,14 @@ class VodRepositoryImpl @Inject constructor(
 
         if (categoryId == "all") {
             vodDao.clearAllStreams()
+            vodDao.clearAllFts()
         } else {
             vodDao.clearStreamsByCategory(categoryId)
+            vodDao.clearFtsByCategory(categoryId)
         }
 
         if (entities.isNotEmpty()) {
-            vodDao.insertStreams(entities)
+            vodDao.insertStreamsWithFts(entities)
         }
 
         if (categoryId == "all") {
@@ -374,7 +376,7 @@ class VodRepositoryImpl @Inject constructor(
         // Sensationally enrich cached stream entity with actors, director, and genre details
         val cachedStream = vodDao.getStreamById(streamId)
         if (cachedStream != null) {
-            vodDao.insertStreams(listOf(
+            vodDao.insertStreamsWithFts(listOf(
                 cachedStream.copy(
                     actors = actors,
                     director = director,

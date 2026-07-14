@@ -27,13 +27,35 @@ interface FavoritesDao {
     @Query("DELETE FROM favorites WHERE profileId = :profileId")
     suspend fun deleteAllForProfile(profileId: Int)
 
-    // --- Unified Local Search ---
-    @Query("SELECT * FROM live_streams WHERE name LIKE :query ORDER BY name ASC")
-    suspend fun searchLiveStreams(query: String): List<LiveStreamEntity>
+    // --- Unified Local Search (Phase 40 : FTS4 au lieu de LIKE '%x%', non
+    // indexable par SQLite en préfixe libre -> full scan à chaque frappe) ---
+    @Query(
+        """
+        SELECT live_streams.* FROM live_streams
+        JOIN live_streams_fts ON live_streams.streamId = live_streams_fts.rowid
+        WHERE live_streams_fts MATCH :matchQuery
+        ORDER BY live_streams.name ASC
+        """
+    )
+    suspend fun searchLiveStreams(matchQuery: String): List<LiveStreamEntity>
 
-    @Query("SELECT * FROM vod_streams WHERE name LIKE :query OR actors LIKE :query OR director LIKE :query OR genre LIKE :query ORDER BY name ASC")
-    suspend fun searchVodStreams(query: String): List<VodStreamEntity>
+    @Query(
+        """
+        SELECT vod_streams.* FROM vod_streams
+        JOIN vod_streams_fts ON vod_streams.streamId = vod_streams_fts.rowid
+        WHERE vod_streams_fts MATCH :matchQuery
+        ORDER BY vod_streams.name ASC
+        """
+    )
+    suspend fun searchVodStreams(matchQuery: String): List<VodStreamEntity>
 
-    @Query("SELECT * FROM series_streams WHERE name LIKE :query OR actors LIKE :query OR director LIKE :query OR genre LIKE :query ORDER BY name ASC")
-    suspend fun searchSeriesStreams(query: String): List<SeriesStreamEntity>
+    @Query(
+        """
+        SELECT series_streams.* FROM series_streams
+        JOIN series_streams_fts ON series_streams.seriesId = series_streams_fts.rowid
+        WHERE series_streams_fts MATCH :matchQuery
+        ORDER BY series_streams.name ASC
+        """
+    )
+    suspend fun searchSeriesStreams(matchQuery: String): List<SeriesStreamEntity>
 }

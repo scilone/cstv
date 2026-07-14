@@ -144,4 +144,49 @@ val MIGRATION_10_11 = object : Migration(10, 11) {
     }
 }
 
-val ALL_MIGRATIONS = arrayOf(MIGRATION_9_10, MIGRATION_10_11)
+/**
+ * MIGRATION_11_12 (Phase 40 - recherche globale plein texte) :
+ * crée 3 tables virtuelles FTS4 (une par type de média) utilisées par la
+ * recherche unifiée à la place de `LIKE '%x%'` (non indexable, full scan
+ * à chaque frappe). Déclarées en @Entity (LiveStreamFtsEntity/VodStreamFtsEntity/
+ * SeriesStreamFtsEntity) pour que Room valide les @Query au compile-time et
+ * les crée automatiquement sur une installation neuve ; cette migration ne
+ * sert qu'à amener une DB déjà existante (< v12) au même schéma, plus le
+ * backfill depuis les tables sources déjà peuplées.
+ *
+ * Le rowid de chaque table FTS est backfillé sur la clé primaire de la
+ * table source (streamId/seriesId), qui est un INTEGER PRIMARY KEY donc
+ * alias du rowid SQLite : la jointure `fts.rowid = source.streamId` est
+ * directe, sans colonne supplémentaire.
+ *
+ * Pas de triggers de synchronisation automatique (FTS4 external content) :
+ * la synchro est faite explicitement côté app à chaque écriture (voir
+ * `insertStreamsWithFts`/`clearAllFts`/`clearFtsByCategory` dans les DAOs),
+ * ce qui reste cohérent avec le pattern clear+insert déjà utilisé par les
+ * repositories pour les tables sources.
+ */
+val MIGRATION_11_12 = object : Migration(11, 12) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("CREATE VIRTUAL TABLE IF NOT EXISTS live_streams_fts USING FTS4(name, categoryId)")
+        db.execSQL("CREATE VIRTUAL TABLE IF NOT EXISTS vod_streams_fts USING FTS4(name, actors, director, genre, categoryId)")
+        db.execSQL("CREATE VIRTUAL TABLE IF NOT EXISTS series_streams_fts USING FTS4(name, actors, director, genre, categoryId)")
+
+        db.execSQL(
+            "INSERT INTO live_streams_fts(rowid, name, categoryId) SELECT streamId, name, categoryId FROM live_streams"
+        )
+        db.execSQL(
+            """
+            INSERT INTO vod_streams_fts(rowid, name, actors, director, genre, categoryId)
+            SELECT streamId, name, actors, director, genre, categoryId FROM vod_streams
+            """.trimIndent()
+        )
+        db.execSQL(
+            """
+            INSERT INTO series_streams_fts(rowid, name, actors, director, genre, categoryId)
+            SELECT seriesId, name, actors, director, genre, categoryId FROM series_streams
+            """.trimIndent()
+        )
+    }
+}
+
+val ALL_MIGRATIONS = arrayOf(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12)

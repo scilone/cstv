@@ -77,7 +77,7 @@ class FavoritesRepositoryImplTest {
     @Test
     fun test_searchUnified_queriesAndReturnsAggregatedResults() = runTest {
         val searchQuery = "tf"
-        val expectedSqlQuery = "%tf%"
+        val expectedSqlQuery = "\"tf\"*"
 
         // Mock database responses for Live, VOD, and Series tables
         val liveEntities = listOf(

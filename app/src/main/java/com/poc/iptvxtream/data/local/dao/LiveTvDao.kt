@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import com.poc.iptvxtream.data.local.entity.EpgCacheEntity
 import com.poc.iptvxtream.data.local.entity.LiveCategoryEntity
 import com.poc.iptvxtream.data.local.entity.LiveStreamEntity
@@ -38,6 +39,22 @@ interface LiveTvDao {
 
     @Query("DELETE FROM live_streams")
     suspend fun clearAllStreams()
+
+    // --- FTS4 (Phase 40 : recherche globale) --- voir VodDao pour le détail.
+    @Query("INSERT OR REPLACE INTO live_streams_fts(rowid, name, categoryId) VALUES (:streamId, :name, :categoryId)")
+    suspend fun upsertLiveFts(streamId: Int, name: String, categoryId: String)
+
+    @Query("DELETE FROM live_streams_fts WHERE categoryId = :categoryId")
+    suspend fun clearFtsByCategory(categoryId: String)
+
+    @Query("DELETE FROM live_streams_fts")
+    suspend fun clearAllFts()
+
+    @Transaction
+    suspend fun insertStreamsWithFts(streams: List<LiveStreamEntity>) {
+        insertStreams(streams)
+        streams.forEach { upsertLiveFts(it.streamId, it.name, it.categoryId) }
+    }
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertRecentlyWatched(recentlyWatched: RecentlyWatchedLiveEntity)

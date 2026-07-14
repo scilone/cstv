@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import com.poc.iptvxtream.data.local.entity.SeriesCategoryEntity
 import com.poc.iptvxtream.data.local.entity.SeriesStreamEntity
 
@@ -35,6 +36,25 @@ interface SeriesDao {
 
     @Query("DELETE FROM series_streams")
     suspend fun clearAllStreams()
+
+    // --- FTS4 (Phase 40 : recherche globale) --- voir VodDao pour le détail.
+    @Query(
+        "INSERT OR REPLACE INTO series_streams_fts(rowid, name, actors, director, genre, categoryId) " +
+            "VALUES (:seriesId, :name, :actors, :director, :genre, :categoryId)"
+    )
+    suspend fun upsertSeriesFts(seriesId: Int, name: String, actors: String?, director: String?, genre: String?, categoryId: String)
+
+    @Query("DELETE FROM series_streams_fts WHERE categoryId = :categoryId")
+    suspend fun clearFtsByCategory(categoryId: String)
+
+    @Query("DELETE FROM series_streams_fts")
+    suspend fun clearAllFts()
+
+    @Transaction
+    suspend fun insertStreamsWithFts(streams: List<SeriesStreamEntity>) {
+        insertStreams(streams)
+        streams.forEach { upsertSeriesFts(it.seriesId, it.name, it.actors, it.director, it.genre, it.categoryId) }
+    }
 
     @Query("SELECT * FROM series_streams WHERE seriesId = :seriesId LIMIT 1")
     suspend fun getStreamById(seriesId: Int): SeriesStreamEntity?

@@ -20,6 +20,9 @@ import com.poc.iptvxtream.data.local.entity.VodStreamEntity
 import com.poc.iptvxtream.data.local.entity.FavoriteEntity
 import com.poc.iptvxtream.data.local.entity.RecentlyWatchedLiveEntity
 import com.poc.iptvxtream.data.local.entity.EpgCacheEntity
+import com.poc.iptvxtream.data.local.entity.LiveStreamFtsEntity
+import com.poc.iptvxtream.data.local.entity.VodStreamFtsEntity
+import com.poc.iptvxtream.data.local.entity.SeriesStreamFtsEntity
 
 @Database(
     entities = [
@@ -34,9 +37,12 @@ import com.poc.iptvxtream.data.local.entity.EpgCacheEntity
         RecentlyWatchedLiveEntity::class,
         EpgCacheEntity::class,
         ProfileEntity::class,
-        TrackPreferenceEntity::class
+        TrackPreferenceEntity::class,
+        LiveStreamFtsEntity::class,
+        VodStreamFtsEntity::class,
+        SeriesStreamFtsEntity::class
     ],
-    version = 11,
+    version = 12,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
