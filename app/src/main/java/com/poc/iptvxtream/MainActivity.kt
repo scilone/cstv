@@ -66,6 +66,8 @@ import com.poc.iptvxtream.presentation.favorites.FavoritesScreen
 import com.poc.iptvxtream.presentation.favorites.FavoritesViewModel
 import com.poc.iptvxtream.presentation.search.SearchScreen
 import com.poc.iptvxtream.presentation.settings.SettingsScreen
+import com.poc.iptvxtream.presentation.profile.ProfileViewModel
+import com.poc.iptvxtream.presentation.profile.ProfileSelectionScreen
 import com.poc.iptvxtream.presentation.settings.SettingsViewModel
 import dagger.hilt.android.AndroidEntryPoint
 
@@ -171,6 +173,26 @@ class MainActivity : ComponentActivity() {
                 // Get global reactive favorites list
                 val favsState by favoritesViewModel.state.collectAsState()
 
+                // --- Sélection de profil (Phase 27) ---
+                // Gate unique couvrant TV et mobile : après login/auto-login, on
+                // garantit un profil actif et on affiche l'écran de sélection
+                // uniquement s'il existe plusieurs profils.
+                val profileViewModel: ProfileViewModel = hiltViewModel()
+                val profileState by profileViewModel.state.collectAsState()
+                var profileSelectionNeeded by remember { mutableStateOf(false) }
+                var profileGateResolved by remember { mutableStateOf(false) }
+
+                LaunchedEffect(loggedInUser) {
+                    if (loggedInUser != null && !profileGateResolved) {
+                        val needsSelection = profileViewModel.ensureInitializedAndNeedsSelection()
+                        profileSelectionNeeded = needsSelection
+                        if (!needsSelection) profileGateResolved = true
+                    } else if (loggedInUser == null) {
+                        profileGateResolved = false
+                        profileSelectionNeeded = false
+                    }
+                }
+
                 // Garde le splash tant que la vérification est en cours, ET tant que
                 // l'auto-login a réussi mais que loggedInUser n'est pas encore propagé
                 // par le LaunchedEffect. Sans ça, sur mobile le NavHost se compose avec
@@ -178,8 +200,19 @@ class MainActivity : ComponentActivity() {
                 val showSplash = autoLoginState is AutoLoginState.Checking ||
                     (autoLoginState is AutoLoginState.Success && loggedInUser == null)
 
+                val showProfileSelection = loggedInUser != null &&
+                    profileSelectionNeeded && !profileGateResolved
+
                 if (showSplash) {
                     SplashScreen()
+                } else if (showProfileSelection) {
+                    ProfileSelectionScreen(
+                        profiles = profileState.profiles,
+                        onProfileSelected = { profile ->
+                            profileViewModel.selectProfile(profile.id)
+                            profileGateResolved = true
+                        }
+                    )
                 } else {
                     if (isTv) {
                         // Safe Back Button Handler for Android TV / Custom Back
@@ -540,6 +573,7 @@ class MainActivity : ComponentActivity() {
                             val settingsViewModel: SettingsViewModel = hiltViewModel()
                             SettingsScreen(
                                 viewModel = settingsViewModel,
+                                profileViewModel = profileViewModel,
                                 isTv = isTv,
                                 onBack = {
                                     navigateBack()
@@ -813,6 +847,7 @@ class MainActivity : ComponentActivity() {
                                 val settingsViewModel: SettingsViewModel = hiltViewModel()
                                 SettingsScreen(
                                     viewModel = settingsViewModel,
+                                    profileViewModel = profileViewModel,
                                     isTv = false,
                                     onBack = {
                                         navController.popBackStack()

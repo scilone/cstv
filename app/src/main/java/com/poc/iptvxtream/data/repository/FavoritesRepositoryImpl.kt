@@ -2,6 +2,7 @@ package com.poc.iptvxtream.data.repository
 
 import com.poc.iptvxtream.data.local.dao.FavoritesDao
 import com.poc.iptvxtream.data.local.entity.FavoriteEntity
+import com.poc.iptvxtream.data.local.storage.ProfileManager
 import com.poc.iptvxtream.domain.model.*
 import com.poc.iptvxtream.domain.repository.FavoritesRepository
 import javax.inject.Inject
@@ -9,17 +10,18 @@ import javax.inject.Singleton
 
 @Singleton
 class FavoritesRepositoryImpl @Inject constructor(
-    private val favoritesDao: FavoritesDao
+    private val favoritesDao: FavoritesDao,
+    private val profileManager: ProfileManager
 ) : FavoritesRepository {
 
     override suspend fun getFavorites(): List<FavoriteItem> {
-        return favoritesDao.getAllFavorites().map { 
+        return favoritesDao.getAllFavorites(profileManager.currentProfileId()).map {
             FavoriteItem(it.id, it.type, it.name, it.cover, it.categoryId)
         }
     }
 
     override suspend fun isFavorite(id: Int, type: String): Boolean {
-        return favoritesDao.isFavorite(id, type)
+        return favoritesDao.isFavorite(id, type, profileManager.currentProfileId())
     }
 
     override suspend fun addFavorite(favorite: FavoriteItem) {
@@ -29,13 +31,14 @@ class FavoritesRepositoryImpl @Inject constructor(
             name = favorite.name,
             cover = favorite.cover,
             categoryId = favorite.categoryId,
-            addedAt = System.currentTimeMillis()
+            addedAt = System.currentTimeMillis(),
+            profileId = profileManager.currentProfileId()
         )
         favoritesDao.addFavorite(entity)
     }
 
     override suspend fun removeFavorite(id: Int, type: String) {
-        favoritesDao.removeFavorite(id, type)
+        favoritesDao.removeFavorite(id, type, profileManager.currentProfileId())
     }
 
     override suspend fun searchUnified(query: String): SearchResult {

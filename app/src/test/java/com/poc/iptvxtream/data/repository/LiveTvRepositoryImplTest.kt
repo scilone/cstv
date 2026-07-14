@@ -4,6 +4,7 @@ import com.poc.iptvxtream.data.local.dao.LiveTvDao
 import com.poc.iptvxtream.data.local.entity.LiveCategoryEntity
 import com.poc.iptvxtream.data.local.entity.LiveStreamEntity
 import com.poc.iptvxtream.data.local.storage.CredentialsManager
+import com.poc.iptvxtream.data.local.storage.ProfileManager
 import com.poc.iptvxtream.data.remote.api.XtreamApiService
 import com.poc.iptvxtream.data.remote.dto.EpgResponseDto
 import com.poc.iptvxtream.data.remote.dto.EpgListingDto
@@ -33,6 +34,9 @@ class LiveTvRepositoryImplTest {
     @Mock
     private lateinit var credentialsManager: CredentialsManager
 
+    @Mock
+    private lateinit var profileManager: ProfileManager
+
     private lateinit var repository: LiveTvRepositoryImpl
 
     private val credentials = Credentials("test.com", 80, "username", "password", true)
@@ -41,7 +45,8 @@ class LiveTvRepositoryImplTest {
     fun setUp() {
         MockitoAnnotations.openMocks(this)
         whenever(credentialsManager.getCredentials()).thenReturn(credentials)
-        repository = LiveTvRepositoryImpl(apiService, liveTvDao, credentialsManager)
+        doReturn(1).whenever(profileManager).currentProfileId()
+        repository = LiveTvRepositoryImpl(apiService, liveTvDao, credentialsManager, profileManager)
     }
 
     // --- 1. PLAY URL CONSTRUCTION TESTS ---
@@ -176,6 +181,7 @@ class LiveTvRepositoryImplTest {
         val mockedRecentlyWatched = listOf(
             com.poc.iptvxtream.data.local.entity.RecentlyWatchedLiveEntity(
                 streamId = 12345,
+                profileId = 1,
                 name = "TF1 HD",
                 streamIcon = "icon.png",
                 categoryId = "10",
@@ -183,7 +189,7 @@ class LiveTvRepositoryImplTest {
                 watchedAt = System.currentTimeMillis()
             )
         )
-        whenever(liveTvDao.getRecentlyWatched(any())).thenReturn(mockedRecentlyWatched)
+        whenever(liveTvDao.getRecentlyWatched(any(), any())).thenReturn(mockedRecentlyWatched)
 
         val result = repository.getRecentlyWatched()
         assertEquals(1, result.size)

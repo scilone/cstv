@@ -21,7 +21,8 @@ import javax.inject.Singleton
 class VodRepositoryImpl @Inject constructor(
     private val apiService: XtreamApiService,
     private val vodDao: VodDao,
-    private val credentialsManager: CredentialsManager
+    private val credentialsManager: CredentialsManager,
+    private val profileManager: com.poc.iptvxtream.data.local.storage.ProfileManager
 ) : VodRepository {
 
     private var enrichmentDispatcher: CoroutineDispatcher = Dispatchers.IO
@@ -33,8 +34,9 @@ class VodRepositoryImpl @Inject constructor(
         apiService: XtreamApiService,
         vodDao: VodDao,
         credentialsManager: CredentialsManager,
+        profileManager: com.poc.iptvxtream.data.local.storage.ProfileManager,
         dispatcher: CoroutineDispatcher
-    ) : this(apiService, vodDao, credentialsManager) {
+    ) : this(apiService, vodDao, credentialsManager, profileManager) {
         this.enrichmentDispatcher = dispatcher
     }
 
@@ -338,7 +340,7 @@ class VodRepositoryImpl @Inject constructor(
         val duration = formatDuration(infoDto?.duration)
 
         // Fetch resume position from local DB if exists
-        val savedPosition = vodDao.getPlaybackPosition(streamId)
+        val savedPosition = vodDao.getPlaybackPosition(streamId, profileManager.currentProfileId())
 
         // Sensationally enrich cached stream entity with actors, director, and genre details
         val cachedStream = vodDao.getStreamById(streamId)
@@ -384,7 +386,8 @@ class VodRepositoryImpl @Inject constructor(
         duration: String?,
         releaseDate: String?
     ) {
-        val existing = vodDao.getPlaybackPosition(streamId)
+        val profileId = profileManager.currentProfileId()
+        val existing = vodDao.getPlaybackPosition(streamId, profileId)
 
         val finalTitle = if (title.isNullOrBlank()) existing?.title else title
         val finalCoverUrl = if (coverUrl.isNullOrBlank()) existing?.coverUrl else coverUrl
@@ -399,6 +402,7 @@ class VodRepositoryImpl @Inject constructor(
 
         val entity = PlaybackPositionEntity(
             streamId = streamId,
+            profileId = profileId,
             positionMs = positionMs,
             durationMs = durationMs,
             lastAccessedAt = System.currentTimeMillis(),
@@ -417,16 +421,16 @@ class VodRepositoryImpl @Inject constructor(
     }
 
     override suspend fun getPlaybackPosition(streamId: Int): Pair<Long, Long>? {
-        val entity = vodDao.getPlaybackPosition(streamId) ?: return null
+        val entity = vodDao.getPlaybackPosition(streamId, profileManager.currentProfileId()) ?: return null
         return Pair(entity.positionMs, entity.durationMs)
     }
 
     override suspend fun clearPlaybackPosition(streamId: Int) {
-        vodDao.deletePlaybackPosition(streamId)
+        vodDao.deletePlaybackPosition(streamId, profileManager.currentProfileId())
     }
 
     override suspend fun getAllPlaybackPositions(): List<PlaybackPosition> {
-        return vodDao.getAllPlaybackPositions().map { entity ->
+        return vodDao.getAllPlaybackPositions(profileManager.currentProfileId()).map { entity ->
             PlaybackPosition(
                 streamId = entity.streamId,
                 positionMs = entity.positionMs,

@@ -2,6 +2,7 @@ package com.poc.iptvxtream.presentation.favorites
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.poc.iptvxtream.data.local.storage.ProfileManager
 import com.poc.iptvxtream.domain.model.FavoriteItem
 import com.poc.iptvxtream.domain.model.SearchResult
 import com.poc.iptvxtream.domain.usecase.*
@@ -9,6 +10,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -27,7 +29,8 @@ class FavoritesViewModel @Inject constructor(
     private val addFavoriteUseCase: AddFavoriteUseCase,
     private val removeFavoriteUseCase: RemoveFavoriteUseCase,
     private val isFavoriteUseCase: IsFavoriteUseCase,
-    private val searchUnifiedUseCase: SearchUnifiedUseCase
+    private val searchUnifiedUseCase: SearchUnifiedUseCase,
+    private val profileManager: ProfileManager
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(FavoritesUiState())
@@ -35,6 +38,10 @@ class FavoritesViewModel @Inject constructor(
 
     init {
         loadFavorites()
+        // Recharge les favoris au changement de profil (Phase 27), sans redémarrage.
+        viewModelScope.launch {
+            profileManager.activeProfileId.drop(1).collect { loadFavorites() }
+        }
     }
 
     fun loadFavorites() {

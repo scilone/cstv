@@ -7,7 +7,12 @@ import com.google.gson.GsonBuilder
 import com.poc.iptvxtream.data.local.db.AppDatabase
 import com.poc.iptvxtream.data.local.dao.LiveTvDao
 import com.poc.iptvxtream.data.local.storage.CredentialsManager
+import com.poc.iptvxtream.data.local.storage.ProfileManager
+import com.poc.iptvxtream.data.local.storage.ProfileManagerImpl
 import com.poc.iptvxtream.data.local.storage.SettingsManager
+import com.poc.iptvxtream.data.local.dao.ProfileDao
+import com.poc.iptvxtream.data.repository.ProfileRepositoryImpl
+import com.poc.iptvxtream.domain.repository.ProfileRepository
 import com.poc.iptvxtream.data.remote.api.DynamicBaseUrlInterceptor
 import com.poc.iptvxtream.data.remote.api.XtreamApiService
 import com.poc.iptvxtream.data.remote.gson.SafeIntAdapter
@@ -81,6 +86,32 @@ object AppModule {
     @Singleton
     fun provideFavoritesDao(database: AppDatabase): com.poc.iptvxtream.data.local.dao.FavoritesDao {
         return database.favoritesDao()
+    }
+
+    @Provides
+    @Singleton
+    fun provideProfileDao(database: AppDatabase): ProfileDao {
+        return database.profileDao()
+    }
+
+    @Provides
+    @Singleton
+    fun provideProfileManager(
+        @ApplicationContext context: Context
+    ): ProfileManager {
+        return ProfileManagerImpl(context)
+    }
+
+    @Provides
+    @Singleton
+    fun provideProfileRepository(
+        profileDao: ProfileDao,
+        profileManager: ProfileManager,
+        favoritesDao: FavoritesDao,
+        vodDao: VodDao,
+        liveTvDao: LiveTvDao
+    ): ProfileRepository {
+        return ProfileRepositoryImpl(profileDao, profileManager, favoritesDao, vodDao, liveTvDao)
     }
 
     @Provides
@@ -164,9 +195,10 @@ object AppModule {
     fun provideLiveTvRepository(
         apiService: XtreamApiService,
         liveTvDao: LiveTvDao,
-        credentialsManager: CredentialsManager
+        credentialsManager: CredentialsManager,
+        profileManager: ProfileManager
     ): LiveTvRepository {
-        return LiveTvRepositoryImpl(apiService, liveTvDao, credentialsManager)
+        return LiveTvRepositoryImpl(apiService, liveTvDao, credentialsManager, profileManager)
     }
 
     @Provides
@@ -174,9 +206,10 @@ object AppModule {
     fun provideVodRepository(
         apiService: XtreamApiService,
         vodDao: VodDao,
-        credentialsManager: CredentialsManager
+        credentialsManager: CredentialsManager,
+        profileManager: ProfileManager
     ): VodRepository {
-        return VodRepositoryImpl(apiService, vodDao, credentialsManager)
+        return VodRepositoryImpl(apiService, vodDao, credentialsManager, profileManager)
     }
 
     @Provides
@@ -185,16 +218,18 @@ object AppModule {
         apiService: XtreamApiService,
         seriesDao: SeriesDao,
         vodDao: VodDao,
-        credentialsManager: CredentialsManager
+        credentialsManager: CredentialsManager,
+        profileManager: ProfileManager
     ): SeriesRepository {
-        return SeriesRepositoryImpl(apiService, seriesDao, vodDao, credentialsManager)
+        return SeriesRepositoryImpl(apiService, seriesDao, vodDao, credentialsManager, profileManager)
     }
 
     @Provides
     @Singleton
     fun provideFavoritesRepository(
-        favoritesDao: FavoritesDao
+        favoritesDao: FavoritesDao,
+        profileManager: ProfileManager
     ): FavoritesRepository {
-        return FavoritesRepositoryImpl(favoritesDao)
+        return FavoritesRepositoryImpl(favoritesDao, profileManager)
     }
 }

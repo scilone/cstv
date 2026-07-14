@@ -19,7 +19,8 @@ import javax.inject.Singleton
 class LiveTvRepositoryImpl @Inject constructor(
     private val apiService: XtreamApiService,
     private val liveTvDao: LiveTvDao,
-    private val credentialsManager: CredentialsManager
+    private val credentialsManager: CredentialsManager,
+    private val profileManager: com.poc.iptvxtream.data.local.storage.ProfileManager
 ) : LiveTvRepository {
 
     companion object {
@@ -152,6 +153,7 @@ class LiveTvRepositoryImpl @Inject constructor(
     override suspend fun saveRecentlyWatched(stream: LiveStream) {
         val entity = com.poc.iptvxtream.data.local.entity.RecentlyWatchedLiveEntity(
             streamId = stream.streamId,
+            profileId = profileManager.currentProfileId(),
             name = stream.name,
             streamIcon = stream.streamIcon,
             categoryId = stream.categoryId,
@@ -162,7 +164,7 @@ class LiveTvRepositoryImpl @Inject constructor(
     }
 
     override suspend fun getRecentlyWatched(): List<LiveStream> {
-        val entities = liveTvDao.getRecentlyWatched(limit = 10)
+        val entities = liveTvDao.getRecentlyWatched(profileManager.currentProfileId(), limit = 10)
         return entities.map { 
             LiveStream(
                 streamId = it.streamId,

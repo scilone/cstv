@@ -1,11 +1,11 @@
 package com.poc.iptvxtream.data.local.entity
 
 import androidx.room.Entity
-import androidx.room.PrimaryKey
 
-@Entity(tableName = "recently_watched_live")
+@Entity(tableName = "recently_watched_live", primaryKeys = ["streamId", "profileId"])
 data class RecentlyWatchedLiveEntity(
-    @PrimaryKey val streamId: Int,
+    val streamId: Int,
+    val profileId: Int,
     val name: String,
     val streamIcon: String?,
     val categoryId: String?,

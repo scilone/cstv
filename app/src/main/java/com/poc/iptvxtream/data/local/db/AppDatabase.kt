@@ -6,6 +6,8 @@ import com.poc.iptvxtream.data.local.dao.LiveTvDao
 import com.poc.iptvxtream.data.local.dao.SeriesDao
 import com.poc.iptvxtream.data.local.dao.VodDao
 import com.poc.iptvxtream.data.local.dao.FavoritesDao
+import com.poc.iptvxtream.data.local.dao.ProfileDao
+import com.poc.iptvxtream.data.local.entity.ProfileEntity
 import com.poc.iptvxtream.data.local.entity.LiveCategoryEntity
 import com.poc.iptvxtream.data.local.entity.LiveStreamEntity
 import com.poc.iptvxtream.data.local.entity.PlaybackPositionEntity
@@ -28,9 +30,10 @@ import com.poc.iptvxtream.data.local.entity.EpgCacheEntity
         PlaybackPositionEntity::class,
         FavoriteEntity::class,
         RecentlyWatchedLiveEntity::class,
-        EpgCacheEntity::class
+        EpgCacheEntity::class,
+        ProfileEntity::class
     ],
-    version = 9,
+    version = 10,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -38,4 +41,5 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun vodDao(): VodDao
     abstract fun seriesDao(): SeriesDao
     abstract fun favoritesDao(): FavoritesDao
+    abstract fun profileDao(): ProfileDao
 }

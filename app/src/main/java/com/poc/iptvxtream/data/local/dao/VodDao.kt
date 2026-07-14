@@ -44,15 +44,18 @@ interface VodDao {
     suspend fun getStreamsNeedingEnrichment(limit: Int): List<VodStreamEntity>
 
     // --- Playback Positions (Resume) ---
-    @Query("SELECT * FROM playback_positions ORDER BY lastAccessedAt DESC")
-    suspend fun getAllPlaybackPositions(): List<PlaybackPositionEntity>
+    @Query("SELECT * FROM playback_positions WHERE profileId = :profileId ORDER BY lastAccessedAt DESC")
+    suspend fun getAllPlaybackPositions(profileId: Int): List<PlaybackPositionEntity>
 
-    @Query("SELECT * FROM playback_positions WHERE streamId = :streamId LIMIT 1")
-    suspend fun getPlaybackPosition(streamId: Int): PlaybackPositionEntity?
+    @Query("SELECT * FROM playback_positions WHERE streamId = :streamId AND profileId = :profileId LIMIT 1")
+    suspend fun getPlaybackPosition(streamId: Int, profileId: Int): PlaybackPositionEntity?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun savePlaybackPosition(position: PlaybackPositionEntity)
 
-    @Query("DELETE FROM playback_positions WHERE streamId = :streamId")
-    suspend fun deletePlaybackPosition(streamId: Int)
+    @Query("DELETE FROM playback_positions WHERE streamId = :streamId AND profileId = :profileId")
+    suspend fun deletePlaybackPosition(streamId: Int, profileId: Int)
+
+    @Query("DELETE FROM playback_positions WHERE profileId = :profileId")
+    suspend fun deleteAllPlaybackForProfile(profileId: Int)
 }

@@ -7,6 +7,7 @@ import com.poc.iptvxtream.data.local.entity.PlaybackPositionEntity
 import com.poc.iptvxtream.data.local.entity.VodCategoryEntity
 import com.poc.iptvxtream.data.local.entity.VodStreamEntity
 import com.poc.iptvxtream.data.local.storage.CredentialsManager
+import com.poc.iptvxtream.data.local.storage.ProfileManager
 import com.poc.iptvxtream.data.remote.api.XtreamApiService
 import com.poc.iptvxtream.data.remote.dto.*
 import com.poc.iptvxtream.domain.model.Credentials
@@ -32,15 +33,20 @@ class VodRepositoryImplTest {
     @Mock
     private lateinit var credentialsManager: CredentialsManager
 
+    @Mock
+    private lateinit var profileManager: ProfileManager
+
     private lateinit var repository: VodRepositoryImpl
 
     private val credentials = Credentials("test.com", 80, "username", "password", true)
+    private val activeProfileId = 1
 
     @Before
     fun setUp() {
         MockitoAnnotations.openMocks(this)
         whenever(credentialsManager.getCredentials()).thenReturn(credentials)
-        repository = VodRepositoryImpl(apiService, vodDao, credentialsManager)
+        doReturn(activeProfileId).whenever(profileManager).currentProfileId()
+        repository = VodRepositoryImpl(apiService, vodDao, credentialsManager, profileManager)
     }
 
     // --- 1. PLAY URL CONSTRUCTION TESTS ---
@@ -152,8 +158,8 @@ class VodRepositoryImplTest {
         whenever(apiService.getVodInfo("username", "password", 999)).thenReturn(remoteResponse)
 
         // Mock saved resume position in Room DB (e.g., played up to 45m 30s)
-        val savedPosition = PlaybackPositionEntity(999, 2730000L, 9000000L, System.currentTimeMillis())
-        whenever(vodDao.getPlaybackPosition(999)).thenReturn(savedPosition)
+        val savedPosition = PlaybackPositionEntity(999, activeProfileId, 2730000L, 9000000L, System.currentTimeMillis())
+        whenever(vodDao.getPlaybackPosition(999, activeProfileId)).thenReturn(savedPosition)
 
         val result = repository.getVodDetails(999)
 
@@ -201,7 +207,7 @@ class VodRepositoryImplTest {
         val remoteResponse = VodInfoResponseDto(infoDto, movieDataDto)
 
         whenever(apiService.getVodInfo("username", "password", 999)).thenReturn(remoteResponse)
-        whenever(vodDao.getPlaybackPosition(999)).thenReturn(null)
+        whenever(vodDao.getPlaybackPosition(999, activeProfileId)).thenReturn(null)
 
         val result = repository.getVodDetails(999)
 
@@ -232,6 +238,7 @@ class VodRepositoryImplTest {
         // Mock existing entity in DB
         val existingEntity = PlaybackPositionEntity(
             streamId = 123,
+            profileId = activeProfileId,
             positionMs = 1000L,
             durationMs = 5000L,
             lastAccessedAt = 100L,
@@ -239,7 +246,7 @@ class VodRepositoryImplTest {
             coverUrl = "bb_cover.jpg",
             type = "series"
         )
-        whenever(vodDao.getPlaybackPosition(123)).thenReturn(existingEntity)
+        whenever(vodDao.getPlaybackPosition(123, activeProfileId)).thenReturn(existingEntity)
 
         // Save position with nulls (resuming from Home)
         repository.savePlaybackPosition(
@@ -259,9 +266,10 @@ class VodRepositoryImplTest {
         )
 
         // Sensationally verify that it loaded existing, merged them, and saved correctly!
-        verify(vodDao).getPlaybackPosition(123)
+        verify(vodDao).getPlaybackPosition(123, activeProfileId)
         verify(vodDao).savePlaybackPosition(argThat {
             streamId == 123 &&
+            profileId == activeProfileId &&
             positionMs == 2000L &&
             durationMs == 5000L &&
             title == "Breaking Bad S1E1" &&
@@ -273,7 +281,7 @@ class VodRepositoryImplTest {
     @Test
     fun test_backgroundEnrichment_triggersAndSavesDetails() = runTest {
         val testDispatcher = kotlinx.coroutines.test.UnconfinedTestDispatcher(testScheduler)
-        val localRepository = VodRepositoryImpl(apiService, vodDao, credentialsManager, testDispatcher)
+        val localRepository = VodRepositoryImpl(apiService, vodDao, credentialsManager, profileManager, testDispatcher)
 
         val remoteStreams = listOf(
             VodStreamDto(12, "Star Wars", "icon.png", "8.0", "added", "5")
@@ -314,7 +322,7 @@ class VodRepositoryImplTest {
     @Test
     fun test_backgroundEnrichment_requestsBoundedBatch() = runTest {
         val testDispatcher = kotlinx.coroutines.test.UnconfinedTestDispatcher(testScheduler)
-        val localRepository = VodRepositoryImpl(apiService, vodDao, credentialsManager, testDispatcher)
+        val localRepository = VodRepositoryImpl(apiService, vodDao, credentialsManager, profileManager, testDispatcher)
 
         whenever(apiService.getVodStreams("username", "password", "5")).thenReturn(emptyList())
         whenever(vodDao.getStreamsByCategory("5")).thenReturn(emptyList())

@@ -10,6 +10,7 @@ import com.poc.iptvxtream.domain.model.VodCategory
 import com.poc.iptvxtream.domain.model.VodStream
 import com.poc.iptvxtream.domain.model.SeriesCategory
 import com.poc.iptvxtream.domain.model.SeriesStream
+import com.poc.iptvxtream.data.local.storage.ProfileManager
 import com.poc.iptvxtream.domain.repository.FavoritesRepository
 import com.poc.iptvxtream.domain.repository.LiveTvRepository
 import com.poc.iptvxtream.domain.repository.SeriesRepository
@@ -18,6 +19,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -49,7 +51,8 @@ class HomeViewModel @Inject constructor(
     private val liveTvRepository: LiveTvRepository,
     private val seriesRepository: SeriesRepository,
     private val favoritesRepository: FavoritesRepository,
-    private val getLiveEpgUseCase: GetLiveEpgUseCase
+    private val getLiveEpgUseCase: GetLiveEpgUseCase,
+    private val profileManager: ProfileManager
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(HomeState())
@@ -67,6 +70,11 @@ class HomeViewModel @Inject constructor(
 
     init {
         loadHomeData()
+        // Rafraîchit immédiatement Continuer à regarder / Favoris au changement
+        // de profil (Phase 27), sans redémarrage. drop(1) ignore la valeur initiale.
+        viewModelScope.launch {
+            profileManager.activeProfileId.drop(1).collect { loadHomeData() }
+        }
     }
 
     // Guards against duplicate concurrent fetches and hammering channels without EPG data

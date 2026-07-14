@@ -42,8 +42,11 @@ interface LiveTvDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertRecentlyWatched(recentlyWatched: RecentlyWatchedLiveEntity)
 
-    @Query("SELECT * FROM recently_watched_live ORDER BY watchedAt DESC LIMIT :limit")
-    suspend fun getRecentlyWatched(limit: Int): List<RecentlyWatchedLiveEntity>
+    @Query("SELECT * FROM recently_watched_live WHERE profileId = :profileId ORDER BY watchedAt DESC LIMIT :limit")
+    suspend fun getRecentlyWatched(profileId: Int, limit: Int): List<RecentlyWatchedLiveEntity>
+
+    @Query("DELETE FROM recently_watched_live WHERE profileId = :profileId")
+    suspend fun deleteRecentlyWatchedForProfile(profileId: Int)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertEpgCache(epg: EpgCacheEntity)

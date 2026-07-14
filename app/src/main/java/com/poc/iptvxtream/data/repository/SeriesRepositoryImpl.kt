@@ -19,7 +19,8 @@ class SeriesRepositoryImpl @Inject constructor(
     private val apiService: XtreamApiService,
     private val seriesDao: SeriesDao,
     private val vodDao: VodDao,
-    private val credentialsManager: CredentialsManager
+    private val credentialsManager: CredentialsManager,
+    private val profileManager: com.poc.iptvxtream.data.local.storage.ProfileManager
 ) : SeriesRepository {
 
     private var enrichmentDispatcher: CoroutineDispatcher = Dispatchers.IO
@@ -32,8 +33,9 @@ class SeriesRepositoryImpl @Inject constructor(
         seriesDao: SeriesDao,
         vodDao: VodDao,
         credentialsManager: CredentialsManager,
+        profileManager: com.poc.iptvxtream.data.local.storage.ProfileManager,
         dispatcher: CoroutineDispatcher
-    ) : this(apiService, seriesDao, vodDao, credentialsManager) {
+    ) : this(apiService, seriesDao, vodDao, credentialsManager, profileManager) {
         this.enrichmentDispatcher = dispatcher
     }
 
@@ -302,7 +304,7 @@ class SeriesRepositoryImpl @Inject constructor(
                     val rDate = dto.info?.releaseDate ?: ""
                     val movieImage = dto.info?.movieImage ?: dto.movieImage
                     
-                    val savedPosition = vodDao.getPlaybackPosition(idInt)
+                    val savedPosition = vodDao.getPlaybackPosition(idInt, profileManager.currentProfileId())
 
                     SeriesEpisode(
                         id = idInt,
@@ -357,6 +359,7 @@ class SeriesRepositoryImpl @Inject constructor(
     override suspend fun savePlaybackPosition(episodeStreamId: Int, positionMs: Long, durationMs: Long) {
         val entity = PlaybackPositionEntity(
             streamId = episodeStreamId,
+            profileId = profileManager.currentProfileId(),
             positionMs = positionMs,
             durationMs = durationMs,
             lastAccessedAt = System.currentTimeMillis()
@@ -365,11 +368,11 @@ class SeriesRepositoryImpl @Inject constructor(
     }
 
     override suspend fun getPlaybackPosition(episodeStreamId: Int): Pair<Long, Long>? {
-        val entity = vodDao.getPlaybackPosition(episodeStreamId) ?: return null
+        val entity = vodDao.getPlaybackPosition(episodeStreamId, profileManager.currentProfileId()) ?: return null
         return Pair(entity.positionMs, entity.durationMs)
     }
 
     override suspend fun clearPlaybackPosition(episodeStreamId: Int) {
-        vodDao.deletePlaybackPosition(episodeStreamId)
+        vodDao.deletePlaybackPosition(episodeStreamId, profileManager.currentProfileId())
     }
 }

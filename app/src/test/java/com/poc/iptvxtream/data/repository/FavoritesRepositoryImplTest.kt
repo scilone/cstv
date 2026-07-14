@@ -5,6 +5,7 @@ import com.poc.iptvxtream.data.local.entity.FavoriteEntity
 import com.poc.iptvxtream.data.local.entity.LiveStreamEntity
 import com.poc.iptvxtream.data.local.entity.SeriesStreamEntity
 import com.poc.iptvxtream.data.local.entity.VodStreamEntity
+import com.poc.iptvxtream.data.local.storage.ProfileManager
 import com.poc.iptvxtream.domain.model.FavoriteItem
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
@@ -21,12 +22,18 @@ class FavoritesRepositoryImplTest {
     @Mock
     private lateinit var favoritesDao: FavoritesDao
 
+    @Mock
+    private lateinit var profileManager: ProfileManager
+
     private lateinit var repository: FavoritesRepositoryImpl
+
+    private val activeProfileId = 1
 
     @Before
     fun setUp() {
         MockitoAnnotations.openMocks(this)
-        repository = FavoritesRepositoryImpl(favoritesDao)
+        doReturn(activeProfileId).whenever(profileManager).currentProfileId()
+        repository = FavoritesRepositoryImpl(favoritesDao, profileManager)
     }
 
     // --- 1. FAVORITES ADD & REMOVE TESTS ---
@@ -45,6 +52,7 @@ class FavoritesRepositoryImplTest {
             assertEquals("cover.jpg", firstValue.cover)
             assertEquals("5", firstValue.categoryId)
             assertTrue(firstValue.addedAt > 0L)
+            assertEquals(activeProfileId, firstValue.profileId)
         }
     }
 
@@ -52,17 +60,17 @@ class FavoritesRepositoryImplTest {
     fun test_removeFavorite_removesEntityFromDatabase() = runTest {
         repository.removeFavorite(123, "movie")
 
-        verify(favoritesDao).removeFavorite(123, "movie")
+        verify(favoritesDao).removeFavorite(123, "movie", activeProfileId)
     }
 
     @Test
     fun test_isFavorite_returnsTrue_whenEntityExists() = runTest {
-        whenever(favoritesDao.isFavorite(123, "movie")).thenReturn(true)
+        whenever(favoritesDao.isFavorite(123, "movie", activeProfileId)).thenReturn(true)
 
         val result = repository.isFavorite(123, "movie")
 
         assertTrue(result)
-        verify(favoritesDao).isFavorite(123, "movie")
+        verify(favoritesDao).isFavorite(123, "movie", activeProfileId)
     }
 
     // --- 2. UNIFIED SEARCH FILTERING TESTS ---

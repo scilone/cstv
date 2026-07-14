@@ -36,15 +36,20 @@ class SeriesRepositoryImplTest {
     @Mock
     private lateinit var credentialsManager: CredentialsManager
 
+    @Mock
+    private lateinit var profileManager: com.poc.iptvxtream.data.local.storage.ProfileManager
+
     private lateinit var repository: SeriesRepositoryImpl
 
     private val credentials = Credentials("test.com", 80, "username", "password", true)
+    private val activeProfileId = 1
 
     @Before
     fun setUp() {
         MockitoAnnotations.openMocks(this)
         whenever(credentialsManager.getCredentials()).thenReturn(credentials)
-        repository = SeriesRepositoryImpl(apiService, seriesDao, vodDao, credentialsManager)
+        doReturn(activeProfileId).whenever(profileManager).currentProfileId()
+        repository = SeriesRepositoryImpl(apiService, seriesDao, vodDao, credentialsManager, profileManager)
     }
 
     // --- 1. PLAY URL CONSTRUCTION TESTS ---
@@ -150,7 +155,7 @@ class SeriesRepositoryImplTest {
         val remoteResponse = SeriesInfoResponseDto(seasonsDto, episodesMapDto, null)
 
         whenever(apiService.getSeriesInfo("username", "password", 123)).thenReturn(remoteResponse)
-        whenever(vodDao.getPlaybackPosition(any())).thenReturn(null)
+        whenever(vodDao.getPlaybackPosition(any(), any())).thenReturn(null)
 
         val result = repository.getSeriesDetails(123)
 
@@ -209,11 +214,12 @@ class SeriesRepositoryImplTest {
         // Mock saved progress for episode
         val savedPosition = PlaybackPositionEntity(
             streamId = 555,
+            profileId = activeProfileId,
             positionMs = 1200000L,
             durationMs = 2700000L,
             lastAccessedAt = 999999999L
         )
-        whenever(vodDao.getPlaybackPosition(555)).thenReturn(savedPosition)
+        whenever(vodDao.getPlaybackPosition(555, activeProfileId)).thenReturn(savedPosition)
 
         val result = repository.getSeriesDetails(123)
 
@@ -242,7 +248,7 @@ class SeriesRepositoryImplTest {
     @Test
     fun test_backgroundEnrichment_triggersAndSavesDetails() = runTest {
         val testDispatcher = kotlinx.coroutines.test.UnconfinedTestDispatcher(testScheduler)
-        val localRepository = SeriesRepositoryImpl(apiService, seriesDao, vodDao, credentialsManager, testDispatcher)
+        val localRepository = SeriesRepositoryImpl(apiService, seriesDao, vodDao, credentialsManager, profileManager, testDispatcher)
 
         val remoteStreams = listOf(
             SeriesStreamDto(12, "Game of Thrones", "cover.png", "9.0", "added", "5")
@@ -283,7 +289,7 @@ class SeriesRepositoryImplTest {
     @Test
     fun test_backgroundEnrichment_requestsBoundedBatch() = runTest {
         val testDispatcher = kotlinx.coroutines.test.UnconfinedTestDispatcher(testScheduler)
-        val localRepository = SeriesRepositoryImpl(apiService, seriesDao, vodDao, credentialsManager, testDispatcher)
+        val localRepository = SeriesRepositoryImpl(apiService, seriesDao, vodDao, credentialsManager, profileManager, testDispatcher)
 
         whenever(apiService.getSeriesStreams("username", "password", "5")).thenReturn(emptyList())
         whenever(seriesDao.getStreamsByCategory("5")).thenReturn(emptyList())
