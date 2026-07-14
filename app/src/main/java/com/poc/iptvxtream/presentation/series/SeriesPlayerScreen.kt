@@ -72,6 +72,7 @@ data class TrackInfo(
 @Composable
 fun SeriesPlayerScreen(
     episode: SeriesEpisode,
+    seriesId: Int,
     seriesName: String,
     seriesCover: String?,
     credentials: Credentials,
@@ -86,6 +87,13 @@ fun SeriesPlayerScreen(
     }
 
     var isPlayerVisible by remember { mutableStateOf(true) }
+
+    // Préférence de pistes mémorisée pour CETTE série (Phase 29, commune à tous
+    // les épisodes). Prioritaire sur le fallback global.
+    var seriesPref by remember { mutableStateOf<com.poc.iptvxtream.domain.model.TrackPreference?>(null) }
+    LaunchedEffect(seriesId) {
+        seriesPref = viewModel.getSeriesTrackPreference(seriesId)
+    }
 
     val handleClose = {
         isPlayerVisible = false
@@ -193,10 +201,11 @@ fun SeriesPlayerScreen(
         availableSubtitleTracks = subtitles
     }
 
-    // Auto-apply preferred languages from SettingsManager
+    // Auto-apply preferred languages: préférence de la série d'abord, sinon
+    // fallback global (dernière langue utilisée) — Phase 29.
     val applyPreferredLanguages: (List<TrackInfo>, List<TrackInfo>) -> Unit = { audios, subs ->
-        val prefAudio = viewModel.getPreferredAudio()
-        val prefSub = viewModel.getPreferredSubtitle()
+        val prefAudio = seriesPref?.audioLang ?: viewModel.getPreferredAudio()
+        val prefSub = seriesPref?.subtitleLang ?: viewModel.getPreferredSubtitle()
 
         var updatedParams = exoPlayer.trackSelectionParameters.buildUpon()
 
@@ -613,7 +622,9 @@ fun SeriesPlayerScreen(
                 availableAudioTracks = availableAudioTracks,
                 availableSubtitleTracks = availableSubtitleTracks,
                 onAudioTrackSelected = { track ->
-                    viewModel.savePreferredAudio(track.language)
+                    viewModel.saveSeriesAudio(seriesId, track.language)
+                    seriesPref = (seriesPref ?: com.poc.iptvxtream.domain.model.TrackPreference(null, null))
+                        .copy(audioLang = track.language)
                     val newParams = exoPlayer.trackSelectionParameters.buildUpon()
                         .setOverrideForType(
                             TrackSelectionOverride(
@@ -627,14 +638,18 @@ fun SeriesPlayerScreen(
                 },
                 onSubtitleTrackSelected = { track ->
                     if (track == null) {
-                        viewModel.savePreferredSubtitle("none")
+                        viewModel.saveSeriesSubtitle(seriesId, "none")
+                        seriesPref = (seriesPref ?: com.poc.iptvxtream.domain.model.TrackPreference(null, null))
+                            .copy(subtitleLang = "none")
                         val newParams = exoPlayer.trackSelectionParameters.buildUpon()
                             .clearOverridesOfType(C.TRACK_TYPE_TEXT)
                             .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
                             .build()
                         exoPlayer.trackSelectionParameters = newParams
                     } else {
-                        viewModel.savePreferredSubtitle(track.language)
+                        viewModel.saveSeriesSubtitle(seriesId, track.language)
+                        seriesPref = (seriesPref ?: com.poc.iptvxtream.domain.model.TrackPreference(null, null))
+                            .copy(subtitleLang = track.language)
                         val newParams = exoPlayer.trackSelectionParameters.buildUpon()
                             .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
                             .setOverrideForType(

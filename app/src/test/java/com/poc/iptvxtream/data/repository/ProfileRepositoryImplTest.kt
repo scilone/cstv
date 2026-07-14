@@ -23,6 +23,7 @@ class ProfileRepositoryImplTest {
     @Mock private lateinit var favoritesDao: FavoritesDao
     @Mock private lateinit var vodDao: VodDao
     @Mock private lateinit var liveTvDao: LiveTvDao
+    @Mock private lateinit var trackPreferenceDao: com.poc.iptvxtream.data.local.dao.TrackPreferenceDao
 
     private lateinit var repository: ProfileRepositoryImpl
 
@@ -32,7 +33,7 @@ class ProfileRepositoryImplTest {
     @Before
     fun setUp() {
         MockitoAnnotations.openMocks(this)
-        repository = ProfileRepositoryImpl(profileDao, profileManager, favoritesDao, vodDao, liveTvDao)
+        repository = ProfileRepositoryImpl(profileDao, profileManager, favoritesDao, vodDao, liveTvDao, trackPreferenceDao)
     }
 
     @Test
@@ -95,6 +96,7 @@ class ProfileRepositoryImplTest {
         verify(favoritesDao).deleteAllForProfile(5)
         verify(vodDao).deleteAllPlaybackForProfile(5)
         verify(liveTvDao).deleteRecentlyWatchedForProfile(5)
+        verify(trackPreferenceDao).deleteAllForProfile(5)
         verify(profileDao).deleteById(5)
         // Bascule vers le profil restant.
         verify(profileManager).setActiveProfileId(6)

@@ -3,6 +3,7 @@ package com.poc.iptvxtream.data.repository
 import com.poc.iptvxtream.data.local.dao.FavoritesDao
 import com.poc.iptvxtream.data.local.dao.LiveTvDao
 import com.poc.iptvxtream.data.local.dao.ProfileDao
+import com.poc.iptvxtream.data.local.dao.TrackPreferenceDao
 import com.poc.iptvxtream.data.local.dao.VodDao
 import com.poc.iptvxtream.data.local.entity.ProfileEntity
 import com.poc.iptvxtream.data.local.storage.ProfileManager
@@ -19,7 +20,8 @@ class ProfileRepositoryImpl @Inject constructor(
     private val profileManager: ProfileManager,
     private val favoritesDao: FavoritesDao,
     private val vodDao: VodDao,
-    private val liveTvDao: LiveTvDao
+    private val liveTvDao: LiveTvDao,
+    private val trackPreferenceDao: TrackPreferenceDao
 ) : ProfileRepository {
 
     override fun observeProfiles(): Flow<List<Profile>> =
@@ -68,6 +70,7 @@ class ProfileRepositoryImpl @Inject constructor(
         favoritesDao.deleteAllForProfile(id)
         vodDao.deleteAllPlaybackForProfile(id)
         liveTvDao.deleteRecentlyWatchedForProfile(id)
+        trackPreferenceDao.deleteAllForProfile(id)
         profileDao.deleteById(id)
 
         // Si on supprimait le profil actif, basculer sur un autre.

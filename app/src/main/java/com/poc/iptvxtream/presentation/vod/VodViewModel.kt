@@ -27,7 +27,8 @@ class VodViewModel @Inject constructor(
     private val getVodDetailsUseCase: GetVodDetailsUseCase,
     private val savePlaybackPositionUseCase: SavePlaybackPositionUseCase,
     private val credentialsManager: CredentialsManager,
-    private val settingsManager: SettingsManager
+    private val settingsManager: SettingsManager,
+    private val trackPreferenceRepository: com.poc.iptvxtream.domain.repository.TrackPreferenceRepository
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(VodState())
@@ -47,6 +48,7 @@ class VodViewModel @Inject constructor(
         loadCategories()
     }
 
+    // --- Préférence de pistes globale (fallback "dernière langue utilisée") ---
     fun savePreferredAudio(lang: String?) {
         settingsManager.setPreferredAudio(lang)
     }
@@ -61,6 +63,26 @@ class VodViewModel @Inject constructor(
 
     fun getPreferredSubtitle(): String? {
         return settingsManager.getPreferredSubtitle()
+    }
+
+    // --- Préférence de pistes par film (Phase 29, clé = streamId, profil actif) ---
+    suspend fun getMovieTrackPreference(streamId: Int) =
+        trackPreferenceRepository.getPreference(com.poc.iptvxtream.domain.model.MediaType.MOVIE, streamId)
+
+    /** Sauvegarde l'audio choisi pour ce film ET met à jour le fallback global. */
+    fun saveMovieAudio(streamId: Int, lang: String?) {
+        settingsManager.setPreferredAudio(lang)
+        viewModelScope.launch {
+            trackPreferenceRepository.saveAudioLang(com.poc.iptvxtream.domain.model.MediaType.MOVIE, streamId, lang)
+        }
+    }
+
+    /** Sauvegarde les sous-titres choisis pour ce film ET le fallback global. */
+    fun saveMovieSubtitle(streamId: Int, lang: String?) {
+        settingsManager.setPreferredSubtitle(lang)
+        viewModelScope.launch {
+            trackPreferenceRepository.saveSubtitleLang(com.poc.iptvxtream.domain.model.MediaType.MOVIE, streamId, lang)
+        }
     }
 
     fun getSubtitleStyle() = settingsManager.getSubtitleStyle()

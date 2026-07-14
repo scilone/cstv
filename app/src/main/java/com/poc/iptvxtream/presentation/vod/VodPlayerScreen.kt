@@ -87,6 +87,13 @@ fun VodPlayerScreen(
 
     var isPlayerVisible by remember { mutableStateOf(true) }
 
+    // Préférence de pistes mémorisée pour CE film (Phase 29). Préchargée une
+    // fois ; prioritaire sur le fallback global "dernière langue utilisée".
+    var moviePref by remember { mutableStateOf<com.poc.iptvxtream.domain.model.TrackPreference?>(null) }
+    LaunchedEffect(details.streamId) {
+        moviePref = viewModel.getMovieTrackPreference(details.streamId)
+    }
+
     val handleClose = {
         isPlayerVisible = false
         exoPlayer.stop()
@@ -196,8 +203,10 @@ fun VodPlayerScreen(
 
     // Auto-apply preferred languages from SettingsManager
     val applyPreferredLanguages: (List<TrackInfo>, List<TrackInfo>) -> Unit = { audios, subs ->
-        val prefAudio = viewModel.getPreferredAudio()
-        val prefSub = viewModel.getPreferredSubtitle()
+        // Priorité à la préférence mémorisée pour ce film ; sinon fallback sur
+        // la dernière langue utilisée globalement (comportement d'avant Phase 29).
+        val prefAudio = moviePref?.audioLang ?: viewModel.getPreferredAudio()
+        val prefSub = moviePref?.subtitleLang ?: viewModel.getPreferredSubtitle()
 
         var updatedParams = exoPlayer.trackSelectionParameters.buildUpon()
 
@@ -622,7 +631,9 @@ fun VodPlayerScreen(
                 availableAudioTracks = availableAudioTracks,
                 availableSubtitleTracks = availableSubtitleTracks,
                 onAudioTrackSelected = { track ->
-                    viewModel.savePreferredAudio(track.language)
+                    viewModel.saveMovieAudio(details.streamId, track.language)
+                    moviePref = (moviePref ?: com.poc.iptvxtream.domain.model.TrackPreference(null, null))
+                        .copy(audioLang = track.language)
                     val newParams = exoPlayer.trackSelectionParameters.buildUpon()
                         .setOverrideForType(
                             TrackSelectionOverride(
@@ -637,14 +648,18 @@ fun VodPlayerScreen(
                 },
                 onSubtitleTrackSelected = { track ->
                     if (track == null) {
-                        viewModel.savePreferredSubtitle("none")
+                        viewModel.saveMovieSubtitle(details.streamId, "none")
+                        moviePref = (moviePref ?: com.poc.iptvxtream.domain.model.TrackPreference(null, null))
+                            .copy(subtitleLang = "none")
                         val newParams = exoPlayer.trackSelectionParameters.buildUpon()
                             .clearOverridesOfType(C.TRACK_TYPE_TEXT)
                             .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
                             .build()
                         exoPlayer.trackSelectionParameters = newParams
                     } else {
-                        viewModel.savePreferredSubtitle(track.language)
+                        viewModel.saveMovieSubtitle(details.streamId, track.language)
+                        moviePref = (moviePref ?: com.poc.iptvxtream.domain.model.TrackPreference(null, null))
+                            .copy(subtitleLang = track.language)
                         val newParams = exoPlayer.trackSelectionParameters.buildUpon()
                             .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
                             .setOverrideForType(

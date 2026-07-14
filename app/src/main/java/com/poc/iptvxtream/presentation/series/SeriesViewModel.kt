@@ -29,7 +29,8 @@ class SeriesViewModel @Inject constructor(
     private val getSeriesDetailsUseCase: GetSeriesDetailsUseCase,
     private val savePlaybackPositionUseCase: SavePlaybackPositionUseCase,
     private val credentialsManager: CredentialsManager,
-    private val settingsManager: SettingsManager
+    private val settingsManager: SettingsManager,
+    private val trackPreferenceRepository: com.poc.iptvxtream.domain.repository.TrackPreferenceRepository
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(SeriesState())
@@ -63,6 +64,25 @@ class SeriesViewModel @Inject constructor(
 
     fun getPreferredSubtitle(): String? {
         return settingsManager.getPreferredSubtitle()
+    }
+
+    // --- Préférence de pistes par série (Phase 29, clé = seriesId, commune à
+    // tous les épisodes, profil actif) ---
+    suspend fun getSeriesTrackPreference(seriesId: Int) =
+        trackPreferenceRepository.getPreference(com.poc.iptvxtream.domain.model.MediaType.SERIES, seriesId)
+
+    fun saveSeriesAudio(seriesId: Int, lang: String?) {
+        settingsManager.setPreferredAudio(lang)
+        viewModelScope.launch {
+            trackPreferenceRepository.saveAudioLang(com.poc.iptvxtream.domain.model.MediaType.SERIES, seriesId, lang)
+        }
+    }
+
+    fun saveSeriesSubtitle(seriesId: Int, lang: String?) {
+        settingsManager.setPreferredSubtitle(lang)
+        viewModelScope.launch {
+            trackPreferenceRepository.saveSubtitleLang(com.poc.iptvxtream.domain.model.MediaType.SERIES, seriesId, lang)
+        }
     }
 
     fun getSubtitleStyle() = settingsManager.getSubtitleStyle()

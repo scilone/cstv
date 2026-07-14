@@ -519,6 +519,7 @@ class MainActivity : ComponentActivity() {
                             if (creds != null && activeEpisode != null) {
                                 SeriesPlayerScreen(
                                     episode = activeEpisode!!,
+                                    seriesId = activeSeriesDetails?.seriesId ?: 0,
                                     seriesName = activeSeriesDetails?.name ?: "Série",
                                     seriesCover = activeSeriesDetails?.cover,
                                     credentials = creds,
@@ -1037,6 +1038,7 @@ class MainActivity : ComponentActivity() {
                                 if (creds != null && activeEpisode != null) {
                                     SeriesPlayerScreen(
                                         episode = activeEpisode!!,
+                                        seriesId = activeSeriesDetails?.seriesId ?: 0,
                                         seriesName = activeSeriesDetails?.name ?: "Série",
                                         seriesCover = activeSeriesDetails?.cover,
                                         credentials = creds,

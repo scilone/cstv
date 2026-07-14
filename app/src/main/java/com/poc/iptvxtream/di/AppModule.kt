@@ -102,6 +102,21 @@ object AppModule {
 
     @Provides
     @Singleton
+    fun provideTrackPreferenceDao(database: AppDatabase): com.poc.iptvxtream.data.local.dao.TrackPreferenceDao {
+        return database.trackPreferenceDao()
+    }
+
+    @Provides
+    @Singleton
+    fun provideTrackPreferenceRepository(
+        dao: com.poc.iptvxtream.data.local.dao.TrackPreferenceDao,
+        profileManager: ProfileManager
+    ): com.poc.iptvxtream.domain.repository.TrackPreferenceRepository {
+        return com.poc.iptvxtream.data.repository.TrackPreferenceRepositoryImpl(dao, profileManager)
+    }
+
+    @Provides
+    @Singleton
     fun provideProfileManager(
         @ApplicationContext context: Context
     ): ProfileManager {
@@ -115,9 +130,10 @@ object AppModule {
         profileManager: ProfileManager,
         favoritesDao: FavoritesDao,
         vodDao: VodDao,
-        liveTvDao: LiveTvDao
+        liveTvDao: LiveTvDao,
+        trackPreferenceDao: com.poc.iptvxtream.data.local.dao.TrackPreferenceDao
     ): ProfileRepository {
-        return ProfileRepositoryImpl(profileDao, profileManager, favoritesDao, vodDao, liveTvDao)
+        return ProfileRepositoryImpl(profileDao, profileManager, favoritesDao, vodDao, liveTvDao, trackPreferenceDao)
     }
 
     @Provides

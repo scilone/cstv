@@ -122,4 +122,26 @@ val MIGRATION_9_10 = object : Migration(9, 10) {
     }
 }
 
-val ALL_MIGRATIONS = arrayOf(MIGRATION_9_10)
+/**
+ * MIGRATION_10_11 (Phase 29 - préférence audio/sous-titres par média) :
+ * crée la table `track_preferences`. Aucune donnée existante à transformer
+ * (l'ancienne préférence globale reste dans SettingsManager comme fallback).
+ */
+val MIGRATION_10_11 = object : Migration(10, 11) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS track_preferences (
+                profileId INTEGER NOT NULL,
+                mediaType TEXT NOT NULL,
+                mediaId INTEGER NOT NULL,
+                audioLang TEXT,
+                subtitleLang TEXT,
+                PRIMARY KEY(profileId, mediaType, mediaId)
+            )
+            """.trimIndent()
+        )
+    }
+}
+
+val ALL_MIGRATIONS = arrayOf(MIGRATION_9_10, MIGRATION_10_11)

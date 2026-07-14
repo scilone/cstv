@@ -252,7 +252,7 @@ connexion.
 
 ---
 
-Phase 29 : mémorisation de la langue audio et des sous-titres choisis, par
+Phase 29 [TERMINE] : mémorisation de la langue audio et des sous-titres choisis, par
 film et par série (voir Phase 3/16 pour la sélection des pistes en cours de
 lecture).
 
