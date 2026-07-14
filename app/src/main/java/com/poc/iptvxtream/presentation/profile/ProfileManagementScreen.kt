@@ -231,20 +231,25 @@ private fun ProfileColorDialog(
         onDismissRequest = onDismiss,
         title = { Text("Couleur du profil") },
         text = {
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                ProfileAvatars.colors.forEachIndexed { index, colorLong ->
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .background(Color(colorLong))
-                            .border(
-                                width = if (index == currentAvatarId) 3.dp else 0.dp,
-                                color = Color.White,
-                                shape = CircleShape
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                ProfileAvatars.colors.chunked(4).forEachIndexed { rowIndex, rowColors ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        rowColors.forEachIndexed { colIndex, colorLong ->
+                            val index = rowIndex * 4 + colIndex
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(colorLong))
+                                    .border(
+                                        width = if (index == currentAvatarId) 3.dp else 0.dp,
+                                        color = Color.White,
+                                        shape = CircleShape
+                                    )
+                                    .clickable { onColorSelected(index) }
                             )
-                            .clickable { onColorSelected(index) }
-                    )
+                        }
+                    }
                 }
             }
         },
