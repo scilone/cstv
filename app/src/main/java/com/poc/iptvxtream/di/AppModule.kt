@@ -5,6 +5,7 @@ import androidx.room.Room
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import com.poc.iptvxtream.data.local.db.AppDatabase
+import com.poc.iptvxtream.data.local.db.ALL_MIGRATIONS
 import com.poc.iptvxtream.data.local.dao.LiveTvDao
 import com.poc.iptvxtream.data.local.storage.CredentialsManager
 import com.poc.iptvxtream.data.local.storage.ProfileManager
@@ -60,7 +61,12 @@ object AppModule {
             AppDatabase::class.java,
             "iptv_xtream_cache.db"
         )
-        .fallbackToDestructiveMigration()
+        // Pas de fallbackToDestructiveMigration() : toute évolution de schéma doit
+        // fournir une Migration réelle (voir Migrations.kt) pour préserver le cache
+        // et les données utilisateur (favoris, historique, positions, profils).
+        // Le fallback destructif est réservé aux breaking changes majeurs
+        // explicitement décidés et documentés (voir AGENTS.md).
+        .addMigrations(*ALL_MIGRATIONS)
         .build()
     }
 
