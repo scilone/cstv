@@ -36,6 +36,7 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import okhttp3.Dispatcher
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
@@ -162,7 +163,20 @@ object AppModule {
             level = HttpLoggingInterceptor.Level.BODY
         }
 
+        // Une seule requête à la fois vers le panel Xtream : de nombreux panels
+        // limitent les connexions concurrentes par compte (voir UserInfo.
+        // maxConnections), et l'app parle à un seul hôte à la fois (même si
+        // DynamicBaseUrlInterceptor le change en cours de session). Le sync en
+        // arrière-plan (Phase 22, enrichissement du casting) et les écrans au
+        // premier plan partagent ce même client : cette limite les met en file
+        // plutôt qu'en concurrence, pour ne jamais dépasser le quota du compte.
+        val dispatcher = Dispatcher().apply {
+            maxRequests = 1
+            maxRequestsPerHost = 1
+        }
+
         return OkHttpClient.Builder()
+            .dispatcher(dispatcher)
             .addInterceptor(baseUrlInterceptor)
             .addInterceptor(loggingInterceptor)
             .connectTimeout(15, TimeUnit.SECONDS)
