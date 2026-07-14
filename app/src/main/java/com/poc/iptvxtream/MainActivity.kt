@@ -85,6 +85,7 @@ enum class AppScreen {
     FAVORITES,
     SEARCH,
     SETTINGS,
+    PROFILE_SELECTION,
     PROFILE_MANAGEMENT
 }
 
@@ -182,6 +183,7 @@ class MainActivity : ComponentActivity() {
                 val profileState by profileViewModel.state.collectAsState()
                 var profileSelectionNeeded by remember { mutableStateOf(false) }
                 var profileGateResolved by remember { mutableStateOf(false) }
+                var showManagementFromGate by remember { mutableStateOf(false) }
 
                 LaunchedEffect(loggedInUser) {
                     if (loggedInUser != null && !profileGateResolved) {
@@ -206,12 +208,25 @@ class MainActivity : ComponentActivity() {
 
                 if (showSplash) {
                     SplashScreen()
+                } else if (showProfileSelection && showManagementFromGate) {
+                    com.poc.iptvxtream.presentation.profile.ProfileManagementScreen(
+                        viewModel = profileViewModel,
+                        isTv = isTv,
+                        onBack = { showManagementFromGate = false }
+                    )
                 } else if (showProfileSelection) {
                     ProfileSelectionScreen(
                         profiles = profileState.profiles,
                         onProfileSelected = { profile ->
                             profileViewModel.selectProfile(profile.id)
                             profileGateResolved = true
+                        },
+                        onManageProfiles = { showManagementFromGate = true },
+                        onLogout = {
+                            loginViewModel.logout()
+                            loggedInUser = null
+                            screenHistory.clear()
+                            currentScreen = AppScreen.LOGIN
                         }
                     )
                 } else {
@@ -268,7 +283,7 @@ class MainActivity : ComponentActivity() {
                                     navigateTo(AppScreen.SETTINGS)
                                 },
                                 onNavigateToProfileManagement = {
-                                    navigateTo(AppScreen.PROFILE_MANAGEMENT)
+                                    navigateTo(AppScreen.PROFILE_SELECTION)
                                 },
                                 onPlayResumeWatchingMovie = { position ->
                                     activeVodDetails = VodDetails(
@@ -595,6 +610,24 @@ class MainActivity : ComponentActivity() {
                                 }
                             )
                         }
+                        AppScreen.PROFILE_SELECTION -> {
+                            com.poc.iptvxtream.presentation.profile.ProfileSelectionScreen(
+                                profiles = profileState.profiles,
+                                onProfileSelected = { profile ->
+                                    profileViewModel.selectProfile(profile.id)
+                                    navigateBack()
+                                },
+                                onManageProfiles = {
+                                    navigateTo(AppScreen.PROFILE_MANAGEMENT)
+                                },
+                                onLogout = {
+                                    loginViewModel.logout()
+                                    loggedInUser = null
+                                    screenHistory.clear()
+                                    currentScreen = AppScreen.LOGIN
+                                }
+                            )
+                        }
                         AppScreen.PROFILE_MANAGEMENT -> {
                             com.poc.iptvxtream.presentation.profile.ProfileManagementScreen(
                                 viewModel = profileViewModel,
@@ -719,7 +752,7 @@ class MainActivity : ComponentActivity() {
                                         navController.navigate("settings")
                                     },
                                     onNavigateToProfileManagement = {
-                                        navController.navigate("profile_management")
+                                        navController.navigate("profile_selection")
                                     },
                                     onPlayResumeWatchingMovie = { position ->
                                         activeVodDetails = VodDetails(
@@ -876,6 +909,25 @@ class MainActivity : ComponentActivity() {
                                     isTv = false,
                                     onBack = {
                                         navController.popBackStack()
+                                    },
+                                    onLogout = {
+                                        loginViewModel.logout()
+                                        loggedInUser = null
+                                        navController.navigate("login") {
+                                            popUpTo(0) { inclusive = true }
+                                        }
+                                    }
+                                )
+                            }
+                            composable("profile_selection") {
+                                com.poc.iptvxtream.presentation.profile.ProfileSelectionScreen(
+                                    profiles = profileState.profiles,
+                                    onProfileSelected = { profile ->
+                                        profileViewModel.selectProfile(profile.id)
+                                        navController.popBackStack()
+                                    },
+                                    onManageProfiles = {
+                                        navController.navigate("profile_management")
                                     },
                                     onLogout = {
                                         loginViewModel.logout()

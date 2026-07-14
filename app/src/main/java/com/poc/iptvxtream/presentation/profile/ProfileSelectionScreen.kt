@@ -7,8 +7,11 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -24,13 +27,16 @@ import com.poc.iptvxtream.domain.model.ProfileAvatars
 
 /**
  * Écran de sélection de profil façon Netflix (Phase 27), affiché après login/
- * auto-login lorsqu'il existe plusieurs profils. Partagé mobile/TV : le focus
- * D-pad fonctionne via la focusabilité standard des éléments cliquables.
+ * auto-login lorsqu'il existe plusieurs profils, et accessible à tout moment
+ * depuis l'avatar de la Home. Partagé mobile/TV : le focus D-pad fonctionne
+ * via la focusabilité standard des éléments cliquables.
  */
 @Composable
 fun ProfileSelectionScreen(
     profiles: List<Profile>,
     onProfileSelected: (Profile) -> Unit,
+    onManageProfiles: () -> Unit,
+    onLogout: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Box(
@@ -63,6 +69,22 @@ fun ProfileSelectionScreen(
                         onClick = { onProfileSelected(profile) }
                     )
                 }
+            }
+
+            Spacer(modifier = Modifier.height(40.dp))
+
+            OutlinedButton(
+                onClick = onManageProfiles,
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+                modifier = Modifier.fillMaxWidth(0.6f).height(48.dp)
+            ) {
+                Text("Gérer les profils", fontWeight = FontWeight.Bold)
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            TextButton(onClick = onLogout) {
+                Text("Déconnexion", color = Color.Gray)
             }
         }
     }
