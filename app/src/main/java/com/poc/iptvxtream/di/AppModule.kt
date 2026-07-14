@@ -170,14 +170,13 @@ object AppModule {
         // La priorité écran/arrière-plan (XtreamRequestGate) fait déjà céder le
         // sync/enrichissement dès qu'une requête écran est active : la vraie
         // cause du blocage de "Tout" pendant un sync est réglée là, pas ici.
-        // Ce plafond OkHttp reste un filet de sécurité pour ne jamais dépasser
-        // le quota de connexions concurrentes du compte Xtream (souvent limité,
-        // voir UserInfo.maxConnections), sans re-sérialiser toute la navigation
-        // normale (plusieurs écrans/catégories chargées en parallèle) comme le
-        // faisait un plafond à 1.
+        // Ce plafond OkHttp n'a donc plus besoin d'être restrictif — remis à 5
+        // (défaut historique d'OkHttp avant l'ajout de ce Dispatcher explicite)
+        // pour ne pas ralentir le chargement à froid (Home + Films/Séries tirent
+        // plusieurs requêtes en parallèle : live, vod, séries, EPG...).
         val dispatcher = Dispatcher().apply {
-            maxRequests = 4
-            maxRequestsPerHost = 4
+            maxRequests = 5
+            maxRequestsPerHost = 5
         }
 
         return OkHttpClient.Builder()
