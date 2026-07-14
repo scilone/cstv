@@ -5,6 +5,7 @@ import com.poc.iptvxtream.data.local.entity.PlaybackPositionEntity
 import com.poc.iptvxtream.data.local.entity.VodCategoryEntity
 import com.poc.iptvxtream.data.local.entity.VodStreamEntity
 import com.poc.iptvxtream.data.local.storage.CredentialsManager
+import com.poc.iptvxtream.data.local.storage.SettingsManager
 import com.poc.iptvxtream.data.remote.api.XtreamApiService
 import com.poc.iptvxtream.data.remote.api.RequestPriority
 import com.poc.iptvxtream.data.remote.api.XtreamRequestGate
@@ -26,7 +27,8 @@ class VodRepositoryImpl @Inject constructor(
     private val vodDao: VodDao,
     private val credentialsManager: CredentialsManager,
     private val profileManager: com.poc.iptvxtream.data.local.storage.ProfileManager,
-    private val requestGate: XtreamRequestGate
+    private val requestGate: XtreamRequestGate,
+    private val settingsManager: SettingsManager
 ) : VodRepository {
 
     private var enrichmentDispatcher: CoroutineDispatcher = Dispatchers.IO
@@ -45,8 +47,9 @@ class VodRepositoryImpl @Inject constructor(
         credentialsManager: CredentialsManager,
         profileManager: com.poc.iptvxtream.data.local.storage.ProfileManager,
         requestGate: XtreamRequestGate,
+        settingsManager: SettingsManager,
         dispatcher: CoroutineDispatcher
-    ) : this(apiService, vodDao, credentialsManager, profileManager, requestGate) {
+    ) : this(apiService, vodDao, credentialsManager, profileManager, requestGate, settingsManager) {
         this.enrichmentDispatcher = dispatcher
     }
 
@@ -113,9 +116,6 @@ class VodRepositoryImpl @Inject constructor(
         private const val ENRICHMENT_BATCH_SIZE = 50
     }
 
-    // Tracks whether a full ("all") bulk fetch has been done, so a partial
-    // per-category cache is never mistaken for the complete "Tout" cache.
-    private var lastAllStreamsSyncAt: Long = 0L
 
     private fun extractActors(actorsElement: JsonElement?, castElement: JsonElement?): String {
         val actorList = mutableListOf<String>()
@@ -271,6 +271,7 @@ class VodRepositoryImpl @Inject constructor(
 
         if (!forceRefresh) {
             if (categoryId == "all") {
+                val lastAllStreamsSyncAt = settingsManager.getVodAllStreamsSyncedAt()
                 if (lastAllStreamsSyncAt != 0L && currentTime - lastAllStreamsSyncAt < CACHE_EXPIRY_MILLIS) {
                     val localStreams = vodDao.getAllStreams()
                     startBackgroundEnrichment()
@@ -337,7 +338,7 @@ class VodRepositoryImpl @Inject constructor(
         }
 
         if (categoryId == "all") {
-            lastAllStreamsSyncAt = currentTime
+            settingsManager.setVodAllStreamsSyncedAt(currentTime)
         }
 
         startBackgroundEnrichment()

@@ -38,6 +38,30 @@ class SettingsManager @Inject constructor(context: Context) {
         private const val KEY_SUBTITLE_SIZE = "subtitle_text_size"
         private const val KEY_SUBTITLE_COLOR = "subtitle_text_color"
         private const val KEY_SUBTITLE_BACKGROUND = "subtitle_background"
+        private const val KEY_LIVE_ALL_SYNCED_AT = "live_all_streams_synced_at"
+        private const val KEY_VOD_ALL_SYNCED_AT = "vod_all_streams_synced_at"
+        private const val KEY_SERIES_ALL_SYNCED_AT = "series_all_streams_synced_at"
+    }
+
+    // --- Horodatage du dernier fetch complet ("Tout") par type de média ---
+    // Persisté (au lieu d'une simple variable en mémoire) pour que la
+    // fraîcheur du cache "Tout" survive à un redémarrage du process : sans
+    // ça, tuer puis relancer l'app faisait recroire à un cache jamais
+    // rempli et déclenchait un refetch réseau complet inutile, alors que
+    // les données en base étaient encore parfaitement valides.
+    fun getLiveAllStreamsSyncedAt(): Long = sharedPreferences.getLong(KEY_LIVE_ALL_SYNCED_AT, 0L)
+    fun setLiveAllStreamsSyncedAt(timestamp: Long) {
+        sharedPreferences.edit().putLong(KEY_LIVE_ALL_SYNCED_AT, timestamp).apply()
+    }
+
+    fun getVodAllStreamsSyncedAt(): Long = sharedPreferences.getLong(KEY_VOD_ALL_SYNCED_AT, 0L)
+    fun setVodAllStreamsSyncedAt(timestamp: Long) {
+        sharedPreferences.edit().putLong(KEY_VOD_ALL_SYNCED_AT, timestamp).apply()
+    }
+
+    fun getSeriesAllStreamsSyncedAt(): Long = sharedPreferences.getLong(KEY_SERIES_ALL_SYNCED_AT, 0L)
+    fun setSeriesAllStreamsSyncedAt(timestamp: Long) {
+        sharedPreferences.edit().putLong(KEY_SERIES_ALL_SYNCED_AT, timestamp).apply()
     }
 
     fun getPreferredAudio(): String? {

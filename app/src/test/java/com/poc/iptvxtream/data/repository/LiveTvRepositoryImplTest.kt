@@ -5,6 +5,7 @@ import com.poc.iptvxtream.data.local.entity.LiveCategoryEntity
 import com.poc.iptvxtream.data.local.entity.LiveStreamEntity
 import com.poc.iptvxtream.data.local.storage.CredentialsManager
 import com.poc.iptvxtream.data.local.storage.ProfileManager
+import com.poc.iptvxtream.data.local.storage.SettingsManager
 import com.poc.iptvxtream.data.remote.api.XtreamApiService
 import com.poc.iptvxtream.data.remote.dto.EpgResponseDto
 import com.poc.iptvxtream.data.remote.dto.EpgListingDto
@@ -37,6 +38,9 @@ class LiveTvRepositoryImplTest {
     @Mock
     private lateinit var profileManager: ProfileManager
 
+    @Mock
+    private lateinit var settingsManager: SettingsManager
+
     private lateinit var repository: LiveTvRepositoryImpl
 
     private val credentials = Credentials("test.com", 80, "username", "password", true)
@@ -46,7 +50,8 @@ class LiveTvRepositoryImplTest {
         MockitoAnnotations.openMocks(this)
         whenever(credentialsManager.getCredentials()).thenReturn(credentials)
         doReturn(1).whenever(profileManager).currentProfileId()
-        repository = LiveTvRepositoryImpl(apiService, liveTvDao, credentialsManager, profileManager, com.poc.iptvxtream.data.remote.api.XtreamRequestGate())
+        doReturn(0L).whenever(settingsManager).getLiveAllStreamsSyncedAt()
+        repository = LiveTvRepositoryImpl(apiService, liveTvDao, credentialsManager, profileManager, com.poc.iptvxtream.data.remote.api.XtreamRequestGate(), settingsManager)
     }
 
     // --- 1. PLAY URL CONSTRUCTION TESTS ---

@@ -6,6 +6,7 @@ import com.poc.iptvxtream.data.local.entity.LiveCategoryEntity
 import com.poc.iptvxtream.data.local.entity.LiveStreamEntity
 import com.poc.iptvxtream.data.local.entity.EpgCacheEntity
 import com.poc.iptvxtream.data.local.storage.CredentialsManager
+import com.poc.iptvxtream.data.local.storage.SettingsManager
 import com.poc.iptvxtream.data.remote.api.XtreamApiService
 import com.poc.iptvxtream.data.remote.api.XtreamRequestGate
 import com.poc.iptvxtream.domain.model.InvalidCredentialsException
@@ -22,17 +23,14 @@ class LiveTvRepositoryImpl @Inject constructor(
     private val liveTvDao: LiveTvDao,
     private val credentialsManager: CredentialsManager,
     private val profileManager: com.poc.iptvxtream.data.local.storage.ProfileManager,
-    private val requestGate: XtreamRequestGate
+    private val requestGate: XtreamRequestGate,
+    private val settingsManager: SettingsManager
 ) : LiveTvRepository {
 
     companion object {
         // Cache expiry: 24 hours
         private const val CACHE_EXPIRY_MILLIS = 24 * 60 * 60 * 1000L
     }
-
-    // Tracks whether a full ("all") bulk fetch has been done, so a partial
-    // per-category cache is never mistaken for the complete "Tout" cache.
-    private var lastAllStreamsSyncAt: Long = 0L
 
     override suspend fun getLiveCategories(forceRefresh: Boolean): List<LiveCategory> {
         val currentTime = System.currentTimeMillis()
@@ -86,6 +84,7 @@ class LiveTvRepositoryImpl @Inject constructor(
 
         if (!forceRefresh) {
             if (categoryId == "all") {
+                val lastAllStreamsSyncAt = settingsManager.getLiveAllStreamsSyncedAt()
                 if (lastAllStreamsSyncAt != 0L && currentTime - lastAllStreamsSyncAt < CACHE_EXPIRY_MILLIS) {
                     val localStreams = liveTvDao.getAllStreams()
                     return localStreams.map {
@@ -144,7 +143,7 @@ class LiveTvRepositoryImpl @Inject constructor(
         }
 
         if (categoryId == "all") {
-            lastAllStreamsSyncAt = currentTime
+            settingsManager.setLiveAllStreamsSyncedAt(currentTime)
         }
 
         return entities.map { 

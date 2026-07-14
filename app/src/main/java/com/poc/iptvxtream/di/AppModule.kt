@@ -238,9 +238,10 @@ object AppModule {
         liveTvDao: LiveTvDao,
         credentialsManager: CredentialsManager,
         profileManager: ProfileManager,
-        requestGate: XtreamRequestGate
+        requestGate: XtreamRequestGate,
+        settingsManager: SettingsManager
     ): LiveTvRepository {
-        return LiveTvRepositoryImpl(apiService, liveTvDao, credentialsManager, profileManager, requestGate)
+        return LiveTvRepositoryImpl(apiService, liveTvDao, credentialsManager, profileManager, requestGate, settingsManager)
     }
 
     @Provides
@@ -250,9 +251,10 @@ object AppModule {
         vodDao: VodDao,
         credentialsManager: CredentialsManager,
         profileManager: ProfileManager,
-        requestGate: XtreamRequestGate
+        requestGate: XtreamRequestGate,
+        settingsManager: SettingsManager
     ): VodRepository {
-        return VodRepositoryImpl(apiService, vodDao, credentialsManager, profileManager, requestGate)
+        return VodRepositoryImpl(apiService, vodDao, credentialsManager, profileManager, requestGate, settingsManager)
     }
 
     @Provides
@@ -263,9 +265,10 @@ object AppModule {
         vodDao: VodDao,
         credentialsManager: CredentialsManager,
         profileManager: ProfileManager,
-        requestGate: XtreamRequestGate
+        requestGate: XtreamRequestGate,
+        settingsManager: SettingsManager
     ): SeriesRepository {
-        return SeriesRepositoryImpl(apiService, seriesDao, vodDao, credentialsManager, profileManager, requestGate)
+        return SeriesRepositoryImpl(apiService, seriesDao, vodDao, credentialsManager, profileManager, requestGate, settingsManager)
     }
 
     @Provides

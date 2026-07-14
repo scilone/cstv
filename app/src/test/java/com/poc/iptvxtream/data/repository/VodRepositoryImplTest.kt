@@ -8,6 +8,7 @@ import com.poc.iptvxtream.data.local.entity.VodCategoryEntity
 import com.poc.iptvxtream.data.local.entity.VodStreamEntity
 import com.poc.iptvxtream.data.local.storage.CredentialsManager
 import com.poc.iptvxtream.data.local.storage.ProfileManager
+import com.poc.iptvxtream.data.local.storage.SettingsManager
 import com.poc.iptvxtream.data.remote.api.XtreamApiService
 import com.poc.iptvxtream.data.remote.dto.*
 import com.poc.iptvxtream.domain.model.Credentials
@@ -36,6 +37,9 @@ class VodRepositoryImplTest {
     @Mock
     private lateinit var profileManager: ProfileManager
 
+    @Mock
+    private lateinit var settingsManager: SettingsManager
+
     private lateinit var repository: VodRepositoryImpl
 
     private val credentials = Credentials("test.com", 80, "username", "password", true)
@@ -46,7 +50,8 @@ class VodRepositoryImplTest {
         MockitoAnnotations.openMocks(this)
         whenever(credentialsManager.getCredentials()).thenReturn(credentials)
         doReturn(activeProfileId).whenever(profileManager).currentProfileId()
-        repository = VodRepositoryImpl(apiService, vodDao, credentialsManager, profileManager, com.poc.iptvxtream.data.remote.api.XtreamRequestGate())
+        doReturn(0L).whenever(settingsManager).getVodAllStreamsSyncedAt()
+        repository = VodRepositoryImpl(apiService, vodDao, credentialsManager, profileManager, com.poc.iptvxtream.data.remote.api.XtreamRequestGate(), settingsManager)
     }
 
     // --- 1. PLAY URL CONSTRUCTION TESTS ---
@@ -281,7 +286,7 @@ class VodRepositoryImplTest {
     @Test
     fun test_backgroundEnrichment_triggersAndSavesDetails() = runTest {
         val testDispatcher = kotlinx.coroutines.test.UnconfinedTestDispatcher(testScheduler)
-        val localRepository = VodRepositoryImpl(apiService, vodDao, credentialsManager, profileManager, com.poc.iptvxtream.data.remote.api.XtreamRequestGate(), testDispatcher)
+        val localRepository = VodRepositoryImpl(apiService, vodDao, credentialsManager, profileManager, com.poc.iptvxtream.data.remote.api.XtreamRequestGate(), settingsManager, testDispatcher)
 
         val remoteStreams = listOf(
             VodStreamDto(12, "Star Wars", "icon.png", "8.0", "added", "5")
@@ -322,7 +327,7 @@ class VodRepositoryImplTest {
     @Test
     fun test_backgroundEnrichment_requestsBoundedBatch() = runTest {
         val testDispatcher = kotlinx.coroutines.test.UnconfinedTestDispatcher(testScheduler)
-        val localRepository = VodRepositoryImpl(apiService, vodDao, credentialsManager, profileManager, com.poc.iptvxtream.data.remote.api.XtreamRequestGate(), testDispatcher)
+        val localRepository = VodRepositoryImpl(apiService, vodDao, credentialsManager, profileManager, com.poc.iptvxtream.data.remote.api.XtreamRequestGate(), settingsManager, testDispatcher)
 
         whenever(apiService.getVodStreams("username", "password", "5")).thenReturn(emptyList())
         whenever(vodDao.getStreamsByCategory("5")).thenReturn(emptyList())
