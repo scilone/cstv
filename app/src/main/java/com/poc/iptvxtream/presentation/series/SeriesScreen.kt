@@ -36,6 +36,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.poc.iptvxtream.domain.model.FavoriteItem
 import com.poc.iptvxtream.domain.model.SeriesCategory
 import com.poc.iptvxtream.domain.model.SeriesStream
 
@@ -43,6 +44,7 @@ import com.poc.iptvxtream.domain.model.SeriesStream
 fun SeriesScreen(
     viewModel: SeriesViewModel,
     isTv: Boolean,
+    favoritesList: List<FavoriteItem>,
     onSeriesSelected: (SeriesStream) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -90,6 +92,7 @@ fun SeriesScreen(
                 onSeriesSelected = onSeriesSelected,
                 onRefresh = { viewModel.loadCategories(forceRefresh = true) },
                 filteredStreams = filteredStreams,
+                favoritesList = favoritesList,
                 searchQuery = searchQuery,
                 onSearchQueryChanged = { searchQuery = it },
                 isSpecificCategory = isSpecificCategory,
@@ -103,6 +106,7 @@ fun SeriesScreen(
                 onSeriesSelected = onSeriesSelected,
                 onRefresh = { viewModel.loadCategories(forceRefresh = true) },
                 filteredStreams = filteredStreams,
+                favoritesList = favoritesList,
                 searchQuery = searchQuery,
                 onSearchQueryChanged = { searchQuery = it },
                 isSpecificCategory = isSpecificCategory,
@@ -120,6 +124,7 @@ private fun TvLayout(
     onSeriesSelected: (SeriesStream) -> Unit,
     onRefresh: () -> Unit,
     filteredStreams: List<SeriesStream>,
+    favoritesList: List<FavoriteItem>,
     searchQuery: String,
     onSearchQueryChanged: (String) -> Unit,
     isSpecificCategory: Boolean,
@@ -133,6 +138,11 @@ private fun TvLayout(
     }
     val actualCategories = remember(state.categories) {
         state.categories.filter { it.categoryId != "all" }
+    }
+    // Favoris (Phase 35), première section du mode "Tout".
+    val favoriteSeries = remember(filteredStreams, favoritesList) {
+        val favoriteIds = favoritesList.filter { it.type == "series" }.map { it.id }.toSet()
+        filteredStreams.filter { it.seriesId in favoriteIds }
     }
 
     Column(
@@ -178,6 +188,19 @@ private fun TvLayout(
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 modifier = Modifier.fillMaxSize()
             ) {
+                if (favoriteSeries.isNotEmpty()) {
+                    item {
+                        CategorySectionRow(
+                            categoryId = "favorites",
+                            title = "Favoris",
+                            series = favoriteSeries,
+                            onSeriesSelected = onSeriesSelected,
+                            isTv = true,
+                            getScroll = getScroll,
+                            saveScroll = saveScroll
+                        )
+                    }
+                }
                 items(actualCategories) { category ->
                     val catSeries = groupedStreams[category.categoryId] ?: emptyList()
                     if (catSeries.isNotEmpty()) {
@@ -257,6 +280,7 @@ private fun MobileLayout(
     onSeriesSelected: (SeriesStream) -> Unit,
     onRefresh: () -> Unit,
     filteredStreams: List<SeriesStream>,
+    favoritesList: List<FavoriteItem>,
     searchQuery: String,
     onSearchQueryChanged: (String) -> Unit,
     isSpecificCategory: Boolean,
@@ -270,6 +294,11 @@ private fun MobileLayout(
     }
     val actualCategories = remember(state.categories) {
         state.categories.filter { it.categoryId != "all" }
+    }
+    // Favoris (Phase 35), première section du mode "Tout".
+    val favoriteSeries = remember(filteredStreams, favoritesList) {
+        val favoriteIds = favoritesList.filter { it.type == "series" }.map { it.id }.toSet()
+        filteredStreams.filter { it.seriesId in favoriteIds }
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -313,6 +342,19 @@ private fun MobileLayout(
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 contentPadding = PaddingValues(vertical = 8.dp)
             ) {
+                if (favoriteSeries.isNotEmpty()) {
+                    item {
+                        CategorySectionRow(
+                            categoryId = "favorites",
+                            title = "Favoris",
+                            series = favoriteSeries,
+                            onSeriesSelected = onSeriesSelected,
+                            isTv = false,
+                            getScroll = getScroll,
+                            saveScroll = saveScroll
+                        )
+                    }
+                }
                 items(actualCategories) { category ->
                     val catSeries = groupedStreams[category.categoryId] ?: emptyList()
                     if (catSeries.isNotEmpty()) {

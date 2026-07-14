@@ -375,6 +375,7 @@ class MainActivity : ComponentActivity() {
                             VodScreen(
                                 viewModel = vodViewModel,
                                 isTv = isTv,
+                                favoritesList = favsState.favorites,
                                 onMovieSelected = { stream ->
                                     activeVodMovie = stream
                                     navigateTo(AppScreen.VOD_DETAILS)
@@ -458,6 +459,7 @@ class MainActivity : ComponentActivity() {
                             SeriesScreen(
                                 viewModel = seriesViewModel,
                                 isTv = isTv,
+                                favoritesList = favsState.favorites,
                                 onSeriesSelected = { stream ->
                                     activeSeriesShow = stream
                                     navigateTo(AppScreen.SERIES_DETAILS)
@@ -804,6 +806,7 @@ class MainActivity : ComponentActivity() {
                                 VodScreen(
                                     viewModel = vodViewModel,
                                     isTv = false,
+                                    favoritesList = favsState.favorites,
                                     onMovieSelected = { stream ->
                                         activeVodMovie = stream
                                         navController.navigate("vod_details")
@@ -815,6 +818,7 @@ class MainActivity : ComponentActivity() {
                                 SeriesScreen(
                                     viewModel = seriesViewModel,
                                     isTv = false,
+                                    favoritesList = favsState.favorites,
                                     onSeriesSelected = { stream ->
                                         activeSeriesShow = stream
                                         navController.navigate("series_details")
