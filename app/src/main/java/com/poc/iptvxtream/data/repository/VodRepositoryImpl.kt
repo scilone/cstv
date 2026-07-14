@@ -18,6 +18,9 @@ import com.poc.iptvxtream.domain.model.VodStream
 import com.poc.iptvxtream.domain.repository.VodRepository
 import com.google.gson.JsonElement
 import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -478,6 +481,32 @@ class VodRepositoryImpl @Inject constructor(
                 duration = entity.duration,
                 releaseDate = entity.releaseDate
             )
+        }
+    }
+
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    override fun observeAllPlaybackPositions(): Flow<List<PlaybackPosition>> {
+        return profileManager.activeProfileId.flatMapLatest { profileId ->
+            vodDao.observeAllPlaybackPositions(profileId)
+        }.map { entities ->
+            entities.map { entity ->
+                PlaybackPosition(
+                    streamId = entity.streamId,
+                    positionMs = entity.positionMs,
+                    durationMs = entity.durationMs,
+                    lastAccessedAt = entity.lastAccessedAt,
+                    title = entity.title,
+                    coverUrl = entity.coverUrl,
+                    type = entity.type,
+                    containerExtension = entity.containerExtension,
+                    seriesId = entity.seriesId,
+                    episodeNum = entity.episodeNum,
+                    seasonNum = entity.seasonNum,
+                    plot = entity.plot,
+                    duration = entity.duration,
+                    releaseDate = entity.releaseDate
+                )
+            }
         }
     }
 }

@@ -2,7 +2,6 @@ package com.poc.iptvxtream.presentation.favorites
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.poc.iptvxtream.data.local.storage.ProfileManager
 import com.poc.iptvxtream.domain.model.FavoriteItem
 import com.poc.iptvxtream.domain.model.SearchResult
 import com.poc.iptvxtream.domain.usecase.*
@@ -12,7 +11,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -24,17 +22,16 @@ data class FavoritesUiState(
     val searchResult: SearchResult = SearchResult(),
     val searchQuery: String = "",
     val isSearching: Boolean = false,
-    val isLoadingFavorites: Boolean = false
+    val isLoadingFavorites: Boolean = true
 )
 
 @HiltViewModel
 class FavoritesViewModel @Inject constructor(
-    private val getFavoritesUseCase: GetFavoritesUseCase,
+    private val observeFavoritesUseCase: ObserveFavoritesUseCase,
     private val addFavoriteUseCase: AddFavoriteUseCase,
     private val removeFavoriteUseCase: RemoveFavoriteUseCase,
     private val isFavoriteUseCase: IsFavoriteUseCase,
-    private val searchUnifiedUseCase: SearchUnifiedUseCase,
-    private val profileManager: ProfileManager
+    private val searchUnifiedUseCase: SearchUnifiedUseCase
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(FavoritesUiState())
@@ -45,18 +42,13 @@ class FavoritesViewModel @Inject constructor(
     private var searchJob: Job? = null
 
     init {
-        loadFavorites()
-        // Recharge les favoris au changement de profil (Phase 27), sans redémarrage.
+        // Phase 41 : Room ré-émet automatiquement après addFavorite/removeFavorite
+        // et suit le profil actif (voir FavoritesRepositoryImpl.observeFavorites),
+        // plus besoin de reload manuel ni d'écoute séparée du changement de profil.
         viewModelScope.launch {
-            profileManager.activeProfileId.drop(1).collect { loadFavorites() }
-        }
-    }
-
-    fun loadFavorites() {
-        viewModelScope.launch {
-            _state.update { it.copy(isLoadingFavorites = true) }
-            val favs = getFavoritesUseCase()
-            _state.update { it.copy(favorites = favs, isLoadingFavorites = false) }
+            observeFavoritesUseCase().collect { favs ->
+                _state.update { it.copy(favorites = favs, isLoadingFavorites = false) }
+            }
         }
     }
 
@@ -68,7 +60,6 @@ class FavoritesViewModel @Inject constructor(
             } else {
                 addFavoriteUseCase(FavoriteItem(id, type, name, cover, categoryId))
             }
-            loadFavorites()
         }
     }
 

@@ -7,6 +7,8 @@ import com.poc.iptvxtream.domain.repository.SeriesRepository
 import com.poc.iptvxtream.domain.repository.VodRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.*
 import org.junit.After
 import org.junit.Assert.*
@@ -34,9 +36,6 @@ class HomeViewModelTest {
     @Mock
     private lateinit var getLiveEpgUseCase: com.poc.iptvxtream.domain.usecase.GetLiveEpgUseCase
 
-    @Mock
-    private lateinit var profileManager: com.poc.iptvxtream.data.local.storage.ProfileManager
-
     private val testDispatcher = UnconfinedTestDispatcher()
 
     private lateinit var viewModel: HomeViewModel
@@ -45,8 +44,6 @@ class HomeViewModelTest {
     fun setUp() {
         MockitoAnnotations.openMocks(this)
         Dispatchers.setMain(testDispatcher)
-        whenever(profileManager.activeProfileId)
-            .thenReturn(kotlinx.coroutines.flow.MutableStateFlow(1))
     }
 
     @After
@@ -54,19 +51,26 @@ class HomeViewModelTest {
         Dispatchers.resetMain()
     }
 
+    // Phase 41 : resume/favorites viennent maintenant de Flows continus
+    // (observeAllPlaybackPositions/observeFavorites) plutôt que d'un fetch
+    // ponctuel dans loadHomeData ; ce helper les stub par défaut à vide.
+    private fun stubReactiveSources(
+        positions: List<PlaybackPosition> = emptyList(),
+        favorites: List<FavoriteItem> = emptyList()
+    ) {
+        doReturn(flowOf(positions)).whenever(vodRepository).observeAllPlaybackPositions()
+        doReturn(flowOf(favorites)).whenever(favoritesRepository).observeFavorites()
+    }
+
     @Test
     fun test_loadHomeData_success_populatesAllSections() = runTest {
-        // Mock Resume Watching
         val positions = listOf(
             PlaybackPosition(1, 1000L, 50000L, System.currentTimeMillis(), "Movie 1", "cover1", "movie", "mp4")
         )
-        whenever(vodRepository.getAllPlaybackPositions()).thenReturn(positions)
-
-        // Mock Favorites
         val favorites = listOf(
             FavoriteItem(2, "live", "Live 1", "cover2", "cat1")
         )
-        whenever(favoritesRepository.getFavorites()).thenReturn(favorites)
+        stubReactiveSources(positions, favorites)
 
         // Mock Live TV
         val liveCats = listOf(LiveCategory("1", "Live Cat 1", 0))
@@ -86,7 +90,7 @@ class HomeViewModelTest {
         whenever(seriesRepository.getSeriesCategories(false)).thenReturn(seriesCats)
         whenever(seriesRepository.getSeriesStreams("1", false)).thenReturn(seriesStreams)
 
-        viewModel = HomeViewModel(vodRepository, liveTvRepository, seriesRepository, favoritesRepository, getLiveEpgUseCase, profileManager)
+        viewModel = HomeViewModel(vodRepository, liveTvRepository, seriesRepository, favoritesRepository, getLiveEpgUseCase)
 
         val state = viewModel.state.value
         assertFalse(state.isLoading)
@@ -108,9 +112,7 @@ class HomeViewModelTest {
 
     @Test
     fun test_loadHomeData_partialFailure_keepsOtherSectionsFunctional() = runTest {
-        // Mock Resume Watching & Favorites to be empty
-        whenever(vodRepository.getAllPlaybackPositions()).thenReturn(emptyList())
-        whenever(favoritesRepository.getFavorites()).thenReturn(emptyList())
+        stubReactiveSources()
 
         // Mock Live TV throws exception
         whenever(liveTvRepository.getLiveCategories(false)).thenThrow(RuntimeException("API Error Live TV"))
@@ -124,7 +126,7 @@ class HomeViewModelTest {
         // Mock Series to be empty
         whenever(seriesRepository.getSeriesCategories(false)).thenReturn(emptyList())
 
-        viewModel = HomeViewModel(vodRepository, liveTvRepository, seriesRepository, favoritesRepository, getLiveEpgUseCase, profileManager)
+        viewModel = HomeViewModel(vodRepository, liveTvRepository, seriesRepository, favoritesRepository, getLiveEpgUseCase)
 
         val state = viewModel.state.value
         assertFalse(state.isLoading)
@@ -133,7 +135,7 @@ class HomeViewModelTest {
         assertTrue(state.favoritesList.isEmpty())
         assertNull(state.firstLiveCategory)
         assertTrue(state.firstLiveStreams.isEmpty())
-        
+
         // VOD should be loaded successfully
         assertEquals("1", state.firstVodCategory?.categoryId)
         assertEquals(1, state.firstVodStreams.size)
@@ -142,7 +144,7 @@ class HomeViewModelTest {
 
     @Test
     fun test_loadHomeData_resumeWatching_groupsSeriesEpisodesBySeriesId_keepingMostRecentOnly() = runTest {
-        // VodDao.getAllPlaybackPositions trie déjà par lastAccessedAt DESC : le
+        // observeAllPlaybackPositions trie déjà par lastAccessedAt DESC : le
         // repository (mocké ici) doit refléter cet ordre pour que le
         // regroupement (Phase 30) retienne bien le dernier épisode vu.
         val positions = listOf(
@@ -155,13 +157,12 @@ class HomeViewModelTest {
             // Série 20 : une seule entrée, forcément conservée
             PlaybackPosition(201, 1000L, 50000L, 1000L, "Show B - S1E1", "cover", "series", "mp4", seriesId = 20, episodeNum = 1, seasonNum = 1)
         )
-        whenever(vodRepository.getAllPlaybackPositions()).thenReturn(positions)
-        whenever(favoritesRepository.getFavorites()).thenReturn(emptyList())
+        stubReactiveSources(positions = positions)
         whenever(liveTvRepository.getLiveCategories(false)).thenReturn(emptyList())
         whenever(vodRepository.getVodCategories(false)).thenReturn(emptyList())
         whenever(seriesRepository.getSeriesCategories(false)).thenReturn(emptyList())
 
-        viewModel = HomeViewModel(vodRepository, liveTvRepository, seriesRepository, favoritesRepository, getLiveEpgUseCase, profileManager)
+        viewModel = HomeViewModel(vodRepository, liveTvRepository, seriesRepository, favoritesRepository, getLiveEpgUseCase)
 
         val resumeWatching = viewModel.state.value.resumeWatchingList
         assertEquals(3, resumeWatching.size)

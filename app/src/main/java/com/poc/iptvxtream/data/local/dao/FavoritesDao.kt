@@ -5,12 +5,15 @@ import com.poc.iptvxtream.data.local.entity.FavoriteEntity
 import com.poc.iptvxtream.data.local.entity.LiveStreamEntity
 import com.poc.iptvxtream.data.local.entity.SeriesStreamEntity
 import com.poc.iptvxtream.data.local.entity.VodStreamEntity
+import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface FavoritesDao {
 
+    // Phase 41 : Room ré-émet automatiquement à chaque écriture sur `favorites`
+    // (addFavorite/removeFavorite), sans reload manuel depuis les ViewModels.
     @Query("SELECT * FROM favorites WHERE profileId = :profileId ORDER BY addedAt DESC")
-    suspend fun getAllFavorites(profileId: Int): List<FavoriteEntity>
+    fun observeFavorites(profileId: Int): Flow<List<FavoriteEntity>>
 
     @Query("SELECT * FROM favorites WHERE type = :type AND profileId = :profileId ORDER BY addedAt DESC")
     suspend fun getFavoritesByType(type: String, profileId: Int): List<FavoriteEntity>

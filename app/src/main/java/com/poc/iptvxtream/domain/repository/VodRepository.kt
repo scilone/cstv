@@ -4,6 +4,7 @@ import com.poc.iptvxtream.domain.model.PlaybackPosition
 import com.poc.iptvxtream.domain.model.VodCategory
 import com.poc.iptvxtream.domain.model.VodDetails
 import com.poc.iptvxtream.domain.model.VodStream
+import kotlinx.coroutines.flow.Flow
 
 interface VodRepository {
     suspend fun getVodCategories(forceRefresh: Boolean): List<VodCategory>
@@ -27,6 +28,9 @@ interface VodRepository {
     suspend fun getPlaybackPosition(streamId: Int): Pair<Long, Long>?
     suspend fun clearPlaybackPosition(streamId: Int)
     suspend fun getAllPlaybackPositions(): List<PlaybackPosition>
+    // Phase 41 : version réactive, utilisée par la Home pour "Continuer à
+    // regarder" sans re-fetch manuel à chaque navigation.
+    fun observeAllPlaybackPositions(): Flow<List<PlaybackPosition>>
 
     /**
      * Enrichit (acteurs/réalisateur/genre) les films qui en manquent encore,

@@ -10,7 +10,6 @@ import com.poc.iptvxtream.domain.model.VodCategory
 import com.poc.iptvxtream.domain.model.VodStream
 import com.poc.iptvxtream.domain.model.SeriesCategory
 import com.poc.iptvxtream.domain.model.SeriesStream
-import com.poc.iptvxtream.data.local.storage.ProfileManager
 import com.poc.iptvxtream.domain.repository.FavoritesRepository
 import com.poc.iptvxtream.domain.repository.LiveTvRepository
 import com.poc.iptvxtream.domain.repository.SeriesRepository
@@ -19,7 +18,6 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -51,8 +49,7 @@ class HomeViewModel @Inject constructor(
     private val liveTvRepository: LiveTvRepository,
     private val seriesRepository: SeriesRepository,
     private val favoritesRepository: FavoritesRepository,
-    private val getLiveEpgUseCase: GetLiveEpgUseCase,
-    private val profileManager: ProfileManager
+    private val getLiveEpgUseCase: GetLiveEpgUseCase
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(HomeState())
@@ -70,10 +67,35 @@ class HomeViewModel @Inject constructor(
 
     init {
         loadHomeData()
-        // Rafraîchit immédiatement Continuer à regarder / Favoris au changement
-        // de profil (Phase 27), sans redémarrage. drop(1) ignore la valeur initiale.
+        // Phase 41 : "Continuer à regarder" et "Favoris" restent à jour en
+        // continu (ajout/suppression d'un favori ailleurs dans l'app, reprise
+        // de lecture) sans reload manuel ni ré-écoute du changement de profil
+        // (déjà géré par le flatMapLatest des repositories sur activeProfileId).
         viewModelScope.launch {
-            profileManager.activeProfileId.drop(1).collect { loadHomeData() }
+            vodRepository.observeAllPlaybackPositions().collect { allPositions ->
+                _state.update { it.copy(resumeWatchingList = groupResumeWatching(allPositions)) }
+            }
+        }
+        viewModelScope.launch {
+            favoritesRepository.observeFavorites().collect { favorites ->
+                _state.update { it.copy(favoritesList = favorites) }
+            }
+        }
+    }
+
+    // Regroupe les épisodes de série par seriesId (Phase 30) : une seule
+    // carte par série, celle du dernier épisode vu. allPositions est déjà
+    // trié par lastAccessedAt DESC (VodDao.observeAllPlaybackPositions), donc
+    // le premier épisode rencontré par seriesId est bien le plus récent.
+    // Les films (seriesId == null) ne sont pas regroupés.
+    private fun groupResumeWatching(allPositions: List<PlaybackPosition>): List<PlaybackPosition> {
+        val resumeWatchingRaw = allPositions.filter { pos ->
+            pos.positionMs > 0 && pos.positionMs < (pos.durationMs - 15000L)
+        }
+        val seenSeriesIds = mutableSetOf<Int>()
+        return resumeWatchingRaw.filter { pos ->
+            val seriesId = pos.seriesId
+            if (seriesId == null) true else seenSeriesIds.add(seriesId)
         }
     }
 
@@ -111,28 +133,9 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             _state.update { it.copy(isLoading = true, error = null) }
             try {
-                // 1. Fetch Resume Watching list (movies & episodes with position > 0 and position < duration - 15000L)
-                val allPositions = vodRepository.getAllPlaybackPositions()
-                val resumeWatchingRaw = allPositions.filter { pos ->
-                    pos.positionMs > 0 && pos.positionMs < (pos.durationMs - 15000L)
-                }
-                // Regroupe les épisodes de série par seriesId (Phase 30) : une seule
-                // carte par série, celle du dernier épisode vu. allPositions est déjà
-                // trié par lastAccessedAt DESC (VodDao.getAllPlaybackPositions), donc
-                // le premier épisode rencontré par seriesId est bien le plus récent.
-                // Les films (seriesId == null) ne sont pas regroupés.
-                val seenSeriesIds = mutableSetOf<Int>()
-                val resumeWatching = resumeWatchingRaw.filter { pos ->
-                    val seriesId = pos.seriesId
-                    if (seriesId == null) {
-                        true
-                    } else {
-                        seenSeriesIds.add(seriesId)
-                    }
-                }
-
-                // 2. Fetch Favorites
-                val favorites = favoritesRepository.getFavorites()
+                // "Continuer à regarder" et "Favoris" sont alimentés en continu par les
+                // Flow collectés dans init() (voir groupResumeWatching) : plus de fetch
+                // ponctuel ici.
 
                 // 3. Fetch TV - First Live Category and its Streams
                 val liveCategories = try {
@@ -182,8 +185,6 @@ class HomeViewModel @Inject constructor(
                 _state.update {
                     it.copy(
                         isLoading = false,
-                        resumeWatchingList = resumeWatching,
-                        favoritesList = favorites,
                         firstLiveCategory = firstLiveCat,
                         firstLiveStreams = firstLiveStreams,
                         firstVodCategory = firstVodCat,

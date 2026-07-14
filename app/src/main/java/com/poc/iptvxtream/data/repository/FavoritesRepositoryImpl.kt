@@ -5,6 +5,10 @@ import com.poc.iptvxtream.data.local.entity.FavoriteEntity
 import com.poc.iptvxtream.data.local.storage.ProfileManager
 import com.poc.iptvxtream.domain.model.*
 import com.poc.iptvxtream.domain.repository.FavoritesRepository
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -14,10 +18,11 @@ class FavoritesRepositoryImpl @Inject constructor(
     private val profileManager: ProfileManager
 ) : FavoritesRepository {
 
-    override suspend fun getFavorites(): List<FavoriteItem> {
-        return favoritesDao.getAllFavorites(profileManager.currentProfileId()).map {
-            FavoriteItem(it.id, it.type, it.name, it.cover, it.categoryId)
-        }
+    @OptIn(ExperimentalCoroutinesApi::class)
+    override fun observeFavorites(): Flow<List<FavoriteItem>> {
+        return profileManager.activeProfileId.flatMapLatest { profileId ->
+            favoritesDao.observeFavorites(profileId)
+        }.map { list -> list.map { FavoriteItem(it.id, it.type, it.name, it.cover, it.categoryId) } }
     }
 
     override suspend fun isFavorite(id: Int, type: String): Boolean {

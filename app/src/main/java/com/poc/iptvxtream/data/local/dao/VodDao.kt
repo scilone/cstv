@@ -8,6 +8,7 @@ import androidx.room.Transaction
 import com.poc.iptvxtream.data.local.entity.PlaybackPositionEntity
 import com.poc.iptvxtream.data.local.entity.VodCategoryEntity
 import com.poc.iptvxtream.data.local.entity.VodStreamEntity
+import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface VodDao {
@@ -42,10 +43,10 @@ interface VodDao {
     suspend fun clearAllStreams()
 
     // --- FTS4 (Phase 40 : recherche globale) ---
-    // Table virtuelle non déclarée en @Entity (schéma géré à la main via
-    // Migrations.kt, exportSchema=false) : Room l'ignore, on la pilote par
-    // @Query brutes. rowid de vod_streams_fts = streamId (INTEGER PRIMARY
-    // KEY = alias de rowid en SQLite), pour joindre sans colonne dédiée.
+    // Table virtuelle déclarée en @Entity (VodStreamFtsEntity), pilotée ici
+    // par des @Query brutes (pas d'@Insert/@Delete générés). rowid de
+    // vod_streams_fts = streamId (INTEGER PRIMARY KEY = alias de rowid en
+    // SQLite), pour joindre sans colonne dédiée.
     @Query(
         "INSERT OR REPLACE INTO vod_streams_fts(rowid, name, actors, director, genre, categoryId) " +
             "VALUES (:streamId, :name, :actors, :director, :genre, :categoryId)"
@@ -70,6 +71,11 @@ interface VodDao {
     // --- Playback Positions (Resume) ---
     @Query("SELECT * FROM playback_positions WHERE profileId = :profileId ORDER BY lastAccessedAt DESC")
     suspend fun getAllPlaybackPositions(profileId: Int): List<PlaybackPositionEntity>
+
+    // Phase 41 : ré-émet automatiquement à chaque écriture (savePlaybackPosition/
+    // deletePlaybackPosition), sans reload manuel depuis les ViewModels.
+    @Query("SELECT * FROM playback_positions WHERE profileId = :profileId ORDER BY lastAccessedAt DESC")
+    fun observeAllPlaybackPositions(profileId: Int): Flow<List<PlaybackPositionEntity>>
 
     @Query("SELECT * FROM playback_positions WHERE streamId = :streamId AND profileId = :profileId LIMIT 1")
     suspend fun getPlaybackPosition(streamId: Int, profileId: Int): PlaybackPositionEntity?

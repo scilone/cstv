@@ -39,12 +39,9 @@ fun FavoritesScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    // Phase 41 : state.favorites vient d'un Flow Room observé en continu
+    // (FavoritesViewModel.init), plus besoin de reload manuel à l'entrée écran.
     val state by viewModel.state.collectAsState()
-
-    // Reload favorites whenever screen becomes visible
-    LaunchedEffect(Unit) {
-        viewModel.loadFavorites()
-    }
 
     val liveFavorites = remember(state.favorites) { state.favorites.filter { it.type == "live" } }
     val movieFavorites = remember(state.favorites) { state.favorites.filter { it.type == "movie" } }
