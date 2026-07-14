@@ -167,16 +167,17 @@ object AppModule {
             level = HttpLoggingInterceptor.Level.BODY
         }
 
-        // Une seule requête à la fois vers le panel Xtream : de nombreux panels
-        // limitent les connexions concurrentes par compte (voir UserInfo.
-        // maxConnections), et l'app parle à un seul hôte à la fois (même si
-        // DynamicBaseUrlInterceptor le change en cours de session). Le sync en
-        // arrière-plan (Phase 22, enrichissement du casting) et les écrans au
-        // premier plan partagent ce même client : cette limite les met en file
-        // plutôt qu'en concurrence, pour ne jamais dépasser le quota du compte.
+        // La priorité écran/arrière-plan (XtreamRequestGate) fait déjà céder le
+        // sync/enrichissement dès qu'une requête écran est active : la vraie
+        // cause du blocage de "Tout" pendant un sync est réglée là, pas ici.
+        // Ce plafond OkHttp reste un filet de sécurité pour ne jamais dépasser
+        // le quota de connexions concurrentes du compte Xtream (souvent limité,
+        // voir UserInfo.maxConnections), sans re-sérialiser toute la navigation
+        // normale (plusieurs écrans/catégories chargées en parallèle) comme le
+        // faisait un plafond à 1.
         val dispatcher = Dispatcher().apply {
-            maxRequests = 1
-            maxRequestsPerHost = 1
+            maxRequests = 4
+            maxRequestsPerHost = 4
         }
 
         return OkHttpClient.Builder()
