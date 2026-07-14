@@ -139,4 +139,35 @@ class HomeViewModelTest {
         assertEquals(1, state.firstVodStreams.size)
         assertEquals("Movie A", state.firstVodStreams[0].name)
     }
+
+    @Test
+    fun test_loadHomeData_resumeWatching_groupsSeriesEpisodesBySeriesId_keepingMostRecentOnly() = runTest {
+        // VodDao.getAllPlaybackPositions trie déjà par lastAccessedAt DESC : le
+        // repository (mocké ici) doit refléter cet ordre pour que le
+        // regroupement (Phase 30) retienne bien le dernier épisode vu.
+        val positions = listOf(
+            // Série 10 : épisode le plus récent (doit être conservé)
+            PlaybackPosition(102, 1000L, 50000L, 3000L, "Show A - S1E2", "cover", "series", "mp4", seriesId = 10, episodeNum = 2, seasonNum = 1),
+            // Film sans seriesId : jamais regroupé
+            PlaybackPosition(501, 1000L, 50000L, 2500L, "Movie 1", "cover1", "movie", "mp4"),
+            // Série 10 : épisode plus ancien (doit être exclu, même série que ci-dessus)
+            PlaybackPosition(101, 1000L, 50000L, 2000L, "Show A - S1E1", "cover", "series", "mp4", seriesId = 10, episodeNum = 1, seasonNum = 1),
+            // Série 20 : une seule entrée, forcément conservée
+            PlaybackPosition(201, 1000L, 50000L, 1000L, "Show B - S1E1", "cover", "series", "mp4", seriesId = 20, episodeNum = 1, seasonNum = 1)
+        )
+        whenever(vodRepository.getAllPlaybackPositions()).thenReturn(positions)
+        whenever(favoritesRepository.getFavorites()).thenReturn(emptyList())
+        whenever(liveTvRepository.getLiveCategories(false)).thenReturn(emptyList())
+        whenever(vodRepository.getVodCategories(false)).thenReturn(emptyList())
+        whenever(seriesRepository.getSeriesCategories(false)).thenReturn(emptyList())
+
+        viewModel = HomeViewModel(vodRepository, liveTvRepository, seriesRepository, favoritesRepository, getLiveEpgUseCase, profileManager)
+
+        val resumeWatching = viewModel.state.value.resumeWatchingList
+        assertEquals(3, resumeWatching.size)
+        assertTrue(resumeWatching.any { it.streamId == 102 }) // dernier épisode de la série 10
+        assertFalse(resumeWatching.any { it.streamId == 101 }) // ancien épisode de la série 10, exclu
+        assertTrue(resumeWatching.any { it.streamId == 501 }) // film, toujours présent
+        assertTrue(resumeWatching.any { it.streamId == 201 }) // seule entrée de la série 20
+    }
 }

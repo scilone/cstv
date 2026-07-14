@@ -113,8 +113,22 @@ class HomeViewModel @Inject constructor(
             try {
                 // 1. Fetch Resume Watching list (movies & episodes with position > 0 and position < duration - 15000L)
                 val allPositions = vodRepository.getAllPlaybackPositions()
-                val resumeWatching = allPositions.filter { pos ->
+                val resumeWatchingRaw = allPositions.filter { pos ->
                     pos.positionMs > 0 && pos.positionMs < (pos.durationMs - 15000L)
+                }
+                // Regroupe les épisodes de série par seriesId (Phase 30) : une seule
+                // carte par série, celle du dernier épisode vu. allPositions est déjà
+                // trié par lastAccessedAt DESC (VodDao.getAllPlaybackPositions), donc
+                // le premier épisode rencontré par seriesId est bien le plus récent.
+                // Les films (seriesId == null) ne sont pas regroupés.
+                val seenSeriesIds = mutableSetOf<Int>()
+                val resumeWatching = resumeWatchingRaw.filter { pos ->
+                    val seriesId = pos.seriesId
+                    if (seriesId == null) {
+                        true
+                    } else {
+                        seenSeriesIds.add(seriesId)
+                    }
                 }
 
                 // 2. Fetch Favorites
