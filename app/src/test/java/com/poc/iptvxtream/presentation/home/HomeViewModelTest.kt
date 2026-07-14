@@ -7,9 +7,11 @@ import com.poc.iptvxtream.domain.repository.SeriesRepository
 import com.poc.iptvxtream.domain.repository.VodRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.*
+import androidx.lifecycle.viewModelScope
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
@@ -36,7 +38,14 @@ class HomeViewModelTest {
     @Mock
     private lateinit var getLiveEpgUseCase: com.poc.iptvxtream.domain.usecase.GetLiveEpgUseCase
 
-    private val testDispatcher = UnconfinedTestDispatcher()
+    // Phase 42 : StandardTestDispatcher (et non Unconfined) + runCurrent() après
+    // construction. HomeViewModel lance désormais un ticker EPG infini
+    // (while(true) { delay(60s); ... }) dans son init : avec un dispatcher
+    // "unconfined" autonome (scheduler non lié à celui de runTest), ce ticker
+    // provoque un blocage réel du test. runCurrent() n'exécute que le travail
+    // déjà dû à l'instant virtuel courant (le chargement initial), sans jamais
+    // avancer jusqu'au premier délai de 60s du ticker.
+    private val testDispatcher = StandardTestDispatcher()
 
     private lateinit var viewModel: HomeViewModel
 
@@ -48,7 +57,16 @@ class HomeViewModelTest {
 
     @After
     fun tearDown() {
+        if (::viewModel.isInitialized) {
+            viewModel.viewModelScope.cancel()
+        }
         Dispatchers.resetMain()
+    }
+
+    private fun createViewModel(): HomeViewModel {
+        val vm = HomeViewModel(vodRepository, liveTvRepository, seriesRepository, favoritesRepository, getLiveEpgUseCase)
+        testDispatcher.scheduler.runCurrent()
+        return vm
     }
 
     // Phase 41 : resume/favorites viennent maintenant de Flows continus
@@ -90,7 +108,7 @@ class HomeViewModelTest {
         whenever(seriesRepository.getSeriesCategories(false)).thenReturn(seriesCats)
         whenever(seriesRepository.getSeriesStreams("1", false)).thenReturn(seriesStreams)
 
-        viewModel = HomeViewModel(vodRepository, liveTvRepository, seriesRepository, favoritesRepository, getLiveEpgUseCase)
+        viewModel = createViewModel()
 
         val state = viewModel.state.value
         assertFalse(state.isLoading)
@@ -108,6 +126,8 @@ class HomeViewModelTest {
         assertEquals("1", state.firstSeriesCategory?.categoryId)
         assertEquals(1, state.firstSeriesStreams.size)
         assertEquals("Series X", state.firstSeriesStreams[0].name)
+
+        viewModel.viewModelScope.cancel()
     }
 
     @Test
@@ -126,7 +146,7 @@ class HomeViewModelTest {
         // Mock Series to be empty
         whenever(seriesRepository.getSeriesCategories(false)).thenReturn(emptyList())
 
-        viewModel = HomeViewModel(vodRepository, liveTvRepository, seriesRepository, favoritesRepository, getLiveEpgUseCase)
+        viewModel = createViewModel()
 
         val state = viewModel.state.value
         assertFalse(state.isLoading)
@@ -140,6 +160,8 @@ class HomeViewModelTest {
         assertEquals("1", state.firstVodCategory?.categoryId)
         assertEquals(1, state.firstVodStreams.size)
         assertEquals("Movie A", state.firstVodStreams[0].name)
+
+        viewModel.viewModelScope.cancel()
     }
 
     @Test
@@ -162,7 +184,7 @@ class HomeViewModelTest {
         whenever(vodRepository.getVodCategories(false)).thenReturn(emptyList())
         whenever(seriesRepository.getSeriesCategories(false)).thenReturn(emptyList())
 
-        viewModel = HomeViewModel(vodRepository, liveTvRepository, seriesRepository, favoritesRepository, getLiveEpgUseCase)
+        viewModel = createViewModel()
 
         val resumeWatching = viewModel.state.value.resumeWatchingList
         assertEquals(3, resumeWatching.size)
@@ -170,5 +192,7 @@ class HomeViewModelTest {
         assertFalse(resumeWatching.any { it.streamId == 101 }) // ancien épisode de la série 10, exclu
         assertTrue(resumeWatching.any { it.streamId == 501 }) // film, toujours présent
         assertTrue(resumeWatching.any { it.streamId == 201 }) // seule entrée de la série 20
+
+        viewModel.viewModelScope.cancel()
     }
 }

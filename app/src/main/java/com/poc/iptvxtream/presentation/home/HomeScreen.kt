@@ -308,7 +308,6 @@ fun HomeScreen(
                                     HomeLiveTvCard(
                                         stream = stream,
                                         epgProgram = state.epgPrograms[stream.streamId],
-                                        onLoadEpg = { viewModel.loadEpgForStream(stream.streamId) },
                                         onClick = { onPlayLiveStream(stream, state.firstLiveStreams) }
                                     )
                                 }
@@ -679,18 +678,14 @@ private fun HomeFavoriteItemCard(
 private fun HomeLiveTvCard(
     stream: LiveStream,
     epgProgram: com.poc.iptvxtream.domain.model.LiveEpgProgram?,
-    onLoadEpg: () -> Unit,
     onClick: () -> Unit
 ) {
     var isFocused by remember { mutableStateOf(false) }
 
-    LaunchedEffect(stream.streamId) {
-        while (true) {
-            onLoadEpg()
-            kotlinx.coroutines.delay(60000)
-        }
-    }
-
+    // Phase 42 : le polling EPG (toutes les 60s) est centralisé dans
+    // HomeViewModel (un seul ticker pour toute la rangée) au lieu d'une
+    // boucle par carte visible ; cette carte ne fait plus que lire
+    // state.epgPrograms.
     Column(
         modifier = Modifier
             .width(140.dp)

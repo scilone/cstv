@@ -15,6 +15,7 @@ import com.poc.iptvxtream.domain.repository.LiveTvRepository
 import com.poc.iptvxtream.domain.repository.SeriesRepository
 import com.poc.iptvxtream.domain.repository.VodRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -24,6 +25,8 @@ import javax.inject.Inject
 
 import com.poc.iptvxtream.domain.model.LiveEpgProgram
 import com.poc.iptvxtream.domain.usecase.GetLiveEpgUseCase
+
+private const val EPG_POLL_INTERVAL_MILLIS = 60_000L
 
 data class HomeState(
     val isLoading: Boolean = false,
@@ -65,6 +68,19 @@ class HomeViewModel @Inject constructor(
         return scrollPositions[key] ?: Pair(0, 0)
     }
 
+    // Guards against duplicate concurrent fetches and hammering channels without EPG data.
+    // Doivent être initialisés AVANT le bloc init{} : viewModelScope utilise
+    // Dispatchers.Main.immediate, qui exécute la coroutine de loadHomeData() en
+    // ligne (pas de redispatch) si on est déjà sur son thread — y compris
+    // pendant l'exécution du bloc init{} lui-même. refreshVisibleEpg()
+    // (appelée en fin de loadHomeData) accède donc à ces champs alors que la
+    // construction de l'objet n'est pas terminée : s'ils étaient déclarés
+    // après init{} (ordre d'exécution des initialisers Kotlin = ordre
+    // textuel), ils seraient encore `null` à cet instant -> NPE, capturée
+    // silencieusement par le catch(Exception) de loadHomeData.
+    private val epgInFlight = mutableSetOf<Int>()
+    private val epgLastAttempt = mutableMapOf<Int, Long>()
+
     init {
         loadHomeData()
         // Phase 41 : "Continuer à regarder" et "Favoris" restent à jour en
@@ -81,6 +97,21 @@ class HomeViewModel @Inject constructor(
                 _state.update { it.copy(favoritesList = favorites) }
             }
         }
+        // Phase 42 : un seul ticker pour toute la rangée "TV" au lieu d'une
+        // boucle while(true)+delay(60s) par carte visible (une par chaîne).
+        // Le premier passage a lieu juste après le chargement initial de
+        // firstLiveStreams (voir loadHomeData) ; ce ticker ne fait que les
+        // rafraîchissements périodiques suivants.
+        viewModelScope.launch {
+            while (true) {
+                delay(EPG_POLL_INTERVAL_MILLIS)
+                refreshVisibleEpg()
+            }
+        }
+    }
+
+    private fun refreshVisibleEpg() {
+        _state.value.firstLiveStreams.forEach { loadEpgForStream(it.streamId) }
     }
 
     // Regroupe les épisodes de série par seriesId (Phase 30) : une seule
@@ -98,10 +129,6 @@ class HomeViewModel @Inject constructor(
             if (seriesId == null) true else seenSeriesIds.add(seriesId)
         }
     }
-
-    // Guards against duplicate concurrent fetches and hammering channels without EPG data
-    private val epgInFlight = mutableSetOf<Int>()
-    private val epgLastAttempt = mutableMapOf<Int, Long>()
 
     fun loadEpgForStream(streamId: Int) {
         val now = System.currentTimeMillis()
@@ -193,6 +220,7 @@ class HomeViewModel @Inject constructor(
                         firstSeriesStreams = firstSeriesStreams
                     )
                 }
+                refreshVisibleEpg()
             } catch (e: Exception) {
                 _state.update {
                     it.copy(

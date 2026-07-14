@@ -502,7 +502,7 @@ Attendu :
 
 ---
 
-Phase 42 : centraliser le polling EPG de la Home dans le ViewModel.
+Phase 42 [TERMINE] : centraliser le polling EPG de la Home dans le ViewModel.
 
 Chaque `HomeLiveTvCard` visible lance sa propre boucle `while(true)` +
 `delay(60s)` d'appels EPG : N cartes = N boucles réseau indépendantes.
