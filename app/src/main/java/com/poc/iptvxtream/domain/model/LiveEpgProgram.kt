@@ -1,5 +1,9 @@
 package com.poc.iptvxtream.domain.model
 
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+
 data class LiveEpgProgram(
     val title: String,
     val description: String?,
@@ -14,5 +18,13 @@ data class LiveEpgProgram(
         val total = endTimestamp - startTimestamp
         if (total <= 0) return 0f
         return (now - startTimestamp).toFloat() / total.toFloat()
+    }
+
+    /** "HH:mm - HH:mm" dans le fuseau horaire de l'appareil (Phase 32). */
+    fun formattedTimeRange(): String {
+        val formatter = SimpleDateFormat("HH:mm", Locale.getDefault())
+        val start = formatter.format(Date(startTimestamp * 1000L))
+        val end = formatter.format(Date(endTimestamp * 1000L))
+        return "$start - $end"
     }
 }

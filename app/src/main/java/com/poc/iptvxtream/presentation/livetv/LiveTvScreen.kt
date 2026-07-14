@@ -508,6 +508,12 @@ private fun MobileLayout(
                                                 .height(3.dp)
                                                 .clip(RoundedCornerShape(1.5.dp))
                                         )
+                                        Text(
+                                            text = epgProgram.formattedTimeRange(),
+                                            color = Color.Gray,
+                                            fontSize = 9.sp,
+                                            modifier = Modifier.padding(top = 2.dp)
+                                        )
                                     }
                                 }
 
@@ -671,6 +677,12 @@ private fun MobileStreamCard(
                         .fillMaxWidth()
                         .height(3.dp)
                         .clip(RoundedCornerShape(1.5.dp))
+                )
+                Text(
+                    text = epgProgram.formattedTimeRange(),
+                    color = Color.Gray,
+                    fontSize = 8.sp,
+                    modifier = Modifier.padding(top = 2.dp)
                 )
             }
 
@@ -887,6 +899,11 @@ private fun RecentlyWatchedTvItem(
                             .height(2.dp)
                             .clip(RoundedCornerShape(1.dp))
                     )
+                    Text(
+                        text = epgProgram.formattedTimeRange(),
+                        color = Color.Gray,
+                        fontSize = 8.sp
+                    )
                 }
             }
         }
@@ -984,6 +1001,12 @@ private fun StreamTvCard(
                             .fillMaxWidth(0.9f)
                             .height(3.dp)
                             .clip(RoundedCornerShape(1.5.dp))
+                    )
+                    Text(
+                        text = epgProgram.formattedTimeRange(),
+                        color = Color.Gray,
+                        fontSize = 9.sp,
+                        modifier = Modifier.padding(top = 2.dp)
                     )
                 } else {
                     Text(
