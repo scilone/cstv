@@ -443,6 +443,9 @@ private fun MobileLayout(
                             colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E24)),
                             modifier = Modifier
                                 .fillMaxWidth()
+                                // Hauteur fixe (Phase 33) : une chaîne sans EPG résolue ne
+                                // doit pas produire une tuile plus petite que ses voisines.
+                                .height(88.dp)
                                 .clickable { onStreamSelected(stream) }
                         ) {
                             Row(
@@ -622,6 +625,9 @@ private fun MobileStreamCard(
         colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E24)),
         modifier = Modifier
             .width(150.dp)
+            // Hauteur fixe (Phase 33) : idem, une chaîne sans EPG résolue ne
+            // doit pas produire une tuile plus petite dans la rangée horizontale.
+            .height(180.dp)
             .clickable { onClick() }
     ) {
         Column(modifier = Modifier.padding(8.dp)) {
