@@ -7,6 +7,8 @@ import com.poc.iptvxtream.domain.model.FavoriteItem
 import com.poc.iptvxtream.domain.model.SearchResult
 import com.poc.iptvxtream.domain.usecase.*
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -14,6 +16,8 @@ import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+
+private const val SEARCH_DEBOUNCE_MILLIS = 300L
 
 data class FavoritesUiState(
     val favorites: List<FavoriteItem> = emptyList(),
@@ -35,6 +39,10 @@ class FavoritesViewModel @Inject constructor(
 
     private val _state = MutableStateFlow(FavoritesUiState())
     val state: StateFlow<FavoritesUiState> = _state.asStateFlow()
+
+    // Phase 37 : annule la recherche précédente à chaque frappe, pour éviter
+    // qu'un résultat obsolète (requête lente) n'écrase un résultat plus récent.
+    private var searchJob: Job? = null
 
     init {
         loadFavorites()
@@ -76,12 +84,14 @@ class FavoritesViewModel @Inject constructor(
     }
 
     private fun performSearch(query: String) {
+        searchJob?.cancel()
         if (query.trim().isBlank()) {
             _state.update { it.copy(searchResult = SearchResult(), isSearching = false) }
             return
         }
-        viewModelScope.launch {
+        searchJob = viewModelScope.launch {
             _state.update { it.copy(isSearching = true) }
+            delay(SEARCH_DEBOUNCE_MILLIS)
             val result = searchUnifiedUseCase(query)
             _state.update { it.copy(searchResult = result, isSearching = false) }
         }
