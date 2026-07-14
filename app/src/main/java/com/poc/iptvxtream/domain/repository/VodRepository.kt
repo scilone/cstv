@@ -34,7 +34,13 @@ interface VodRepository {
      * soit à jour. Contrairement au trickle paresseux déclenché par une simple
      * consultation de liste, cet appel attend la fin du travail (utilisé par
      * le rafraîchissement forcé/planifié, Phase 22).
+     *
+     * maxBatches reste volontairement bas : de nombreux panels Xtream limitent
+     * le nombre de connexions concurrentes par compte (voir UserInfo.
+     * maxConnections). Un plafond trop élevé peut monopoliser cette connexion
+     * plusieurs minutes et faire paraître les écrans de liste bloqués en
+     * chargement pendant le sync.
      * @return le nombre de films traités.
      */
-    suspend fun enrichPendingMovies(maxBatches: Int = 20): Int
+    suspend fun enrichPendingMovies(maxBatches: Int = 3): Int
 }

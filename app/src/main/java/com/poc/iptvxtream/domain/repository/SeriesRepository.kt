@@ -18,7 +18,13 @@ interface SeriesRepository {
      * soit à jour. Contrairement au trickle paresseux déclenché par une simple
      * consultation de liste, cet appel attend la fin du travail (utilisé par
      * le rafraîchissement forcé/planifié, Phase 22).
+     *
+     * maxBatches reste volontairement bas : de nombreux panels Xtream limitent
+     * le nombre de connexions concurrentes par compte (voir UserInfo.
+     * maxConnections). Un plafond trop élevé peut monopoliser cette connexion
+     * plusieurs minutes et faire paraître les écrans de liste bloqués en
+     * chargement pendant le sync.
      * @return le nombre de séries traitées.
      */
-    suspend fun enrichPendingSeries(maxBatches: Int = 20): Int
+    suspend fun enrichPendingSeries(maxBatches: Int = 3): Int
 }
