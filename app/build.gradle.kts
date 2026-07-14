@@ -13,8 +13,11 @@ android {
         applicationId = "com.poc.iptvxtream"
         minSdk = 21
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0"
+        // Phase 39 : synchronisés avec le dernier tag git poussé (voir AGENTS.md,
+        // section "Checklist avant de conclure une tâche"). versionCode dérivé du
+        // SemVer : major*10_000 + minor*100 + patch (marge de 0-99 par segment).
+        versionCode = 11_502
+        versionName = "1.15.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {

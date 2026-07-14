@@ -141,6 +141,10 @@ Pour livrer une nouvelle version de l'application et générer un APK de product
    git tag -a v1.0.0 -m "Release v1.0.0 - Fin de la Phase X"
    git push origin v1.0.0
    ```
+   Avant de tagger, synchronise `versionCode`/`versionName` dans
+   `app/build.gradle.kts` (Phase 39) : `versionName` = le tag sans le
+   `v` (ex: `1.15.2`), `versionCode` = `major*10_000 + minor*100 + patch`
+   (ex: v1.15.2 → 11502).
 3. La pipeline **GitHub Actions** (`.github/workflows/release.yml`) interceptera automatiquement ce tag pour :
    - Compiler l'APK de release.
    - Le signer à l'aide des clés sécurisées de production fournies dans les secrets GitHub.
