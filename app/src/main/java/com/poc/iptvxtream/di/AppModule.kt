@@ -2,6 +2,7 @@ package com.poc.iptvxtream.di
 
 import android.content.Context
 import androidx.room.Room
+import com.poc.iptvxtream.BuildConfig
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import com.poc.iptvxtream.data.local.db.AppDatabase
@@ -163,8 +164,15 @@ object AppModule {
     fun provideOkHttpClient(
         baseUrlInterceptor: DynamicBaseUrlInterceptor
     ): OkHttpClient {
+        // Phase 36 : BODY loggue l'intégralité des réponses (catalogues de
+        // plusieurs Mo) et les URLs Xtream contenant username/password en
+        // clair dans logcat. Réservé au debug ; aucun log HTTP en release.
         val loggingInterceptor = HttpLoggingInterceptor().apply {
-            level = HttpLoggingInterceptor.Level.BODY
+            level = if (BuildConfig.DEBUG) {
+                HttpLoggingInterceptor.Level.BODY
+            } else {
+                HttpLoggingInterceptor.Level.NONE
+            }
         }
 
         // La priorité écran/arrière-plan (XtreamRequestGate) fait déjà céder le

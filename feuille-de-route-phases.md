@@ -406,3 +406,154 @@ Attendu :
   Favoris de Films/Séries).
 - Ne modifie pas l'ordre/le contenu des sections Favoris déjà existantes
   sur Films et Séries : uniquement l'ajout côté Live TV.
+
+---
+
+Phase 36 : désactiver le logging HTTP verbeux en dehors du debug.
+
+L'`HttpLoggingInterceptor` est configuré en `Level.BODY` en dur : chaque
+réponse API est intégralement écrite dans logcat (les catalogues "Tout"
+pèsent plusieurs mégaoctets), et les URLs Xtream contenant username et
+password apparaissent en clair dans les logs. Coût CPU/mémoire réel et
+fuite d'identifiants sur build release.
+
+Attendu :
+- `Level.BODY` uniquement quand `BuildConfig.DEBUG` est vrai, `Level.NONE`
+  sinon.
+- Aucun identifiant ne doit apparaître dans logcat sur un build release.
+
+---
+
+Phase 37 : debounce + annulation de la recherche globale.
+
+`FavoritesViewModel.onSearchQueryChanged` lance une coroutine de recherche
+à chaque frappe, sans annuler la précédente ni attendre de pause de
+saisie : plusieurs requêtes SQL concurrentes, et un résultat obsolète
+peut écraser un résultat plus récent (course).
+
+Attendu :
+- Mémoriser le `Job` de recherche en cours et l'annuler avant d'en lancer
+  un nouveau.
+- Debounce (~300 ms) avant d'exécuter la requête, pour ne chercher qu'à
+  la pause de saisie.
+- Le spinner `isSearching` reste cohérent (pas de spinner fantôme après
+  annulation).
+
+---
+
+Phase 38 : activer la minification R8 sur le build release.
+
+`isMinifyEnabled = false` et `proguard-rules.pro` absent : APK ~27 Mo,
+code non obfusqué.
+
+Attendu :
+- `isMinifyEnabled = true` + `isShrinkResources = true` sur le buildType
+  release uniquement (debug inchangé).
+- Créer `proguard-rules.pro` avec les règles keep nécessaires : DTOs Gson
+  (désérialisation par réflexion), Retrofit, et toute classe touchée par
+  la réflexion. Vérifier que login + navigation + lecture fonctionnent
+  sur un build release minifié avant de conclure.
+
+---
+
+Phase 39 : synchroniser versionCode/versionName avec les tags git.
+
+`versionCode = 1` / `versionName = "1.0"` figés depuis le début alors que
+les tags git sont en v1.x.y : deux installations successives ne se
+mettent pas à jour proprement.
+
+Attendu :
+- `versionName` aligné sur le dernier tag git (ex: "1.15.1") et
+  `versionCode` monotone croissant (dérivé du tag ou compteur manuel).
+- Documenter dans AGENTS.md que le bump fait partie de la checklist de
+  tag.
+
+---
+
+Phase 40 : recherche plein texte via table FTS Room.
+
+La recherche globale utilise `LIKE '%query%'` sur 4 colonnes × 3 tables :
+non-indexable par SQLite (wildcard en préfixe), full scan à chaque
+recherche. Sensible sur les gros catalogues (10k+ films).
+
+Attendu :
+- Table(s) FTS4 Room (`@Fts4`) sur name/actors/director/genre pour
+  vod/series (et name pour live), synchronisées avec les tables sources.
+- Migration Room réelle (pas de fallback destructif, voir AGENTS.md).
+- `searchUnified` bascule sur MATCH ; résultats identiques ou meilleurs
+  qu'avec LIKE (préfixes de mots).
+- Tests unitaires de non-régression sur le mapping des résultats.
+
+---
+
+Phase 41 : réactivité Room via Flow sur favoris et positions de lecture.
+
+Tous les DAOs exposent des `List` ponctuelles : un favori ajouté/retiré
+sur un écran n'actualise pas les autres écrans sans re-fetch manuel
+(`loadHomeData()` à chaque entrée sur la Home).
+
+Attendu :
+- Exposer en `Flow` les lectures observées par l'UI : favoris, positions
+  de lecture ("Continuer à regarder"), profils.
+- Les ViewModels collectent ces Flows (scopés par profil actif) au lieu
+  de recharger à chaque navigation.
+- Les caches catalogues (live/vod/series) restent en suspend/List : leur
+  cycle de vie est géré par la logique de fraîcheur existante.
+
+---
+
+Phase 42 : centraliser le polling EPG de la Home dans le ViewModel.
+
+Chaque `HomeLiveTvCard` visible lance sa propre boucle `while(true)` +
+`delay(60s)` d'appels EPG : N cartes = N boucles réseau indépendantes.
+
+Attendu :
+- Un seul ticker dans `HomeViewModel` qui rafraîchit l'EPG de toutes les
+  chaînes de la rangée en batch (délai 60 s conservé).
+- Les cartes deviennent passives (elles lisent `state.epgPrograms`).
+- Le ticker s'arrête quand le ViewModel est cleared ; pas de fuite de
+  coroutine.
+
+---
+
+Phase 43 : migrer kapt vers KSP (Hilt + Room).
+
+kapt génère des stubs Java pour chaque compilation : build ~2× plus lent
+que KSP sur ces processeurs. Migration mécanique supportée par Hilt
+(2.48+) et Room (2.x).
+
+Attendu :
+- Remplacer `kotlin-kapt` par le plugin KSP, `kapt(...)` par `ksp(...)`
+  pour hilt-compiler et room-compiler.
+- Build, lint et tests passent à l'identique.
+
+---
+
+Phase 44 : durcissements divers (lifecycle, cancellation, targetSdk).
+
+Regroupe trois petits durcissements indépendants :
+
+1. `collectAsStateWithLifecycle()` au lieu de `collectAsState()` dans les
+   écrans (ajouter la dépendance `lifecycle-runtime-compose`) : stoppe la
+   collecte des StateFlows quand l'app est en arrière-plan.
+2. Les `catch (e: Exception)` génériques dans les coroutines doivent
+   re-lancer `CancellationException` (sinon l'annulation structurée est
+   cassée) : `if (e is CancellationException) throw e` en tête de catch,
+   sur les catch situés dans du code suspend/coroutine uniquement.
+3. Bump `targetSdk`/`compileSdk` à 35 (exigence Play Store pour les mises
+   à jour) et corriger les éventuels avertissements de compat.
+
+---
+
+Phase 45 : dette structurelle optionnelle (i18n, découpage UI, cleartext).
+
+Améliorations de fond, non bloquantes pour un POC mono-langue :
+
+1. Externaliser les ~80 chaînes FR hardcodées vers `strings.xml` +
+   `stringResource()` (prérequis à toute i18n future).
+2. Découper les fichiers UI massifs : navigation de MainActivity
+   (~1100 lignes) vers un `NavGraph.kt` dédié ; extraire les cards de
+   HomeScreen/LiveTvScreen dans des fichiers par composant.
+3. Restreindre `usesCleartextTraffic` via un
+   `network_security_config.xml` (autoriser HTTP uniquement là où les
+   panels Xtream l'exigent) plutôt que le flag global.

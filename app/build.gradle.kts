@@ -55,6 +55,8 @@ android {
     }
     buildFeatures {
         compose = true
+        // Nécessaire pour BuildConfig.DEBUG (logging HTTP conditionnel, Phase 36).
+        buildConfig = true
     }
     composeOptions {
         kotlinCompilerExtensionVersion = "1.5.14" // Compatible with Kotlin 1.9.24
