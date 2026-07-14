@@ -7,17 +7,15 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -32,6 +30,7 @@ import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.MaterialTheme as TvTheme
 import androidx.tv.material3.Text as TvText
 import com.poc.iptvxtream.domain.model.Credentials
+import com.poc.iptvxtream.domain.model.ServerAddressParser
 import com.poc.iptvxtream.domain.model.UserInfo
 
 @Composable
@@ -44,17 +43,21 @@ fun LoginScreen(
     val loginState by viewModel.loginState.collectAsState()
     val savedCredentials by viewModel.savedCredentials.collectAsState()
 
-    var host by remember { mutableStateOf("") }
-    var port by remember { mutableStateOf("") }
+    // Champ unique "adresse du serveur" (Phase 28), remplaçant les anciens
+    // champs host/port séparés. Parsé en host/port juste avant l'appel
+    // player_api.php (voir ServerAddressParser) — la logique réseau existante
+    // (Credentials.host/port, Credentials.baseUrl) n'est pas modifiée.
+    var serverAddress by remember { mutableStateOf("") }
+    var serverAddressError by remember { mutableStateOf<String?>(null) }
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var rememberMe by remember { mutableStateOf(true) }
 
-    // Pre-populate if saved credentials exist
+    // Pre-populate if saved credentials exist. Reconstitue l'adresse complète
+    // à partir du host/port déjà stockés (Phase 1) sans forcer une ressaisie.
     LaunchedEffect(savedCredentials) {
         savedCredentials?.let { creds ->
-            host = creds.host
-            port = if (creds.port > 0) creds.port.toString() else ""
+            serverAddress = ServerAddressParser.buildDisplayAddress(creds.host, creds.port)
             username = creds.username
             password = creds.password
             rememberMe = creds.rememberMe
@@ -101,10 +104,12 @@ fun LoginScreen(
 
             // Form Inputs
             LoginForm(
-                host = host,
-                onHostChange = { host = it },
-                port = port,
-                onPortChange = { port = it },
+                serverAddress = serverAddress,
+                onServerAddressChange = {
+                    serverAddress = it
+                    serverAddressError = null
+                },
+                serverAddressError = serverAddressError,
                 username = username,
                 onUsernameChange = { username = it },
                 password = password,
@@ -113,8 +118,17 @@ fun LoginScreen(
                 onRememberMeChange = { rememberMe = it },
                 isTv = isTv,
                 onSubmit = {
-                    val finalPort = port.toIntOrNull() ?: 0
-                    viewModel.login(Credentials(host, finalPort, username, password, rememberMe))
+                    when (val parsed = ServerAddressParser.parse(serverAddress)) {
+                        is ServerAddressParser.Result.Error -> {
+                            serverAddressError = parsed.message
+                        }
+                        is ServerAddressParser.Result.Success -> {
+                            serverAddressError = null
+                            viewModel.login(
+                                Credentials(parsed.host, parsed.port, username, password, rememberMe)
+                            )
+                        }
+                    }
                 },
                 isLoading = loginState is LoginState.Loading
             )
@@ -140,13 +154,44 @@ fun LoginScreen(
     }
 }
 
+/**
+ * Couleurs de champ garantissant un contraste WCAG AA sur le fond sombre de
+ * l'écran de connexion dans tous les états (vide, rempli, focus) — cf.
+ * Phase 28 point 1 : les champs remplis utilisaient un fond gris foncé se
+ * confondant avec le fond noir, rendant le texte saisi illisible.
+ */
+@Composable
+private fun loginFieldColors() = OutlinedTextFieldDefaults.colors(
+    focusedTextColor = Color.White,
+    unfocusedTextColor = Color.White,
+    disabledTextColor = Color.Gray,
+    focusedContainerColor = Color(0xFF1E1E24),
+    unfocusedContainerColor = Color(0xFF1E1E24),
+    disabledContainerColor = Color(0xFF1E1E24),
+    focusedBorderColor = MaterialTheme.colorScheme.primary,
+    unfocusedBorderColor = Color.LightGray,
+    focusedLabelColor = MaterialTheme.colorScheme.primary,
+    unfocusedLabelColor = Color.LightGray,
+    cursorColor = MaterialTheme.colorScheme.primary,
+    focusedLeadingIconColor = MaterialTheme.colorScheme.primary,
+    unfocusedLeadingIconColor = Color.LightGray,
+    focusedTrailingIconColor = MaterialTheme.colorScheme.primary,
+    unfocusedTrailingIconColor = Color.LightGray,
+    focusedPlaceholderColor = Color.Gray,
+    unfocusedPlaceholderColor = Color.Gray,
+    errorContainerColor = Color(0xFF1E1E24),
+    errorBorderColor = Color(0xFFFF6B6B),
+    errorTextColor = Color.White,
+    errorLabelColor = Color(0xFFFF6B6B),
+    errorSupportingTextColor = Color(0xFFFF6B6B)
+)
+
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 fun LoginForm(
-    host: String,
-    onHostChange: (String) -> Unit,
-    port: String,
-    onPortChange: (String) -> Unit,
+    serverAddress: String,
+    onServerAddressChange: (String) -> Unit,
+    serverAddressError: String?,
     username: String,
     onUsernameChange: (String) -> Unit,
     password: String,
@@ -159,60 +204,33 @@ fun LoginForm(
 ) {
     val focusManager = LocalFocusManager.current
     var passwordVisible by remember { mutableStateOf(false) }
+    val fieldColors = loginFieldColors()
 
     Column(
         verticalArrangement = Arrangement.spacedBy(12.dp),
         modifier = Modifier.fillMaxWidth()
     ) {
-        // Host & Port Row
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        // Adresse du serveur (host + port fusionnés, Phase 28)
+        OutlinedTextField(
+            value = serverAddress,
+            onValueChange = onServerAddressChange,
+            label = { Text("Adresse du serveur") },
+            placeholder = { Text("http://mondns.com:8080") },
+            leadingIcon = { Icon(Icons.Default.Dns, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+            singleLine = true,
+            enabled = !isLoading,
+            isError = serverAddressError != null,
+            supportingText = serverAddressError?.let { { Text(it) } },
+            colors = fieldColors,
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.Uri,
+                imeAction = ImeAction.Next
+            ),
+            keyboardActions = KeyboardActions(
+                onNext = { focusManager.moveFocus(FocusDirection.Down) }
+            ),
             modifier = Modifier.fillMaxWidth()
-        ) {
-            OutlinedTextField(
-                value = host,
-                onValueChange = onHostChange,
-                label = { Text("Serveur (Host)") },
-                placeholder = { Text("exemple.com ou IP") },
-                leadingIcon = { Icon(Icons.Default.Home, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
-                singleLine = true,
-                enabled = !isLoading,
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = MaterialTheme.colorScheme.primary,
-                    unfocusedBorderColor = Color.DarkGray
-                ),
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Uri,
-                    imeAction = ImeAction.Next
-                ),
-                keyboardActions = KeyboardActions(
-                    onNext = { focusManager.moveFocus(FocusDirection.Right) }
-                ),
-                modifier = Modifier.weight(0.7f)
-            )
-
-            OutlinedTextField(
-                value = port,
-                onValueChange = onPortChange,
-                label = { Text("Port") },
-                placeholder = { Text("80") },
-                leadingIcon = { Icon(Icons.Default.Info, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
-                singleLine = true,
-                enabled = !isLoading,
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = MaterialTheme.colorScheme.primary,
-                    unfocusedBorderColor = Color.DarkGray
-                ),
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Number,
-                    imeAction = ImeAction.Next
-                ),
-                keyboardActions = KeyboardActions(
-                    onNext = { focusManager.moveFocus(FocusDirection.Down) }
-                ),
-                modifier = Modifier.weight(0.3f)
-            )
-        }
+        )
 
         // Username
         OutlinedTextField(
@@ -222,10 +240,7 @@ fun LoginForm(
             leadingIcon = { Icon(Icons.Default.Person, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
             singleLine = true,
             enabled = !isLoading,
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                unfocusedBorderColor = Color.DarkGray
-            ),
+            colors = fieldColors,
             keyboardOptions = KeyboardOptions(
                 keyboardType = KeyboardType.Text,
                 imeAction = ImeAction.Next
@@ -244,10 +259,7 @@ fun LoginForm(
             leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
             singleLine = true,
             enabled = !isLoading,
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                unfocusedBorderColor = Color.DarkGray
-            ),
+            colors = fieldColors,
             visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
             keyboardOptions = KeyboardOptions(
                 keyboardType = KeyboardType.Password,
@@ -256,7 +268,7 @@ fun LoginForm(
             keyboardActions = KeyboardActions(
                 onDone = {
                     focusManager.clearFocus()
-                    if (host.isNotBlank() && username.isNotBlank() && password.isNotBlank()) {
+                    if (serverAddress.isNotBlank() && username.isNotBlank() && password.isNotBlank()) {
                         onSubmit()
                     }
                 }
@@ -301,7 +313,7 @@ fun LoginForm(
         if (isTv) {
             TvButton(
                 onClick = onSubmit,
-                enabled = !isLoading && host.isNotBlank() && username.isNotBlank() && password.isNotBlank(),
+                enabled = !isLoading && serverAddress.isNotBlank() && username.isNotBlank() && password.isNotBlank(),
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(48.dp)
@@ -323,7 +335,7 @@ fun LoginForm(
         } else {
             Button(
                 onClick = onSubmit,
-                enabled = !isLoading && host.isNotBlank() && username.isNotBlank() && password.isNotBlank(),
+                enabled = !isLoading && serverAddress.isNotBlank() && username.isNotBlank() && password.isNotBlank(),
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                 modifier = Modifier
                     .fillMaxWidth()
