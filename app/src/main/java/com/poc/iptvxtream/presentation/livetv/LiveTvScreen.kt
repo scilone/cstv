@@ -150,6 +150,12 @@ private fun TvLayout(
     val actualCategories = remember(state.categories) {
         state.categories.filter { it.categoryId != "all" }
     }
+    // Chaînes favorites (Phase 35), section dédiée du mode "Tout", sous
+    // "Récemment regardées" — comme sur Films/Séries.
+    val favoriteStreams = remember(filteredStreams, favoritesList) {
+        val favoriteLiveIds = favoritesList.filter { it.type == "live" }.map { it.id }.toSet()
+        filteredStreams.filter { it.streamId in favoriteLiveIds }
+    }
 
     Column(
         modifier = Modifier
@@ -199,6 +205,25 @@ private fun TvLayout(
                     item {
                         RecentlyWatchedRow(
                             streams = state.recentlyWatched,
+                            onStreamSelected = onStreamSelected,
+                            isTv = true,
+                            epgPrograms = epgPrograms,
+                            onLoadEpg = onLoadEpg,
+                            getScroll = getScroll,
+                            saveScroll = saveScroll
+                        )
+                    }
+                }
+
+                // Section 2: Favoris (Phase 35), sous "Récemment regardées"
+                if (favoriteStreams.isNotEmpty()) {
+                    item {
+                        CategorySectionRow(
+                            categoryId = "favorites",
+                            title = "Favoris",
+                            streams = favoriteStreams,
+                            favoritesList = favoritesList,
+                            onToggleFavorite = onToggleFavorite,
                             onStreamSelected = onStreamSelected,
                             isTv = true,
                             epgPrograms = epgPrograms,
@@ -315,6 +340,12 @@ private fun MobileLayout(
     val actualCategories = remember(state.categories) {
         state.categories.filter { it.categoryId != "all" }
     }
+    // Chaînes favorites (Phase 35), section dédiée du mode "Tout", sous
+    // "Récemment regardées" — comme sur Films/Séries.
+    val favoriteStreams = remember(filteredStreams, favoritesList) {
+        val favoriteLiveIds = favoritesList.filter { it.type == "live" }.map { it.id }.toSet()
+        filteredStreams.filter { it.streamId in favoriteLiveIds }
+    }
 
     Column(modifier = Modifier.fillMaxSize()) {
         // Top categories row
@@ -362,6 +393,25 @@ private fun MobileLayout(
                     item {
                         RecentlyWatchedRow(
                             streams = state.recentlyWatched,
+                            onStreamSelected = onStreamSelected,
+                            isTv = false,
+                            epgPrograms = epgPrograms,
+                            onLoadEpg = onLoadEpg,
+                            getScroll = getScroll,
+                            saveScroll = saveScroll
+                        )
+                    }
+                }
+
+                // Favoris (Phase 35), sous "Récemment regardées"
+                if (favoriteStreams.isNotEmpty()) {
+                    item {
+                        CategorySectionRow(
+                            categoryId = "favorites",
+                            title = "Favoris",
+                            streams = favoriteStreams,
+                            favoritesList = favoritesList,
+                            onToggleFavorite = onToggleFavorite,
                             onStreamSelected = onStreamSelected,
                             isTv = false,
                             epgPrograms = epgPrograms,
