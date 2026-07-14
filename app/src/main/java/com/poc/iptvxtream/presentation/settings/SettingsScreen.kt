@@ -35,7 +35,6 @@ import com.poc.iptvxtream.data.local.storage.CategorySorting
 @Composable
 fun SettingsScreen(
     viewModel: SettingsViewModel,
-    profileViewModel: com.poc.iptvxtream.presentation.profile.ProfileViewModel,
     isTv: Boolean,
     onBack: () -> Unit,
     onLogout: () -> Unit,
@@ -60,7 +59,6 @@ fun SettingsScreen(
                 onSubtitleSizeChanged = { viewModel.updateSubtitleSize(it) },
                 onSubtitleColorChanged = { viewModel.updateSubtitleColor(it) },
                 onSubtitleBackgroundChanged = { viewModel.updateSubtitleBackground(it) },
-                profileViewModel = profileViewModel,
                 onBack = onBack,
                 onLogout = onLogout
             )
@@ -75,7 +73,6 @@ fun SettingsScreen(
                 onSubtitleSizeChanged = { viewModel.updateSubtitleSize(it) },
                 onSubtitleColorChanged = { viewModel.updateSubtitleColor(it) },
                 onSubtitleBackgroundChanged = { viewModel.updateSubtitleBackground(it) },
-                profileViewModel = profileViewModel,
                 onBack = onBack,
                 onLogout = onLogout
             )
@@ -95,7 +92,6 @@ private fun TvSettingsLayout(
     onSubtitleSizeChanged: (SubtitleTextSize) -> Unit,
     onSubtitleColorChanged: (SubtitleTextColor) -> Unit,
     onSubtitleBackgroundChanged: (SubtitleBackground) -> Unit,
-    profileViewModel: com.poc.iptvxtream.presentation.profile.ProfileViewModel,
     onBack: () -> Unit,
     onLogout: () -> Unit
 ) {
@@ -176,8 +172,6 @@ private fun TvSettingsLayout(
             onColorChanged = onSubtitleColorChanged,
             onBackgroundChanged = onSubtitleBackgroundChanged
         )
-
-        com.poc.iptvxtream.presentation.profile.ProfileManagementCard(profileViewModel)
 
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -297,7 +291,6 @@ private fun MobileSettingsLayout(
     onSubtitleSizeChanged: (SubtitleTextSize) -> Unit,
     onSubtitleColorChanged: (SubtitleTextColor) -> Unit,
     onSubtitleBackgroundChanged: (SubtitleBackground) -> Unit,
-    profileViewModel: com.poc.iptvxtream.presentation.profile.ProfileViewModel,
     onBack: () -> Unit,
     onLogout: () -> Unit
 ) {
@@ -380,8 +373,6 @@ private fun MobileSettingsLayout(
         )
 
         // Profiles (Phase 27)
-        com.poc.iptvxtream.presentation.profile.ProfileManagementCard(profileViewModel)
-
         Spacer(modifier = Modifier.height(24.dp))
 
         Button(

@@ -13,7 +13,6 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Star
@@ -53,12 +52,15 @@ fun HomeScreen(
     userInfo: UserInfo,
     isTv: Boolean,
     viewModel: HomeViewModel,
+    activeProfileAvatarId: Int,
+    activeProfileName: String,
     onNavigateToLiveTv: () -> Unit,
     onNavigateToVod: () -> Unit,
     onNavigateToSeries: () -> Unit,
     onNavigateToFavorites: () -> Unit,
     onNavigateToSearch: () -> Unit,
     onNavigateToSettings: () -> Unit,
+    onNavigateToProfileManagement: () -> Unit,
     onPlayResumeWatchingMovie: (PlaybackPosition) -> Unit,
     onPlayResumeWatchingSeries: (PlaybackPosition) -> Unit,
     onPlayLiveStream: (LiveStream, List<LiveStream>) -> Unit,
@@ -101,11 +103,12 @@ fun HomeScreen(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.AccountCircle,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(if (isTv) 54.dp else 40.dp)
+                            com.poc.iptvxtream.presentation.profile.ProfileAvatar(
+                                avatarId = activeProfileAvatarId,
+                                name = activeProfileName,
+                                size = if (isTv) 54 else 40,
+                                modifier = Modifier
+                                    .clickable { onNavigateToProfileManagement() }
                             )
                             Spacer(modifier = Modifier.width(12.dp))
                             Column {

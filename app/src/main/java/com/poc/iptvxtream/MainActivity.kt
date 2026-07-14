@@ -84,7 +84,8 @@ enum class AppScreen {
     SERIES_PLAYER,
     FAVORITES,
     SEARCH,
-    SETTINGS
+    SETTINGS,
+    PROFILE_MANAGEMENT
 }
 
 enum class MobileTab(val route: String, val title: String, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
@@ -240,10 +241,13 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                         AppScreen.DASHBOARD -> {
+                            val activeProfile = profileState.profiles.find { it.id == profileState.activeProfileId }
                             HomeScreen(
                                 userInfo = loggedInUser!!,
                                 isTv = isTv,
                                 viewModel = homeViewModel,
+                                activeProfileAvatarId = activeProfile?.avatarId ?: 0,
+                                activeProfileName = activeProfile?.name ?: loggedInUser?.username ?: "",
                                 lazyListState = homeLazyListState,
                                 onNavigateToLiveTv = {
                                     navigateTo(AppScreen.LIVETV)
@@ -262,6 +266,9 @@ class MainActivity : ComponentActivity() {
                                 },
                                 onNavigateToSettings = {
                                     navigateTo(AppScreen.SETTINGS)
+                                },
+                                onNavigateToProfileManagement = {
+                                    navigateTo(AppScreen.PROFILE_MANAGEMENT)
                                 },
                                 onPlayResumeWatchingMovie = { position ->
                                     activeVodDetails = VodDetails(
@@ -573,7 +580,6 @@ class MainActivity : ComponentActivity() {
                             val settingsViewModel: SettingsViewModel = hiltViewModel()
                             SettingsScreen(
                                 viewModel = settingsViewModel,
-                                profileViewModel = profileViewModel,
                                 isTv = isTv,
                                 onBack = {
                                     navigateBack()
@@ -583,6 +589,15 @@ class MainActivity : ComponentActivity() {
                                     loggedInUser = null
                                     screenHistory.clear()
                                     currentScreen = AppScreen.LOGIN
+                                }
+                            )
+                        }
+                        AppScreen.PROFILE_MANAGEMENT -> {
+                            com.poc.iptvxtream.presentation.profile.ProfileManagementScreen(
+                                viewModel = profileViewModel,
+                                isTv = isTv,
+                                onBack = {
+                                    navigateBack()
                                 }
                             )
                         }
@@ -658,10 +673,13 @@ class MainActivity : ComponentActivity() {
                                 )
                             }
                             composable("home") {
+                                val activeProfile = profileState.profiles.find { it.id == profileState.activeProfileId }
                                 HomeScreen(
                                     userInfo = loggedInUser ?: UserInfo("User", true, "Active", "Inconnue", 1, 0, "Connecté"),
                                     isTv = false,
                                     viewModel = homeViewModel,
+                                    activeProfileAvatarId = activeProfile?.avatarId ?: 0,
+                                    activeProfileName = activeProfile?.name ?: loggedInUser?.username ?: "",
                                     lazyListState = homeLazyListState,
                                     onNavigateToLiveTv = {
                                         navController.navigate("tv") {
@@ -696,6 +714,9 @@ class MainActivity : ComponentActivity() {
                                     },
                                     onNavigateToSettings = {
                                         navController.navigate("settings")
+                                    },
+                                    onNavigateToProfileManagement = {
+                                        navController.navigate("profile_management")
                                     },
                                     onPlayResumeWatchingMovie = { position ->
                                         activeVodDetails = VodDetails(
@@ -847,7 +868,6 @@ class MainActivity : ComponentActivity() {
                                 val settingsViewModel: SettingsViewModel = hiltViewModel()
                                 SettingsScreen(
                                     viewModel = settingsViewModel,
-                                    profileViewModel = profileViewModel,
                                     isTv = false,
                                     onBack = {
                                         navController.popBackStack()
@@ -858,6 +878,15 @@ class MainActivity : ComponentActivity() {
                                         navController.navigate("login") {
                                             popUpTo(0) { inclusive = true }
                                         }
+                                    }
+                                )
+                            }
+                            composable("profile_management") {
+                                com.poc.iptvxtream.presentation.profile.ProfileManagementScreen(
+                                    viewModel = profileViewModel,
+                                    isTv = false,
+                                    onBack = {
+                                        navController.popBackStack()
                                     }
                                 )
                             }
