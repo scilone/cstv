@@ -284,3 +284,125 @@ Attendu :
 - Si des profils multiples sont déjà implémentés (Phase 27) au moment de
   développer cette phase, cette préférence doit elle aussi être spécifique
   au profil actif, comme les Favoris/Historique/Position de lecture.
+
+---
+
+Phase 30 : regrouper "Continuer à regarder" par série sur la Home (Phase 6).
+
+Actuellement, si plusieurs épisodes d'une même série ont une position de
+lecture sauvegardée, chacun apparaît comme une entrée séparée dans
+"Continuer à regarder". Aucun intérêt à afficher plusieurs épisodes de la
+même série : une seule entrée par série, représentant le dernier épisode vu.
+
+Attendu :
+- Regrouper les entrées "Continuer à regarder" par série (clé = seriesId) :
+  une seule carte par série, correspondant à l'épisode le plus récemment
+  regardé (le plus grand `lastAccessedAt`/timestamp d'accès), pas au premier
+  épisode trouvé.
+- Les films (sans seriesId) ne sont pas concernés par ce regroupement :
+  chaque film garde sa propre entrée comme aujourd'hui.
+- Cliquer sur la carte groupée reprend la lecture du dernier épisode vu
+  (même comportement qu'aujourd'hui pour une entrée individuelle), pas un
+  écran de sélection d'épisode.
+- Vérifie que ce regroupement reste correct une fois les positions de
+  lecture scopées par profil (Phase 27) : le regroupement se fait au sein
+  des positions du profil actif uniquement.
+
+---
+
+Phase 31 : uniformiser la couleur du texte des boutons sur fond violet
+(couleur primaire de l'app).
+
+Le texte de certains boutons à fond violet (couleur primaire du thème) est
+blanc, d'autres fois noir, de façon incohérente selon l'écran.
+
+Attendu :
+- Repérer tous les boutons dont le fond utilise la couleur primaire
+  (violet) de l'app, sur tous les écrans (mobile et TV).
+- Uniformiser : texte (et icônes le cas échéant) systématiquement blanc
+  quand le fond du bouton est la couleur primaire violette.
+- Vérifier que le contraste texte blanc / fond violet reste conforme aux
+  ratios WCAG AA (cohérent avec les corrections de contraste des Phases 24
+  et 28).
+- Ne pas modifier les boutons dont le fond n'est pas la couleur primaire
+  (ex: boutons de déconnexion en rouge, boutons neutres gris) : uniquement
+  ceux à fond violet.
+
+---
+
+Phase 32 : afficher l'heure de début/fin et la progression du programme en
+cours sur les tuiles de chaînes Live TV.
+
+Attendu :
+- Sur chaque tuile de chaîne affichant le programme EPG en cours, ajouter
+  l'heure de début et l'heure de fin du programme (déjà disponibles dans
+  les données EPG récupérées, voir cahier des charges / Phase EPG).
+- Ajouter une jauge de progression (barre horizontale) représentant
+  l'avancement du programme en cours entre son heure de début et son heure
+  de fin, mise à jour en temps réel (ou au moins à chaque rafraîchissement
+  de l'écran).
+- Cohérent visuellement avec les jauges de progression déjà existantes
+  ailleurs dans l'app (ex: "Continuer à regarder", Phase 6).
+
+---
+
+Phase 33 : uniformiser la taille des tuiles de chaînes Live TV, avec ou sans
+programme en cours affiché.
+
+Certaines chaînes n'affichent pas leur programme en cours (EPG absente ou
+non résolue) et leur tuile devient de fait plus petite que celles qui
+affichent un programme, cassant l'alignement de la grille/liste.
+
+Attendu :
+- Toutes les tuiles de chaînes Live TV doivent avoir la même taille (même
+  hauteur en liste, mêmes dimensions en grille), qu'un programme EPG soit
+  affiché ou non.
+- Pour une chaîne sans programme en cours résolu, réserver l'espace
+  normalement occupé par le texte du programme (ex: état vide silencieux,
+  placeholder discret, ou simplement un espace vide de la même hauteur)
+  plutôt que de laisser la tuile se contracter.
+- Vérifie que ce correctif reste cohérent avec l'ajout de la jauge de
+  progression et des heures de la Phase 32 (une chaîne sans EPG ne doit pas
+  non plus afficher une jauge vide ou incohérente).
+
+---
+
+Phase 34 : corriger le cadrage de l'image des chaînes favorites dans la
+section Favoris de la Home (Phase 6).
+
+Les chaînes Live TV ont des logos au format carré. La section Favoris de la
+Home affiche ses cartes au format 2:3 (portrait, cohérent avec les films/
+séries) : quand la carte est une chaîne, son logo carré est actuellement
+recadré (cropped) pour remplir le 2:3, ce qui coupe une partie du logo.
+
+Attendu :
+- Conserver le format de carte 2:3 pour toutes les entrées de la section
+  Favoris (uniformité avec films/séries), y compris pour les chaînes.
+- Pour les chaînes uniquement, adapter le mode d'affichage de l'image afin
+  que le logo carré tienne entièrement dans la carte sans être rogné (ex:
+  `ContentScale.Fit`/letterboxing avec un fond neutre autour, plutôt que
+  `ContentScale.Crop`), au lieu de déborder du cadre.
+- Ne pas modifier l'affichage des films/séries dans cette même section,
+  qui reste en `Crop` comme aujourd'hui (leurs affiches sont déjà au format
+  portrait proche de 2:3).
+
+---
+
+Phase 35 : ajouter une section Favoris sur l'écran Live TV en mode filtre
+"Tout", sous "Récemment regardées".
+
+Sur les écrans Films et Séries, en mode filtre "Tout", la section Favoris
+apparaît déjà en premier. Sur l'écran Live TV en mode "Tout", cette section
+est absente.
+
+Attendu :
+- Ajouter une section "Favoris" sur l'écran Live TV en mode filtre "Tout",
+  positionnée juste en dessous de la section "Récemment regardées".
+- Cette section liste les chaînes favorites de l'utilisateur (Favoris,
+  scopés par profil actif depuis la Phase 27), dans le même style de
+  section horizontale que les autres catégories du mode "Tout".
+- Si aucune chaîne favorite n'existe, ne pas afficher de section vide
+  (comportement cohérent avec "Récemment regardées" et avec les sections
+  Favoris de Films/Séries).
+- Ne modifie pas l'ordre/le contenu des sections Favoris déjà existantes
+  sur Films et Séries : uniquement l'ajout côté Live TV.
