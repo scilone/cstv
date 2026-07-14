@@ -11,8 +11,12 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Star
@@ -71,9 +75,60 @@ fun HomeScreen(
 ) {
     val state by viewModel.state.collectAsState()
 
+    // Section affichée en grille verticale ("Voir tout"). null = accueil normal.
+    var expandedSection by remember { mutableStateOf<HomeExpandedSection?>(null) }
+
     // Refresh home data when entering screen
     LaunchedEffect(Unit) {
         viewModel.loadHomeData()
+    }
+
+    // Clic sur un média "Continuer à regarder" (repris du bloc de la rangée).
+    val handleResumeClick: (PlaybackPosition) -> Unit = { position ->
+        if (position.type == "series") {
+            onPlayResumeWatchingSeries(position)
+        } else {
+            onPlayResumeWatchingMovie(position)
+        }
+    }
+
+    // Clic sur un favori : reconstruit le stream selon son type.
+    val handleFavoriteClick: (FavoriteItem) -> Unit = { fav ->
+        when (fav.type) {
+            "live" -> {
+                val stream = LiveStream(
+                    streamId = fav.id,
+                    name = fav.name,
+                    streamIcon = fav.cover,
+                    epgChannelId = null,
+                    num = 1,
+                    categoryId = fav.categoryId
+                )
+                onPlayLiveStream(stream, listOf(stream))
+            }
+            "movie" -> {
+                val stream = VodStream(
+                    streamId = fav.id,
+                    name = fav.name,
+                    streamIcon = fav.cover,
+                    rating = null,
+                    added = null,
+                    categoryId = fav.categoryId
+                )
+                onSelectMovieDetail(stream)
+            }
+            "series" -> {
+                val stream = SeriesStream(
+                    seriesId = fav.id,
+                    name = fav.name,
+                    cover = fav.cover,
+                    rating = null,
+                    added = null,
+                    categoryId = fav.categoryId
+                )
+                onSelectSeriesDetail(stream)
+            }
+        }
     }
 
     Box(
@@ -85,6 +140,16 @@ fun HomeScreen(
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
             }
+        } else if (expandedSection != null) {
+            HomeExpandedGrid(
+                section = expandedSection!!,
+                resumeList = state.resumeWatchingList,
+                favoritesList = state.favoritesList,
+                onResumeClick = handleResumeClick,
+                onFavoriteClick = handleFavoriteClick,
+                onBack = { expandedSection = null },
+                modifier = Modifier.fillMaxSize()
+            )
         } else {
             LazyColumn(
                 state = lazyListState,
@@ -184,7 +249,10 @@ fun HomeScreen(
                 // 2. Section: "Continuer à regarder"
                 if (state.resumeWatchingList.isNotEmpty()) {
                     item {
-                        HomeSectionRow(title = "Continuer à regarder") {
+                        HomeSectionRow(
+                            title = "Continuer à regarder",
+                            onSeeAll = { expandedSection = HomeExpandedSection.RESUME }
+                        ) {
                             LazyRow(
                                 state = rememberForeverLazyListState("home_resume", { viewModel.getScrollPosition(it) }, { k, i, o -> viewModel.saveScrollPosition(k, i, o) }),
                                 horizontalArrangement = Arrangement.spacedBy(16.dp),
@@ -193,13 +261,7 @@ fun HomeScreen(
                                 items(state.resumeWatchingList) { position ->
                                     HomeResumeWatchingCard(
                                         position = position,
-                                        onClick = {
-                                            if (position.type == "series") {
-                                                onPlayResumeWatchingSeries(position)
-                                            } else {
-                                                onPlayResumeWatchingMovie(position)
-                                            }
-                                        }
+                                        onClick = { handleResumeClick(position) }
                                     )
                                 }
                             }
@@ -210,7 +272,10 @@ fun HomeScreen(
                 // 3. Section: "Favoris"
                 if (state.favoritesList.isNotEmpty()) {
                     item {
-                        HomeSectionRow(title = "Favoris") {
+                        HomeSectionRow(
+                            title = "Favoris",
+                            onSeeAll = { expandedSection = HomeExpandedSection.FAVORITES }
+                        ) {
                             LazyRow(
                                 state = rememberForeverLazyListState("home_favorites", { viewModel.getScrollPosition(it) }, { k, i, o -> viewModel.saveScrollPosition(k, i, o) }),
                                 horizontalArrangement = Arrangement.spacedBy(16.dp),
@@ -219,43 +284,7 @@ fun HomeScreen(
                                 items(state.favoritesList) { fav ->
                                     HomeFavoriteItemCard(
                                         favorite = fav,
-                                        onClick = {
-                                            when (fav.type) {
-                                                "live" -> {
-                                                    val stream = LiveStream(
-                                                        streamId = fav.id,
-                                                        name = fav.name,
-                                                        streamIcon = fav.cover,
-                                                        epgChannelId = null,
-                                                        num = 1,
-                                                        categoryId = fav.categoryId
-                                                    )
-                                                    onPlayLiveStream(stream, listOf(stream))
-                                                }
-                                                "movie" -> {
-                                                    val stream = VodStream(
-                                                        streamId = fav.id,
-                                                        name = fav.name,
-                                                        streamIcon = fav.cover,
-                                                        rating = null,
-                                                        added = null,
-                                                        categoryId = fav.categoryId
-                                                    )
-                                                    onSelectMovieDetail(stream)
-                                                }
-                                                "series" -> {
-                                                    val stream = SeriesStream(
-                                                        seriesId = fav.id,
-                                                        name = fav.name,
-                                                        cover = fav.cover,
-                                                        rating = null,
-                                                        added = null,
-                                                        categoryId = fav.categoryId
-                                                    )
-                                                    onSelectSeriesDetail(stream)
-                                                }
-                                            }
-                                        }
+                                        onClick = { handleFavoriteClick(fav) }
                                     )
                                 }
                             }
@@ -338,6 +367,77 @@ fun HomeScreen(
     }
 }
 
+// Section de l'accueil affichable en grille verticale via "Voir tout".
+private enum class HomeExpandedSection { RESUME, FAVORITES }
+
+@Composable
+private fun HomeExpandedGrid(
+    section: HomeExpandedSection,
+    resumeList: List<PlaybackPosition>,
+    favoritesList: List<FavoriteItem>,
+    onResumeClick: (PlaybackPosition) -> Unit,
+    onFavoriteClick: (FavoriteItem) -> Unit,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val title = when (section) {
+        HomeExpandedSection.RESUME -> "Continuer à regarder"
+        HomeExpandedSection.FAVORITES -> "Favoris"
+    }
+    val count = when (section) {
+        HomeExpandedSection.RESUME -> resumeList.size
+        HomeExpandedSection.FAVORITES -> favoritesList.size
+    }
+    // "Continuer à regarder" = vignettes paysage -> 2 colonnes ;
+    // "Favoris" = affiches -> 3 colonnes.
+    val columns = if (section == HomeExpandedSection.RESUME) 2 else 3
+
+    Column(modifier = modifier.padding(16.dp)) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
+        ) {
+            IconButton(
+                onClick = onBack,
+                modifier = Modifier.background(Color(0x33FFFFFF), shape = RoundedCornerShape(12.dp))
+            ) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Retour", tint = Color.White)
+            }
+            Spacer(modifier = Modifier.width(16.dp))
+            Text(
+                text = "$title ($count)",
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
+        }
+
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(columns),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.fillMaxSize()
+        ) {
+            when (section) {
+                HomeExpandedSection.RESUME -> gridItems(resumeList) { position ->
+                    HomeResumeWatchingCard(
+                        position = position,
+                        onClick = { onResumeClick(position) },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+                HomeExpandedSection.FAVORITES -> gridItems(favoritesList) { fav ->
+                    HomeFavoriteItemCard(
+                        favorite = fav,
+                        onClick = { onFavoriteClick(fav) },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+        }
+    }
+}
+
 @Composable
 private fun HomeSectionRow(
     title: String,
@@ -390,7 +490,8 @@ private fun HomeSectionRow(
 @Composable
 private fun HomeResumeWatchingCard(
     position: PlaybackPosition,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier.width(220.dp)
 ) {
     var isFocused by remember { mutableStateOf(false) }
     val progress = if (position.durationMs > 0) {
@@ -398,8 +499,7 @@ private fun HomeResumeWatchingCard(
     } else 0f
 
     Column(
-        modifier = Modifier
-            .width(220.dp)
+        modifier = modifier
             .onFocusChanged { isFocused = it.isFocused }
             .border(
                 width = 2.dp,
@@ -486,13 +586,13 @@ private fun HomeResumeWatchingCard(
 @Composable
 private fun HomeFavoriteItemCard(
     favorite: FavoriteItem,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier.width(130.dp)
 ) {
     var isFocused by remember { mutableStateOf(false) }
 
     Column(
-        modifier = Modifier
-            .width(130.dp)
+        modifier = modifier
             .onFocusChanged { isFocused = it.isFocused }
             .border(
                 width = 2.dp,
