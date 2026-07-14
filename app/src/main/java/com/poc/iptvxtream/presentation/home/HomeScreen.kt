@@ -514,7 +514,10 @@ private fun HomeFavoriteItemCard(
                 AsyncImage(
                     model = favorite.cover,
                     contentDescription = favorite.name,
-                    contentScale = ContentScale.Crop,
+                    // Les logos de chaînes Live TV (Phase 34) sont au format carré :
+                    // les faire tenir entièrement (Fit) plutôt que les rogner (Crop),
+                    // qui reste adapté aux affiches films/séries déjà proches du 2:3.
+                    contentScale = if (favorite.type == "live") ContentScale.Fit else ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()
                 )
             } else {
