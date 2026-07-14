@@ -12,7 +12,8 @@ Ce fichier contient les règles permanentes à suivre à chaque session de trava
 - Application Android/Android TV native Kotlin uniquement.
 - Connexion **API Xtream Codes uniquement** (`player_api.php`). Aucun support M3U/M3U8 brut en tant que source, aucun Stalker Portal, aucun autre protocole IPTV.
 - Fonctionnalités couvertes : Live TV, VOD Films, Séries, Favoris, Recherche locale, Paramètres.
-- Explicitement hors périmètre, à ne jamais ajouter sans qu'on le demande : catch-up/timeshift, multi-comptes/profils utilisateurs, enregistrement (PVR), Chromecast, autre protocole IPTV.
+- Explicitement hors périmètre, à ne jamais ajouter sans qu'on le demande : catch-up/timeshift, multi-comptes Xtream (plusieurs identifiants/mots de passe distincts), enregistrement (PVR), Chromecast, autre protocole IPTV, code PIN/restriction parentale par profil.
+- Depuis la Phase 27 : profils **locaux** multiples (type Netflix) sur un **seul** compte Xtream sont dans le périmètre (favoris/historique/reprise de lecture séparés par profil ; catalogue/cache Room toujours partagé et non dupliqué). Ne pas confondre avec du multi-comptes Xtream, qui reste hors périmètre.
 - Si une tâche demandée semble sortir de ce périmètre, signale-le avant de coder.
 
 ## Stack technique imposée (ne pas dévier sans validation)
@@ -79,6 +80,15 @@ app/src/main/java/<package>/
     └── player/
 ```
 
+## Base de données Room (schéma et migrations)
+
+- Base actuelle : `AppDatabase`, version **10** (voir `app/src/main/java/.../data/local/db/AppDatabase.kt`).
+- `AppModule.provideDatabase()` utilise `fallbackToDestructiveMigration()` : si tu incrémentes `version` dans `@Database` sans fournir de `Migration` correspondante, Room **efface et recrée toutes les tables** (cache catalogue, favoris, historique, positions de lecture, profils) au premier lancement après la mise à jour de l'app pour tout utilisateur existant. Ce n'est **pas** déclenché par une simple mise à jour de l'app qui ne touche pas le schéma (version Room inchangée) — uniquement par un bump de version.
+- Règle : avant d'ajouter/modifier une entité Room (nouvelle colonne, nouvelle table, changement de clé primaire), évalue si la perte des données existantes est acceptable pour cette phase :
+  - Si oui (le cas jusqu'ici, POC en développement actif) : documente-le explicitement dans le commit et dans ta réponse à l'utilisateur, ne le passe jamais sous silence.
+  - Si l'utilisateur souhaite préserver les données à travers la mise à jour (recommandé une fois l'app en usage réel/production) : écris une vraie `Migration(oldVersion, newVersion)` avec les `ALTER TABLE`/`CREATE TABLE` nécessaires, ajoutée via `.addMigrations(...)` sur le `Room.databaseBuilder`, et retire `fallbackToDestructiveMigration()` ou restreins-le explicitement.
+- Entités actuelles avec `profileId` dans leur clé primaire (données scopées par profil depuis la Phase 27) : `FavoriteEntity`, `PlaybackPositionEntity`, `RecentlyWatchedLiveEntity`. Les entités de catalogue (chaînes/films/séries/catégories/EPG) restent sans `profileId`, partagées entre tous les profils.
+
 ## Stratégie de tests
 
 Chaque nouvelle fonctionnalité livrée dans une phase doit être accompagnée de tests, pas seulement de code fonctionnel. Priorité aux couches où un bug est coûteux ou silencieux :
@@ -97,6 +107,11 @@ Chaque nouvelle fonctionnalité livrée dans une phase doit être accompagnée d
 **Non prioritaire / à ne pas sur-investir**
 - Tests UI Compose bout en bout (screenshot/instrumentation) : uniquement si tu as le temps une fois le reste couvert, jamais au détriment des tests unitaires ci-dessus.
 - Pas de test sur du code de layout pur sans logique (couleurs, dimensions).
+
+**Pièges Mockito/Kotlin rencontrés (à réappliquer)**
+- Une classe Kotlin `class Foo` avec une méthode retournant un type primitif (`Int`, `Boolean`, etc.) peut, une fois mockée, provoquer un `NullPointerException` sur unboxing (`Callable.call()` retourne `null`) selon la config Mockito du projet (pas de `mockito-inline`/`mockito-android` ici). Solution retenue : extraire une **interface** (`ProfileManager`) + une implémentation (`ProfileManagerImpl`), et mocker l'interface.
+- Ne jamais nommer une fonction membre comme le getter JVM généré par une `val`/`StateFlow` du même type (ex: property `val activeProfileId: StateFlow<Int>` + fonction `fun getActiveProfileId(): Int` génèrent toutes les deux `getActiveProfileId()` côté bytecode → collision de signature à la compilation). Utilise un nom distinct pour la fonction (ex: `currentProfileId()`).
+- Pour stubber un mock dont la méthode est aussi un `@JvmName`/accesseur ambigu, préfère `doReturn(x).whenever(mock).method()` à `whenever(mock.method()).thenReturn(x)` si Mockito lève `WrongTypeOfReturnValue`.
 
 **Non-régression**
 - Avant de livrer une phase, exécute `./gradlew testDebugUnitTest` en plus de `assembleDebug`.
@@ -131,3 +146,5 @@ Pour livrer une nouvelle version de l'application et générer un APK de product
    - Le signer à l'aide des clés sécurisées de production fournies dans les secrets GitHub.
    - Créer une Release GitHub officielle.
    - Attacher l'APK de release signé à la Release.
+
+Dernier tag poussé : `v1.3.0` (fin de la Phase 27). Vérifie toujours `git tag --sort=-v:refname | head -1` avant de choisir le prochain numéro (patch pour un fix/correction, minor pour une nouvelle phase/fonctionnalité).
