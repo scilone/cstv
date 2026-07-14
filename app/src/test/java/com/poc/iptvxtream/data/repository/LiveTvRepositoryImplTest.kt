@@ -46,7 +46,7 @@ class LiveTvRepositoryImplTest {
         MockitoAnnotations.openMocks(this)
         whenever(credentialsManager.getCredentials()).thenReturn(credentials)
         doReturn(1).whenever(profileManager).currentProfileId()
-        repository = LiveTvRepositoryImpl(apiService, liveTvDao, credentialsManager, profileManager)
+        repository = LiveTvRepositoryImpl(apiService, liveTvDao, credentialsManager, profileManager, com.poc.iptvxtream.data.remote.api.XtreamRequestGate())
     }
 
     // --- 1. PLAY URL CONSTRUCTION TESTS ---

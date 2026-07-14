@@ -49,7 +49,7 @@ class AuthRepositoryImplTest {
         // Set TimeZone to UTC to make date parsing tests deterministic across all machines
         TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
         apiService = FakeXtreamApiService()
-        authRepository = AuthRepositoryImpl(apiService, credentialsManager, baseUrlInterceptor)
+        authRepository = AuthRepositoryImpl(apiService, credentialsManager, baseUrlInterceptor, com.poc.iptvxtream.data.remote.api.XtreamRequestGate())
     }
 
     @Test

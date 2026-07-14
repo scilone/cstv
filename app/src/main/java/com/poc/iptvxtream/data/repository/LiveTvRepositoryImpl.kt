@@ -7,6 +7,7 @@ import com.poc.iptvxtream.data.local.entity.LiveStreamEntity
 import com.poc.iptvxtream.data.local.entity.EpgCacheEntity
 import com.poc.iptvxtream.data.local.storage.CredentialsManager
 import com.poc.iptvxtream.data.remote.api.XtreamApiService
+import com.poc.iptvxtream.data.remote.api.XtreamRequestGate
 import com.poc.iptvxtream.domain.model.InvalidCredentialsException
 import com.poc.iptvxtream.domain.model.LiveCategory
 import com.poc.iptvxtream.domain.model.LiveEpgProgram
@@ -20,7 +21,8 @@ class LiveTvRepositoryImpl @Inject constructor(
     private val apiService: XtreamApiService,
     private val liveTvDao: LiveTvDao,
     private val credentialsManager: CredentialsManager,
-    private val profileManager: com.poc.iptvxtream.data.local.storage.ProfileManager
+    private val profileManager: com.poc.iptvxtream.data.local.storage.ProfileManager,
+    private val requestGate: XtreamRequestGate
 ) : LiveTvRepository {
 
     companion object {
@@ -51,7 +53,7 @@ class LiveTvRepositoryImpl @Inject constructor(
         val creds = credentialsManager.getCredentials() 
             ?: throw InvalidCredentialsException("Utilisateur non connecté ou session expirée.")
 
-        val remoteCategories = apiService.getLiveCategories(creds.username, creds.password)
+        val remoteCategories = requestGate.acquire { apiService.getLiveCategories(creds.username, creds.password) }
         
         // Defensive Mapping & Storage
         val entities = remoteCategories.mapIndexedNotNull { index, dto ->
@@ -107,7 +109,7 @@ class LiveTvRepositoryImpl @Inject constructor(
         val creds = credentialsManager.getCredentials() 
             ?: throw InvalidCredentialsException("Utilisateur non connecté ou session expirée.")
 
-        val remoteStreams = apiService.getLiveStreams(creds.username, creds.password, apiCategoryId)
+        val remoteStreams = requestGate.acquire { apiService.getLiveStreams(creds.username, creds.password, apiCategoryId) }
 
         // Defensive Mapping & Storage
         val entities = remoteStreams.mapNotNull { dto ->
@@ -199,7 +201,7 @@ class LiveTvRepositoryImpl @Inject constructor(
         val creds = credentialsManager.getCredentials() ?: return null
 
         return try {
-            val response = apiService.getShortEpg(creds.username, creds.password, streamId)
+            val response = requestGate.acquire { apiService.getShortEpg(creds.username, creds.password, streamId) }
             val listings = response.epgListings
             if (!listings.isNullOrEmpty()) {
                 val nowSec = System.currentTimeMillis() / 1000L

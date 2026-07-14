@@ -46,7 +46,7 @@ class VodRepositoryImplTest {
         MockitoAnnotations.openMocks(this)
         whenever(credentialsManager.getCredentials()).thenReturn(credentials)
         doReturn(activeProfileId).whenever(profileManager).currentProfileId()
-        repository = VodRepositoryImpl(apiService, vodDao, credentialsManager, profileManager)
+        repository = VodRepositoryImpl(apiService, vodDao, credentialsManager, profileManager, com.poc.iptvxtream.data.remote.api.XtreamRequestGate())
     }
 
     // --- 1. PLAY URL CONSTRUCTION TESTS ---
@@ -281,7 +281,7 @@ class VodRepositoryImplTest {
     @Test
     fun test_backgroundEnrichment_triggersAndSavesDetails() = runTest {
         val testDispatcher = kotlinx.coroutines.test.UnconfinedTestDispatcher(testScheduler)
-        val localRepository = VodRepositoryImpl(apiService, vodDao, credentialsManager, profileManager, testDispatcher)
+        val localRepository = VodRepositoryImpl(apiService, vodDao, credentialsManager, profileManager, com.poc.iptvxtream.data.remote.api.XtreamRequestGate(), testDispatcher)
 
         val remoteStreams = listOf(
             VodStreamDto(12, "Star Wars", "icon.png", "8.0", "added", "5")
@@ -322,7 +322,7 @@ class VodRepositoryImplTest {
     @Test
     fun test_backgroundEnrichment_requestsBoundedBatch() = runTest {
         val testDispatcher = kotlinx.coroutines.test.UnconfinedTestDispatcher(testScheduler)
-        val localRepository = VodRepositoryImpl(apiService, vodDao, credentialsManager, profileManager, testDispatcher)
+        val localRepository = VodRepositoryImpl(apiService, vodDao, credentialsManager, profileManager, com.poc.iptvxtream.data.remote.api.XtreamRequestGate(), testDispatcher)
 
         whenever(apiService.getVodStreams("username", "password", "5")).thenReturn(emptyList())
         whenever(vodDao.getStreamsByCategory("5")).thenReturn(emptyList())

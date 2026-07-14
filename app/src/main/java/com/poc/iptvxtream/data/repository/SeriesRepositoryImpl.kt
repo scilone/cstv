@@ -6,7 +6,9 @@ import com.poc.iptvxtream.data.local.entity.PlaybackPositionEntity
 import com.poc.iptvxtream.data.local.entity.SeriesCategoryEntity
 import com.poc.iptvxtream.data.local.entity.SeriesStreamEntity
 import com.poc.iptvxtream.data.local.storage.CredentialsManager
+import com.poc.iptvxtream.data.remote.api.RequestPriority
 import com.poc.iptvxtream.data.remote.api.XtreamApiService
+import com.poc.iptvxtream.data.remote.api.XtreamRequestGate
 import com.poc.iptvxtream.domain.model.*
 import com.poc.iptvxtream.domain.repository.SeriesRepository
 import com.google.gson.JsonElement
@@ -20,11 +22,17 @@ class SeriesRepositoryImpl @Inject constructor(
     private val seriesDao: SeriesDao,
     private val vodDao: VodDao,
     private val credentialsManager: CredentialsManager,
-    private val profileManager: com.poc.iptvxtream.data.local.storage.ProfileManager
+    private val profileManager: com.poc.iptvxtream.data.local.storage.ProfileManager,
+    private val requestGate: XtreamRequestGate
 ) : SeriesRepository {
 
     private var enrichmentDispatcher: CoroutineDispatcher = Dispatchers.IO
-    private val repositoryScope by lazy { CoroutineScope(SupervisorJob() + enrichmentDispatcher) }
+    // Toute coroutine lancée dans ce scope hérite de la priorité "arrière-plan"
+    // (voir RequestPriority) : le trickle d'enrichissement interactif cède
+    // toujours le pas à la navigation utilisateur.
+    private val repositoryScope by lazy {
+        CoroutineScope(SupervisorJob() + enrichmentDispatcher + RequestPriority.background)
+    }
     private var enrichmentJob: Job? = null
 
     // Constructor for testing
@@ -34,8 +42,9 @@ class SeriesRepositoryImpl @Inject constructor(
         vodDao: VodDao,
         credentialsManager: CredentialsManager,
         profileManager: com.poc.iptvxtream.data.local.storage.ProfileManager,
+        requestGate: XtreamRequestGate,
         dispatcher: CoroutineDispatcher
-    ) : this(apiService, seriesDao, vodDao, credentialsManager, profileManager) {
+    ) : this(apiService, seriesDao, vodDao, credentialsManager, profileManager, requestGate) {
         this.enrichmentDispatcher = dispatcher
     }
 
@@ -58,7 +67,7 @@ class SeriesRepositoryImpl @Inject constructor(
             val needingEnrichment = seriesDao.getStreamsNeedingEnrichment(limit)
             for (stream in needingEnrichment) {
                 try {
-                    val response = apiService.getSeriesInfo(creds.username, creds.password, stream.seriesId)
+                    val response = requestGate.acquire { apiService.getSeriesInfo(creds.username, creds.password, stream.seriesId) }
                     val infoDto = response.info
                     val director = infoDto?.director ?: "Inconnu"
                     val genre = infoDto?.genre ?: "Inconnu"
@@ -172,7 +181,7 @@ class SeriesRepositoryImpl @Inject constructor(
         val creds = credentialsManager.getCredentials()
             ?: throw InvalidCredentialsException("Utilisateur non connecté.")
 
-        val remoteCategories = apiService.getSeriesCategories(creds.username, creds.password)
+        val remoteCategories = requestGate.acquire { apiService.getSeriesCategories(creds.username, creds.password) }
 
         val entities = remoteCategories.mapIndexedNotNull { index, dto ->
             val id = dto.categoryId
@@ -228,7 +237,7 @@ class SeriesRepositoryImpl @Inject constructor(
         val creds = credentialsManager.getCredentials()
             ?: throw InvalidCredentialsException("Utilisateur non connecté.")
 
-        val remoteStreams = apiService.getSeriesStreams(creds.username, creds.password, apiCategoryId)
+        val remoteStreams = requestGate.acquire { apiService.getSeriesStreams(creds.username, creds.password, apiCategoryId) }
 
         // Preserve actors/director/genre enrichment (only ever fetched via getSeriesDetails,
         // never part of this bulk list response) so a routine cache refresh doesn't wipe it.
@@ -284,7 +293,7 @@ class SeriesRepositoryImpl @Inject constructor(
         val creds = credentialsManager.getCredentials()
             ?: throw InvalidCredentialsException("Utilisateur non connecté.")
 
-        val response = apiService.getSeriesInfo(creds.username, creds.password, seriesId)
+        val response = requestGate.acquire { apiService.getSeriesInfo(creds.username, creds.password, seriesId) }
         val infoDto = response.info
 
         // Parse series metadata

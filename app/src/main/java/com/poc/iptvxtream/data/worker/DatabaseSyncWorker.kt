@@ -3,6 +3,7 @@ package com.poc.iptvxtream.data.worker
 import android.content.Context
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
+import com.poc.iptvxtream.data.remote.api.RequestPriority
 import com.poc.iptvxtream.domain.usecase.SyncCacheResult
 import com.poc.iptvxtream.domain.usecase.SyncCacheUseCase
 import dagger.hilt.EntryPoint
@@ -23,7 +24,9 @@ class DatabaseSyncWorker(
         fun syncCacheUseCase(): SyncCacheUseCase
     }
 
-    override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
+    // Priorité "arrière-plan" (voir RequestPriority) : ce sync ne doit jamais
+    // faire attendre une requête écran déclenchée par la navigation utilisateur.
+    override suspend fun doWork(): Result = withContext(Dispatchers.IO + RequestPriority.background) {
         val entryPoint = EntryPointAccessors.fromApplication(
             applicationContext,
             DatabaseSyncWorkerEntryPoint::class.java

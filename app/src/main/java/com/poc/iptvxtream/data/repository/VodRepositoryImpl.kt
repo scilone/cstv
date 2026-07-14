@@ -6,6 +6,8 @@ import com.poc.iptvxtream.data.local.entity.VodCategoryEntity
 import com.poc.iptvxtream.data.local.entity.VodStreamEntity
 import com.poc.iptvxtream.data.local.storage.CredentialsManager
 import com.poc.iptvxtream.data.remote.api.XtreamApiService
+import com.poc.iptvxtream.data.remote.api.RequestPriority
+import com.poc.iptvxtream.data.remote.api.XtreamRequestGate
 import com.poc.iptvxtream.domain.model.PlaybackPosition
 import com.poc.iptvxtream.domain.model.Credentials
 import com.poc.iptvxtream.domain.model.InvalidCredentialsException
@@ -23,11 +25,17 @@ class VodRepositoryImpl @Inject constructor(
     private val apiService: XtreamApiService,
     private val vodDao: VodDao,
     private val credentialsManager: CredentialsManager,
-    private val profileManager: com.poc.iptvxtream.data.local.storage.ProfileManager
+    private val profileManager: com.poc.iptvxtream.data.local.storage.ProfileManager,
+    private val requestGate: XtreamRequestGate
 ) : VodRepository {
 
     private var enrichmentDispatcher: CoroutineDispatcher = Dispatchers.IO
-    private val repositoryScope by lazy { CoroutineScope(SupervisorJob() + enrichmentDispatcher) }
+    // Toute coroutine lancée dans ce scope hérite de la priorité "arrière-plan"
+    // (voir RequestPriority) : le trickle d'enrichissement interactif cède
+    // toujours le pas à la navigation utilisateur.
+    private val repositoryScope by lazy {
+        CoroutineScope(SupervisorJob() + enrichmentDispatcher + RequestPriority.background)
+    }
     private var enrichmentJob: Job? = null
 
     // Constructor for testing
@@ -36,8 +44,9 @@ class VodRepositoryImpl @Inject constructor(
         vodDao: VodDao,
         credentialsManager: CredentialsManager,
         profileManager: com.poc.iptvxtream.data.local.storage.ProfileManager,
+        requestGate: XtreamRequestGate,
         dispatcher: CoroutineDispatcher
-    ) : this(apiService, vodDao, credentialsManager, profileManager) {
+    ) : this(apiService, vodDao, credentialsManager, profileManager, requestGate) {
         this.enrichmentDispatcher = dispatcher
     }
 
@@ -60,7 +69,7 @@ class VodRepositoryImpl @Inject constructor(
             val needingEnrichment = vodDao.getStreamsNeedingEnrichment(limit)
             for (stream in needingEnrichment) {
                 try {
-                    val response = apiService.getVodInfo(creds.username, creds.password, stream.streamId)
+                    val response = requestGate.acquire { apiService.getVodInfo(creds.username, creds.password, stream.streamId) }
                     val infoDto = response.info
                     val director = infoDto?.director ?: "Inconnu"
                     val actors = extractActors(infoDto?.actors, infoDto?.cast)
@@ -230,7 +239,7 @@ class VodRepositoryImpl @Inject constructor(
         val creds = credentialsManager.getCredentials()
             ?: throw InvalidCredentialsException("Utilisateur non connecté.")
 
-        val remoteCategories = apiService.getVodCategories(creds.username, creds.password)
+        val remoteCategories = requestGate.acquire { apiService.getVodCategories(creds.username, creds.password) }
 
         val entities = remoteCategories.mapIndexedNotNull { index, dto ->
             val id = dto.categoryId
@@ -286,7 +295,7 @@ class VodRepositoryImpl @Inject constructor(
         val creds = credentialsManager.getCredentials()
             ?: throw InvalidCredentialsException("Utilisateur non connecté.")
 
-        val remoteStreams = apiService.getVodStreams(creds.username, creds.password, apiCategoryId)
+        val remoteStreams = requestGate.acquire { apiService.getVodStreams(creds.username, creds.password, apiCategoryId) }
 
         // Preserve actors/director/genre enrichment (only ever fetched via getVodDetails,
         // never part of this bulk list response) so a routine cache refresh doesn't wipe it.
@@ -342,7 +351,7 @@ class VodRepositoryImpl @Inject constructor(
         val creds = credentialsManager.getCredentials()
             ?: throw InvalidCredentialsException("Utilisateur non connecté.")
 
-        val response = apiService.getVodInfo(creds.username, creds.password, streamId)
+        val response = requestGate.acquire { apiService.getVodInfo(creds.username, creds.password, streamId) }
         val infoDto = response.info
         val movieDataDto = response.movieData
 

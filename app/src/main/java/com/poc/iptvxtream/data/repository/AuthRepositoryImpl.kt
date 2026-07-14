@@ -3,6 +3,7 @@ package com.poc.iptvxtream.data.repository
 import com.poc.iptvxtream.data.local.storage.CredentialsManager
 import com.poc.iptvxtream.data.remote.api.DynamicBaseUrlInterceptor
 import com.poc.iptvxtream.data.remote.api.XtreamApiService
+import com.poc.iptvxtream.data.remote.api.XtreamRequestGate
 import com.poc.iptvxtream.domain.model.*
 import com.poc.iptvxtream.domain.repository.AuthRepository
 import java.io.IOException
@@ -16,14 +17,15 @@ import javax.inject.Inject
 class AuthRepositoryImpl @Inject constructor(
     private val apiService: XtreamApiService,
     private val credentialsManager: CredentialsManager,
-    private val baseUrlInterceptor: DynamicBaseUrlInterceptor
+    private val baseUrlInterceptor: DynamicBaseUrlInterceptor,
+    private val requestGate: XtreamRequestGate
 ) : AuthRepository {
 
     override suspend fun login(credentials: Credentials): UserInfo {
         baseUrlInterceptor.hostUrl = credentials.baseUrl
 
         try {
-            val response = apiService.login(credentials.username, credentials.password)
+            val response = requestGate.acquire { apiService.login(credentials.username, credentials.password) }
             val userInfoDto = response.userInfo
 
             if (userInfoDto == null || userInfoDto.auth != 1) {

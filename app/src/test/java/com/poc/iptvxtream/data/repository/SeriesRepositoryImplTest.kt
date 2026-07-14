@@ -49,7 +49,7 @@ class SeriesRepositoryImplTest {
         MockitoAnnotations.openMocks(this)
         whenever(credentialsManager.getCredentials()).thenReturn(credentials)
         doReturn(activeProfileId).whenever(profileManager).currentProfileId()
-        repository = SeriesRepositoryImpl(apiService, seriesDao, vodDao, credentialsManager, profileManager)
+        repository = SeriesRepositoryImpl(apiService, seriesDao, vodDao, credentialsManager, profileManager, com.poc.iptvxtream.data.remote.api.XtreamRequestGate())
     }
 
     // --- 1. PLAY URL CONSTRUCTION TESTS ---
@@ -248,7 +248,7 @@ class SeriesRepositoryImplTest {
     @Test
     fun test_backgroundEnrichment_triggersAndSavesDetails() = runTest {
         val testDispatcher = kotlinx.coroutines.test.UnconfinedTestDispatcher(testScheduler)
-        val localRepository = SeriesRepositoryImpl(apiService, seriesDao, vodDao, credentialsManager, profileManager, testDispatcher)
+        val localRepository = SeriesRepositoryImpl(apiService, seriesDao, vodDao, credentialsManager, profileManager, com.poc.iptvxtream.data.remote.api.XtreamRequestGate(), testDispatcher)
 
         val remoteStreams = listOf(
             SeriesStreamDto(12, "Game of Thrones", "cover.png", "9.0", "added", "5")
@@ -289,7 +289,7 @@ class SeriesRepositoryImplTest {
     @Test
     fun test_backgroundEnrichment_requestsBoundedBatch() = runTest {
         val testDispatcher = kotlinx.coroutines.test.UnconfinedTestDispatcher(testScheduler)
-        val localRepository = SeriesRepositoryImpl(apiService, seriesDao, vodDao, credentialsManager, profileManager, testDispatcher)
+        val localRepository = SeriesRepositoryImpl(apiService, seriesDao, vodDao, credentialsManager, profileManager, com.poc.iptvxtream.data.remote.api.XtreamRequestGate(), testDispatcher)
 
         whenever(apiService.getSeriesStreams("username", "password", "5")).thenReturn(emptyList())
         whenever(seriesDao.getStreamsByCategory("5")).thenReturn(emptyList())

@@ -16,6 +16,7 @@ import com.poc.iptvxtream.data.repository.ProfileRepositoryImpl
 import com.poc.iptvxtream.domain.repository.ProfileRepository
 import com.poc.iptvxtream.data.remote.api.DynamicBaseUrlInterceptor
 import com.poc.iptvxtream.data.remote.api.XtreamApiService
+import com.poc.iptvxtream.data.remote.api.XtreamRequestGate
 import com.poc.iptvxtream.data.remote.gson.SafeIntAdapter
 import com.poc.iptvxtream.data.remote.gson.SafeLongAdapter
 import com.poc.iptvxtream.data.local.dao.VodDao
@@ -143,6 +144,9 @@ object AppModule {
         return DynamicBaseUrlInterceptor()
     }
 
+    // XtreamRequestGate a un constructeur @Inject : Hilt le fournit
+    // automatiquement, pas besoin de @Provides ici (créerait un doublon).
+
     @Provides
     @Singleton
     fun provideGson(): Gson {
@@ -221,9 +225,10 @@ object AppModule {
     fun provideAuthRepository(
         apiService: XtreamApiService,
         credentialsManager: CredentialsManager,
-        baseUrlInterceptor: DynamicBaseUrlInterceptor
+        baseUrlInterceptor: DynamicBaseUrlInterceptor,
+        requestGate: XtreamRequestGate
     ): AuthRepository {
-        return AuthRepositoryImpl(apiService, credentialsManager, baseUrlInterceptor)
+        return AuthRepositoryImpl(apiService, credentialsManager, baseUrlInterceptor, requestGate)
     }
 
     @Provides
@@ -232,9 +237,10 @@ object AppModule {
         apiService: XtreamApiService,
         liveTvDao: LiveTvDao,
         credentialsManager: CredentialsManager,
-        profileManager: ProfileManager
+        profileManager: ProfileManager,
+        requestGate: XtreamRequestGate
     ): LiveTvRepository {
-        return LiveTvRepositoryImpl(apiService, liveTvDao, credentialsManager, profileManager)
+        return LiveTvRepositoryImpl(apiService, liveTvDao, credentialsManager, profileManager, requestGate)
     }
 
     @Provides
@@ -243,9 +249,10 @@ object AppModule {
         apiService: XtreamApiService,
         vodDao: VodDao,
         credentialsManager: CredentialsManager,
-        profileManager: ProfileManager
+        profileManager: ProfileManager,
+        requestGate: XtreamRequestGate
     ): VodRepository {
-        return VodRepositoryImpl(apiService, vodDao, credentialsManager, profileManager)
+        return VodRepositoryImpl(apiService, vodDao, credentialsManager, profileManager, requestGate)
     }
 
     @Provides
@@ -255,9 +262,10 @@ object AppModule {
         seriesDao: SeriesDao,
         vodDao: VodDao,
         credentialsManager: CredentialsManager,
-        profileManager: ProfileManager
+        profileManager: ProfileManager,
+        requestGate: XtreamRequestGate
     ): SeriesRepository {
-        return SeriesRepositoryImpl(apiService, seriesDao, vodDao, credentialsManager, profileManager)
+        return SeriesRepositoryImpl(apiService, seriesDao, vodDao, credentialsManager, profileManager, requestGate)
     }
 
     @Provides
