@@ -8,6 +8,7 @@ import com.poc.iptvxtream.data.local.storage.CategorySorting
 import com.poc.iptvxtream.data.local.storage.SettingsManager
 import com.poc.iptvxtream.data.local.storage.SyncFrequency
 import com.poc.iptvxtream.data.worker.DatabaseSyncWorker
+import com.poc.iptvxtream.data.worker.SyncScheduling
 import com.poc.iptvxtream.domain.model.SubtitleBackground
 import com.poc.iptvxtream.domain.model.SubtitleTextColor
 import com.poc.iptvxtream.domain.model.SubtitleTextSize
@@ -111,11 +112,17 @@ class SettingsViewModel @Inject constructor(
             .setRequiresBatteryNotLow(true)
             .build()
 
+        // Heure fixe (6h du matin par défaut) plutôt que relative au moment de
+        // l'activation : les exécutions suivantes du PeriodicWorkRequest héritent
+        // de ce point de départ.
+        val initialDelayMillis = SyncScheduling.initialDelayMillis(java.util.Calendar.getInstance())
+
         val syncRequest = PeriodicWorkRequestBuilder<DatabaseSyncWorker>(
             repeatInterval.first,
             repeatInterval.second
         )
             .setConstraints(constraints)
+            .setInitialDelay(initialDelayMillis, TimeUnit.MILLISECONDS)
             .setBackoffCriteria(
                 BackoffPolicy.EXPONENTIAL,
                 10,
