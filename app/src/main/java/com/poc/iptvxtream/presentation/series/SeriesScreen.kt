@@ -567,7 +567,7 @@ private fun CategoryFilterChip(
     ) {
         Text(
             text = category.categoryName,
-            color = if (isSelected) Color.Black else Color.White,
+            color = Color.White,
             fontSize = 13.sp,
             fontWeight = if (isSelected || isFocused) FontWeight.Bold else FontWeight.Normal
         )

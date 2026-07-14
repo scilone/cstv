@@ -273,7 +273,7 @@ private fun TvSortingOptionButton(
     ) {
         TvText(
             text = label,
-            color = if (isSelected) Color.Black else Color.White,
+            color = Color.White,
             fontWeight = FontWeight.Bold,
             style = TvTheme.typography.labelMedium
         )
@@ -462,7 +462,7 @@ private fun MobileSortingOptionButton(
         onClick = onClick,
         colors = ButtonDefaults.buttonColors(
             containerColor = if (isSelected) MaterialTheme.colorScheme.primary else Color(0xFF2C2C35),
-            contentColor = if (isSelected) Color.Black else Color.White
+            contentColor = Color.White
         ),
         shape = RoundedCornerShape(8.dp),
         modifier = modifier.height(38.dp),

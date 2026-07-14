@@ -199,7 +199,7 @@ private fun TvLayout(
                     Icon(
                         imageVector = Icons.Default.Star,
                         contentDescription = null,
-                        tint = if (isFavorite) Color.Yellow else if (isFocusedFav) Color.Black else Color.White,
+                        tint = if (isFavorite) Color.Yellow else Color.White,
                         modifier = Modifier.size(16.dp)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
@@ -243,7 +243,7 @@ private fun TvLayout(
                     ) {
                         Text(
                             text = season.name,
-                            color = if (isFocused) Color.Black else Color.White,
+                            color = Color.White,
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.sp
                         )
@@ -322,13 +322,13 @@ private fun TvLayout(
                             horizontalArrangement = Arrangement.Center,
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Icon(Icons.Default.PlayArrow, contentDescription = null, tint = if (isFocusedBtn) Color.Black else Color.White)
+                            Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Color.White)
                             Spacer(modifier = Modifier.width(6.dp))
                             TvText(
                                 text = if (hasResume) "REPRENDRE : S${resumeEpisode!!.seasonNum}E${resumeEpisode.episodeNum}" else "LIRE LA SÉRIE",
                                 fontWeight = FontWeight.Bold,
                                 style = TvTheme.typography.labelMedium,
-                                color = if (isFocusedBtn) Color.Black else Color.White
+                                color = Color.White
                             )
                         }
                     }
@@ -492,11 +492,11 @@ private fun MobileLayout(
                     .height(44.dp)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Color.Black)
+                    Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Color.White)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = if (hasResume) "REPRENDRE : S${resumeEpisode!!.seasonNum}E${resumeEpisode.episodeNum}" else "LIRE LA SÉRIE",
-                        color = Color.Black,
+                        color = Color.White,
                         fontWeight = FontWeight.Bold,
                         fontSize = 13.sp
                     )
@@ -529,7 +529,7 @@ private fun MobileLayout(
                 ) {
                     Text(
                         text = season.name,
-                        color = if (isSelected) Color.Black else Color.White,
+                        color = Color.White,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold
                     )

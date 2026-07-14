@@ -177,7 +177,7 @@ private fun TvLayoutDetails(
                     Icon(
                         imageVector = Icons.Default.Star,
                         contentDescription = null,
-                        tint = if (isFavorite) Color.Yellow else if (isFocusedFav) Color.Black else Color.White,
+                        tint = if (isFavorite) Color.Yellow else Color.White,
                         modifier = Modifier.size(16.dp)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
@@ -469,13 +469,13 @@ private fun PlayButtonsRow(
                         horizontalArrangement = Arrangement.Center,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Icon(Icons.Default.PlayArrow, contentDescription = null, tint = if (isFocusedResume) Color.Black else Color.White)
+                        Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Color.White)
                         Spacer(modifier = Modifier.width(6.dp))
                         TvText(
                             text = "REPRENDRE LA LECTURE",
                             fontWeight = FontWeight.Bold,
                             style = TvTheme.typography.labelMedium,
-                            color = if (isFocusedResume) Color.Black else Color.White
+                            color = Color.White
                         )
                     }
                 }
@@ -495,13 +495,13 @@ private fun PlayButtonsRow(
                     horizontalArrangement = Arrangement.Center,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Icon(Icons.Default.PlayArrow, contentDescription = null, tint = if (isFocusedPlay) Color.Black else Color.White)
+                    Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Color.White)
                     Spacer(modifier = Modifier.width(6.dp))
                     TvText(
                         text = if (hasHistory) "RELIRE DEPUIS LE DÉBUT" else "LIRE LE FILM",
                         fontWeight = FontWeight.Bold,
                         style = TvTheme.typography.labelMedium,
-                        color = if (isFocusedPlay) Color.Black else Color.White
+                        color = Color.White
                     )
                 }
             }
@@ -514,9 +514,9 @@ private fun PlayButtonsRow(
                     modifier = Modifier.fillMaxWidth().height(44.dp)
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Color.Black)
+                        Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Color.White)
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("REPRENDRE LA LECTURE", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        Text("REPRENDRE LA LECTURE", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                     }
                 }
             }
@@ -533,12 +533,12 @@ private fun PlayButtonsRow(
                     Icon(
                         imageVector = Icons.Default.PlayArrow,
                         contentDescription = null,
-                        tint = if (hasHistory) Color.White else Color.Black
+                        tint = Color.White
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = if (hasHistory) "RELIRE DEPUIS LE DÉBUT" else "LIRE LE FILM",
-                        color = if (hasHistory) Color.White else Color.Black,
+                        color = Color.White,
                         fontWeight = FontWeight.Bold,
                         fontSize = 13.sp
                     )

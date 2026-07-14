@@ -827,7 +827,7 @@ private fun TrackSelectionDialog(
                 onClick = onDismiss,
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
             ) {
-                Text("Fermer", color = Color.Black, fontWeight = FontWeight.Bold)
+                Text("Fermer", color = Color.White, fontWeight = FontWeight.Bold)
             }
         }
     )
