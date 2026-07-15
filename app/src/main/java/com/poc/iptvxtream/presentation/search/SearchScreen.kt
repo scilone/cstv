@@ -37,6 +37,12 @@ import com.poc.iptvxtream.domain.model.LiveStream
 import com.poc.iptvxtream.domain.model.SeriesStream
 import com.poc.iptvxtream.domain.model.VodStream
 import com.poc.iptvxtream.presentation.favorites.FavoritesViewModel
+import com.poc.iptvxtream.presentation.theme.AccentLavande
+import com.poc.iptvxtream.presentation.theme.BricolageGrotesque
+import com.poc.iptvxtream.presentation.theme.HankenGrotesk
+import com.poc.iptvxtream.presentation.theme.Surface1
+import com.poc.iptvxtream.presentation.theme.Surface2
+import com.poc.iptvxtream.presentation.theme.Surface3
 
 // Type de média dont on affiche la liste complète (grille verticale) après
 // un clic sur "Voir tout". null = vue combinée (rangées horizontales).
@@ -59,11 +65,10 @@ fun SearchScreen(
 
     // Toute nouvelle saisie recasse la vue développée pour revenir aux rangées.
     LaunchedEffect(state.searchQuery) { expandedType = null }
-
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(Color(0xFF0F0F13))
+            .background(if (isTv) Color(0xFF0F0F13) else Color.Transparent)
             .padding(16.dp)
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -231,7 +236,7 @@ private fun SearchSectionHeader(
             // Même contraste que la Home : repos = blanc sur #1E1E24,
             // focus = noir sur Purple80 #D0BCFF.
             colors = ButtonDefaults.buttonColors(
-                containerColor = if (isFocused) Color(0xFFD0BCFF) else Color(0xFF1E1E24),
+                containerColor = if (isFocused) AccentLavande else Surface3,
                 contentColor = if (isFocused) Color.Black else Color.White
             ),
             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
@@ -334,7 +339,7 @@ private fun SearchGridCard(
             )
             .clip(RoundedCornerShape(12.dp))
             .clickable { onClick() }
-            .background(Color(0xFF1E1E24))
+            .background(Surface3)
     ) {
         Box(
             modifier = Modifier
@@ -342,7 +347,7 @@ private fun SearchGridCard(
                 .then(
                     if (isLive) Modifier.aspectRatio(16f / 9f) else Modifier.aspectRatio(2f / 3f)
                 )
-                .background(Color(0xFF0F0F13)),
+                .background(Surface1),
             contentAlignment = Alignment.Center
         ) {
             if (!cover.isNullOrBlank()) {
@@ -397,7 +402,7 @@ private fun SearchCardItem(
             )
             .clip(RoundedCornerShape(12.dp))
             .clickable { onClick() }
-            .background(Color(0xFF1E1E24))
+            .background(Surface3)
     ) {
         Box(
             modifier = Modifier
@@ -405,7 +410,7 @@ private fun SearchCardItem(
                 .then(
                     if (isLive) Modifier.height(80.dp) else Modifier.aspectRatio(2f / 3f)
                 )
-                .background(Color(0xFF0F0F13)),
+                .background(Surface1),
             contentAlignment = Alignment.Center
         ) {
             if (!cover.isNullOrBlank()) {
