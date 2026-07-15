@@ -481,7 +481,7 @@ fun HomeLiveTvCard(
             .padding(12.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            // Logo + numéro de chaîne
+            // Logo de la chaîne
             Box(
                 modifier = Modifier
                     .size(width = 48.dp, height = 36.dp)
@@ -498,14 +498,15 @@ fun HomeLiveTvCard(
                             .fillMaxSize()
                             .padding(3.dp)
                     )
+                } else {
+                    Text(
+                        text = stream.name.firstOrNull()?.uppercase() ?: "?",
+                        color = Color.White.copy(alpha = 0.85f),
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = BricolageGrotesque
+                    )
                 }
-                Text(
-                    text = "${stream.num}",
-                    color = Color.White.copy(alpha = 0.85f),
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    fontFamily = BricolageGrotesque
-                )
             }
 
             Spacer(modifier = Modifier.width(10.dp))
