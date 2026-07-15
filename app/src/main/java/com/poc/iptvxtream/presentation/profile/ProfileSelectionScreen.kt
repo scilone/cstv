@@ -26,6 +26,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.poc.iptvxtream.domain.model.Profile
 import com.poc.iptvxtream.domain.model.ProfileAvatars
+import com.poc.iptvxtream.presentation.theme.AccentLavande
+import com.poc.iptvxtream.presentation.theme.BricolageGrotesque
+import com.poc.iptvxtream.presentation.theme.HankenGrotesk
+import com.poc.iptvxtream.presentation.theme.Surface1
+import com.poc.iptvxtream.presentation.theme.Surface2
+import com.poc.iptvxtream.presentation.theme.Surface3
+import com.poc.iptvxtream.presentation.theme.mobileBackground
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.shape.RoundedCornerShape
 
 /**
  * Écran de sélection de profil façon Netflix (Phase 27), affiché après login/
@@ -44,7 +53,7 @@ fun ProfileSelectionScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(Color(0xFF0F0F13)),
+            .mobileBackground(),
         contentAlignment = Alignment.Center
     ) {
         Column(
@@ -56,6 +65,7 @@ fun ProfileSelectionScreen(
                 color = Color.White,
                 fontSize = 28.sp,
                 fontWeight = FontWeight.Bold,
+                fontFamily = BricolageGrotesque,
                 modifier = Modifier.padding(bottom = 32.dp)
             )
 
@@ -77,10 +87,19 @@ fun ProfileSelectionScreen(
 
             OutlinedButton(
                 onClick = onManageProfiles,
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = Color.White,
+                    containerColor = Surface3
+                ),
+                shape = RoundedCornerShape(12.dp),
                 modifier = Modifier.fillMaxWidth(0.6f).height(48.dp)
             ) {
-                Text(stringResource(R.string.profile_manage_title), fontWeight = FontWeight.Bold)
+                Text(
+                    text = stringResource(R.string.profile_manage_title),
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = HankenGrotesk
+                )
             }
 
             Spacer(modifier = Modifier.height(12.dp))

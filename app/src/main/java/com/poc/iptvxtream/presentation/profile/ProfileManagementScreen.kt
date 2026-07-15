@@ -28,6 +28,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.poc.iptvxtream.domain.model.Profile
 import com.poc.iptvxtream.domain.model.ProfileAvatars
+import com.poc.iptvxtream.presentation.theme.AccentLavande
+import com.poc.iptvxtream.presentation.theme.BricolageGrotesque
+import com.poc.iptvxtream.presentation.theme.HankenGrotesk
+import com.poc.iptvxtream.presentation.theme.Surface1
+import com.poc.iptvxtream.presentation.theme.Surface2
+import com.poc.iptvxtream.presentation.theme.Surface3
+import com.poc.iptvxtream.presentation.theme.mobileBackground
 
 /**
  * Écran de gestion des profils façon Netflix (Phase 27, revu suite retour
@@ -51,7 +58,7 @@ fun ProfileManagementScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(Color(0xFF0F0F13)),
+            .then(if (isTv) Modifier.background(Color(0xFF0F0F13)) else Modifier.mobileBackground()),
         contentAlignment = Alignment.Center
     ) {
         Column(
@@ -65,6 +72,7 @@ fun ProfileManagementScreen(
                 color = Color.White,
                 fontSize = 26.sp,
                 fontWeight = FontWeight.Bold,
+                fontFamily = BricolageGrotesque,
                 modifier = Modifier.padding(bottom = 8.dp)
             )
             Text(
@@ -183,7 +191,7 @@ private fun AddProfileTile(onClick: () -> Unit) {
             modifier = Modifier
                 .size(96.dp)
                 .clip(CircleShape)
-                .background(Color(0xFF1E1E24))
+                .background(Surface3)
                 .border(1.dp, Color.DarkGray, CircleShape)
                 .clickable { onClick() },
             contentAlignment = Alignment.Center
