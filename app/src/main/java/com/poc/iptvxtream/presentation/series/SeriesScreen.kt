@@ -40,6 +40,15 @@ import coil.compose.AsyncImage
 import com.poc.iptvxtream.domain.model.FavoriteItem
 import com.poc.iptvxtream.domain.model.SeriesCategory
 import com.poc.iptvxtream.domain.model.SeriesStream
+import com.poc.iptvxtream.presentation.theme.AccentLavande
+import com.poc.iptvxtream.presentation.theme.BricolageGrotesque
+import com.poc.iptvxtream.presentation.theme.HankenGrotesk
+import com.poc.iptvxtream.presentation.theme.Surface1
+import com.poc.iptvxtream.presentation.theme.Surface2
+import com.poc.iptvxtream.presentation.theme.Surface3
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material3.ExperimentalMaterial3Api
 
 @Composable
 fun SeriesScreen(
@@ -84,7 +93,7 @@ fun SeriesScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(Color(0xFF0F0F13))
+            .background(if (isTv) Color(0xFF0F0F13) else Color.Transparent)
     ) {
         if (isTv) {
             TvLayout(
@@ -274,6 +283,7 @@ private fun TvLayout(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun MobileLayout(
     state: SeriesState,
@@ -302,31 +312,144 @@ private fun MobileLayout(
         filteredStreams.filter { it.seriesId in favoriteIds }
     }
 
+    var showCategorySheet by remember { mutableStateOf(false) }
+    var categorySearchQuery by remember { mutableStateOf("") }
+
+    val filteredCategories = remember(state.categories, categorySearchQuery) {
+        if (categorySearchQuery.isBlank()) {
+            state.categories
+        } else {
+            state.categories.filter { it.categoryName.contains(categorySearchQuery, ignoreCase = true) }
+        }
+    }
+
     Column(modifier = Modifier.fillMaxSize()) {
-        // Top categories row
+        // Category Selector Row (High-Fidelity)
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .fillMaxWidth()
-                .background(Color(0xFF16161D))
-                .padding(vertical = 4.dp, horizontal = 12.dp)
+                .background(Surface2)
+                .padding(vertical = 8.dp, horizontal = 16.dp)
         ) {
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.weight(1f)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable { showCategorySheet = true }
+                    .background(Surface3, shape = RoundedCornerShape(12.dp))
+                    .border(1.dp, Color.White.copy(alpha = 0.08f), shape = RoundedCornerShape(12.dp))
+                    .padding(horizontal = 14.dp, vertical = 10.dp)
             ) {
-                items(state.categories) { category ->
-                    val isSelected = state.selectedCategory?.categoryId == category.categoryId
-                    CategoryFilterChip(
-                        category = category,
-                        isSelected = isSelected,
-                        onClick = { onCategorySelected(category) }
-                    )
-                }
+                Text(
+                    text = state.selectedCategory?.categoryName ?: "Tout",
+                    color = Color.White,
+                    fontFamily = BricolageGrotesque,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp,
+                    modifier = Modifier.weight(1f)
+                )
+                Icon(
+                    imageVector = Icons.Default.ArrowDropDown,
+                    contentDescription = null,
+                    tint = AccentLavande
+                )
             }
 
-            IconButton(onClick = onRefresh) {
+            Spacer(modifier = Modifier.width(12.dp))
+
+            IconButton(
+                onClick = onRefresh,
+                modifier = Modifier
+                    .size(44.dp)
+                    .background(Surface3, shape = RoundedCornerShape(12.dp))
+                    .border(1.dp, Color.White.copy(alpha = 0.08f), shape = RoundedCornerShape(12.dp))
+            ) {
                 Icon(Icons.Default.Refresh, contentDescription = "Rafraîchir", tint = Color.White)
+            }
+        }
+
+        // Category Modal Bottom Sheet (Opt-In Material 3)
+        if (showCategorySheet) {
+            ModalBottomSheet(
+                onDismissRequest = { 
+                    showCategorySheet = false
+                    categorySearchQuery = ""
+                },
+                containerColor = Surface1,
+                contentColor = Color.White,
+                scrimColor = Color.Black.copy(alpha = 0.6f)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                ) {
+                    Text(
+                        text = "Catégories",
+                        fontFamily = BricolageGrotesque,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp,
+                        color = Color.White,
+                        modifier = Modifier.padding(bottom = 12.dp)
+                    )
+
+                    OutlinedTextField(
+                        value = categorySearchQuery,
+                        onValueChange = { categorySearchQuery = it },
+                        placeholder = { Text("Rechercher une catégorie...", color = Color.Gray, fontSize = 13.sp) },
+                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = AccentLavande, modifier = Modifier.size(18.dp)) },
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = AccentLavande,
+                            unfocusedBorderColor = Color.DarkGray,
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 12.dp)
+                    )
+
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 400.dp)
+                    ) {
+                        items(filteredCategories) { category ->
+                            val isSelected = state.selectedCategory?.categoryId == category.categoryId
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        onCategorySelected(category)
+                                        showCategorySheet = false
+                                        categorySearchQuery = ""
+                                    }
+                                    .padding(vertical = 12.dp, horizontal = 4.dp)
+                            ) {
+                                Text(
+                                    text = category.categoryName,
+                                    fontFamily = HankenGrotesk,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                    fontSize = 14.sp,
+                                    color = if (isSelected) AccentLavande else Color.White,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                if (isSelected) {
+                                    Icon(
+                                        imageVector = Icons.Default.Check,
+                                        contentDescription = "Sélectionné",
+                                        tint = AccentLavande,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+                            HorizontalDivider(color = Color.White.copy(alpha = 0.05f))
+                        }
+                    }
+                }
             }
         }
 
@@ -412,7 +535,7 @@ private fun MobileLayout(
                 ) {
                     items(filteredStreams) { stream ->
                         Card(
-                            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E24)),
+                            colors = CardDefaults.cardColors(containerColor = Surface3),
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable { onSeriesSelected(stream) }
@@ -422,7 +545,7 @@ private fun MobileLayout(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .aspectRatio(2f / 3f)
-                                        .background(Color(0xFF0F0F13)),
+                                        .background(Surface1),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     if (!stream.cover.isNullOrBlank()) {
@@ -535,7 +658,7 @@ private fun MobileSeriesCard(
     onClick: () -> Unit
 ) {
     Card(
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E24)),
+        colors = CardDefaults.cardColors(containerColor = Surface3),
         modifier = Modifier
             .width(115.dp)
             .clickable { onClick() }
@@ -545,7 +668,7 @@ private fun MobileSeriesCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .aspectRatio(2f / 3f)
-                    .background(Color(0xFF0F0F13)),
+                    .background(Surface1),
                 contentAlignment = Alignment.Center
             ) {
                 if (!stream.cover.isNullOrBlank()) {
@@ -626,7 +749,7 @@ private fun SeriesTvCard(
 
     Card(
         colors = CardDefaults.cardColors(
-            containerColor = if (isFocused) Color(0xFF23232D) else Color(0xFF1E1E24)
+            containerColor = if (isFocused) Color(0xFF23232D) else Surface3
         ),
         modifier = Modifier
             .width(150.dp)
@@ -644,7 +767,7 @@ private fun SeriesTvCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .aspectRatio(2f / 3f)
-                    .background(Color(0xFF0F0F13)),
+                    .background(Surface1),
                 contentAlignment = Alignment.Center
             ) {
                 if (!stream.cover.isNullOrBlank()) {
