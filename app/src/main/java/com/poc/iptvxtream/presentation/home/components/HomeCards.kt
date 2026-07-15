@@ -252,6 +252,18 @@ fun HomeResumeWatchingCard(
         position.positionMs.toFloat() / position.durationMs.toFloat()
     } else 0f
 
+    // Phase 55 : ligne meta = "S{n} E{n} · {temps restant}" en accent, sous le titre.
+    val metaText = buildString {
+        if (position.type == "series" && position.seasonNum != null && position.episodeNum != null) {
+            append("S${position.seasonNum} E${position.episodeNum}")
+        }
+        if (position.durationMs > 0) {
+            val remainingMs = (position.durationMs - position.positionMs).coerceAtLeast(0L)
+            if (isNotEmpty()) append(" · ")
+            append(formatRemainingTime(remainingMs))
+        }
+    }
+
     Column(
         modifier = modifier
             .onFocusChanged { isFocused = it.isFocused }
@@ -322,18 +334,46 @@ fun HomeResumeWatchingCard(
             )
         }
 
-        // Title
-        Text(
-            text = position.title ?: stringResource(R.string.home_no_title),
-            color = Color.White,
-            fontWeight = FontWeight.Bold,
-            fontSize = 12.sp,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
+        // Title + temps restant (Phase 55)
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(8.dp)
-        )
+                .padding(horizontal = 8.dp, vertical = 8.dp)
+        ) {
+            Text(
+                text = position.title ?: stringResource(R.string.home_no_title),
+                color = Color.White,
+                fontWeight = FontWeight.Bold,
+                fontSize = 12.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            if (metaText.isNotBlank()) {
+                Text(
+                    text = metaText,
+                    color = AccentLavande,
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 11.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    fontFamily = HankenGrotesk,
+                    modifier = Modifier.padding(top = 2.dp)
+                )
+            }
+        }
+    }
+}
+
+/** Phase 55 : formate un temps restant en ms sous forme "23 min" / "1 h 05" + "restant". */
+private fun formatRemainingTime(remainingMs: Long): String {
+    val totalMinutes = (remainingMs / 60_000L).toInt()
+    if (totalMinutes <= 0) return "Bientôt terminé"
+    val hours = totalMinutes / 60
+    val minutes = totalMinutes % 60
+    return if (hours > 0) {
+        "%dh%02d restant".format(hours, minutes)
+    } else {
+        "$minutes min restant"
     }
 }
 
@@ -345,87 +385,70 @@ fun HomeFavoriteItemCard(
 ) {
     var isFocused by remember { mutableStateOf(false) }
 
-    Column(
+    // Phase 55 : titre en overlay dans la vignette (maquette), plus en dessous.
+    Box(
         modifier = modifier
+            .height(195.dp)
             .onFocusChanged { isFocused = it.isFocused }
             .border(
                 width = 2.dp,
                 color = if (isFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(14.dp)
             )
-            .clip(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(14.dp))
             .clickable { onClick() }
-            .background(Surface3)
+            .background(Surface1),
+        contentAlignment = Alignment.Center
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(195.dp)
-                .background(Surface1),
-            contentAlignment = Alignment.Center
-        ) {
-            if (!favorite.cover.isNullOrBlank()) {
-                AsyncImage(
-                    model = favorite.cover,
-                    contentDescription = favorite.name,
-                    // Les logos de chaînes Live TV (Phase 34) sont au format carré :
-                    // les faire tenir entièrement (Fit) plutôt que les rogner (Crop),
-                    // qui reste adapté aux affiches films/séries déjà proches du 2:3.
-                    contentScale = if (favorite.type == "live") ContentScale.Fit else ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
-                )
-            } else {
-                Icon(
-                    imageVector = Icons.Default.Warning,
-                    contentDescription = null,
-                    tint = Color.DarkGray,
-                    modifier = Modifier.size(32.dp)
-                )
-            }
-
-            // Type Badge (top left)
-            val badgeColor = when (favorite.type) {
-                "live" -> Color(0xFFE50914) // Red for live direct
-                "movie" -> Color(0xFF0070F3) // Blue for movies
-                "series" -> Color(0xFF8A2BE2) // Purple for series
-                else -> Color.Gray
-            }
-            val badgeLabel = when (favorite.type) {
-                "live" -> stringResource(R.string.home_live_badge)
-                "movie" -> stringResource(R.string.home_movie_badge)
-                "series" -> stringResource(R.string.home_series_badge)
-                else -> "FAV"
-            }
-            Box(
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .padding(6.dp)
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(badgeColor)
-                    .padding(horizontal = 4.dp, vertical = 2.dp)
-            ) {
-                Text(
-                    text = badgeLabel,
-                    color = Color.White,
-                    fontSize = 8.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            }
+        if (!favorite.cover.isNullOrBlank()) {
+            AsyncImage(
+                model = favorite.cover,
+                contentDescription = favorite.name,
+                // Les logos de chaînes Live TV (Phase 34) sont au format carré :
+                // les faire tenir entièrement (Fit) plutôt que les rogner (Crop),
+                // qui reste adapté aux affiches films/séries déjà proches du 2:3.
+                contentScale = if (favorite.type == "live") ContentScale.Fit else ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+        } else {
+            Icon(
+                imageVector = Icons.Default.Warning,
+                contentDescription = null,
+                tint = Color.DarkGray,
+                modifier = Modifier.size(32.dp)
+            )
         }
 
-        // Title
-        Text(
-            text = favorite.name,
-            color = Color.White,
-            fontWeight = FontWeight.Bold,
-            fontSize = 11.sp,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
+        HomeCardTitleOverlay(title = favorite.name)
+
+        // Type Badge (top left)
+        val badgeColor = when (favorite.type) {
+            "live" -> Color(0xFFE50914) // Red for live direct
+            "movie" -> Color(0xFF0070F3) // Blue for movies
+            "series" -> Color(0xFF8A2BE2) // Purple for series
+            else -> Color.Gray
+        }
+        val badgeLabel = when (favorite.type) {
+            "live" -> stringResource(R.string.home_live_badge)
+            "movie" -> stringResource(R.string.home_movie_badge)
+            "series" -> stringResource(R.string.home_series_badge)
+            else -> "FAV"
+        }
+        Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(6.dp),
-            textAlign = TextAlign.Center
-        )
+                .align(Alignment.TopStart)
+                .padding(6.dp)
+                .clip(RoundedCornerShape(4.dp))
+                .background(badgeColor)
+                .padding(horizontal = 4.dp, vertical = 2.dp)
+        ) {
+            Text(
+                text = badgeLabel,
+                color = Color.White,
+                fontSize = 8.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
     }
 }
 
@@ -441,110 +464,106 @@ fun HomeLiveTvCard(
     // HomeViewModel (un seul ticker pour toute la rangée) au lieu d'une
     // boucle par carte visible ; cette carte ne fait plus que lire
     // state.epgPrograms.
+    // Phase 55 : tuile horizontale conforme à la maquette (logo + numéro,
+    // nom + programme, jauge de progression + heures), hauteur uniforme.
     Column(
         modifier = Modifier
-            .width(140.dp)
+            .width(180.dp)
             .onFocusChanged { isFocused = it.isFocused }
             .border(
-                width = 2.dp,
-                color = if (isFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
-                shape = RoundedCornerShape(12.dp)
+                width = if (isFocused) 2.dp else 1.dp,
+                color = if (isFocused) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.07f),
+                shape = RoundedCornerShape(16.dp)
             )
-            .clip(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(16.dp))
             .clickable { onClick() }
             .background(Surface3)
+            .padding(12.dp)
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(90.dp)
-                .background(Surface1),
-            contentAlignment = Alignment.Center
-        ) {
-            if (!stream.streamIcon.isNullOrBlank()) {
-                AsyncImage(
-                    model = stream.streamIcon,
-                    contentDescription = stream.name,
-                    contentScale = ContentScale.Fit,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(8.dp)
-                )
-            } else {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            // Logo + numéro de chaîne
+            Box(
+                modifier = Modifier
+                    .size(width = 48.dp, height = 36.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Surface1),
+                contentAlignment = Alignment.Center
+            ) {
+                if (!stream.streamIcon.isNullOrBlank()) {
+                    AsyncImage(
+                        model = stream.streamIcon,
+                        contentDescription = stream.name,
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(3.dp)
+                    )
+                }
                 Text(
-                    text = stream.name.firstOrNull()?.uppercase() ?: "?",
-                    color = Color.White,
-                    fontSize = 28.sp,
-                    fontWeight = FontWeight.Bold
+                    text = "${stream.num}",
+                    color = Color.White.copy(alpha = 0.85f),
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = BricolageGrotesque
                 )
             }
 
-            // Channel number badge (bottom left)
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(6.dp)
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(Color(0xCC000000))
-                    .padding(horizontal = 6.dp, vertical = 2.dp)
-            ) {
+            Spacer(modifier = Modifier.width(10.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "CH ${stream.num}",
-                    color = MaterialTheme.colorScheme.primary,
-                    fontSize = 9.sp,
-                    fontWeight = FontWeight.Bold
+                    text = stream.name,
+                    color = Color(0xFFF2F2F6),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 12.5.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    fontFamily = HankenGrotesk
+                )
+                Text(
+                    text = epgProgram?.title ?: stringResource(R.string.home_no_program),
+                    color = Color(0xFF9A9AA8),
+                    fontSize = 11.5.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    fontFamily = HankenGrotesk,
+                    modifier = Modifier.padding(top = 3.dp)
                 )
             }
         }
 
-        Spacer(modifier = Modifier.height(4.dp))
-
-        Text(
-            text = stream.name,
-            color = Color.White,
-            fontWeight = FontWeight.Bold,
-            fontSize = 12.sp,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp),
-            textAlign = TextAlign.Center
-        )
-
+        // Jauge de progression (barre vide si pas d'EPG -> hauteur uniforme, Phase 33)
         if (epgProgram != null) {
-            Text(
-                text = epgProgram.title,
-                color = MaterialTheme.colorScheme.primary,
-                fontSize = 10.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 2.dp),
-                textAlign = TextAlign.Center
-            )
             HomeEpgProgressBar(
                 program = epgProgram,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                    .padding(top = 12.dp)
                     .height(3.dp)
-                    .clip(RoundedCornerShape(1.5.dp))
+                    .clip(RoundedCornerShape(999.dp))
             )
         } else {
-            Text(
-                text = stringResource(R.string.home_no_program),
-                color = Color.Gray,
-                fontSize = 10.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 2.dp),
-                textAlign = TextAlign.Center
+                    .padding(top = 12.dp)
+                    .height(3.dp)
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(Color.White.copy(alpha = 0.1f))
             )
         }
+
+        // Heures de début/fin (espace réservé si pas d'EPG, hauteur uniforme)
+        Text(
+            text = epgProgram?.formattedTimeRange() ?: "",
+            color = Color(0xFF63636F),
+            fontSize = 10.sp,
+            maxLines = 1,
+            fontFamily = HankenGrotesk,
+            modifier = Modifier
+                .padding(top = 5.dp)
+                .height(14.dp)
+        )
     }
 }
 
@@ -576,76 +595,93 @@ fun HomeVodMovieCard(
 ) {
     var isFocused by remember { mutableStateOf(false) }
 
-    Column(
+    // Phase 55 : titre en overlay dans la vignette (maquette), plus en dessous.
+    Box(
         modifier = Modifier
             .width(130.dp)
+            .height(195.dp) // standard 2:3 ratio
             .onFocusChanged { isFocused = it.isFocused }
             .border(
                 width = 2.dp,
                 color = if (isFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(14.dp)
             )
-            .clip(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(14.dp))
             .clickable { onClick() }
-            .background(Surface3)
+            .background(Surface1),
+        contentAlignment = Alignment.Center
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(195.dp) // standard 2:3 ratio
-                .background(Surface1),
-            contentAlignment = Alignment.Center
-        ) {
-            if (!stream.streamIcon.isNullOrBlank()) {
-                AsyncImage(
-                    model = stream.streamIcon,
-                    contentDescription = stream.name,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
-                )
-            } else {
-                Icon(
-                    imageVector = Icons.Default.Warning,
-                    contentDescription = null,
-                    tint = Color.DarkGray,
-                    modifier = Modifier.size(32.dp)
-                )
-            }
+        if (!stream.streamIcon.isNullOrBlank()) {
+            AsyncImage(
+                model = stream.streamIcon,
+                contentDescription = stream.name,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+        } else {
+            Icon(
+                imageVector = Icons.Default.Warning,
+                contentDescription = null,
+                tint = Color.DarkGray,
+                modifier = Modifier.size(32.dp)
+            )
+        }
 
-            // Rating Badge (top right)
-            val cleanRating = stream.rating?.trim()
-            if (!cleanRating.isNullOrBlank() && cleanRating != "0" && cleanRating != "0.0") {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(6.dp)
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(Color(0xCC000000))
-                        .padding(horizontal = 4.dp, vertical = 2.dp)
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Star, contentDescription = null, tint = Color.Yellow, modifier = Modifier.size(10.dp))
-                        Spacer(modifier = Modifier.width(2.dp))
-                        Text(cleanRating, color = Color.White, fontSize = 8.sp, fontWeight = FontWeight.Bold)
-                    }
+        HomeCardTitleOverlay(title = stream.name)
+
+        // Rating Badge (top right)
+        val cleanRating = stream.rating?.trim()
+        if (!cleanRating.isNullOrBlank() && cleanRating != "0" && cleanRating != "0.0") {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(6.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(Color(0xCC000000))
+                    .padding(horizontal = 4.dp, vertical = 2.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Star, contentDescription = null, tint = Color.Yellow, modifier = Modifier.size(10.dp))
+                    Spacer(modifier = Modifier.width(2.dp))
+                    Text(cleanRating, color = Color.White, fontSize = 8.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }
-
-        // Title
-        Text(
-            text = stream.name,
-            color = Color.White,
-            fontWeight = FontWeight.Bold,
-            fontSize = 11.sp,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(6.dp),
-            textAlign = TextAlign.Center
-        )
     }
+}
+
+/**
+ * Phase 55 : dégradé bas + titre en overlay dans une vignette d'affiche
+ * (maquette : gradient noir 6% -> transparent 52%, titre 11.5sp en bas).
+ */
+@Composable
+private fun BoxScope.HomeCardTitleOverlay(title: String) {
+    Box(
+        modifier = Modifier
+            .matchParentSize()
+            .background(
+                Brush.verticalGradient(
+                    colorStops = arrayOf(
+                        0.48f to Color.Transparent,
+                        1.0f to Color.Black.copy(alpha = 0.88f)
+                    )
+                )
+            )
+    )
+    Text(
+        text = title,
+        color = Color(0xFFF2F2F6),
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 11.5.sp,
+        lineHeight = 14.sp,
+        maxLines = 2,
+        overflow = TextOverflow.Ellipsis,
+        fontFamily = HankenGrotesk,
+        modifier = Modifier
+            .align(Alignment.BottomStart)
+            .fillMaxWidth()
+            .padding(horizontal = 9.dp, vertical = 9.dp)
+    )
 }
 
 @Composable
@@ -655,74 +691,57 @@ fun HomeSeriesShowCard(
 ) {
     var isFocused by remember { mutableStateOf(false) }
 
-    Column(
+    // Phase 55 : titre en overlay dans la vignette (maquette), plus en dessous.
+    Box(
         modifier = Modifier
             .width(130.dp)
+            .height(195.dp) // standard 2:3 ratio
             .onFocusChanged { isFocused = it.isFocused }
             .border(
                 width = 2.dp,
                 color = if (isFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(14.dp)
             )
-            .clip(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(14.dp))
             .clickable { onClick() }
-            .background(Surface3)
+            .background(Surface1),
+        contentAlignment = Alignment.Center
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(195.dp) // standard 2:3 ratio
-                .background(Surface1),
-            contentAlignment = Alignment.Center
-        ) {
-            if (!stream.cover.isNullOrBlank()) {
-                AsyncImage(
-                    model = stream.cover,
-                    contentDescription = stream.name,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
-                )
-            } else {
-                Icon(
-                    imageVector = Icons.Default.Warning,
-                    contentDescription = null,
-                    tint = Color.DarkGray,
-                    modifier = Modifier.size(32.dp)
-                )
-            }
+        if (!stream.cover.isNullOrBlank()) {
+            AsyncImage(
+                model = stream.cover,
+                contentDescription = stream.name,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+        } else {
+            Icon(
+                imageVector = Icons.Default.Warning,
+                contentDescription = null,
+                tint = Color.DarkGray,
+                modifier = Modifier.size(32.dp)
+            )
+        }
 
-            // Rating Badge (top right)
-            val cleanRating = stream.rating?.trim()
-            if (!cleanRating.isNullOrBlank() && cleanRating != "0" && cleanRating != "0.0") {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(6.dp)
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(Color(0xCC000000))
-                        .padding(horizontal = 4.dp, vertical = 2.dp)
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Star, contentDescription = null, tint = Color.Yellow, modifier = Modifier.size(10.dp))
-                        Spacer(modifier = Modifier.width(2.dp))
-                        Text(cleanRating, color = Color.White, fontSize = 8.sp, fontWeight = FontWeight.Bold)
-                    }
+        HomeCardTitleOverlay(title = stream.name)
+
+        // Rating Badge (top right)
+        val cleanRating = stream.rating?.trim()
+        if (!cleanRating.isNullOrBlank() && cleanRating != "0" && cleanRating != "0.0") {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(6.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(Color(0xCC000000))
+                    .padding(horizontal = 4.dp, vertical = 2.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Star, contentDescription = null, tint = Color.Yellow, modifier = Modifier.size(10.dp))
+                    Spacer(modifier = Modifier.width(2.dp))
+                    Text(cleanRating, color = Color.White, fontSize = 8.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }
-
-        // Title
-        Text(
-            text = stream.name,
-            color = Color.White,
-            fontWeight = FontWeight.Bold,
-            fontSize = 11.sp,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(6.dp),
-            textAlign = TextAlign.Center
-        )
     }
 }

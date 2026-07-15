@@ -326,6 +326,7 @@ fun HomeScreen(
                     item {
                         HomeSectionRow(
                             title = stringResource(R.string.home_resume),
+                            isTv = isTv,
                             onSeeAll = { expandedSection = HomeExpandedSection.RESUME }
                         ) {
                             LazyRow(
@@ -349,6 +350,7 @@ fun HomeScreen(
                     item {
                         HomeSectionRow(
                             title = stringResource(R.string.home_favorites),
+                            isTv = isTv,
                             onSeeAll = { expandedSection = HomeExpandedSection.FAVORITES }
                         ) {
                             LazyRow(
@@ -372,6 +374,7 @@ fun HomeScreen(
                     item {
                         HomeSectionRow(
                             title = stringResource(R.string.home_section_tv, state.firstLiveCategory!!.categoryName),
+                            isTv = isTv,
                             onSeeAll = onNavigateToLiveTv
                         ) {
                             LazyRow(
@@ -396,6 +399,7 @@ fun HomeScreen(
                     item {
                         HomeSectionRow(
                             title = stringResource(R.string.home_section_vod, state.firstVodCategory!!.categoryName),
+                            isTv = isTv,
                             onSeeAll = onNavigateToVod
                         ) {
                             LazyRow(
@@ -419,6 +423,7 @@ fun HomeScreen(
                     item {
                         HomeSectionRow(
                             title = stringResource(R.string.home_section_series, state.firstSeriesCategory!!.categoryName),
+                            isTv = isTv,
                             onSeeAll = onNavigateToSeries
                         ) {
                             LazyRow(
@@ -515,6 +520,7 @@ private fun HomeExpandedGrid(
 @Composable
 private fun HomeSectionRow(
     title: String,
+    isTv: Boolean,
     onSeeAll: (() -> Unit)? = null,
     content: @Composable () -> Unit
 ) {
@@ -527,32 +533,46 @@ private fun HomeSectionRow(
         ) {
             Text(
                 text = title,
+                fontFamily = BricolageGrotesque,
                 fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.White
+                fontWeight = FontWeight.SemiBold,
+                letterSpacing = (-0.01).sp,
+                color = Color(0xFFF4F4F7)
             )
             if (onSeeAll != null) {
-                Spacer(modifier = Modifier.width(16.dp))
-                var isFocused by remember { mutableStateOf(false) }
-                Button(
-                    onClick = onSeeAll,
-                    // Contraste WCAG AA garanti dans les deux états (thème M3 par défaut =
-                    // primary Purple40 #6750A4, trop sombre en texte sur fond sombre) :
-                    // repos = texte blanc sur #1E1E24 (16.6:1), focus = texte noir sur
-                    // Purple80 #D0BCFF (12.3:1).
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (isFocused) AccentLavande else Surface3,
-                        contentColor = if (isFocused) Color.Black else Color.White
-                    ),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                    modifier = Modifier
-                        .height(28.dp)
-                        .onFocusChanged { isFocused = it.isFocused }
-                ) {
+                Spacer(modifier = Modifier.weight(1f))
+                if (isTv) {
+                    // TV : bouton focusable au D-pad (contraste WCAG AA dans les deux états).
+                    var isFocused by remember { mutableStateOf(false) }
+                    Button(
+                        onClick = onSeeAll,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (isFocused) AccentLavande else Surface3,
+                            contentColor = if (isFocused) Color.Black else Color.White
+                        ),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                        modifier = Modifier
+                            .height(28.dp)
+                            .onFocusChanged { isFocused = it.isFocused }
+                    ) {
+                        Text(
+                            text = stringResource(R.string.home_see_all),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                } else {
+                    // Mobile (Phase 55) : lien texte discret en accent, façon maquette.
                     Text(
                         text = stringResource(R.string.home_see_all),
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold
+                        fontSize = 12.5.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = AccentLavande,
+                        fontFamily = HankenGrotesk,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .clickable { onSeeAll() }
+                            .padding(horizontal = 4.dp, vertical = 2.dp)
                     )
                 }
             }
