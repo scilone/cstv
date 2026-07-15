@@ -63,6 +63,23 @@ internet requise pour le rendu live. Pas requise pour juste lire le CSS.
 
 ## Écrans couverts par les screenshots
 
-Voir `screenshots/` — un fichier par écran, nommé par section (`home.png`,
-`tv.png`, `films.png`, `series.png`, `film-detail.png`, `series-detail.png`,
-`search.png`, `grid-view.png`, `settings.png`, `profile.png`).
+Captures pixel de la maquette rendue (mode "Present"), dans `screenshots/` :
+
+| Fichier | Écran |
+|---|---|
+| `profile.png` | Sélection de profil ("Qui regarde ?") |
+| `home.png`, `home-2.png` | Accueil (hero "Reprendre" + rangées) |
+| `tv.png` | TV en direct |
+| `tv-category-filtered.png` | TV avec bottom sheet de catégorie ouverte |
+| `category-filter.png` | Bottom sheet de sélection de catégorie (détail) |
+| `films.png` | Films (rangées par catégorie) |
+| `films-category-filtered.png` | Films avec bottom sheet de catégorie |
+| `film-detailed.png`, `film-detailed-2.png` | Fiche détail Film |
+| `series.png` | Séries (rangées par catégorie) |
+| `series-category-filtered.png` | Séries avec bottom sheet de catégorie |
+| `serie-detailed.png`, `serie-detailed-2.png` | Fiche détail Série (saisons/épisodes) |
+| `search.png` | Recherche (résultats groupés) |
+| `grid-view.png` | Grille "Voir tout" |
+| `settings.png` | Paramètres |
+
+Les variantes `-2` sont des états défilés (bas de l'écran) du même écran.
