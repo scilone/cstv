@@ -25,9 +25,10 @@ fun IptvXtreamTheme(
 
     val dynamicColorScheme = darkColorScheme(
         primary = primaryColor,
-        onPrimary = Color.Black,
+        // Texte blanc sur fond primaire violet (Phase 31 + CTA maquette color:#fff)
+        onPrimary = Color.White,
         primaryContainer = primaryColor,
-        onPrimaryContainer = Color.Black,
+        onPrimaryContainer = Color.White,
         secondary = Surface3,
         onSecondary = TextPrimary,
         background = DarkBackground,
@@ -54,9 +55,9 @@ fun Modifier.mobileBackground(): Modifier = composed {
         val center = Offset(width * 0.5f, height * -0.08f)
         val gradient = Brush.radialGradient(
             colorStops = arrayOf(
-                0.0f to Color(0xFF1A1330),
-                0.44f to Color(0xFF0B0B12),
-                1.0f to Color(0xFF060608)
+                0.0f to DarkBackgroundGradientStart,
+                0.44f to DarkBackgroundGradientEnd,
+                1.0f to DarkBackground
             ),
             center = center,
             radius = radius
