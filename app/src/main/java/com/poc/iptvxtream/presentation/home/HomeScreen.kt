@@ -48,6 +48,11 @@ import androidx.tv.material3.MaterialTheme as TvTheme
 import androidx.tv.material3.Text as TvText
 import coil.compose.AsyncImage
 import com.poc.iptvxtream.domain.model.UserInfo
+import com.poc.iptvxtream.presentation.theme.AccentLavande
+import com.poc.iptvxtream.presentation.theme.BricolageGrotesque
+import com.poc.iptvxtream.presentation.theme.HankenGrotesk
+import com.poc.iptvxtream.presentation.theme.Surface3
+import androidx.compose.ui.text.font.FontFamily
 import com.poc.iptvxtream.domain.model.PlaybackPosition
 import com.poc.iptvxtream.domain.model.FavoriteItem
 import com.poc.iptvxtream.domain.model.LiveStream
@@ -138,7 +143,7 @@ fun HomeScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(Color(0xFF0F0F13))
+            .background(if (isTv) Color(0xFF0F0F13) else Color.Transparent)
     ) {
         if (state.isLoading) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -179,28 +184,80 @@ fun HomeScreen(
                                 modifier = Modifier
                                     .clickable { onNavigateToProfileManagement() }
                             )
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Column {
-                                Text(
-                                    text = stringResource(R.string.home_welcome, userInfo.username.uppercase()),
-                                    fontSize = if (isTv) 20.sp else 16.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.White
-                                )
-                                Text(
-                                    text = stringResource(R.string.home_expiration_connections, userInfo.expiryDate, userInfo.maxConnections),
-                                    fontSize = 12.sp,
-                                    color = Color.Gray
-                                )
+                            Spacer(modifier = Modifier.width(11.dp))
+                            Column(modifier = Modifier.align(Alignment.CenterVertically)) {
+                                if (!isTv) {
+                                    Text(
+                                        text = "Bonsoir",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = AccentLavande,
+                                        letterSpacing = 0.04.sp,
+                                        fontFamily = HankenGrotesk
+                                    )
+                                    Text(
+                                        text = activeProfileName,
+                                        fontSize = 19.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFFF4F4F7),
+                                        letterSpacing = (-0.01).sp,
+                                        fontFamily = BricolageGrotesque
+                                    )
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(7.dp),
+                                        modifier = Modifier.padding(top = 3.dp)
+                                    ) {
+                                        Text(
+                                            text = userInfo.username.uppercase(),
+                                            fontSize = 10.5.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            color = Color(0xFF7A7A86),
+                                            fontFamily = FontFamily.Monospace
+                                        )
+                                        Box(
+                                            modifier = Modifier
+                                                .size(3.dp)
+                                                .background(Color(0xFF4A4A54), shape = RoundedCornerShape(1.5.dp))
+                                        )
+                                        Text(
+                                            text = "Exp. ${userInfo.expiryDate}",
+                                            fontSize = 10.5.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            color = Color(0xFF7A7A86),
+                                            fontFamily = HankenGrotesk
+                                        )
+                                    }
+                                } else {
+                                    Text(
+                                        text = stringResource(R.string.home_welcome, userInfo.username.uppercase()),
+                                        fontSize = 20.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
+                                    )
+                                    Text(
+                                        text = stringResource(R.string.home_expiration_connections, userInfo.expiryDate, userInfo.maxConnections),
+                                        fontSize = 12.sp,
+                                        color = Color.Gray
+                                    )
+                                }
                             }
                             Spacer(modifier = Modifier.weight(1f))
                             
-                            // Settings Button (replacing Refresh Button)
+                            // Settings Button
                             IconButton(
                                 onClick = onNavigateToSettings,
-                                modifier = Modifier.background(Color(0x22FFFFFF), shape = RoundedCornerShape(12.dp))
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .background(Surface3, shape = RoundedCornerShape(14.dp))
+                                    .border(1.dp, Color.White.copy(alpha = 0.08f), shape = RoundedCornerShape(14.dp))
                             ) {
-                                Icon(Icons.Default.Settings, contentDescription = stringResource(R.string.home_see_all), tint = Color.White)
+                                Icon(
+                                    Icons.Default.Settings,
+                                    contentDescription = stringResource(R.string.home_see_all),
+                                    tint = Color(0xFFC7C7D1),
+                                    modifier = Modifier.size(21.dp)
+                                )
                             }
                         }
 
@@ -247,6 +304,19 @@ fun HomeScreen(
                                 }
                             }
                         }
+                    }
+                }
+
+                // NOUVEAU: Hero "Reprendre" (Phase 48)
+                if (state.resumeWatchingList.isNotEmpty() && !isTv) {
+                    item {
+                        HomeHeroCard(
+                            position = state.resumeWatchingList.first(),
+                            onClick = { handleResumeClick(state.resumeWatchingList.first()) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 8.dp)
+                        )
                     }
                 }
 
@@ -470,7 +540,7 @@ private fun HomeSectionRow(
                     // repos = texte blanc sur #1E1E24 (16.6:1), focus = texte noir sur
                     // Purple80 #D0BCFF (12.3:1).
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = if (isFocused) Color(0xFFD0BCFF) else Color(0xFF1E1E24),
+                        containerColor = if (isFocused) AccentLavande else Surface3,
                         contentColor = if (isFocused) Color.Black else Color.White
                     ),
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),

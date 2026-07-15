@@ -33,6 +33,213 @@ import com.poc.iptvxtream.domain.model.FavoriteItem
 import com.poc.iptvxtream.domain.model.LiveStream
 import com.poc.iptvxtream.domain.model.VodStream
 import com.poc.iptvxtream.domain.model.SeriesStream
+import com.poc.iptvxtream.presentation.theme.AccentLavande
+import com.poc.iptvxtream.presentation.theme.DarkBackground
+import com.poc.iptvxtream.presentation.theme.Surface1
+import com.poc.iptvxtream.presentation.theme.Surface2
+import com.poc.iptvxtream.presentation.theme.Surface3
+import com.poc.iptvxtream.presentation.theme.BricolageGrotesque
+import com.poc.iptvxtream.presentation.theme.HankenGrotesk
+
+@Composable
+fun HomeHeroCard(
+    position: PlaybackPosition,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var isFocused by remember { mutableStateOf(false) }
+    val progress = if (position.durationMs > 0) {
+        position.positionMs.toFloat() / position.durationMs.toFloat()
+    } else 0f
+
+    val subtitle = if (position.type == "series") {
+        val s = position.seasonNum ?: 1
+        val e = position.episodeNum ?: 1
+        "S$s E$e" + if (!position.duration.isNullOrBlank()) " · ${position.duration}" else ""
+    } else {
+        if (!position.duration.isNullOrBlank()) position.duration else "Film"
+    }
+
+    val typeBadgeText = if (position.type == "series") "4K · SÉRIE" else "4K · FILM"
+
+    Card(
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        modifier = modifier
+            .fillMaxWidth()
+            .height(282.dp)
+            .onFocusChanged { isFocused = it.isFocused }
+            .border(
+                width = 2.dp,
+                color = if (isFocused) AccentLavande else Color.Transparent,
+                shape = RoundedCornerShape(22.dp)
+            )
+            .clip(RoundedCornerShape(22.dp))
+            .clickable { onClick() }
+    ) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            // Background Image
+            if (!position.coverUrl.isNullOrBlank()) {
+                AsyncImage(
+                    model = position.coverUrl,
+                    contentDescription = position.title,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Surface1)
+                )
+            }
+
+            // Vertical Fade Overlay (Mockup-like)
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            colorStops = arrayOf(
+                                0.03f to DarkBackground,
+                                0.52f to DarkBackground.copy(alpha = 0.10f),
+                                1.00f to DarkBackground.copy(alpha = 0.42f)
+                            )
+                        )
+                    )
+            )
+
+            // Top-left Badges
+            Row(
+                modifier = Modifier
+                    .padding(14.dp)
+                    .align(Alignment.TopStart),
+                horizontalArrangement = Arrangement.spacedBy(7.dp)
+            ) {
+                // REPRENDRE Badge
+                Box(
+                    modifier = Modifier
+                        .background(AccentLavande, shape = RoundedCornerShape(7.dp))
+                        .padding(horizontal = 9.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        text = "REPRENDRE",
+                        color = Color(0xFF0E0E12),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 10.sp,
+                        letterSpacing = 0.05.sp,
+                        fontFamily = HankenGrotesk
+                    )
+                }
+
+                // Type Badge (Glass style)
+                Box(
+                    modifier = Modifier
+                        .background(Color.Black.copy(alpha = 0.5f), shape = RoundedCornerShape(7.dp))
+                        .border(1.dp, Color.White.copy(alpha = 0.2f), shape = RoundedCornerShape(7.dp))
+                        .padding(horizontal = 9.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        text = typeBadgeText,
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 10.sp,
+                        letterSpacing = 0.05.sp,
+                        fontFamily = HankenGrotesk
+                    )
+                }
+            }
+
+            // Bottom Content
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .align(Alignment.BottomStart)
+                    .padding(horizontal = 20.dp, vertical = 18.dp)
+            ) {
+                Text(
+                    text = position.title ?: "Sans titre",
+                    fontFamily = BricolageGrotesque,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 27.sp,
+                    lineHeight = 30.sp,
+                    color = Color.White,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+
+                Text(
+                    text = subtitle,
+                    fontFamily = HankenGrotesk,
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 12.5.sp,
+                    color = Color(0xFFC9C9D4),
+                    modifier = Modifier.padding(top = 5.dp)
+                )
+
+                // Buttons Row
+                Row(
+                    modifier = Modifier
+                        .padding(top = 14.dp)
+                        .fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    // Play Button
+                    Row(
+                        modifier = Modifier
+                            .background(Color.White, shape = RoundedCornerShape(12.dp))
+                            .padding(horizontal = 22.dp, vertical = 11.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.PlayArrow,
+                            contentDescription = null,
+                            tint = Color(0xFF0E0E12),
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Text(
+                            text = "Reprendre",
+                            color = Color(0xFF0E0E12),
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                            fontFamily = HankenGrotesk
+                        )
+                    }
+
+                    // Plus / Info Button (Glass style)
+                    Box(
+                        modifier = Modifier
+                            .size(44.dp)
+                            .background(Color.White.copy(alpha = 0.14f), shape = RoundedCornerShape(12.dp))
+                            .border(1.dp, Color.White.copy(alpha = 0.2f), shape = RoundedCornerShape(12.dp)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Star,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                }
+
+                // Progress Bar
+                LinearProgressIndicator(
+                    progress = { progress },
+                    color = AccentLavande,
+                    trackColor = Color.White.copy(alpha = 0.2f),
+                    modifier = Modifier
+                        .padding(top = 16.dp)
+                        .fillMaxWidth()
+                        .height(3.dp)
+                        .clip(RoundedCornerShape(999.dp))
+                )
+            }
+        }
+    }
+}
 
 @Composable
 fun HomeResumeWatchingCard(
@@ -55,13 +262,13 @@ fun HomeResumeWatchingCard(
             )
             .clip(RoundedCornerShape(12.dp))
             .clickable { onClick() }
-            .background(Color(0xFF1E1E24))
+            .background(Surface3)
     ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(124.dp)
-                .background(Color(0xFF0F0F13))
+                .background(Surface1)
         ) {
             if (!position.coverUrl.isNullOrBlank()) {
                 AsyncImage(
@@ -148,13 +355,13 @@ fun HomeFavoriteItemCard(
             )
             .clip(RoundedCornerShape(12.dp))
             .clickable { onClick() }
-            .background(Color(0xFF1E1E24))
+            .background(Surface3)
     ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(195.dp)
-                .background(Color(0xFF0F0F13)),
+                .background(Surface1),
             contentAlignment = Alignment.Center
         ) {
             if (!favorite.cover.isNullOrBlank()) {
@@ -245,13 +452,13 @@ fun HomeLiveTvCard(
             )
             .clip(RoundedCornerShape(12.dp))
             .clickable { onClick() }
-            .background(Color(0xFF1E1E24))
+            .background(Surface3)
     ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(90.dp)
-                .background(Color(0xFF0F0F13)),
+                .background(Surface1),
             contentAlignment = Alignment.Center
         ) {
             if (!stream.streamIcon.isNullOrBlank()) {
@@ -380,13 +587,13 @@ fun HomeVodMovieCard(
             )
             .clip(RoundedCornerShape(12.dp))
             .clickable { onClick() }
-            .background(Color(0xFF1E1E24))
+            .background(Surface3)
     ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(195.dp) // standard 2:3 ratio
-                .background(Color(0xFF0F0F13)),
+                .background(Surface1),
             contentAlignment = Alignment.Center
         ) {
             if (!stream.streamIcon.isNullOrBlank()) {
@@ -459,13 +666,13 @@ fun HomeSeriesShowCard(
             )
             .clip(RoundedCornerShape(12.dp))
             .clickable { onClick() }
-            .background(Color(0xFF1E1E24))
+            .background(Surface3)
     ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(195.dp) // standard 2:3 ratio
-                .background(Color(0xFF0F0F13)),
+                .background(Surface1),
             contentAlignment = Alignment.Center
         ) {
             if (!stream.cover.isNullOrBlank()) {
