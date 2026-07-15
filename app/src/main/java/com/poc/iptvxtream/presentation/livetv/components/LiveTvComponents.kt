@@ -42,6 +42,8 @@ import com.poc.iptvxtream.presentation.theme.Surface2
 import com.poc.iptvxtream.presentation.theme.Surface3
 import com.poc.iptvxtream.presentation.theme.BricolageGrotesque
 import com.poc.iptvxtream.presentation.theme.HankenGrotesk
+import com.poc.iptvxtream.presentation.theme.TextPrimary
+import com.poc.iptvxtream.presentation.theme.TextSecondary
 import com.poc.iptvxtream.presentation.rememberForeverLazyListState
 import kotlinx.coroutines.delay
 
@@ -57,20 +59,42 @@ fun CategorySectionRow(
     epgPrograms: Map<Int, LiveEpgProgram>,
     onLoadEpg: (Int) -> Unit,
     getScroll: (String) -> Pair<Int, Int>,
-    saveScroll: (String, Int, Int) -> Unit
+    saveScroll: (String, Int, Int) -> Unit,
+    onSeeAll: (() -> Unit)? = null
 ) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp)
     ) {
-        Text(
-            text = title.uppercase(),
-            color = Color.LightGray,
-            fontWeight = FontWeight.Bold,
-            fontSize = 14.sp,
-            modifier = Modifier.padding(start = 12.dp, bottom = 6.dp)
-        )
+        // Phase 56 : titre de catégorie grisé (texte secondaire) + lien "Voir tout".
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 12.dp, end = 12.dp, bottom = 6.dp)
+        ) {
+            Text(
+                text = title.uppercase(),
+                color = TextSecondary,
+                fontWeight = FontWeight.Bold,
+                fontSize = 14.sp
+            )
+            if (onSeeAll != null && !isTv) {
+                Spacer(modifier = Modifier.weight(1f))
+                Text(
+                    text = "Voir tout",
+                    color = AccentLavande,
+                    fontFamily = HankenGrotesk,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 12.5.sp,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .clickable { onSeeAll() }
+                        .padding(horizontal = 4.dp, vertical = 2.dp)
+                )
+            }
+        }
 
         val rowState = rememberForeverLazyListState("livetv_row_${categoryId}", getScroll, saveScroll)
         LazyRow(
@@ -293,7 +317,7 @@ fun RecentlyWatchedRow(
     ) {
         Text(
             text = "RÉCEMMENT REGARDÉES",
-            color = Color.LightGray,
+            color = TextSecondary,
             fontWeight = FontWeight.Bold,
             fontSize = 14.sp,
             modifier = Modifier.padding(start = 12.dp, bottom = 6.dp)
@@ -307,13 +331,230 @@ fun RecentlyWatchedRow(
             modifier = Modifier.fillMaxWidth().focusGroup()
         ) {
             items(streams) { stream ->
-                RecentlyWatchedTvItem(
-                    stream = stream,
-                    epgProgram = epgPrograms[stream.streamId],
-                    onLoadEpg = { onLoadEpg(stream.streamId) },
-                    onClick = { onStreamSelected(stream) }
+                if (isTv) {
+                    RecentlyWatchedTvItem(
+                        stream = stream,
+                        epgProgram = epgPrograms[stream.streamId],
+                        onLoadEpg = { onLoadEpg(stream.streamId) },
+                        onClick = { onStreamSelected(stream) }
+                    )
+                } else {
+                    MobileRecentlyWatchedItem(
+                        stream = stream,
+                        epgProgram = epgPrograms[stream.streamId],
+                        onLoadEpg = { onLoadEpg(stream.streamId) },
+                        onClick = { onStreamSelected(stream) }
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Phase 56 : tuile "Récemment regardées" mobile iso-maquette — logo avec numéro
+ * en overlay, nom, programme en gris (et non violet), jauge de progression et
+ * heures de diffusion.
+ */
+@Composable
+fun MobileRecentlyWatchedItem(
+    stream: LiveStream,
+    epgProgram: LiveEpgProgram?,
+    onLoadEpg: () -> Unit,
+    onClick: () -> Unit
+) {
+    LaunchedEffect(stream.streamId) {
+        while (true) {
+            onLoadEpg()
+            delay(60000)
+        }
+    }
+
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .width(280.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(Surface3)
+            .border(1.dp, Color.White.copy(alpha = 0.06f), RoundedCornerShape(16.dp))
+            .clickable { onClick() }
+            .padding(11.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(width = 58.dp, height = 44.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(Surface1),
+            contentAlignment = Alignment.Center
+        ) {
+            if (!stream.streamIcon.isNullOrBlank()) {
+                AsyncImage(
+                    model = stream.streamIcon,
+                    contentDescription = stream.name,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.fillMaxSize().padding(3.dp)
+                )
+            } else {
+                Text(
+                    text = "${stream.num}",
+                    color = Color.White.copy(alpha = 0.82f),
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = BricolageGrotesque
                 )
             }
+        }
+
+        Spacer(modifier = Modifier.width(11.dp))
+
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = stream.name,
+                color = TextPrimary,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                fontFamily = HankenGrotesk
+            )
+            Text(
+                text = epgProgram?.title ?: "Aucun programme",
+                color = TextSecondary,
+                fontSize = 11.5.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                fontFamily = HankenGrotesk,
+                modifier = Modifier.padding(top = 3.dp)
+            )
+            if (epgProgram != null) {
+                EpgProgressBar(
+                    program = epgProgram,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 7.dp)
+                        .height(3.dp)
+                        .clip(RoundedCornerShape(999.dp))
+                )
+                Text(
+                    text = epgProgram.formattedTimeRange(),
+                    color = Color(0xFF63636F),
+                    fontSize = 10.5.sp,
+                    fontFamily = HankenGrotesk,
+                    modifier = Modifier.padding(top = 5.dp)
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Phase 56 : tuile de chaîne pour la grille verticale à 2 colonnes (catégorie
+ * spécifique, mobile). Logo, nom, programme EPG en gris, jauge + heures ;
+ * hauteur uniforme même sans EPG (Phase 33).
+ */
+@Composable
+fun MobileChannelGridCard(
+    stream: LiveStream,
+    isFavorite: Boolean,
+    epgProgram: LiveEpgProgram?,
+    onLoadEpg: () -> Unit,
+    onToggleFavorite: () -> Unit,
+    onClick: () -> Unit
+) {
+    LaunchedEffect(stream.streamId) {
+        while (true) {
+            onLoadEpg()
+            delay(60000)
+        }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            // Hauteur fixe (Phase 33) : une chaîne sans EPG résolue ne doit pas
+            // produire une tuile plus petite que ses voisines dans la grille.
+            .height(184.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(Surface3)
+            .border(1.dp, Color.White.copy(alpha = 0.06f), RoundedCornerShape(14.dp))
+            .clickable { onClick() }
+            .padding(10.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(76.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(Surface1),
+            contentAlignment = Alignment.Center
+        ) {
+            if (!stream.streamIcon.isNullOrBlank()) {
+                AsyncImage(
+                    model = stream.streamIcon,
+                    contentDescription = stream.name,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.fillMaxSize().padding(6.dp)
+                )
+            } else {
+                Icon(
+                    imageVector = Icons.Default.PlayArrow,
+                    contentDescription = null,
+                    tint = Color.Gray,
+                    modifier = Modifier.size(28.dp)
+                )
+            }
+
+            IconButton(
+                onClick = onToggleFavorite,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .size(28.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Star,
+                    contentDescription = "Favori",
+                    tint = if (isFavorite) Color.Yellow else Color.White.copy(alpha = 0.4f),
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Text(
+            text = stream.name,
+            color = TextPrimary,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            fontFamily = HankenGrotesk
+        )
+        Text(
+            text = epgProgram?.title ?: "Aucun programme",
+            color = TextSecondary,
+            fontSize = 11.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            fontFamily = HankenGrotesk,
+            modifier = Modifier.padding(top = 2.dp)
+        )
+        if (epgProgram != null) {
+            EpgProgressBar(
+                program = epgProgram,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 6.dp)
+                    .height(3.dp)
+                    .clip(RoundedCornerShape(999.dp))
+            )
+            Text(
+                text = epgProgram.formattedTimeRange(),
+                color = Color(0xFF63636F),
+                fontSize = 10.sp,
+                fontFamily = HankenGrotesk,
+                modifier = Modifier.padding(top = 4.dp)
+            )
         }
     }
 }

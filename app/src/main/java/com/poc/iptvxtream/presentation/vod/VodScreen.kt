@@ -46,6 +46,9 @@ import com.poc.iptvxtream.presentation.theme.HankenGrotesk
 import com.poc.iptvxtream.presentation.theme.Surface1
 import com.poc.iptvxtream.presentation.theme.Surface2
 import com.poc.iptvxtream.presentation.theme.Surface3
+import com.poc.iptvxtream.presentation.theme.TextSecondary
+import com.poc.iptvxtream.presentation.components.CategorySelectorTrigger
+import com.poc.iptvxtream.presentation.components.CategorySearchField
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -324,50 +327,14 @@ private fun MobileLayout(
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        // Category Selector Row (High-Fidelity)
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(Surface2)
-                .padding(vertical = 8.dp, horizontal = 16.dp)
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .weight(1f)
-                    .clickable { showCategorySheet = true }
-                    .background(Surface3, shape = RoundedCornerShape(12.dp))
-                    .border(1.dp, Color.White.copy(alpha = 0.08f), shape = RoundedCornerShape(12.dp))
-                    .padding(horizontal = 14.dp, vertical = 10.dp)
-            ) {
-                Text(
-                    text = state.selectedCategory?.categoryName ?: "Tout",
-                    color = Color.White,
-                    fontFamily = BricolageGrotesque,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 15.sp,
-                    modifier = Modifier.weight(1f)
-                )
-                Icon(
-                    imageVector = Icons.Default.ArrowDropDown,
-                    contentDescription = null,
-                    tint = AccentLavande
-                )
-            }
-
-            Spacer(modifier = Modifier.width(12.dp))
-
-            IconButton(
-                onClick = onRefresh,
-                modifier = Modifier
-                    .size(44.dp)
-                    .background(Surface3, shape = RoundedCornerShape(12.dp))
-                    .border(1.dp, Color.White.copy(alpha = 0.08f), shape = RoundedCornerShape(12.dp))
-            ) {
-                Icon(Icons.Default.Refresh, contentDescription = "Rafraîchir", tint = Color.White)
-            }
-        }
+        // Sélecteur de catégorie unifié (Phase 56) : pleine largeur, sans bouton
+        // "Rafraîchir" (rafraîchissement manuel déplacé dans les Paramètres),
+        // espacé du haut, fond neutre transparent comme le reste du layout.
+        CategorySelectorTrigger(
+            label = state.selectedCategory?.categoryName ?: "Tout",
+            onClick = { showCategorySheet = true },
+            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 8.dp)
+        )
 
         // Category Modal Bottom Sheet (Opt-In Material 3)
         if (showCategorySheet) {
@@ -489,7 +456,8 @@ private fun MobileLayout(
                             onMovieSelected = onMovieSelected,
                             isTv = false,
                             getScroll = getScroll,
-                            saveScroll = saveScroll
+                            saveScroll = saveScroll,
+                            onSeeAll = { onCategorySelected(category) }
                         )
                     }
                 }
@@ -497,21 +465,11 @@ private fun MobileLayout(
         } else {
             // Mode "Catégorie spécifique" : Search & Vertical Grid
             if (isSpecificCategory) {
-                OutlinedTextField(
+                CategorySearchField(
                     value = searchQuery,
                     onValueChange = onSearchQueryChanged,
-                    placeholder = { Text("Rechercher dans cette catégorie...", color = Color.Gray, fontSize = 13.sp) },
-                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp)) },
-                    singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = MaterialTheme.colorScheme.primary,
-                        unfocusedBorderColor = Color.DarkGray,
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White
-                    ),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                    placeholder = "Rechercher dans cette catégorie...",
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                 )
             }
 
@@ -615,20 +573,42 @@ private fun CategorySectionRow(
     onMovieSelected: (VodStream) -> Unit,
     isTv: Boolean,
     getScroll: (String) -> Pair<Int, Int>,
-    saveScroll: (String, Int, Int) -> Unit
+    saveScroll: (String, Int, Int) -> Unit,
+    onSeeAll: (() -> Unit)? = null
 ) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp)
     ) {
-        Text(
-            text = title.uppercase(),
-            color = Color.LightGray,
-            fontWeight = FontWeight.Bold,
-            fontSize = 14.sp,
-            modifier = Modifier.padding(start = 12.dp, bottom = 6.dp)
-        )
+        // Phase 56 : titre de catégorie grisé (texte secondaire) + lien "Voir tout".
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 12.dp, end = 12.dp, bottom = 6.dp)
+        ) {
+            Text(
+                text = title.uppercase(),
+                color = TextSecondary,
+                fontWeight = FontWeight.Bold,
+                fontSize = 14.sp
+            )
+            if (onSeeAll != null && !isTv) {
+                Spacer(modifier = Modifier.weight(1f))
+                Text(
+                    text = "Voir tout",
+                    color = AccentLavande,
+                    fontFamily = HankenGrotesk,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 12.5.sp,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .clickable { onSeeAll() }
+                        .padding(horizontal = 4.dp, vertical = 2.dp)
+                )
+            }
+        }
 
         val rowState = rememberForeverLazyListState("vod_row_${categoryId}", getScroll, saveScroll)
         LazyRow(

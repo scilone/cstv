@@ -46,6 +46,9 @@ import com.poc.iptvxtream.presentation.theme.HankenGrotesk
 import com.poc.iptvxtream.presentation.theme.Surface1
 import com.poc.iptvxtream.presentation.theme.Surface2
 import com.poc.iptvxtream.presentation.theme.Surface3
+import com.poc.iptvxtream.presentation.theme.TextSecondary
+import com.poc.iptvxtream.presentation.components.CategorySelectorTrigger
+import com.poc.iptvxtream.presentation.components.CategorySearchField
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Check
 import kotlinx.coroutines.delay
@@ -370,50 +373,14 @@ private fun MobileLayout(
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        // Category Selector Row (High-Fidelity)
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(Surface2)
-                .padding(vertical = 8.dp, horizontal = 16.dp)
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .weight(1f)
-                    .clickable { showCategorySheet = true }
-                    .background(Surface3, shape = RoundedCornerShape(12.dp))
-                    .border(1.dp, Color.White.copy(alpha = 0.08f), shape = RoundedCornerShape(12.dp))
-                    .padding(horizontal = 14.dp, vertical = 10.dp)
-            ) {
-                Text(
-                    text = state.selectedCategory?.categoryName ?: "Tout",
-                    color = Color.White,
-                    fontFamily = BricolageGrotesque,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 15.sp,
-                    modifier = Modifier.weight(1f)
-                )
-                Icon(
-                    imageVector = Icons.Default.ArrowDropDown,
-                    contentDescription = null,
-                    tint = AccentLavande
-                )
-            }
-
-            Spacer(modifier = Modifier.width(12.dp))
-
-            IconButton(
-                onClick = onRefresh,
-                modifier = Modifier
-                    .size(44.dp)
-                    .background(Surface3, shape = RoundedCornerShape(12.dp))
-                    .border(1.dp, Color.White.copy(alpha = 0.08f), shape = RoundedCornerShape(12.dp))
-            ) {
-                Icon(Icons.Default.Refresh, contentDescription = "Rafraîchir", tint = Color.White)
-            }
-        }
+        // Sélecteur de catégorie unifié (Phase 56) : pleine largeur, sans bouton
+        // "Rafraîchir" (rafraîchissement manuel déplacé dans les Paramètres),
+        // espacé du haut, fond neutre transparent comme le reste du layout.
+        CategorySelectorTrigger(
+            label = state.selectedCategory?.categoryName ?: "Tout",
+            onClick = { showCategorySheet = true },
+            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 8.dp)
+        )
 
         // Category Modal Bottom Sheet (Opt-In Material 3)
         if (showCategorySheet) {
@@ -560,29 +527,20 @@ private fun MobileLayout(
                             epgPrograms = epgPrograms,
                             onLoadEpg = onLoadEpg,
                             getScroll = getScroll,
-                            saveScroll = saveScroll
+                            saveScroll = saveScroll,
+                            onSeeAll = { onCategorySelected(category) }
                         )
                     }
                 }
             }
         } else {
-            // Mode "Catégorie spécifique" : Search & Vertical List
+            // Mode "Catégorie spécifique" : recherche + grille verticale 2 colonnes (Phase 56)
             if (isSpecificCategory) {
-                OutlinedTextField(
+                CategorySearchField(
                     value = searchQuery,
                     onValueChange = onSearchQueryChanged,
-                    placeholder = { Text("Rechercher une chaîne...", color = Color.Gray, fontSize = 13.sp) },
-                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp)) },
-                    singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = MaterialTheme.colorScheme.primary,
-                        unfocusedBorderColor = Color.DarkGray,
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White
-                    ),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                    placeholder = "Rechercher une chaîne...",
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                 )
             }
 
@@ -594,124 +552,26 @@ private fun MobileLayout(
                     )
                 }
             } else {
-                val listState = rememberForeverLazyListState("livetv_mobile_cat_" + (state.selectedCategory?.categoryId ?: "0"), getScroll, saveScroll)
-                LazyColumn(
-                    state = listState,
+                val gridState = rememberForeverLazyGridState("livetv_mobile_cat_" + (state.selectedCategory?.categoryId ?: "0"), getScroll, saveScroll)
+                LazyVerticalGrid(
+                    state = gridState,
+                    columns = GridCells.Fixed(2),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(horizontal = 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                        .padding(horizontal = 16.dp)
                 ) {
                     items(filteredStreams) { stream ->
                         val isFav = favoritesList.any { it.id == stream.streamId && it.type == "live" }
-                        val epgProgram = epgPrograms[stream.streamId]
-
-                        LaunchedEffect(stream.streamId) {
-                            while (true) {
-                                onLoadEpg(stream.streamId)
-                                delay(60000)
-                            }
-                        }
-
-                        Card(
-                            colors = CardDefaults.cardColors(containerColor = Surface3),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                // Hauteur fixe (Phase 33) : une chaîne sans EPG résolue ne
-                                // doit pas produire une tuile plus petite que ses voisines.
-                                .height(88.dp)
-                                .clickable { onStreamSelected(stream) }
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(10.dp)
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(60.dp)
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(Surface1),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    if (!stream.streamIcon.isNullOrBlank()) {
-                                        AsyncImage(
-                                            model = stream.streamIcon,
-                                            contentDescription = stream.name,
-                                            contentScale = ContentScale.Fit,
-                                            modifier = Modifier.fillMaxSize()
-                                        )
-                                    } else {
-                                        Icon(
-                                            imageVector = Icons.Default.PlayArrow,
-                                            contentDescription = null,
-                                            tint = Color.Gray,
-                                            modifier = Modifier.size(28.dp)
-                                        )
-                                    }
-                                }
-
-                                Spacer(modifier = Modifier.width(12.dp))
-
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = "CH ${stream.num}",
-                                        color = MaterialTheme.colorScheme.primary,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                    Text(
-                                        text = stream.name,
-                                        color = Color.White,
-                                        fontSize = 14.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-
-                                    if (epgProgram != null) {
-                                        Text(
-                                            text = epgProgram.title,
-                                            color = MaterialTheme.colorScheme.primary,
-                                            fontSize = 11.sp,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis,
-                                            modifier = Modifier.padding(top = 2.dp)
-                                        )
-                                        Spacer(modifier = Modifier.height(4.dp))
-                                        EpgProgressBar(
-                                            program = epgProgram,
-                                            modifier = Modifier
-                                                .fillMaxWidth(0.9f)
-                                                .height(3.dp)
-                                                .clip(RoundedCornerShape(1.5.dp))
-                                        )
-                                        Text(
-                                            text = epgProgram.formattedTimeRange(),
-                                            color = Color.Gray,
-                                            fontSize = 9.sp,
-                                            modifier = Modifier.padding(top = 2.dp)
-                                        )
-                                    }
-                                }
-
-                                IconButton(onClick = { onToggleFavorite(stream) }) {
-                                    Icon(
-                                        imageVector = Icons.Default.Star,
-                                        contentDescription = "Favori",
-                                        tint = if (isFav) Color.Yellow else Color.DarkGray
-                                    )
-                                }
-
-                                Spacer(modifier = Modifier.width(4.dp))
-
-                                Icon(
-                                    imageVector = Icons.Default.PlayArrow,
-                                    contentDescription = "Play",
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(24.dp)
-                                )
-                            }
-                        }
+                        MobileChannelGridCard(
+                            stream = stream,
+                            isFavorite = isFav,
+                            epgProgram = epgPrograms[stream.streamId],
+                            onLoadEpg = { onLoadEpg(stream.streamId) },
+                            onToggleFavorite = { onToggleFavorite(stream) },
+                            onClick = { onStreamSelected(stream) }
+                        )
                     }
                 }
             }
