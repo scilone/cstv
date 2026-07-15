@@ -516,7 +516,7 @@ Attendu :
 
 ---
 
-Phase 43 : migrer kapt vers KSP (Hilt + Room).
+Phase 43 [TERMINE] : migrer kapt vers KSP (Hilt + Room).
 
 kapt génère des stubs Java pour chaque compilation : build ~2× plus lent
 que KSP sur ces processeurs. Migration mécanique supportée par Hilt
