@@ -72,6 +72,8 @@ import com.poc.iptvxtream.presentation.profile.ProfileSelectionScreen
 import com.poc.iptvxtream.presentation.settings.SettingsViewModel
 import com.poc.iptvxtream.presentation.navigation.AppNavGraph
 import com.poc.iptvxtream.presentation.theme.IptvXtreamTheme
+import com.poc.iptvxtream.presentation.theme.mobileBackground
+import androidx.compose.ui.unit.dp
 import dagger.hilt.android.AndroidEntryPoint
 
 enum class AppScreen {
@@ -652,78 +654,88 @@ class MainActivity : ComponentActivity() {
                         // AND we are not on the login screen or in a full screen player
                         val showBottomBar = loggedInUser != null && currentRoute !in listOf("login", "live_player", "vod_player", "series_player")
 
-                        Scaffold(
-                            bottomBar = {
-                                if (showBottomBar) {
-                                    NavigationBar(containerColor = Color(0xFF16161D)) {
-                                        val tabs = listOf(MobileTab.HOME, MobileTab.TV, MobileTab.MOVIES, MobileTab.SERIES, MobileTab.SEARCH)
-                                        tabs.forEach { tab ->
-                                            val selected = currentRoute == tab.route ||
-                                                    (tab.route == "movies" && currentRoute == "vod_details") ||
-                                                    (tab.route == "series" && currentRoute == "series_details")
-                                            NavigationBarItem(
-                                                selected = selected,
-                                                onClick = {
-                                                    if (tab == MobileTab.HOME) {
-                                                        navController.navigate(tab.route) {
-                                                            popUpTo("home") {
-                                                                inclusive = false
-                                                            }
-                                                            launchSingleTop = true
-                                                        }
-                                                    } else {
-                                                        navController.navigate(tab.route) {
-                                                            popUpTo(navController.graph.findStartDestination().id) {
-                                                                saveState = true
-                                                            }
-                                                            launchSingleTop = true
-                                                            restoreState = true
-                                                        }
-                                                    }
-                                                },
-                                                icon = { Icon(tab.icon, contentDescription = tab.title) },
-                                                label = { Text(tab.title, fontSize = 10.sp) },
-                                                colors = NavigationBarItemDefaults.colors(
-                                                    selectedIconColor = MaterialTheme.colorScheme.primary,
-                                                    selectedTextColor = MaterialTheme.colorScheme.primary,
-                                                    unselectedIconColor = Color.Gray,
-                                                    unselectedTextColor = Color.Gray
-                                                )
+                        Box(modifier = Modifier.fillMaxSize().mobileBackground()) {
+                            Scaffold(
+                                containerColor = Color.Transparent,
+                                bottomBar = {
+                                    if (showBottomBar) {
+                                        androidx.compose.foundation.layout.Column {
+                                            androidx.compose.material3.HorizontalDivider(
+                                                color = Color(0x10FFFFFF),
+                                                thickness = 1.dp
                                             )
+                                            NavigationBar(containerColor = Color(0xE60C0C10)) {
+                                                val tabs = listOf(MobileTab.HOME, MobileTab.TV, MobileTab.MOVIES, MobileTab.SERIES, MobileTab.SEARCH)
+                                                tabs.forEach { tab ->
+                                                    val selected = currentRoute == tab.route ||
+                                                            (tab.route == "movies" && currentRoute == "vod_details") ||
+                                                            (tab.route == "series" && currentRoute == "series_details")
+                                                    NavigationBarItem(
+                                                        selected = selected,
+                                                        onClick = {
+                                                            if (tab == MobileTab.HOME) {
+                                                                navController.navigate(tab.route) {
+                                                                    popUpTo("home") {
+                                                                        inclusive = false
+                                                                    }
+                                                                    launchSingleTop = true
+                                                                }
+                                                            } else {
+                                                                navController.navigate(tab.route) {
+                                                                    popUpTo(navController.graph.findStartDestination().id) {
+                                                                        saveState = true
+                                                                    }
+                                                                    launchSingleTop = true
+                                                                    restoreState = true
+                                                                }
+                                                            }
+                                                        },
+                                                        icon = { Icon(tab.icon, contentDescription = tab.title) },
+                                                        label = { Text(tab.title, fontSize = 10.sp, fontFamily = com.poc.iptvxtream.presentation.theme.AppTypography.labelSmall.fontFamily) },
+                                                        colors = NavigationBarItemDefaults.colors(
+                                                            selectedIconColor = com.poc.iptvxtream.presentation.theme.AccentLavande,
+                                                            selectedTextColor = com.poc.iptvxtream.presentation.theme.AccentLavande,
+                                                            unselectedIconColor = com.poc.iptvxtream.presentation.theme.TextSecondary,
+                                                            unselectedTextColor = com.poc.iptvxtream.presentation.theme.TextSecondary,
+                                                            indicatorColor = com.poc.iptvxtream.presentation.theme.AccentLavande.copy(alpha = 0.16f)
+                                                        )
+                                                    )
+                                                }
+                                            }
                                         }
                                     }
                                 }
+                            ) { paddingValues ->
+                                AppNavGraph(
+                                    navController = navController,
+                                    paddingValues = paddingValues,
+                                    loggedInUser = loggedInUser,
+                                    onUserChanged = { loggedInUser = it },
+                                    loginViewModel = loginViewModel,
+                                    favoritesViewModel = favoritesViewModel,
+                                    homeViewModel = homeViewModel,
+                                    profileViewModel = profileViewModel,
+                                    profileState = profileState,
+                                    favsState = favsState,
+                                    homeLazyListState = homeLazyListState,
+                                    activeStream = activeStream,
+                                    onActiveStreamChanged = { activeStream = it },
+                                    activeStreamsList = activeStreamsList,
+                                    onActiveStreamsListChanged = { activeStreamsList = it },
+                                    activeVodMovie = activeVodMovie,
+                                    onActiveVodMovieChanged = { activeVodMovie = it },
+                                    activeVodDetails = activeVodDetails,
+                                    onActiveVodDetailsChanged = { activeVodDetails = it },
+                                    resumePositionMs = resumePositionMs,
+                                    onResumePositionMsChanged = { resumePositionMs = it },
+                                    activeSeriesShow = activeSeriesShow,
+                                    onActiveSeriesShowChanged = { activeSeriesShow = it },
+                                    activeSeriesDetails = activeSeriesDetails,
+                                    onActiveSeriesDetailsChanged = { activeSeriesDetails = it },
+                                    activeEpisode = activeEpisode,
+                                    onActiveEpisodeChanged = { activeEpisode = it }
+                                )
                             }
-                        ) { paddingValues ->
-                            AppNavGraph(
-                                navController = navController,
-                                paddingValues = paddingValues,
-                                loggedInUser = loggedInUser,
-                                onUserChanged = { loggedInUser = it },
-                                loginViewModel = loginViewModel,
-                                favoritesViewModel = favoritesViewModel,
-                                homeViewModel = homeViewModel,
-                                profileViewModel = profileViewModel,
-                                profileState = profileState,
-                                favsState = favsState,
-                                homeLazyListState = homeLazyListState,
-                                activeStream = activeStream,
-                                onActiveStreamChanged = { activeStream = it },
-                                activeStreamsList = activeStreamsList,
-                                onActiveStreamsListChanged = { activeStreamsList = it },
-                                activeVodMovie = activeVodMovie,
-                                onActiveVodMovieChanged = { activeVodMovie = it },
-                                activeVodDetails = activeVodDetails,
-                                onActiveVodDetailsChanged = { activeVodDetails = it },
-                                resumePositionMs = resumePositionMs,
-                                onResumePositionMsChanged = { resumePositionMs = it },
-                                activeSeriesShow = activeSeriesShow,
-                                onActiveSeriesShowChanged = { activeSeriesShow = it },
-                                activeSeriesDetails = activeSeriesDetails,
-                                onActiveSeriesDetailsChanged = { activeSeriesDetails = it },
-                                activeEpisode = activeEpisode,
-                                onActiveEpisodeChanged = { activeEpisode = it }
-                            )
                         }
                     }
                 }
