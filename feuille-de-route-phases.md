@@ -771,3 +771,21 @@ Attendu :
 - Temps restant sur "Continuer à regarder" : dans la section "Continuer à regarder" de l'accueil, afficher clairement le temps de lecture restant pour chaque vignette, conformément aux captures d'écran de référence.
 - Titre des médias dans les listes : déplacer le titre des médias pour qu'il soit affiché à l'intérieur de la vignette (en overlay) et non plus en dessous, conformément à la maquette.
 - Tuiles TV de l'accueil : réviser le design des tuiles de la rangée TV en direct sur l'écran d'accueil pour qu'elles soient rigoureusement identiques à celles de la maquette.
+
+---
+
+Phase 56 : retours liés à l'onglet TV et affichage catalogue.
+
+Attendu :
+- Titres des catégories plus gris : les titres de catégories doivent être affichés avec une couleur de texte plus grisée (cohérente avec le texte secondaire `#9A9AA8` de la maquette).
+- Vignettes TV récemment regardées : corriger le design des vignettes TV récemment regardées pour être 100 % iso-maquette (couleur du texte du programme gris et non violet, affichage de l'heure/horaire du programme, etc.).
+- Filtre de catégorie unifié (TV/Films/Séries) :
+  - Supprimer le bouton "Rafraîchir" (Refresh) à droite du sélecteur sur les écrans TV, Films et Séries. Le rafraîchissement manuel se fera désormais uniquement via les Paramètres.
+  - Élargir le bouton déclencheur (dropdown) de catégorie pour occuper toute la largeur disponible.
+  - Espacer le sélecteur du haut de l'écran pour éviter qu'il soit collé au bord supérieur.
+  - Donner au sélecteur un fond de la même couleur neutre et transparente que le reste du layout.
+- Champ de recherche de catégorie filtrée : restyler le champ de recherche textuel affiché lors d'un filtrage de catégorie spécifique pour être iso-maquette (plus arrondi, plus aéré en haut/bas avec des paddings, fond légèrement grisé identique au dropdown de catégorie).
+- Boutons "Voir tout" et "Favoris" en mode "Tout" :
+  - Quand on est sur la catégorie virtuelle "Tout", ajouter un bouton "Voir tout" à droite de chaque section horizontale (comme sur l'écran d'accueil).
+  - Ajouter également la section "Favoris" sur cet écran de TV en direct.
+- Grille de chaînes à 2 colonnes par ligne : lorsqu'on clique sur une catégorie spécifique, les chaînes doivent s'afficher en défilement vertical, mais sous forme d'une grille à 2 colonnes par ligne (2 médias par ligne) au lieu d'une seule colonne.
