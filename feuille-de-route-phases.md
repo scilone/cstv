@@ -557,3 +557,206 @@ Améliorations de fond, non bloquantes pour un POC mono-langue :
 3. Restreindre `usesCleartextTraffic` via un
    `network_security_config.xml` (autoriser HTTP uniquement là où les
    panels Xtream l'exigent) plutôt que le flag global.
+
+---
+
+## Refonte UI/UX (maquette Claude Design "Refonte IPTV")
+
+Les phases 46 à 53 déclinent la refonte visuelle validée sur maquette
+(projet Claude Design, direction "cinéma"). Cadrage commun à toutes ces
+phases, à respecter sans le répéter à chaque fois :
+
+- **Référence visuelle** : `docs/design-reference/` contient le HTML/CSS brut
+  de la maquette (`mockup-source/Refonte-IPTV.dc.html` — couleurs, radius,
+  typographie exacts, grep par section via les commentaires `<!-- HOME -->`,
+  `<!-- TV -->`, etc.) et, quand disponibles, des captures d'écran par écran
+  (`screenshots/`). Consulter ce dossier avant de commencer chaque phase
+  46-54 plutôt que d'extrapoler les valeurs de design.
+
+- **Périmètre mobile uniquement** (`isTv == false`). La branche TV
+  (D-pad, focus, `androidx.tv.material3`, navigations dédiées) n'est PAS
+  concernée : ne rien casser sur les layouts `TvXxx`/`isTv` existants.
+- **Refonte purement visuelle** : toutes les fonctionnalités de la
+  maquette existent déjà côté logique (profils, reprise de lecture,
+  favoris, EPG, recherche FTS, fréquence de sync, apparence sous-titres,
+  "Voir tout"). Aucune feature métier à créer — on ré-habille des écrans
+  qui fonctionnent, on ne réécrit pas les ViewModels/repositories.
+- **Polices** : Bricolage Grotesque (titres) et Hanken Grotesk (corps),
+  bundlées en statique dans `res/font/` (fichiers `.ttf` téléchargés,
+  pas de Downloadable Fonts — l'app doit rester fonctionnelle hors
+  ligne).
+- **Icônes** : conserver `androidx.compose.material.icons` (vecteurs,
+  hors ligne). Ne PAS migrer vers la police Material Symbols de la
+  maquette ; le rendu rounded/filled existant est visuellement proche.
+- **Palette de référence** (hex maquette) : fond `#060608`, surfaces
+  `#0F0F13` / `#16161D` / `#1E1E24`, accent lavande `#9C86FF`, texte
+  `#F6F6FA` / secondaire `#9A9AA8`. L'app utilise déjà `#0F0F13` /
+  `#1E1E24` : la direction est proche, la migration reste faisable
+  incrémentalement.
+- **Méthode** : livrer écran par écran, build + lint + test verts et
+  commit à chaque phase (règle projet). Aucun tag intermédiaire jusqu'à
+  la fin de la refonte.
+
+---
+
+Phase 46 : fondation du design system (thème centralisé + polices).
+
+Aucun `Theme.kt` / `Color.kt` / `Type.kt` n'existe : chaque composable
+code ses couleurs en dur (`Color(0xFF1E1E24)`…) et l'app tourne sur le
+`colorScheme` Material3 par défaut. Prérequis à tout le reste : sans
+socle de tokens, chaque phase suivante recopierait des littéraux.
+
+Attendu :
+- Créer `presentation/theme/` : `Color.kt` (palette de référence en
+  tokens nommés), `Type.kt` (Typography Material3 mappée sur les deux
+  polices : Bricolage Grotesque en display/headline/title, Hanken
+  Grotesk en body/label), `Theme.kt` (un `MaterialTheme` mobile
+  appliqué à la racine de la branche `isTv == false`).
+- Télécharger et bundler les `.ttf` des deux familles dans `res/font/`
+  (poids réellement utilisés : 500/600/700), déclarer les `FontFamily`.
+- Définir un `colorScheme` sombre unique (primary = accent lavande) et
+  y raccorder les usages existants de `MaterialTheme.colorScheme.primary`
+  (déjà violet, donc pas de rupture visuelle brutale).
+- Étape d'infrastructure : à la fin de cette phase, l'app doit compiler
+  et se lancer avec un rendu quasi identique à l'actuel (le socle est en
+  place, le reskin écran par écran vient ensuite). Pas de régression de
+  navigation ni de focus.
+
+---
+
+Phase 47 : chrome global mobile (fond dégradé + barre de navigation).
+
+Attendu :
+- Remplacer le fond plat `#0F0F13` des écrans mobile par le dégradé
+  radial de la maquette (`radial-gradient` violet sombre en haut → noir
+  en bas), factorisé dans un conteneur/`Modifier` réutilisable du thème
+  plutôt que recopié par écran.
+- Restyler la `NavigationBar` mobile (actuellement `containerColor
+  #16161D`) selon la maquette : fond, item actif en accent, labels,
+  poids d'icônes cohérents (Accueil / TV / Films / Séries / Recherche
+  inchangés fonctionnellement).
+- Vérifier le rendu sur les cinq onglets et le contraste de l'item
+  actif/inactif (cohérent avec les Phases 24/28/31 sur l'accessibilité).
+
+---
+
+Phase 48 : refonte de l'écran d'accueil (Home).
+
+Écran vitrine, le plus visible et le plus proche de la maquette. Contient
+le seul composant réellement nouveau de la refonte : le hero "Reprendre".
+
+Attendu :
+- En-tête : "Bonsoir {profil}", code/identifiant du compte, date
+  d'expiration, accès Paramètres (icône). Restyle, données déjà en state.
+- Hero "Reprendre" (NOUVEAU) : grande carte (~282 dp, coins 22 dp, ombre
+  portée) affichant la dernière entrée "Continuer à regarder" du profil
+  actif, avec image de fond + dégradé, badge accent "REPRENDRE", badge
+  verre "4K · SÉRIE" (métadonnée qualité/type), titre en Bricolage
+  Grotesque, boutons "Reprendre" (lecture directe) et un bouton
+  secondaire. S'appuie sur `resumeWatchingList` déjà exposé par
+  `HomeViewModel` ; masquer proprement le hero si la liste est vide.
+- Restyler les rangées horizontales (Continuer à regarder, Favoris, TV
+  en direct, Films, Séries) et leurs chips "Voir tout" (déjà
+  fonctionnels depuis les phases "Voir tout") selon la maquette.
+- Réutiliser les cartes du thème (voir Phase 46) : ne pas réintroduire de
+  couleurs en dur dans `home/components/HomeCards.kt`.
+
+---
+
+Phase 49 : refonte de l'écran TV en direct (Live TV).
+
+Attendu :
+- Sélecteur de catégorie : aligner sur la bottom sheet de la maquette
+  (déclencheur "Tout ⌄" → feuille modale avec champ de recherche, liste
+  des catégories + compteurs, coche sur la sélection courante) plutôt que
+  le dropdown actuel. Le contenu (catégories fournisseur) est déjà
+  disponible.
+- Restyler les tuiles de chaîne (logo, numéro, programme EPG avec heures
+  + jauge de progression des Phases 32/33) et les sections "Récemment
+  regardées" et "Favoris" (Phase 35), en conservant la hauteur uniforme
+  des tuiles (Phase 33).
+- Conserver le cadrage `Fit` des logos carrés (Phase 34).
+
+---
+
+Phase 50 : refonte des écrans Films et Séries (navigation catalogue).
+
+`VodScreen` et `SeriesScreen` partagent la même structure (rangées par
+catégorie fournisseur + mode filtre) : à traiter ensemble pour rester
+cohérent.
+
+Attendu :
+- Restyler les rangées par catégorie (Reprendre, Nouveautés, Nouveautés
+  Jeunesse, Films 4K, Tendances, Jeunesse… — libellés fournisseur
+  intacts) et les cartes affiches au format 2:3 selon la maquette.
+- Aligner le sélecteur de catégorie sur la même bottom sheet que la
+  Phase 49 (composant partagé).
+- Préserver la restauration de position de défilement (Phase 20) et les
+  grilles "Voir tout" (traitées visuellement en Phase 52).
+
+---
+
+Phase 51 : refonte des fiches détail Film et Série.
+
+Attendu :
+- Fiche Film : image/backdrop, titre en Bricolage Grotesque, métadonnées
+  (date, genre, durée, note), résumé, réalisateur, acteurs, CTA "Lire le
+  film" en accent. Restyle, données déjà fournies par
+  `getVodDetails`/`getSeriesDetails`.
+- Fiche Série : mêmes principes + sélecteur de saisons et liste des
+  épisodes avec badge "en cours de lecture / reprendre" et bouton
+  "Reprendre : S{n} E{n}" (position de lecture déjà gérée).
+- Corriger au passage tout chevauchement titre long / actions (cohérent
+  avec la Phase 25 sur le player).
+
+---
+
+Phase 52 : refonte de la recherche et de la grille "Voir tout".
+
+Attendu :
+- Écran Recherche : champ restylé, résultats groupés par type (Chaînes /
+  Films / Séries) avec compteurs et chips "Voir tout" (FTS de la Phase 40
+  et regroupement déjà en place).
+- Vue grille "Voir tout" (partagée par Recherche/Films/Séries/Home) :
+  en-tête avec bouton retour restylé (carré 40 dp, coins 13 dp, surface
+  `#1E1E24`), titre de section, grille verticale d'affiches au format de
+  la maquette.
+- Vérifier que la grille reste performante sur gros catalogue (pas de
+  régression vs. l'implémentation actuelle).
+
+---
+
+Phase 53 : refonte des écrans secondaires (Profil, Paramètres, Connexion).
+
+Applique le design system aux écrans restants. Fonctionnalités déjà
+complètes : uniquement du reskin.
+
+Attendu :
+- Sélection de profil ("Qui regarde ?") et gestion des profils (création,
+  renommage, couleur, suppression) : avatars, boutons, dialogues au thème.
+- Paramètres : cartes (fréquence de sync, apparence des sous-titres, tri
+  des catégories, déconnexion) restylées ; contenu et logique inchangés.
+- Connexion : la maquette ne couvre pas cet écran ; étendre la direction
+  visuelle (champs lisibles — cohérent Phase 28, accent, typographie) par
+  extrapolation, sans introduire de comportement nouveau.
+- Passe finale de cohérence : traquer les derniers `Color(0xFF…)` en dur
+  sur les écrans mobile et les basculer vers les tokens du thème.
+
+---
+
+Phase 54 (optionnelle) : accent réglable par l'utilisateur.
+
+La maquette expose l'accent comme variable de thème (lavande `#9C86FF`
+par défaut, + bleu `#0070F3`, sarcelle `#2BB8A6`, ambre `#E5A13A`). Une
+fois le design system en place (Phase 46), permettre à l'utilisateur de
+choisir l'accent depuis les Paramètres.
+
+Attendu :
+- Réglage "Couleur d'accent" dans les Paramètres (4 teintes proposées),
+  persisté (DataStore/SettingsManager, global ou par profil selon
+  cohérence avec l'existant).
+- L'accent choisi pilote le `primary` du thème et se propage à tous les
+  écrans mobile sans redémarrage.
+- Hors périmètre si jugé superflu pour un POC : à confirmer avant de
+  démarrer. Ne pas bloquer la clôture de la refonte (Phases 46-53) sur
+  cette phase.

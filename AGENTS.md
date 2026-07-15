@@ -6,6 +6,12 @@ Ce fichier contient les règles permanentes à suivre à chaque session de trava
 
 - `prompt-app-iptv-xtream.md` : cahier des charges fonctionnel complet (fonctionnalités, endpoints Xtream Codes, écrans, gestion d'erreurs).
 - `feuille-de-route-phases.md` : ordre de développement par phases. Ne développe jamais une fonctionnalité hors de la phase en cours sans confirmation explicite de l'utilisateur.
+- `docs/design-reference/` : source de vérité visuelle pour la refonte UI/UX
+  (Phases 46-54, voir feuille-de-route-phases.md). Contient le HTML/CSS brut
+  exporté de la maquette Claude Design (couleurs, radius, typographie exacts)
+  et, quand disponibles, des captures d'écran de référence par écran. À
+  consulter systématiquement en amont de chaque phase 46-54 plutôt que de
+  deviner les valeurs de design.
 
 ## Périmètre strict du projet
 
