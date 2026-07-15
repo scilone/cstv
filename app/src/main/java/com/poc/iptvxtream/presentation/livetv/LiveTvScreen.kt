@@ -95,7 +95,7 @@ fun LiveTvScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(if (isTv) Color(0xFF0F0F13) else Color.Transparent)
+            .background(if (isTv) Surface1 else Color.Transparent)
     ) {
         if (isTv) {
             TvLayout(

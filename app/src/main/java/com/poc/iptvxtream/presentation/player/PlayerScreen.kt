@@ -38,6 +38,7 @@ import androidx.media3.ui.PlayerView
 import coil.compose.AsyncImage
 import com.poc.iptvxtream.domain.model.Credentials
 import com.poc.iptvxtream.domain.model.LiveStream
+import com.poc.iptvxtream.presentation.theme.Surface3
 import kotlinx.coroutines.delay
 import android.app.Activity
 import android.content.Context
@@ -337,7 +338,7 @@ fun PlayerScreen(
                             modifier = Modifier
                                 .size(40.dp)
                                 .clip(CardDefaults.shape)
-                                .background(Color(0xFF1E1E24)),
+                                .background(Surface3),
                             contentAlignment = Alignment.Center
                         ) {
                             if (!currentStream.streamIcon.isNullOrBlank()) {

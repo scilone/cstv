@@ -67,7 +67,7 @@ fun SeriesDetailsScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(if (isTv) Color(0xFF0F0F13) else Color.Transparent)
+            .background(if (isTv) Surface1 else Color.Transparent)
     ) {
         // 1. Cinematic Blurred Backdrop Cover Image
         if (!details.cover.isNullOrBlank()) {
@@ -620,7 +620,7 @@ private fun CreditNameChip(
                 color = if (isFocused) MaterialTheme.colorScheme.primary else Color.DarkGray,
                 shape = RoundedCornerShape(12.dp)
             )
-            .background(if (isFocused) Color(0xFF2C2C35) else Color(0xFF1E1E24))
+            .background(if (isFocused) Color(0xFF2C2C35) else Surface3)
             .clickable { onClick() }
             .padding(horizontal = 10.dp, vertical = 4.dp)
     ) {
@@ -644,7 +644,7 @@ private fun EpisodeCardItem(
 
     Card(
         colors = CardDefaults.cardColors(
-            containerColor = if (isFocused) Color(0xFF23232D) else Color(0xFF1E1E24)
+            containerColor = if (isFocused) Color(0xFF23232D) else Surface3
         ),
         modifier = Modifier
             .fillMaxWidth()

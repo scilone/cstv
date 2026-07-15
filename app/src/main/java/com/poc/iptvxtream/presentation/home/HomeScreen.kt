@@ -51,6 +51,7 @@ import com.poc.iptvxtream.domain.model.UserInfo
 import com.poc.iptvxtream.presentation.theme.AccentLavande
 import com.poc.iptvxtream.presentation.theme.BricolageGrotesque
 import com.poc.iptvxtream.presentation.theme.HankenGrotesk
+import com.poc.iptvxtream.presentation.theme.Surface1
 import com.poc.iptvxtream.presentation.theme.Surface3
 import androidx.compose.ui.text.font.FontFamily
 import com.poc.iptvxtream.domain.model.PlaybackPosition
@@ -143,7 +144,7 @@ fun HomeScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(if (isTv) Color(0xFF0F0F13) else Color.Transparent)
+            .background(if (isTv) Surface1 else Color.Transparent)
     ) {
         if (state.isLoading) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {

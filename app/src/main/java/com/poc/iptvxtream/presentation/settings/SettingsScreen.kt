@@ -2,7 +2,10 @@ package com.poc.iptvxtream.presentation.settings
 
 import com.poc.iptvxtream.data.local.storage.SyncFrequency
 import com.poc.iptvxtream.data.local.storage.AppAccentColor
+import com.poc.iptvxtream.presentation.theme.AccentAmber
+import com.poc.iptvxtream.presentation.theme.AccentBlue
 import com.poc.iptvxtream.presentation.theme.AccentLavande
+import com.poc.iptvxtream.presentation.theme.AccentTeal
 import com.poc.iptvxtream.presentation.theme.BricolageGrotesque
 import com.poc.iptvxtream.presentation.theme.HankenGrotesk
 import com.poc.iptvxtream.presentation.theme.Surface1
@@ -55,7 +58,7 @@ fun SettingsScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(if (isTv) Color(0xFF0F0F13) else Color.Transparent),
+            .background(if (isTv) Surface1 else Color.Transparent),
         contentAlignment = Alignment.Center
     ) {
         if (isTv) {
@@ -212,7 +215,7 @@ private fun TvSettingCard(
     onSortingChanged: (CategorySorting) -> Unit
 ) {
     Card(
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E24)),
+        colors = CardDefaults.cardColors(containerColor = Surface3),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(
@@ -426,7 +429,7 @@ private fun MobileSettingCard(
     onSortingChanged: (CategorySorting) -> Unit
 ) {
     Card(
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E24)),
+        colors = CardDefaults.cardColors(containerColor = Surface3),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(
@@ -503,7 +506,7 @@ private fun TvSyncFrequencyCard(
     onForceSyncNow: () -> Unit
 ) {
     Card(
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E24)),
+        colors = CardDefaults.cardColors(containerColor = Surface3),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(
@@ -571,7 +574,7 @@ private fun MobileSyncFrequencyCard(
     onForceSyncNow: () -> Unit
 ) {
     Card(
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E24)),
+        colors = CardDefaults.cardColors(containerColor = Surface3),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(
@@ -699,7 +702,7 @@ private fun TvSubtitleStyleCard(
     onBackgroundChanged: (SubtitleBackground) -> Unit
 ) {
     Card(
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E24)),
+        colors = CardDefaults.cardColors(containerColor = Surface3),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(
@@ -767,7 +770,7 @@ private fun MobileSubtitleStyleCard(
     onBackgroundChanged: (SubtitleBackground) -> Unit
 ) {
     Card(
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E24)),
+        colors = CardDefaults.cardColors(containerColor = Surface3),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(
@@ -866,14 +869,14 @@ private fun MobileAccentColorCard(
                 ) {
                     AccentColorOptionButton(
                         label = "Lavande",
-                        color = Color(0xFF9C86FF),
+                        color = AccentLavande,
                         isSelected = currentColor == AppAccentColor.LAVANDE,
                         onClick = { onColorChanged(AppAccentColor.LAVANDE) },
                         modifier = Modifier.weight(1f)
                     )
                     AccentColorOptionButton(
                         label = "Bleu royal",
-                        color = Color(0xFF0070F3),
+                        color = AccentBlue,
                         isSelected = currentColor == AppAccentColor.BLEU_ROYAL,
                         onClick = { onColorChanged(AppAccentColor.BLEU_ROYAL) },
                         modifier = Modifier.weight(1f)
@@ -886,14 +889,14 @@ private fun MobileAccentColorCard(
                 ) {
                     AccentColorOptionButton(
                         label = "Sarcelle",
-                        color = Color(0xFF2BB8A6),
+                        color = AccentTeal,
                         isSelected = currentColor == AppAccentColor.SARCELLE,
                         onClick = { onColorChanged(AppAccentColor.SARCELLE) },
                         modifier = Modifier.weight(1f)
                     )
                     AccentColorOptionButton(
                         label = "Ambre",
-                        color = Color(0xFFE5A13A),
+                        color = AccentAmber,
                         isSelected = currentColor == AppAccentColor.AMBRE,
                         onClick = { onColorChanged(AppAccentColor.AMBRE) },
                         modifier = Modifier.weight(1f)

@@ -35,6 +35,8 @@ import androidx.tv.material3.Text as TvText
 import com.poc.iptvxtream.domain.model.Credentials
 import com.poc.iptvxtream.domain.model.ServerAddressParser
 import com.poc.iptvxtream.domain.model.UserInfo
+import com.poc.iptvxtream.presentation.theme.Surface1
+import com.poc.iptvxtream.presentation.theme.Surface3
 
 @Composable
 fun LoginScreen(
@@ -77,7 +79,7 @@ fun LoginScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(Color(0xFF0F0F13)), // Deep luxury black/blue background
+            .background(Surface1), // Deep luxury black/blue background
         contentAlignment = Alignment.Center
     ) {
         Column(
@@ -168,9 +170,9 @@ private fun loginFieldColors() = OutlinedTextFieldDefaults.colors(
     focusedTextColor = Color.White,
     unfocusedTextColor = Color.White,
     disabledTextColor = Color.Gray,
-    focusedContainerColor = Color(0xFF1E1E24),
-    unfocusedContainerColor = Color(0xFF1E1E24),
-    disabledContainerColor = Color(0xFF1E1E24),
+    focusedContainerColor = Surface3,
+    unfocusedContainerColor = Surface3,
+    disabledContainerColor = Surface3,
     focusedBorderColor = MaterialTheme.colorScheme.primary,
     unfocusedBorderColor = Color.LightGray,
     focusedLabelColor = MaterialTheme.colorScheme.primary,
@@ -182,7 +184,7 @@ private fun loginFieldColors() = OutlinedTextFieldDefaults.colors(
     unfocusedTrailingIconColor = Color.LightGray,
     focusedPlaceholderColor = Color.Gray,
     unfocusedPlaceholderColor = Color.Gray,
-    errorContainerColor = Color(0xFF1E1E24),
+    errorContainerColor = Surface3,
     errorBorderColor = Color(0xFFFF6B6B),
     errorTextColor = Color.White,
     errorLabelColor = Color(0xFFFF6B6B),

@@ -58,7 +58,7 @@ fun ProfileManagementScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .then(if (isTv) Modifier.background(Color(0xFF0F0F13)) else Modifier.mobileBackground()),
+            .then(if (isTv) Modifier.background(Surface1) else Modifier.mobileBackground()),
         contentAlignment = Alignment.Center
     ) {
         Column(

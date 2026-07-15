@@ -13,6 +13,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.poc.iptvxtream.presentation.theme.Surface1
 
 @Composable
 fun SplashScreen(
@@ -21,7 +22,7 @@ fun SplashScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(Color(0xFF0F0F13)), // Matches the LoginScreen dark background
+            .background(Surface1), // Matches the LoginScreen dark background
         contentAlignment = Alignment.Center
     ) {
         Column(

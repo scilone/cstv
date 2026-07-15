@@ -44,6 +44,8 @@ import androidx.media3.common.Tracks
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import com.poc.iptvxtream.presentation.player.applySubtitleStyle
+import com.poc.iptvxtream.presentation.theme.Surface1
+import com.poc.iptvxtream.presentation.theme.Surface3
 import com.poc.iptvxtream.domain.model.Credentials
 import com.poc.iptvxtream.domain.model.VodDetails
 import kotlinx.coroutines.delay
@@ -699,7 +701,7 @@ private fun TrackSelectionDialog(
                 modifier = Modifier.fillMaxWidth()
             )
         },
-        containerColor = Color(0xFF1E1E24),
+        containerColor = Surface3,
         shape = RoundedCornerShape(16.dp),
         text = {
             Column(
@@ -725,7 +727,7 @@ private fun TrackSelectionDialog(
                                     color = if (isFocused) MaterialTheme.colorScheme.primary else Color.DarkGray,
                                     shape = RoundedCornerShape(8.dp)
                                 )
-                                .background(if (isFocused) Color(0xFF2C2C35) else if (isSelected) Color(0x33FFB300) else Color(0xFF0F0F13))
+                                .background(if (isFocused) Color(0xFF2C2C35) else if (isSelected) Color(0x33FFB300) else Surface1)
                                 .clickable { onAudioTrackSelected(track) }
                                 .padding(12.dp)
                         ) {
@@ -765,7 +767,7 @@ private fun TrackSelectionDialog(
                                 color = if (isNoneFocused) MaterialTheme.colorScheme.primary else Color.DarkGray,
                                 shape = RoundedCornerShape(8.dp)
                             )
-                            .background(if (isNoneFocused) Color(0xFF2C2C35) else if (isNoneSelected) Color(0x33FFB300) else Color(0xFF0F0F13))
+                            .background(if (isNoneFocused) Color(0xFF2C2C35) else if (isNoneSelected) Color(0x33FFB300) else Surface1)
                             .clickable { onSubtitleTrackSelected(null) }
                             .padding(12.dp)
                     ) {
@@ -799,7 +801,7 @@ private fun TrackSelectionDialog(
                                     color = if (isFocused) MaterialTheme.colorScheme.primary else Color.DarkGray,
                                     shape = RoundedCornerShape(8.dp)
                                 )
-                                .background(if (isFocused) Color(0xFF2C2C35) else if (isSelected) Color(0x33FFB300) else Color(0xFF0F0F13))
+                                .background(if (isFocused) Color(0xFF2C2C35) else if (isSelected) Color(0x33FFB300) else Surface1)
                                 .clickable { onSubtitleTrackSelected(track) }
                                 .padding(12.dp)
                         ) {

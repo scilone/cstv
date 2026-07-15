@@ -31,6 +31,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.poc.iptvxtream.domain.model.FavoriteItem
+import com.poc.iptvxtream.presentation.theme.Surface1
+import com.poc.iptvxtream.presentation.theme.Surface3
 
 @Composable
 fun FavoritesScreen(
@@ -53,7 +55,7 @@ fun FavoritesScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(Color(0xFF0F0F13))
+            .background(Surface1)
             .padding(16.dp)
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -176,7 +178,7 @@ private fun FavoriteCardItem(
             )
             .clip(RoundedCornerShape(12.dp))
             .clickable { onClick() }
-            .background(Color(0xFF1E1E24))
+            .background(Surface3)
     ) {
         // Thumbnail Image
         Box(
@@ -185,7 +187,7 @@ private fun FavoriteCardItem(
                 .then(
                     if (isLive) Modifier.height(80.dp) else Modifier.aspectRatio(2f / 3f)
                 )
-                .background(Color(0xFF0F0F13)),
+                .background(Surface1),
             contentAlignment = Alignment.Center
         ) {
             if (!item.cover.isNullOrBlank()) {
