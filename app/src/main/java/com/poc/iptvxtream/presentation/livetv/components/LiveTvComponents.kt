@@ -35,6 +35,13 @@ import com.poc.iptvxtream.domain.model.FavoriteItem
 import com.poc.iptvxtream.domain.model.LiveStream
 import com.poc.iptvxtream.domain.model.LiveEpgProgram
 import com.poc.iptvxtream.domain.model.LiveCategory
+import com.poc.iptvxtream.presentation.theme.AccentLavande
+import com.poc.iptvxtream.presentation.theme.DarkBackground
+import com.poc.iptvxtream.presentation.theme.Surface1
+import com.poc.iptvxtream.presentation.theme.Surface2
+import com.poc.iptvxtream.presentation.theme.Surface3
+import com.poc.iptvxtream.presentation.theme.BricolageGrotesque
+import com.poc.iptvxtream.presentation.theme.HankenGrotesk
 import com.poc.iptvxtream.presentation.rememberForeverLazyListState
 import kotlinx.coroutines.delay
 
@@ -115,7 +122,7 @@ fun MobileStreamCard(
     }
 
     Card(
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E24)),
+        colors = CardDefaults.cardColors(containerColor = Surface3),
         modifier = Modifier
             .width(150.dp)
             // Hauteur fixe (Phase 33) : idem, une chaîne sans EPG résolue ne
@@ -129,7 +136,7 @@ fun MobileStreamCard(
                     .fillMaxWidth()
                     .height(80.dp)
                     .clip(RoundedCornerShape(6.dp))
-                    .background(Color(0xFF0F0F13)),
+                    .background(Surface1),
                 contentAlignment = Alignment.Center
             ) {
                 if (!stream.streamIcon.isNullOrBlank()) {
@@ -329,7 +336,7 @@ fun RecentlyWatchedTvItem(
 
     Card(
         colors = CardDefaults.cardColors(
-            containerColor = if (isFocused) Color(0xFF23232D) else Color(0xFF1E1E24)
+            containerColor = if (isFocused) Color(0xFF23232D) else Surface3
         ),
         modifier = Modifier
             .width(180.dp)
@@ -351,7 +358,7 @@ fun RecentlyWatchedTvItem(
                 modifier = Modifier
                     .size(44.dp)
                     .clip(RoundedCornerShape(6.dp))
-                    .background(Color(0xFF0F0F13)),
+                    .background(Surface1),
                 contentAlignment = Alignment.Center
             ) {
                 if (!stream.streamIcon.isNullOrBlank()) {
@@ -429,7 +436,7 @@ fun StreamTvCard(
 
     Card(
         colors = CardDefaults.cardColors(
-            containerColor = if (isFocused) Color(0xFF23232D) else Color(0xFF1E1E24)
+            containerColor = if (isFocused) Color(0xFF23232D) else Surface3
         ),
         modifier = Modifier
             .fillMaxWidth()
@@ -451,7 +458,7 @@ fun StreamTvCard(
                 modifier = Modifier
                     .size(56.dp)
                     .clip(RoundedCornerShape(8.dp))
-                    .background(Color(0xFF0F0F13)),
+                    .background(Surface1),
                 contentAlignment = Alignment.Center
             ) {
                 if (!stream.streamIcon.isNullOrBlank()) {
