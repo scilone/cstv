@@ -1,4 +1,6 @@
 package com.poc.iptvxtream.presentation.profile
+import com.poc.iptvxtream.R
+import androidx.compose.ui.res.stringResource
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -59,14 +61,14 @@ fun ProfileManagementScreen(
                 .padding(24.dp)
         ) {
             Text(
-                text = "Gérer les profils",
+                text = stringResource(R.string.profile_manage_title),
                 color = Color.White,
                 fontSize = 26.sp,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(bottom = 8.dp)
             )
             Text(
-                text = "Chaque profil a ses propres favoris, historique et reprises de lecture. Le catalogue reste commun.",
+                text = stringResource(R.string.profile_manage_subtitle),
                 color = Color.Gray,
                 fontSize = 13.sp,
                 textAlign = TextAlign.Center,
@@ -102,14 +104,14 @@ fun ProfileManagementScreen(
                 shape = RoundedCornerShape(24.dp),
                 modifier = Modifier.fillMaxWidth(if (isTv) 0.4f else 0.7f).height(48.dp)
             ) {
-                Text("Terminé", color = Color.White, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.profile_manage_done), color = Color.White, fontWeight = FontWeight.Bold)
             }
         }
     }
 
     if (creatingProfile) {
         ProfileNameDialog(
-            title = "Nouveau profil",
+            title = stringResource(R.string.profile_create_title),
             initialName = "",
             onConfirm = { name ->
                 viewModel.createProfile(name, state.profiles.size % ProfileAvatars.count)
@@ -119,6 +121,7 @@ fun ProfileManagementScreen(
         )
     }
 
+    val deleteErrorMessage = stringResource(R.string.profile_delete_error)
     editingProfile?.let { profile ->
         ProfileEditDialog(
             profile = profile,
@@ -129,7 +132,7 @@ fun ProfileManagementScreen(
             },
             onDelete = {
                 viewModel.deleteProfile(profile.id) { success ->
-                    deleteError = if (success) null else "Impossible de supprimer le dernier profil restant."
+                    deleteError = if (success) null else deleteErrorMessage
                 }
                 editingProfile = null
             },
@@ -185,11 +188,11 @@ private fun AddProfileTile(onClick: () -> Unit) {
                 .clickable { onClick() },
             contentAlignment = Alignment.Center
         ) {
-            Icon(Icons.Default.Add, contentDescription = "Ajouter un profil", tint = Color.White, modifier = Modifier.size(36.dp))
+            Icon(Icons.Default.Add, contentDescription = stringResource(R.string.profile_add_description), tint = Color.White, modifier = Modifier.size(36.dp))
         }
         Spacer(modifier = Modifier.height(10.dp))
         Text(
-            text = "Ajouter",
+            text = stringResource(R.string.profile_add_tile),
             color = Color.LightGray,
             fontSize = 15.sp,
             maxLines = 1,
@@ -215,17 +218,17 @@ private fun ProfileNameDialog(
                 value = name,
                 onValueChange = { name = it },
                 singleLine = true,
-                label = { Text("Nom du profil") }
+                label = { Text(stringResource(R.string.profile_name_label)) }
             )
         },
         confirmButton = {
             TextButton(
                 onClick = { if (name.isNotBlank()) onConfirm(name.trim()) },
                 enabled = name.isNotBlank()
-            ) { Text("Valider") }
+            ) { Text(stringResource(R.string.profile_dialog_validate)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Annuler") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.profile_dialog_cancel)) }
         }
     )
 }
@@ -248,18 +251,18 @@ private fun ProfileEditDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Modifier le profil") },
+        title = { Text(stringResource(R.string.profile_dialog_edit_title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
                     singleLine = true,
-                    label = { Text("Nom du profil") }
+                    label = { Text(stringResource(R.string.profile_name_label)) }
                 )
 
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("Couleur", fontSize = 13.sp, color = Color.Gray)
+                    Text(stringResource(R.string.profile_color_label), fontSize = 13.sp, color = Color.Gray)
                     ProfileAvatars.colors.chunked(4).forEachIndexed { rowIndex, rowColors ->
                         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             rowColors.forEachIndexed { colIndex, colorLong ->
@@ -283,17 +286,17 @@ private fun ProfileEditDialog(
 
                 if (confirmingDelete) {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Supprimer ce profil et toutes ses données ?", color = Color(0xFFCF6679), fontSize = 13.sp)
+                        Text(stringResource(R.string.profile_delete_confirm_prompt), color = Color(0xFFCF6679), fontSize = 13.sp)
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             TextButton(onClick = { confirmingDelete = false }) { Text("Annuler") }
                             TextButton(onClick = onDelete) {
-                                Text("Confirmer la suppression", color = Color(0xFFCF6679))
+                                Text(stringResource(R.string.profile_delete_confirm), color = Color(0xFFCF6679))
                             }
                         }
                     }
                 } else {
                     TextButton(onClick = { confirmingDelete = true }) {
-                        Text("Supprimer le profil", color = Color(0xFFCF6679))
+                        Text(stringResource(R.string.profile_delete_btn), color = Color(0xFFCF6679))
                     }
                 }
             }
@@ -302,10 +305,10 @@ private fun ProfileEditDialog(
             TextButton(
                 onClick = { if (name.isNotBlank()) onSave(name.trim(), avatarId) },
                 enabled = name.isNotBlank()
-            ) { Text("Enregistrer") }
+            ) { Text(stringResource(R.string.profile_save_btn)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Annuler") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.profile_dialog_cancel)) }
         }
     )
 }

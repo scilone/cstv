@@ -1,4 +1,6 @@
 package com.poc.iptvxtream.presentation.search
+import com.poc.iptvxtream.R
+import androidx.compose.ui.res.stringResource
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -74,7 +76,7 @@ fun SearchScreen(
                     onClick = { if (expandedType != null) expandedType = null else onBack() },
                     modifier = Modifier.background(Color(0x33FFFFFF), shape = RoundedCornerShape(12.dp))
                 ) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Retour", tint = Color.White)
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.common_back), tint = Color.White)
                 }
 
                 Spacer(modifier = Modifier.width(16.dp))
@@ -82,7 +84,7 @@ fun SearchScreen(
                 OutlinedTextField(
                     value = state.searchQuery,
                     onValueChange = { viewModel.onSearchQueryChanged(it) },
-                    placeholder = { Text("Rechercher des chaînes, films, séries...", color = Color.Gray, fontSize = 14.sp) },
+                    placeholder = { Text(stringResource(R.string.search_placeholder), color = Color.Gray, fontSize = 14.sp) },
                     leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
@@ -97,7 +99,7 @@ fun SearchScreen(
 
             if (state.searchQuery.trim().isBlank()) {
                 Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    Text("Saisissez un mot-clé pour lancer la recherche locale.", color = Color.Gray, fontSize = 14.sp)
+                    Text(stringResource(R.string.search_initial_prompt), color = Color.Gray, fontSize = 14.sp)
                 }
             } else if (state.isSearching) {
                 Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
@@ -105,7 +107,7 @@ fun SearchScreen(
                 }
             } else if (state.searchResult.isEmpty) {
                 Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    Text("Aucun résultat trouvé pour « ${state.searchQuery} ».", color = Color.Gray, fontSize = 14.sp)
+                    Text(stringResource(R.string.search_no_results, state.searchQuery), color = Color.Gray, fontSize = 14.sp)
                 }
             } else if (expandedType != null) {
                 // --- Vue développée : un seul type, grille verticale ---
@@ -128,7 +130,7 @@ fun SearchScreen(
                         item {
                             Column(modifier = Modifier.fillMaxWidth()) {
                                 SearchSectionHeader(
-                                    title = "Chaînes en direct",
+                                    title = stringResource(R.string.search_channels),
                                     count = state.searchResult.liveResults.size,
                                     onSeeAll = { expandedType = SearchExpandedType.LIVE }
                                 )
@@ -154,7 +156,7 @@ fun SearchScreen(
                         item {
                             Column(modifier = Modifier.fillMaxWidth()) {
                                 SearchSectionHeader(
-                                    title = "Films VOD",
+                                    title = stringResource(R.string.search_movies),
                                     count = state.searchResult.vodResults.size,
                                     onSeeAll = { expandedType = SearchExpandedType.VOD }
                                 )
@@ -180,7 +182,7 @@ fun SearchScreen(
                         item {
                             Column(modifier = Modifier.fillMaxWidth()) {
                                 SearchSectionHeader(
-                                    title = "Séries",
+                                    title = stringResource(R.string.search_series),
                                     count = state.searchResult.seriesResults.size,
                                     onSeeAll = { expandedType = SearchExpandedType.SERIES }
                                 )
@@ -238,7 +240,7 @@ private fun SearchSectionHeader(
                 .onFocusChanged { isFocused = it.isFocused }
         ) {
             Text(
-                text = "Voir tout ($count)",
+                text = stringResource(R.string.search_see_all, count),
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold
             )
@@ -256,9 +258,9 @@ private fun SearchExpandedGrid(
     modifier: Modifier = Modifier
 ) {
     val title = when (type) {
-        SearchExpandedType.LIVE -> "Chaînes en direct"
-        SearchExpandedType.VOD -> "Films VOD"
-        SearchExpandedType.SERIES -> "Séries"
+        SearchExpandedType.LIVE -> stringResource(R.string.search_channels)
+        SearchExpandedType.VOD -> stringResource(R.string.search_movies)
+        SearchExpandedType.SERIES -> stringResource(R.string.search_series)
     }
     val count = when (type) {
         SearchExpandedType.LIVE -> result.liveResults.size
@@ -270,7 +272,7 @@ private fun SearchExpandedGrid(
 
     Column(modifier = modifier) {
         Text(
-            text = "$title ($count)",
+            text = stringResource(R.string.search_see_all, count),
             fontSize = 18.sp,
             fontWeight = FontWeight.Bold,
             color = Color.White,

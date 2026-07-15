@@ -1,4 +1,6 @@
 package com.poc.iptvxtream.presentation.favorites
+import com.poc.iptvxtream.R
+import androidx.compose.ui.res.stringResource
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -64,13 +66,13 @@ fun FavoritesScreen(
                     onClick = onBack,
                     modifier = Modifier.background(Color(0x33FFFFFF), shape = RoundedCornerShape(12.dp))
                 ) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Retour", tint = Color.White)
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.common_back), tint = Color.White)
                 }
                 Spacer(modifier = Modifier.width(16.dp))
                 Icon(Icons.Default.Star, contentDescription = null, tint = Color.Yellow, modifier = Modifier.size(24.dp))
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "MES FAVORIS",
+                    text = stringResource(R.string.favorites_title),
                     color = Color.White,
                     fontWeight = FontWeight.Bold,
                     fontSize = 20.sp,
@@ -80,7 +82,7 @@ fun FavoritesScreen(
 
             if (state.favorites.isEmpty() && !state.isLoadingFavorites) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("Aucun favori enregistré.", color = Color.Gray, fontSize = 15.sp)
+                    Text(stringResource(R.string.favorites_empty), color = Color.Gray, fontSize = 15.sp)
                 }
             } else {
                 LazyColumn(
@@ -91,7 +93,7 @@ fun FavoritesScreen(
                     if (liveFavorites.isNotEmpty()) {
                         item {
                             FavoritesCategoryRow(
-                                title = "LIVE TV",
+                                title = stringResource(R.string.favorites_category_live),
                                 itemsList = liveFavorites,
                                 isTv = isTv,
                                 onClick = { onPlayLive(it.id, it.categoryId) }
@@ -103,7 +105,7 @@ fun FavoritesScreen(
                     if (movieFavorites.isNotEmpty()) {
                         item {
                             FavoritesCategoryRow(
-                                title = "FILMS & VOD",
+                                title = stringResource(R.string.favorites_category_vod),
                                 itemsList = movieFavorites,
                                 isTv = isTv,
                                 onClick = { onSelectMovie(it.id, it.categoryId) }
@@ -115,7 +117,7 @@ fun FavoritesScreen(
                     if (seriesFavorites.isNotEmpty()) {
                         item {
                             FavoritesCategoryRow(
-                                title = "SÉRIES",
+                                title = stringResource(R.string.favorites_category_series),
                                 itemsList = seriesFavorites,
                                 isTv = isTv,
                                 onClick = { onSelectSeries(it.id, it.categoryId) }

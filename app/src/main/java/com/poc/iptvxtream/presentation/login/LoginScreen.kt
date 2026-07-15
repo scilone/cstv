@@ -1,4 +1,6 @@
 package com.poc.iptvxtream.presentation.login
+import com.poc.iptvxtream.R
+import androidx.compose.ui.res.stringResource
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -88,14 +90,14 @@ fun LoginScreen(
         ) {
             // Header
             Text(
-                text = "XTREAM CODES",
+                text = stringResource(R.string.login_title_brand),
                 fontSize = if (isTv) 28.sp else 24.sp,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary,
                 letterSpacing = 2.sp
             )
             Text(
-                text = "PORTAIL DE CONNEXION",
+                text = stringResource(R.string.login_portal),
                 fontSize = if (isTv) 14.sp else 12.sp,
                 fontWeight = FontWeight.Light,
                 color = Color.Gray,
@@ -215,8 +217,8 @@ fun LoginForm(
         OutlinedTextField(
             value = serverAddress,
             onValueChange = onServerAddressChange,
-            label = { Text("Adresse du serveur") },
-            placeholder = { Text("http://mondns.com:8080") },
+            label = { Text(stringResource(R.string.login_server_address)) },
+            placeholder = { Text(stringResource(R.string.login_server_placeholder)) },
             leadingIcon = { Icon(Icons.Default.Dns, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
             singleLine = true,
             enabled = !isLoading,
@@ -237,7 +239,7 @@ fun LoginForm(
         OutlinedTextField(
             value = username,
             onValueChange = onUsernameChange,
-            label = { Text("Nom d'utilisateur") },
+            label = { Text(stringResource(R.string.login_username)) },
             leadingIcon = { Icon(Icons.Default.Person, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
             singleLine = true,
             enabled = !isLoading,
@@ -256,7 +258,7 @@ fun LoginForm(
         OutlinedTextField(
             value = password,
             onValueChange = onPasswordChange,
-            label = { Text("Mot de passe") },
+            label = { Text(stringResource(R.string.login_password)) },
             leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
             singleLine = true,
             enabled = !isLoading,
@@ -277,7 +279,7 @@ fun LoginForm(
             trailingIcon = {
                 IconButton(onClick = { passwordVisible = !passwordVisible }) {
                     Text(
-                        text = if (passwordVisible) "Cacher" else "Afficher",
+                        text = if (passwordVisible) stringResource(R.string.login_password_hide) else stringResource(R.string.login_password_show),
                         fontSize = 11.sp,
                         color = MaterialTheme.colorScheme.primary,
                         fontWeight = FontWeight.Bold
@@ -302,7 +304,7 @@ fun LoginForm(
             )
             Spacer(modifier = Modifier.width(4.dp))
             Text(
-                text = "Se souvenir de moi",
+                text = stringResource(R.string.login_remember_me),
                 fontSize = 14.sp,
                 color = Color.LightGray
             )
@@ -327,7 +329,7 @@ fun LoginForm(
                     )
                 } else {
                     TvText(
-                        text = "CONNEXION",
+                        text = stringResource(R.string.login_button),
                         fontWeight = FontWeight.Bold,
                         style = TvTheme.typography.labelLarge
                     )
@@ -350,7 +352,7 @@ fun LoginForm(
                     )
                 } else {
                     Text(
-                        text = "CONNEXION",
+                        text = stringResource(R.string.login_button),
                         fontWeight = FontWeight.Bold,
                         fontSize = 15.sp
                     )

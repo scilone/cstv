@@ -1,4 +1,6 @@
 package com.poc.iptvxtream.presentation.profile
+import com.poc.iptvxtream.R
+import androidx.compose.ui.res.stringResource
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -50,7 +52,7 @@ fun ProfileSelectionScreen(
             modifier = Modifier.fillMaxWidth().padding(24.dp)
         ) {
             Text(
-                text = "Qui regarde ?",
+                text = stringResource(R.string.profile_selection_title),
                 color = Color.White,
                 fontSize = 28.sp,
                 fontWeight = FontWeight.Bold,
@@ -78,7 +80,7 @@ fun ProfileSelectionScreen(
                 colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
                 modifier = Modifier.fillMaxWidth(0.6f).height(48.dp)
             ) {
-                Text("Gérer les profils", fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.profile_manage_title), fontWeight = FontWeight.Bold)
             }
 
             Spacer(modifier = Modifier.height(12.dp))

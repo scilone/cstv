@@ -545,7 +545,7 @@ Regroupe trois petits durcissements indépendants :
 
 ---
 
-Phase 45 : dette structurelle optionnelle (i18n, découpage UI, cleartext).
+Phase 45 [TERMINE] : dette structurelle optionnelle (i18n, découpage UI, cleartext).
 
 Améliorations de fond, non bloquantes pour un POC mono-langue :
 
