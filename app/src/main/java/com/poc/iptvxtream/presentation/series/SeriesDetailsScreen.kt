@@ -38,6 +38,12 @@ import androidx.tv.material3.MaterialTheme as TvTheme
 import androidx.tv.material3.Text as TvText
 import coil.compose.AsyncImage
 import com.poc.iptvxtream.domain.model.SeriesDetails
+import com.poc.iptvxtream.presentation.theme.AccentLavande
+import com.poc.iptvxtream.presentation.theme.BricolageGrotesque
+import com.poc.iptvxtream.presentation.theme.HankenGrotesk
+import com.poc.iptvxtream.presentation.theme.Surface1
+import com.poc.iptvxtream.presentation.theme.Surface2
+import com.poc.iptvxtream.presentation.theme.Surface3
 import com.poc.iptvxtream.domain.model.SeriesEpisode
 import com.poc.iptvxtream.domain.model.SeriesSeason
 
@@ -61,7 +67,7 @@ fun SeriesDetailsScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(Color(0xFF0F0F13))
+            .background(if (isTv) Color(0xFF0F0F13) else Color.Transparent)
     ) {
         // 1. Cinematic Blurred Backdrop Cover Image
         if (!details.cover.isNullOrBlank()) {
@@ -163,7 +169,7 @@ private fun TvLayout(
                     .border(1.dp, Color.DarkGray, RoundedCornerShape(16.dp))
             ) {
                 Box(
-                    modifier = Modifier.fillMaxSize().background(Color(0xFF1E1E24)),
+                    modifier = Modifier.fillMaxSize().background(Surface3),
                     contentAlignment = Alignment.Center
                 ) {
                     if (!details.cover.isNullOrBlank()) {
@@ -398,7 +404,7 @@ private fun MobileLayout(
                 .align(Alignment.CenterHorizontally)
         ) {
             Box(
-                modifier = Modifier.fillMaxSize().background(Color(0xFF1E1E24)),
+                modifier = Modifier.fillMaxSize().background(Surface3),
                 contentAlignment = Alignment.Center
             ) {
                 if (!details.cover.isNullOrBlank()) {
@@ -427,6 +433,7 @@ private fun MobileLayout(
                 color = Color.White,
                 fontSize = 24.sp,
                 fontWeight = FontWeight.Bold,
+                fontFamily = BricolageGrotesque,
                 modifier = Modifier.weight(1f)
             )
             IconButton(onClick = onToggleFavorite) {
@@ -659,7 +666,7 @@ private fun EpisodeCardItem(
                     modifier = Modifier
                         .size(width = 80.dp, height = 50.dp)
                         .clip(RoundedCornerShape(6.dp))
-                        .background(Color(0xFF0F0F13)),
+                        .background(Surface1),
                     contentAlignment = Alignment.Center
                 ) {
                     if (!episode.movieImage.isNullOrBlank()) {

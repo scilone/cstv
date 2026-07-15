@@ -28,6 +28,12 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import com.poc.iptvxtream.presentation.theme.AccentLavande
+import com.poc.iptvxtream.presentation.theme.BricolageGrotesque
+import com.poc.iptvxtream.presentation.theme.HankenGrotesk
+import com.poc.iptvxtream.presentation.theme.Surface1
+import com.poc.iptvxtream.presentation.theme.Surface2
+import com.poc.iptvxtream.presentation.theme.Surface3
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -55,7 +61,7 @@ fun VodDetailsScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(Color(0xFF0F0F13))
+            .background(if (isTv) Color(0xFF0F0F13) else Color.Transparent)
     ) {
         // 1. Cinematic Blurred Backdrop Cover Image
         if (!details.coverBig.isNullOrBlank()) {
@@ -141,7 +147,7 @@ private fun TvLayoutDetails(
                     .border(1.dp, Color.DarkGray, RoundedCornerShape(16.dp))
             ) {
                 Box(
-                    modifier = Modifier.fillMaxSize().background(Color(0xFF1E1E24)),
+                    modifier = Modifier.fillMaxSize().background(Surface3),
                     contentAlignment = Alignment.Center
                 ) {
                     if (!details.coverBig.isNullOrBlank()) {
@@ -276,7 +282,7 @@ private fun MobileLayoutDetails(
                 .border(1.dp, Color.DarkGray, RoundedCornerShape(12.dp))
         ) {
             Box(
-                modifier = Modifier.fillMaxSize().background(Color(0xFF1E1E24)),
+                modifier = Modifier.fillMaxSize().background(Surface3),
                 contentAlignment = Alignment.Center
             ) {
                 if (!details.coverBig.isNullOrBlank()) {
@@ -305,6 +311,7 @@ private fun MobileLayoutDetails(
                 color = Color.White,
                 fontSize = 24.sp,
                 fontWeight = FontWeight.Bold,
+                fontFamily = BricolageGrotesque,
                 modifier = Modifier.weight(1f)
             )
 
