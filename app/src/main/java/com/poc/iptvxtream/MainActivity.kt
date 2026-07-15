@@ -114,6 +114,10 @@ class MainActivity : ComponentActivity() {
                 val loginViewModel: LoginViewModel = hiltViewModel()
                 val favoritesViewModel: FavoritesViewModel = hiltViewModel()
                 val homeViewModel: HomeViewModel = hiltViewModel()
+                val settingsViewModel: SettingsViewModel = hiltViewModel()
+
+                val settingsState by settingsViewModel.state.collectAsStateWithLifecycle()
+                val accentColor = settingsState.accentColor
 
                 val autoLoginState by loginViewModel.autoLoginState.collectAsStateWithLifecycle()
                 
@@ -600,7 +604,6 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                         AppScreen.SETTINGS -> {
-                            val settingsViewModel: SettingsViewModel = hiltViewModel()
                             SettingsScreen(
                                 viewModel = settingsViewModel,
                                 isTv = isTv,
@@ -645,7 +648,7 @@ class MainActivity : ComponentActivity() {
                     }
                 } else {
                     // Mobile Layout with Jetpack Compose Navigation
-                    IptvXtreamTheme {
+                    IptvXtreamTheme(accentColor = accentColor) {
                         val navController = rememberNavController()
                         val navBackStackEntry by navController.currentBackStackEntryAsState()
                         val currentRoute = navBackStackEntry?.destination?.route

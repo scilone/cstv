@@ -9,29 +9,38 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-
-private val DarkColorScheme = darkColorScheme(
-    primary = AccentLavande,
-    onPrimary = Color.Black,
-    primaryContainer = AccentLavande,
-    onPrimaryContainer = Color.Black,
-    secondary = Surface3,
-    onSecondary = TextPrimary,
-    background = DarkBackground,
-    onBackground = TextPrimary,
-    surface = Surface1,
-    onSurface = TextPrimary,
-    surfaceVariant = Surface2,
-    onSurfaceVariant = TextSecondary,
-    outline = TextSecondary
-)
+import com.poc.iptvxtream.data.local.storage.AppAccentColor
 
 @Composable
 fun IptvXtreamTheme(
+    accentColor: AppAccentColor = AppAccentColor.LAVANDE,
     content: @Composable () -> Unit
 ) {
+    val primaryColor = when (accentColor) {
+        AppAccentColor.LAVANDE -> AccentLavande
+        AppAccentColor.BLEU_ROYAL -> AccentBlue
+        AppAccentColor.SARCELLE -> AccentTeal
+        AppAccentColor.AMBRE -> AccentAmber
+    }
+
+    val dynamicColorScheme = darkColorScheme(
+        primary = primaryColor,
+        onPrimary = Color.Black,
+        primaryContainer = primaryColor,
+        onPrimaryContainer = Color.Black,
+        secondary = Surface3,
+        onSecondary = TextPrimary,
+        background = DarkBackground,
+        onBackground = TextPrimary,
+        surface = Surface1,
+        onSurface = TextPrimary,
+        surfaceVariant = Surface2,
+        onSurfaceVariant = TextSecondary,
+        outline = TextSecondary
+    )
+
     MaterialTheme(
-        colorScheme = DarkColorScheme,
+        colorScheme = dynamicColorScheme,
         typography = AppTypography,
         content = content
     )
