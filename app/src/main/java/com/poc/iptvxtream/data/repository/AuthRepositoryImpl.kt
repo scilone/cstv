@@ -57,6 +57,7 @@ class AuthRepositoryImpl @Inject constructor(
             )
 
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             when (e) {
                 is InvalidCredentialsException -> throw e
                 is AccountExpiredException -> throw e

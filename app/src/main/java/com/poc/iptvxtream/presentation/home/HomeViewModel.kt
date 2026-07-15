@@ -168,6 +168,7 @@ class HomeViewModel @Inject constructor(
                 val liveCategories = try {
                     liveTvRepository.getLiveCategories(forceRefresh = false)
                 } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
                     emptyList()
                 }
                 val firstLiveCat = liveCategories.firstOrNull()
@@ -175,6 +176,7 @@ class HomeViewModel @Inject constructor(
                     try {
                         liveTvRepository.getLiveStreams(firstLiveCat.categoryId, forceRefresh = false)
                     } catch (e: Exception) {
+                        if (e is kotlinx.coroutines.CancellationException) throw e
                         emptyList()
                     }
                 } else emptyList()
@@ -183,6 +185,7 @@ class HomeViewModel @Inject constructor(
                 val vodCategories = try {
                     vodRepository.getVodCategories(forceRefresh = false)
                 } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
                     emptyList()
                 }
                 val firstVodCat = vodCategories.firstOrNull()
@@ -190,6 +193,7 @@ class HomeViewModel @Inject constructor(
                     try {
                         vodRepository.getVodStreams(firstVodCat.categoryId, forceRefresh = false)
                     } catch (e: Exception) {
+                        if (e is kotlinx.coroutines.CancellationException) throw e
                         emptyList()
                     }
                 } else emptyList()
@@ -198,6 +202,7 @@ class HomeViewModel @Inject constructor(
                 val seriesCategories = try {
                     seriesRepository.getSeriesCategories(forceRefresh = false)
                 } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
                     emptyList()
                 }
                 val firstSeriesCat = seriesCategories.firstOrNull()
@@ -205,6 +210,7 @@ class HomeViewModel @Inject constructor(
                     try {
                         seriesRepository.getSeriesStreams(firstSeriesCat.categoryId, forceRefresh = false)
                     } catch (e: Exception) {
+                        if (e is kotlinx.coroutines.CancellationException) throw e
                         emptyList()
                     }
                 } else emptyList()
@@ -222,6 +228,7 @@ class HomeViewModel @Inject constructor(
                 }
                 refreshVisibleEpg()
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 _state.update {
                     it.copy(
                         isLoading = false,

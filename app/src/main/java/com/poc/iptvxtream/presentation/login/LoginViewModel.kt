@@ -43,6 +43,7 @@ class LoginViewModel @Inject constructor(
                     val userInfo = loginUseCase(creds)
                     _autoLoginState.value = AutoLoginState.Success(userInfo)
                 } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
                     _autoLoginState.value = AutoLoginState.Error(e.message ?: "La connexion automatique a échoué.")
                 }
             }
@@ -58,6 +59,7 @@ class LoginViewModel @Inject constructor(
                 val userInfo = loginUseCase(credentials)
                 _loginState.value = LoginState.Success(userInfo)
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 _loginState.value = LoginState.Error(e.message ?: "Une erreur inconnue est survenue.")
             }
         }

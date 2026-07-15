@@ -529,7 +529,7 @@ Attendu :
 
 ---
 
-Phase 44 : durcissements divers (lifecycle, cancellation, targetSdk).
+Phase 44 [TERMINE] : durcissements divers (lifecycle, cancellation, targetSdk).
 
 Regroupe trois petits durcissements indépendants :
 

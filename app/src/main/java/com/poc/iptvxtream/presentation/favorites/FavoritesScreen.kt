@@ -15,6 +15,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -41,7 +42,7 @@ fun FavoritesScreen(
 ) {
     // Phase 41 : state.favorites vient d'un Flow Room observé en continu
     // (FavoritesViewModel.init), plus besoin de reload manuel à l'entrée écran.
-    val state by viewModel.state.collectAsState()
+    val state by viewModel.state.collectAsStateWithLifecycle()
 
     val liveFavorites = remember(state.favorites) { state.favorites.filter { it.type == "live" } }
     val movieFavorites = remember(state.favorites) { state.favorites.filter { it.type == "movie" } }

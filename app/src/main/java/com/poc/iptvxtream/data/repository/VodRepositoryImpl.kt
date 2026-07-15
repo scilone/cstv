@@ -93,11 +93,13 @@ class VodRepositoryImpl @Inject constructor(
                     }
                     delay(200)
                 } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
                     // ignore individual stream fetch failure and continue
                 }
             }
             needingEnrichment.size
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             // handle overall errors gracefully
             0
         }

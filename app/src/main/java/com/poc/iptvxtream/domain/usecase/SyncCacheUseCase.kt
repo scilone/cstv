@@ -42,6 +42,7 @@ class SyncCacheUseCase @Inject constructor(
 
             SyncCacheResult.SUCCESS
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             SyncCacheResult.FAILED
         }
     }

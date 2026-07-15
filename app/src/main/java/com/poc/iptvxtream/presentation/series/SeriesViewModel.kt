@@ -106,6 +106,7 @@ class SeriesViewModel @Inject constructor(
                     loadStreams(it.categoryId, forceRefresh)
                 }
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 _state.update { it.copy(isLoadingCategories = false, error = e.message ?: "Impossible de charger les catégories séries.") }
             }
         }
@@ -123,6 +124,7 @@ class SeriesViewModel @Inject constructor(
                 val streams = getSeriesStreamsUseCase(categoryId, forceRefresh)
                 _state.update { it.copy(streams = streams, isLoadingStreams = false) }
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 _state.update { it.copy(isLoadingStreams = false, error = e.message ?: "Impossible de charger les séries.") }
             }
         }
@@ -142,6 +144,7 @@ class SeriesViewModel @Inject constructor(
                 val details = getSeriesDetailsUseCase(seriesId)
                 _state.update { it.copy(selectedSeriesDetails = details, isLoadingDetails = false) }
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 _state.update { it.copy(isLoadingDetails = false, error = e.message ?: "Impossible de charger les détails de la série.") }
             }
         }

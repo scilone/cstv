@@ -83,6 +83,7 @@ class LiveTvViewModel @Inject constructor(
                 val list = getRecentlyWatchedUseCase()
                 _state.update { it.copy(recentlyWatched = list) }
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 // Ignore gracefully for recently watched
             }
         }
@@ -94,6 +95,7 @@ class LiveTvViewModel @Inject constructor(
                 saveRecentlyWatchedUseCase(stream)
                 loadRecentlyWatched() // refresh state after saving
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 // Ignore gracefully
             }
         }
@@ -118,6 +120,7 @@ class LiveTvViewModel @Inject constructor(
                     loadStreams(it.categoryId, forceRefresh)
                 }
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 _state.update { it.copy(isLoadingCategories = false, error = e.message ?: "Une erreur est survenue.") }
             }
         }
@@ -135,6 +138,7 @@ class LiveTvViewModel @Inject constructor(
                 val streams = getLiveStreamsUseCase(categoryId, forceRefresh)
                 _state.update { it.copy(streams = streams, isLoadingStreams = false) }
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 _state.update { it.copy(isLoadingStreams = false, error = e.message ?: "Impossible de charger les chaînes.") }
             }
         }

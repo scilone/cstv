@@ -13,6 +13,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -110,7 +111,7 @@ class MainActivity : ComponentActivity() {
                 val favoritesViewModel: FavoritesViewModel = hiltViewModel()
                 val homeViewModel: HomeViewModel = hiltViewModel()
 
-                val autoLoginState by loginViewModel.autoLoginState.collectAsState()
+                val autoLoginState by loginViewModel.autoLoginState.collectAsStateWithLifecycle()
                 
                 var currentScreen by remember { mutableStateOf(AppScreen.LOGIN) }
                 var loggedInUser by remember { mutableStateOf<UserInfo?>(null) }
@@ -173,14 +174,14 @@ class MainActivity : ComponentActivity() {
                 var activeEpisode by remember { mutableStateOf<SeriesEpisode?>(null) }
 
                 // Get global reactive favorites list
-                val favsState by favoritesViewModel.state.collectAsState()
+                val favsState by favoritesViewModel.state.collectAsStateWithLifecycle()
 
                 // --- Sélection de profil (Phase 27) ---
                 // Gate unique couvrant TV et mobile : après login/auto-login, on
                 // garantit un profil actif et on affiche l'écran de sélection
                 // uniquement s'il existe plusieurs profils.
                 val profileViewModel: ProfileViewModel = hiltViewModel()
-                val profileState by profileViewModel.state.collectAsState()
+                val profileState by profileViewModel.state.collectAsStateWithLifecycle()
                 var profileSelectionNeeded by remember { mutableStateOf(false) }
                 var profileGateResolved by remember { mutableStateOf(false) }
                 var showManagementFromGate by remember { mutableStateOf(false) }
@@ -399,7 +400,7 @@ class MainActivity : ComponentActivity() {
                         }
                         AppScreen.VOD_DETAILS -> {
                             val vodViewModel: VodViewModel = hiltViewModel()
-                            val state by vodViewModel.state.collectAsState()
+                            val state by vodViewModel.state.collectAsStateWithLifecycle()
                             
                             LaunchedEffect(activeVodMovie) {
                                 activeVodMovie?.let { 
@@ -483,7 +484,7 @@ class MainActivity : ComponentActivity() {
                         }
                         AppScreen.SERIES_DETAILS -> {
                             val seriesViewModel: SeriesViewModel = hiltViewModel()
-                            val state by seriesViewModel.state.collectAsState()
+                            val state by seriesViewModel.state.collectAsStateWithLifecycle()
 
                             LaunchedEffect(activeSeriesShow) {
                                 activeSeriesShow?.let { 
@@ -949,7 +950,7 @@ class MainActivity : ComponentActivity() {
                             }
                             composable("vod_details") {
                                 val vodViewModel: VodViewModel = hiltViewModel()
-                                val state by vodViewModel.state.collectAsState()
+                                val state by vodViewModel.state.collectAsStateWithLifecycle()
                                 
                                 LaunchedEffect(activeVodMovie) {
                                     activeVodMovie?.let { 
@@ -1003,7 +1004,7 @@ class MainActivity : ComponentActivity() {
                             }
                             composable("series_details") {
                                 val seriesViewModel: SeriesViewModel = hiltViewModel()
-                                val state by seriesViewModel.state.collectAsState()
+                                val state by seriesViewModel.state.collectAsStateWithLifecycle()
 
                                 LaunchedEffect(activeSeriesShow) {
                                     activeSeriesShow?.let { 

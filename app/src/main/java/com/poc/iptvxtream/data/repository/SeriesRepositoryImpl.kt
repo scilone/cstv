@@ -88,11 +88,13 @@ class SeriesRepositoryImpl @Inject constructor(
                     }
                     delay(200)
                 } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
                     // ignore individual failure
                 }
             }
             needingEnrichment.size
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             // handle errors gracefully
             0
         }

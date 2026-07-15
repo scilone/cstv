@@ -106,6 +106,7 @@ class VodViewModel @Inject constructor(
                     loadStreams(it.categoryId, forceRefresh)
                 }
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 _state.update { it.copy(isLoadingCategories = false, error = e.message ?: "Impossible de charger les catégories VOD.") }
             }
         }
@@ -123,6 +124,7 @@ class VodViewModel @Inject constructor(
                 val streams = getVodStreamsUseCase(categoryId, forceRefresh)
                 _state.update { it.copy(streams = streams, isLoadingStreams = false) }
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 _state.update { it.copy(isLoadingStreams = false, error = e.message ?: "Impossible de charger les films.") }
             }
         }
@@ -142,6 +144,7 @@ class VodViewModel @Inject constructor(
                 val details = getVodDetailsUseCase(streamId)
                 _state.update { it.copy(selectedVodDetails = details, isLoadingDetails = false) }
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 _state.update { it.copy(isLoadingDetails = false, error = e.message ?: "Impossible de charger les détails du film.") }
             }
         }

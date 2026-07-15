@@ -12,6 +12,7 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
@@ -40,8 +41,8 @@ fun LoginScreen(
     onLoginSuccess: (UserInfo) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val loginState by viewModel.loginState.collectAsState()
-    val savedCredentials by viewModel.savedCredentials.collectAsState()
+    val loginState by viewModel.loginState.collectAsStateWithLifecycle()
+    val savedCredentials by viewModel.savedCredentials.collectAsStateWithLifecycle()
 
     // Champ unique "adresse du serveur" (Phase 28), remplaçant les anciens
     // champs host/port séparés. Parsé en host/port juste avant l'appel
