@@ -7,7 +7,6 @@ import androidx.work.*
 import com.poc.iptvxtream.data.local.storage.CategorySorting
 import com.poc.iptvxtream.data.local.storage.SettingsManager
 import com.poc.iptvxtream.data.local.storage.SyncFrequency
-import com.poc.iptvxtream.data.local.storage.AppAccentColor
 import com.poc.iptvxtream.data.worker.DatabaseSyncWorker
 import com.poc.iptvxtream.data.worker.SyncScheduling
 import com.poc.iptvxtream.domain.model.SubtitleBackground
@@ -49,15 +48,9 @@ class SettingsViewModel @Inject constructor(
                 vodSorting = settingsManager.getVodCategorySorting(),
                 seriesSorting = settingsManager.getSeriesCategorySorting(),
                 syncFrequency = settingsManager.getSyncFrequency(),
-                accentColor = settingsManager.getAccentColor(),
                 subtitleStyle = settingsManager.getSubtitleStyle()
             )
         }
-    }
-
-    fun updateAccentColor(color: AppAccentColor) {
-        settingsManager.setAccentColor(color)
-        _state.update { it.copy(accentColor = color) }
     }
 
     fun updateSubtitleSize(size: SubtitleTextSize) {

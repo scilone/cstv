@@ -1,18 +1,11 @@
 package com.poc.iptvxtream.presentation.settings
 
 import com.poc.iptvxtream.data.local.storage.SyncFrequency
-import com.poc.iptvxtream.data.local.storage.AppAccentColor
-import com.poc.iptvxtream.presentation.theme.AccentAmber
-import com.poc.iptvxtream.presentation.theme.AccentBlue
-import com.poc.iptvxtream.presentation.theme.AccentLavande
-import com.poc.iptvxtream.presentation.theme.AccentTeal
 import com.poc.iptvxtream.presentation.theme.BricolageGrotesque
 import com.poc.iptvxtream.presentation.theme.HankenGrotesk
 import com.poc.iptvxtream.presentation.theme.Surface1
 import com.poc.iptvxtream.presentation.theme.Surface2
 import com.poc.iptvxtream.presentation.theme.Surface3
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.shape.CircleShape
 import com.poc.iptvxtream.domain.model.SubtitleBackground
 import com.poc.iptvxtream.domain.model.SubtitleStyle
 import com.poc.iptvxtream.domain.model.SubtitleTextColor
@@ -83,7 +76,6 @@ fun SettingsScreen(
                 onSeriesSortingChanged = { viewModel.updateSeriesSorting(it) },
                 onSyncFrequencyChanged = { viewModel.updateSyncFrequency(it) },
                 onForceSyncNow = { viewModel.forceSyncNow() },
-                onAccentColorChanged = { viewModel.updateAccentColor(it) },
                 onSubtitleSizeChanged = { viewModel.updateSubtitleSize(it) },
                 onSubtitleColorChanged = { viewModel.updateSubtitleColor(it) },
                 onSubtitleBackgroundChanged = { viewModel.updateSubtitleBackground(it) },
@@ -302,7 +294,6 @@ private fun MobileSettingsLayout(
     onSeriesSortingChanged: (CategorySorting) -> Unit,
     onSyncFrequencyChanged: (SyncFrequency) -> Unit,
     onForceSyncNow: () -> Unit,
-    onAccentColorChanged: (AppAccentColor) -> Unit,
     onSubtitleSizeChanged: (SubtitleTextSize) -> Unit,
     onSubtitleColorChanged: (SubtitleTextColor) -> Unit,
     onSubtitleBackgroundChanged: (SubtitleBackground) -> Unit,
@@ -377,12 +368,6 @@ private fun MobileSettingsLayout(
             onFrequencyChanged = onSyncFrequencyChanged,
             isSyncingNow = state.isSyncingNow,
             onForceSyncNow = onForceSyncNow
-        )
-
-        // COULEUR D'ACCENT (Phase 54)
-        MobileAccentColorCard(
-            currentColor = state.accentColor,
-            onColorChanged = onAccentColorChanged
         )
 
         // Subtitle appearance
@@ -828,122 +813,6 @@ private fun MobileSubtitleStyleCard(
                     )
                 }
             }
-        }
-    }
-}
-
-@Composable
-private fun MobileAccentColorCard(
-    currentColor: AppAccentColor,
-    onColorChanged: (AppAccentColor) -> Unit
-) {
-    Card(
-        colors = CardDefaults.cardColors(containerColor = Surface3),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Column {
-                Text(
-                    text = "COULEUR D'ACCENT",
-                    color = Color.White,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 15.sp,
-                    fontFamily = BricolageGrotesque
-                )
-                Text(
-                    text = "Choisissez la couleur d'accent de l'application (boutons, bordures, etc.)",
-                    color = Color.Gray,
-                    fontSize = 12.sp,
-                    fontFamily = HankenGrotesk
-                )
-            }
-
-            // Two rows of two colors
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    AccentColorOptionButton(
-                        label = "Lavande",
-                        color = AccentLavande,
-                        isSelected = currentColor == AppAccentColor.LAVANDE,
-                        onClick = { onColorChanged(AppAccentColor.LAVANDE) },
-                        modifier = Modifier.weight(1f)
-                    )
-                    AccentColorOptionButton(
-                        label = "Bleu royal",
-                        color = AccentBlue,
-                        isSelected = currentColor == AppAccentColor.BLEU_ROYAL,
-                        onClick = { onColorChanged(AppAccentColor.BLEU_ROYAL) },
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    AccentColorOptionButton(
-                        label = "Sarcelle",
-                        color = AccentTeal,
-                        isSelected = currentColor == AppAccentColor.SARCELLE,
-                        onClick = { onColorChanged(AppAccentColor.SARCELLE) },
-                        modifier = Modifier.weight(1f)
-                    )
-                    AccentColorOptionButton(
-                        label = "Ambre",
-                        color = AccentAmber,
-                        isSelected = currentColor == AppAccentColor.AMBRE,
-                        onClick = { onColorChanged(AppAccentColor.AMBRE) },
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun AccentColorOptionButton(
-    label: String,
-    color: Color,
-    isSelected: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Button(
-        onClick = onClick,
-        colors = ButtonDefaults.buttonColors(
-            containerColor = if (isSelected) color else Color(0xFF2C2C35),
-            contentColor = if (isSelected) Color.Black else Color.White
-        ),
-        border = if (isSelected) BorderStroke(1.dp, Color.White.copy(alpha = 0.5f)) else null,
-        shape = RoundedCornerShape(8.dp),
-        modifier = modifier.height(38.dp),
-        contentPadding = PaddingValues(0.dp)
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center,
-            modifier = Modifier.padding(horizontal = 4.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(10.dp)
-                    .background(color, shape = CircleShape)
-                    .border(1.dp, if (isSelected) Color.Black else Color.White.copy(alpha = 0.2f), CircleShape)
-            )
-            Spacer(modifier = Modifier.width(6.dp))
-            Text(
-                text = label,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                fontFamily = HankenGrotesk
-            )
         }
     }
 }

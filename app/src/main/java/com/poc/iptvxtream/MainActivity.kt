@@ -116,9 +116,6 @@ class MainActivity : ComponentActivity() {
                 val homeViewModel: HomeViewModel = hiltViewModel()
                 val settingsViewModel: SettingsViewModel = hiltViewModel()
 
-                val settingsState by settingsViewModel.state.collectAsStateWithLifecycle()
-                val accentColor = settingsState.accentColor
-
                 val autoLoginState by loginViewModel.autoLoginState.collectAsStateWithLifecycle()
                 
                 var currentScreen by remember { mutableStateOf(AppScreen.LOGIN) }
@@ -648,7 +645,7 @@ class MainActivity : ComponentActivity() {
                     }
                 } else {
                     // Mobile Layout with Jetpack Compose Navigation
-                    IptvXtreamTheme(accentColor = accentColor) {
+                    IptvXtreamTheme {
                         val navController = rememberNavController()
                         val navBackStackEntry by navController.currentBackStackEntryAsState()
                         val currentRoute = navBackStackEntry?.destination?.route

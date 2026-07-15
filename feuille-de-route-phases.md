@@ -760,3 +760,14 @@ Attendu :
 - Hors périmètre si jugé superflu pour un POC : à confirmer avant de
   démarrer. Ne pas bloquer la clôture de la refonte (Phases 46-53) sur
   cette phase.
+
+---
+
+Phase 55 : corrections et peaufinages de la refonte UI/UX (retours utilisateur).
+
+Attendu :
+- Harmonisation des icônes : s'assurer que toutes les icônes de l'application (paramètres, accueil, TV, etc.) correspondent exactement aux visuels de la maquette.
+- Liens "Voir tout" de la Home : restyler les liens/boutons "Voir tout" de l'écran d'accueil pour qu'ils soient identiques à ceux de la maquette (liens textuels discrets, etc.).
+- Temps restant sur "Continuer à regarder" : dans la section "Continuer à regarder" de l'accueil, afficher clairement le temps de lecture restant pour chaque vignette, conformément aux captures d'écran de référence.
+- Titre des médias dans les listes : déplacer le titre des médias pour qu'il soit affiché à l'intérieur de la vignette (en overlay) et non plus en dessous, conformément à la maquette.
+- Tuiles TV de l'accueil : réviser le design des tuiles de la rangée TV en direct sur l'écran d'accueil pour qu'elles soient rigoureusement identiques à celles de la maquette.

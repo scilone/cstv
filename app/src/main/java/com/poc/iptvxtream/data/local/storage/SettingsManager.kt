@@ -21,13 +21,6 @@ enum class SyncFrequency {
     MONTHLY
 }
 
-enum class AppAccentColor {
-    LAVANDE,
-    BLEU_ROYAL,
-    SARCELLE,
-    AMBRE
-}
-
 @Singleton
 class SettingsManager @Inject constructor(context: Context) {
 
@@ -36,7 +29,6 @@ class SettingsManager @Inject constructor(context: Context) {
     }
 
     companion object {
-        private const val KEY_ACCENT_COLOR = "app_accent_color"
         private const val KEY_TV_SORTING = "tv_category_sorting"
         private const val KEY_VOD_SORTING = "vod_category_sorting"
         private const val KEY_SERIES_SORTING = "series_category_sorting"
@@ -162,19 +154,6 @@ class SettingsManager @Inject constructor(context: Context) {
             .putString(KEY_SUBTITLE_COLOR, style.textColor.name)
             .putString(KEY_SUBTITLE_BACKGROUND, style.background.name)
             .apply()
-    }
-
-    fun getAccentColor(): AppAccentColor {
-        val name = sharedPreferences.getString(KEY_ACCENT_COLOR, AppAccentColor.LAVANDE.name)
-        return try {
-            AppAccentColor.valueOf(name ?: AppAccentColor.LAVANDE.name)
-        } catch (e: Exception) {
-            AppAccentColor.LAVANDE
-        }
-    }
-
-    fun setAccentColor(color: AppAccentColor) {
-        sharedPreferences.edit().putString(KEY_ACCENT_COLOR, color.name).apply()
     }
 
     private inline fun <reified T : Enum<T>> enumOrDefault(name: String?, default: T): T {

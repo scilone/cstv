@@ -3,7 +3,6 @@ package com.poc.iptvxtream.presentation.settings
 import com.poc.iptvxtream.data.local.storage.CategorySorting
 import com.poc.iptvxtream.data.local.storage.SettingsManager
 import com.poc.iptvxtream.data.local.storage.SyncFrequency
-import com.poc.iptvxtream.data.local.storage.AppAccentColor
 import com.poc.iptvxtream.domain.model.SubtitleBackground
 import com.poc.iptvxtream.domain.model.SubtitleStyle
 import com.poc.iptvxtream.domain.model.SubtitleTextColor
@@ -38,7 +37,6 @@ class SettingsViewModelTest {
         whenever(settingsManager.getSeriesCategorySorting()).thenReturn(CategorySorting.DEFAULT)
         whenever(settingsManager.getSyncFrequency()).thenReturn(SyncFrequency.DISABLED)
         whenever(settingsManager.getSubtitleStyle()).thenReturn(SubtitleStyle())
-        whenever(settingsManager.getAccentColor()).thenReturn(AppAccentColor.LAVANDE)
 
         viewModel = SettingsViewModel(settingsManager, context)
     }
@@ -126,13 +124,5 @@ class SettingsViewModelTest {
         assertEquals(0x00000000L, SubtitleBackground.NONE.argb)
         assertEquals(0x80000000L, SubtitleBackground.SEMI.argb)
         assertEquals(0xCC000000L, SubtitleBackground.SOLID.argb)
-    }
-
-    @Test
-    fun test_updateAccentColor_savesToSettingsManager_andUpdatesState() {
-        viewModel.updateAccentColor(AppAccentColor.SARCELLE)
-        
-        verify(settingsManager).setAccentColor(AppAccentColor.SARCELLE)
-        assertEquals(AppAccentColor.SARCELLE, viewModel.state.value.accentColor)
     }
 }
