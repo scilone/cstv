@@ -32,11 +32,11 @@ Sur la Home, remplace la logique "première catégorie de chaque média" par "de
 
 Contexte existant :
 - `HomeViewModel.kt:159` (`loadHomeData()`) : pattern répété 3 fois, un seul `firstOrNull()` par média puis fetch des streams de cette unique catégorie — Live TV (l.174-183), VOD (l.191-200), Séries (l.208-217).
-- Le champ `added` (timestamp d'ajout, format string à vérifier — probablement epoch en secondes façon Xtream) existe déjà au niveau liste : `VodStream.added` (`domain/model/VodStream.kt:8`), `SeriesStream.added` (`domain/model/SeriesStream.kt:8`). Pas présent sur Live TV (les chaînes n'ont pas de notion d'ajout pertinente côté Xtream — pour "TV en direct" il faudra probablement garder une autre logique, ex. chaînes les plus regardées récemment ou une catégorie de référence, à trancher selon ce qui a du sens produit).
+- Le champ `added` (timestamp d'ajout, format string à vérifier — probablement epoch en secondes façon Xtream) existe déjà au niveau liste : `VodStream.added` (`domain/model/VodStream.kt:8`), `SeriesStream.added` (`domain/model/SeriesStream.kt:8`). Pas présent sur Live TV (les chaînes n'ont pas de notion d'ajout pertinente côté Xtream — pour "TV en direct" il garder la logique de prendre ceux de la premiere categories des live tv.
 
 À faire :
 1. Remplace le fetch VOD/Séries de `loadHomeData()` par : parcourir les streams (toutes catégories confondues, ou catégories visibles pour le profil si la feature #1 est faite avant) triés par `added` décroissant, prendre les N premiers (garder le nombre actuel affiché en row).
-2. Pour "TV en direct" : comme il n'y a pas de date d'ajout exploitable sur les chaînes live, propose une alternative raisonnable (dernières chaînes regardées via `RecentlyWatchedLiveEntity` si non vide, sinon fallback sur le comportement actuel) — à valider avec l'utilisateur si ambigu au moment de l'implémentation.
+2. Pour "TV en direct" : comme il n'y a pas de date d'ajout exploitable sur les chaînes live, garder la logique actuel.
 3. Renomme les titres de section : "TV en direct", "Films", "Séries" (chaînes de `strings.xml`, cherche les clés actuelles utilisées dans `HomeScreen.kt` pour les titres de section et remplace leurs valeurs FR — vérifier aussi la version anglaise si elle existe).
 
 Tests : `HomeViewModelTest` (tri par added, fallback live TV), non-régression sur le reste de la Home (resume watching, favoris).
