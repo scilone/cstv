@@ -50,17 +50,7 @@ import com.poc.iptvxtream.presentation.theme.PlayerScrim
 import com.poc.iptvxtream.presentation.theme.WhiteOverlay25
 import com.poc.iptvxtream.R
 import androidx.compose.ui.res.stringResource
-
-private fun Context.findActivity(): Activity? {
-    var currentContext = this
-    while (currentContext is ContextWrapper) {
-        if (currentContext is Activity) {
-            return currentContext
-        }
-        currentContext = currentContext.baseContext
-    }
-    return null
-}
+import com.poc.iptvxtream.presentation.player.common.findActivity
 
 @Composable
 fun PlayerScreen(

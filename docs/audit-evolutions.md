@@ -17,7 +17,7 @@ une session IA, classé par urgence décroissante.
 | 3 | ✅ Migrer hors de security-crypto (déprécié) | 🟠 | M |
 | 4 | ✅ Mettre à niveau la stack (AGP/Kotlin 2/Compose BOM) | 🟠 | L |
 | 5 | ✅ Compléter les tests ViewModels (5 manquants) | 🟡 | L |
-| 6 | Factoriser les 3 players (~2500 lignes dupliquées) | 🟡 | L |
+| 6 | ✅ Factoriser les 3 players (~2500 lignes dupliquées) | 🟡 | L |
 | 7 | Pagination des catalogues volumineux | 🟡 | L |
 | 8 | ✅ Finir la migration couleurs vers le thème (99 restantes) | 🟡 | M |
 | 9 | ✅ Restreindre réellement le cleartext HTTP | 🟡 | S |
@@ -189,7 +189,7 @@ sélection, garde-fou dernier profil). Les régressions UI récentes (bug
 
 ---
 
-## 6. 🟡 Factoriser les 3 players — Effort L
+## 6. 🟡 Factoriser les 3 players — Effort L — ✅ FAIT (VOD+Séries factorisés en MediaPlayerScreen ; live garde sa structure, utils partagés)
 
 **Constat.** `VodPlayerScreen.kt` (848 lignes), `SeriesPlayerScreen.kt`
 (838 lignes) et `PlayerScreen.kt` (live) partagent l'essentiel : setup
