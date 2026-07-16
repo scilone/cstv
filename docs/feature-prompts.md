@@ -6,6 +6,8 @@ Chaque bloc est un prompt autonome, prêt à être donné tel quel dans une sess
 
 ## 1. Gestion des catégories (masquer / réordonner) par profil
 
+**Modèle recommandé : Opus 4.8, effort élevé** — migration Room + refonte requêtes multi-écrans + UI drag&drop, périmètre large et risque de régression élevé.
+
 Ajoute la possibilité de masquer et réordonner les catégories Live TV / VOD / Séries, avec une configuration **par profil** (pas globale).
 
 Contexte existant :
@@ -28,6 +30,8 @@ Tests : migration Room, DAO (masquage + tri par profil), ViewModel de gestion de
 
 ## 2. Home : sections par derniers ajouts + renommage
 
+**Modèle recommandé : Sonnet 5, effort moyen** — logique de tri localisée + décision produit simple à trancher, pas de migration.
+
 Sur la Home, remplace la logique "première catégorie de chaque média" par "derniers ajouts", et renomme les sections.
 
 Contexte existant :
@@ -44,6 +48,8 @@ Tests : `HomeViewModelTest` (tri par added, fallback live TV), non-régression s
 ---
 
 ## 3. Lecture auto de l'épisode suivant + bouton "épisode suivant"
+
+**Modèle recommandé : Opus 4.8, effort élevé** — propagation de state à travers navigation + détection fin de lecture ExoPlayer, logique d'enchaînement sensible aux edge cases (fin saison/série).
 
 Sur `SeriesPlayerScreen`, enchaîne automatiquement sur l'épisode suivant à la fin de la lecture, et ajoute un bouton explicite pour y aller manuellement.
 
@@ -66,6 +72,8 @@ Tests : logique de calcul du prochain épisode (même saison / changement de sai
 
 ## 4. Live TV : accès rapide aux autres chaînes pendant la lecture
 
+**Modèle recommandé : Sonnet 5, effort moyen** — base logique déjà présente, surtout UI overlay + focus D-pad à réutiliser d'un pattern existant.
+
 Sur `PlayerScreen` (Live TV), ajoute un accès rapide à la liste des chaînes pour zapper sans quitter le lecteur.
 
 Contexte existant — **la base est déjà là** :
@@ -86,6 +94,8 @@ Tests : sélection dans le panneau change bien le flux, focus D-pad fonctionnel 
 
 ## 5. Players : plusieurs modes de redimensionnement d'image
 
+**Modèle recommandé : Sonnet 5, effort moyen** — API media3 standard, appliquée à 3 fichiers de façon répétitive, faible ambiguïté.
+
 Ajoute un choix de mode de redimensionnement (fit/remplir/zoom/étirer) sur les players.
 
 Contexte existant :
@@ -103,6 +113,8 @@ Tests : persistance du choix, application correcte sur les 3 players, pas de ré
 ---
 
 ## 6. Description film/série : troncature + "voir plus"
+
+**Modèle recommandé : Haiku 4.5, effort faible** — composant Compose isolé et mécanique, appliqué à 4 emplacements connus, zéro logique métier.
 
 Limite la taille affichée du synopsis (plot) et ajoute un "voir plus" / "voir moins".
 
@@ -123,6 +135,8 @@ Tests : troncature correcte, bouton apparaît seulement si overflow réel, bascu
 
 ## 7. Icône "relire depuis le début"
 
+**Modèle recommandé : Haiku 4.5, effort faible** — changement d'icône visuel, pas de logique, tâche mécanique de localisation + remplacement.
+
 Remplace l'icône actuelle (triangle play) par une flèche en boucle pour l'action "relire depuis le début".
 
 Contexte : aucune icône `Icons.Default.Replay`/`RestartAlt` trouvée dans le repo — cette fonctionnalité utilise actuellement une icône play générique (triangle), à localiser précisément.
@@ -137,6 +151,8 @@ Tests : visuel seulement, pas de logique métier à tester au-delà de la non-r�
 ---
 
 ## 8. Recherche par genre (films/séries)
+
+**Modèle recommandé : Opus 4.8, effort élevé** — extension du mécanisme d'enrichissement background existant + migration Room + UI filtre, ambiguïté architecturale (a) vs (b) à trancher intelligemment.
 
 Ajoute une recherche/filtre par genre pour VOD et Séries.
 
@@ -161,6 +177,8 @@ Tests : parsing de la string genre (cas avec espaces, casse variable, un seul ge
 ---
 
 ## 9. Top 10 Films/Séries sur la Home (derniers ajouts, note décroissante avec palier)
+
+**Modèle recommandé : Sonnet 5, effort moyen** — algorithme de sélection multi-palier bien spécifié, logique pure testable, parsing défensif classique.
 
 Ajoute une section "Top 10" Films et une "Top 10" Séries sur la Home.
 
