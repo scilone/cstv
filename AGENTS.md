@@ -159,4 +159,4 @@ Pour livrer une nouvelle version de l'application et générer un APK de product
    - Créer une Release GitHub officielle.
    - Attacher l'APK de release signé à la Release.
 
-Dernier tag poussé : `v1.20.0` (Phase 57, retours Films/Séries et fiches détail). Vérifie toujours `git tag --sort=-v:refname | head -1` avant de choisir le prochain numéro (patch pour un fix/correction, minor pour une nouvelle phase/fonctionnalité).
+Dernier tag poussé : `v1.21.0` (audit technique 2026 : sécurité, stack, tests, i18n, thème, refactor players). Vérifie toujours `git tag --sort=-v:refname | head -1` avant de choisir le prochain numéro (patch pour un fix/correction, minor pour une nouvelle phase/fonctionnalité).
