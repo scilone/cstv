@@ -1,5 +1,6 @@
 package com.poc.iptvxtream.presentation.vod
 
+import com.poc.iptvxtream.presentation.components.formatReleaseYear
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -94,8 +95,6 @@ fun VodDetailsScreen(
                 ) {
                     Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Retour", tint = Color.White)
                 }
-                Spacer(modifier = Modifier.width(16.dp))
-                Text("Détails du Film", color = Color.Gray, fontSize = 14.sp, fontWeight = FontWeight.Light)
             }
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -208,7 +207,7 @@ private fun TvLayoutDetails(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text(details.releaseDate, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Text(formatReleaseYear(details.releaseDate), color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 Text("|", color = Color.DarkGray)
                 Text(
                     text = details.genre,
@@ -332,7 +331,7 @@ private fun MobileLayoutDetails(
             horizontalArrangement = Arrangement.Center,
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text(details.releaseDate, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+            Text(formatReleaseYear(details.releaseDate), color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, fontSize = 13.sp)
             Text("  •  ", color = Color.DarkGray)
             Text(
                 text = details.genre,

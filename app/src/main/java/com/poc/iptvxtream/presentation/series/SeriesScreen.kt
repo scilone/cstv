@@ -49,6 +49,7 @@ import com.poc.iptvxtream.presentation.theme.Surface3
 import com.poc.iptvxtream.presentation.theme.TextSecondary
 import com.poc.iptvxtream.presentation.components.CategorySelectorTrigger
 import com.poc.iptvxtream.presentation.components.CategorySearchField
+import com.poc.iptvxtream.presentation.home.components.HomeSeriesShowCard
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -59,6 +60,7 @@ fun SeriesScreen(
     isTv: Boolean,
     favoritesList: List<FavoriteItem>,
     onSeriesSelected: (SeriesStream) -> Unit,
+    onNavigateToFavorites: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -123,6 +125,7 @@ fun SeriesScreen(
                 searchQuery = searchQuery,
                 onSearchQueryChanged = { searchQuery = it },
                 isSpecificCategory = isSpecificCategory,
+                onNavigateToFavorites = onNavigateToFavorites,
                 getScroll = getScroll,
                 saveScroll = saveScroll
             )
@@ -298,6 +301,7 @@ private fun MobileLayout(
     searchQuery: String,
     onSearchQueryChanged: (String) -> Unit,
     isSpecificCategory: Boolean,
+    onNavigateToFavorites: () -> Unit,
     getScroll: (String) -> Pair<Int, Int>,
     saveScroll: (String, Int, Int) -> Unit
 ) {
@@ -442,7 +446,8 @@ private fun MobileLayout(
                             onSeriesSelected = onSeriesSelected,
                             isTv = false,
                             getScroll = getScroll,
-                            saveScroll = saveScroll
+                            saveScroll = saveScroll,
+                            onSeeAll = onNavigateToFavorites
                         )
                     }
                 }
@@ -484,7 +489,7 @@ private fun MobileLayout(
                 val gridState = rememberForeverLazyGridState("series_mobile_cat_" + (state.selectedCategory?.categoryId ?: "0"), getScroll, saveScroll)
                 LazyVerticalGrid(
                     state = gridState,
-                    columns = GridCells.Fixed(2),
+                    columns = GridCells.Fixed(3), // 3 colonnes (iso grille "Voir tout" recherche, Phase 57)
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     modifier = Modifier
@@ -609,48 +614,11 @@ private fun CategorySectionRow(
                         onClick = { onSeriesSelected(stream) }
                     )
                 } else {
-                    MobileSeriesCard(
+                    // Phase 57 : carte unifiée avec celle de la Home (même taille,
+                    // note de notation intégrée).
+                    HomeSeriesShowCard(
                         stream = stream,
                         onClick = { onSeriesSelected(stream) }
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun MobileSeriesCard(
-    stream: SeriesStream,
-    onClick: () -> Unit
-) {
-    Card(
-        colors = CardDefaults.cardColors(containerColor = Surface3),
-        modifier = Modifier
-            .width(115.dp)
-            .clickable { onClick() }
-    ) {
-        Column {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(2f / 3f)
-                    .background(Surface1),
-                contentAlignment = Alignment.Center
-            ) {
-                if (!stream.cover.isNullOrBlank()) {
-                    AsyncImage(
-                        model = stream.cover,
-                        contentDescription = stream.name,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                } else {
-                    Icon(
-                        imageVector = Icons.Default.PlayArrow,
-                        contentDescription = null,
-                        tint = Color.DarkGray,
-                        modifier = Modifier.size(24.dp)
                     )
                 }
             }

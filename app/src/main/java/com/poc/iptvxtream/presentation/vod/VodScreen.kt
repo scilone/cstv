@@ -49,6 +49,7 @@ import com.poc.iptvxtream.presentation.theme.Surface3
 import com.poc.iptvxtream.presentation.theme.TextSecondary
 import com.poc.iptvxtream.presentation.components.CategorySelectorTrigger
 import com.poc.iptvxtream.presentation.components.CategorySearchField
+import com.poc.iptvxtream.presentation.home.components.HomeVodMovieCard
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -59,6 +60,7 @@ fun VodScreen(
     isTv: Boolean,
     favoritesList: List<FavoriteItem>,
     onMovieSelected: (VodStream) -> Unit,
+    onNavigateToFavorites: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -123,6 +125,7 @@ fun VodScreen(
                 searchQuery = searchQuery,
                 onSearchQueryChanged = { searchQuery = it },
                 isSpecificCategory = isSpecificCategory,
+                onNavigateToFavorites = onNavigateToFavorites,
                 getScroll = getScroll,
                 saveScroll = saveScroll
             )
@@ -298,6 +301,7 @@ private fun MobileLayout(
     searchQuery: String,
     onSearchQueryChanged: (String) -> Unit,
     isSpecificCategory: Boolean,
+    onNavigateToFavorites: () -> Unit,
     getScroll: (String) -> Pair<Int, Int>,
     saveScroll: (String, Int, Int) -> Unit
 ) {
@@ -442,7 +446,8 @@ private fun MobileLayout(
                             onMovieSelected = onMovieSelected,
                             isTv = false,
                             getScroll = getScroll,
-                            saveScroll = saveScroll
+                            saveScroll = saveScroll,
+                            onSeeAll = onNavigateToFavorites
                         )
                     }
                 }
@@ -484,7 +489,7 @@ private fun MobileLayout(
                 val gridState = rememberForeverLazyGridState("vod_mobile_cat_" + (state.selectedCategory?.categoryId ?: "0"), getScroll, saveScroll)
                 LazyVerticalGrid(
                     state = gridState,
-                    columns = GridCells.Fixed(2), // 2 columns on mobile
+                    columns = GridCells.Fixed(3), // 3 colonnes (iso grille "Voir tout" recherche, Phase 57)
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     modifier = Modifier
@@ -610,48 +615,11 @@ private fun CategorySectionRow(
                         onClick = { onMovieSelected(stream) }
                     )
                 } else {
-                    MobileMovieCard(
+                    // Phase 57 : carte unifiée avec celle de la Home (même taille,
+                    // note de notation intégrée).
+                    HomeVodMovieCard(
                         stream = stream,
                         onClick = { onMovieSelected(stream) }
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun MobileMovieCard(
-    stream: VodStream,
-    onClick: () -> Unit
-) {
-    Card(
-        colors = CardDefaults.cardColors(containerColor = Surface3),
-        modifier = Modifier
-            .width(115.dp)
-            .clickable { onClick() }
-    ) {
-        Column {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(2f / 3f)
-                    .background(Surface1),
-                contentAlignment = Alignment.Center
-            ) {
-                if (!stream.streamIcon.isNullOrBlank()) {
-                    AsyncImage(
-                        model = stream.streamIcon,
-                        contentDescription = stream.name,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                } else {
-                    Icon(
-                        imageVector = Icons.Default.PlayArrow,
-                        contentDescription = null,
-                        tint = Color.DarkGray,
-                        modifier = Modifier.size(24.dp)
                     )
                 }
             }

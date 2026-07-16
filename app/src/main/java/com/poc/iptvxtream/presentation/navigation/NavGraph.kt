@@ -237,7 +237,8 @@ fun AppNavGraph(
                 onMovieSelected = { stream ->
                     onActiveVodMovieChanged(stream)
                     navController.navigate("vod_details")
-                }
+                },
+                onNavigateToFavorites = { navController.navigate("favorites") }
             )
         }
         composable("series") {
@@ -249,7 +250,8 @@ fun AppNavGraph(
                 onSeriesSelected = { stream ->
                     onActiveSeriesShowChanged(stream)
                     navController.navigate("series_details")
-                }
+                },
+                onNavigateToFavorites = { navController.navigate("favorites") }
             )
         }
         composable("search") {

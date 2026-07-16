@@ -1,5 +1,7 @@
 package com.poc.iptvxtream.presentation.series
 
+import com.poc.iptvxtream.presentation.components.formatReleaseYear
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -99,8 +101,6 @@ fun SeriesDetailsScreen(
                 ) {
                     Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Retour", tint = Color.White)
                 }
-                Spacer(modifier = Modifier.width(16.dp))
-                Text("Détails de la Série", color = Color.Gray, fontSize = 14.sp, fontWeight = FontWeight.Light)
             }
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -274,7 +274,7 @@ private fun TvLayout(
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text(details.releaseDate ?: "Inconnu", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    Text(formatReleaseYear(details.releaseDate).ifBlank { "Inconnu" }, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                     Text("|", color = Color.DarkGray)
                     Text(
                         text = details.genre ?: "Inconnu",
@@ -451,7 +451,7 @@ private fun MobileLayout(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
         ) {
-            Text(details.releaseDate ?: "Inconnu", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+            Text(formatReleaseYear(details.releaseDate).ifBlank { "Inconnu" }, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, fontSize = 13.sp)
             Text("  •  ", color = Color.DarkGray)
             Text(
                 text = details.genre ?: "Inconnu",
