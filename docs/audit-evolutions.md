@@ -21,7 +21,7 @@ une session IA, classé par urgence décroissante.
 | 7 | Pagination des catalogues volumineux | 🟡 | L |
 | 8 | Finir la migration couleurs vers le thème (99 restantes) | 🟡 | M |
 | 9 | Restreindre réellement le cleartext HTTP | 🟡 | S |
-| 10 | Version catalog Gradle | 🟢 | S |
+| 10 | ✅ Version catalog Gradle | 🟢 | S |
 | 11 | Finir l'externalisation i18n (55 strings) | 🟢 | M |
 | 12 | Configurer le cache images Coil | 🟢 | S |
 | 13 | ✅ Mettre à jour les statuts de la feuille de route | 🟢 | S |
@@ -315,7 +315,7 @@ pour tout le reste si l'app n'en a pas besoin (images posters ?).
 
 ---
 
-## 10. 🟢 Version catalog Gradle — Effort S
+## 10. 🟢 Version catalog Gradle — Effort S — ✅ FAIT
 
 **Constat.** Pas de `gradle/libs.versions.toml` : versions éparpillées dans
 deux build.gradle.kts, certaines dupliquées (Hilt en racine + module),
