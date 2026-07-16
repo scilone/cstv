@@ -13,7 +13,7 @@ une session IA, classé par urgence décroissante.
 | # | Évolution | Criticité | Effort |
 |---|---|---|---|
 | 1 | ✅ Exclure les credentials du backup Android | 🔴 | S |
-| 2 | Tester les migrations Room (exportSchema + tests instrumentés) | 🟠 | M |
+| 2 | ✅ Tester les migrations Room (exportSchema + tests instrumentés) | 🟠 | M |
 | 3 | Migrer hors de security-crypto (déprécié) | 🟠 | M |
 | 4 | Mettre à niveau la stack (AGP/Kotlin 2/Compose BOM) | 🟠 | L |
 | 5 | Compléter les tests ViewModels (5 manquants) | 🟡 | L |
@@ -61,7 +61,7 @@ restaurées, cas classique d'EncryptedSharedPreferences + backup.
 
 ---
 
-## 2. 🟠 Tester les migrations Room — Effort M
+## 2. 🟠 Tester les migrations Room — Effort M — ✅ FAIT
 
 **Constat.** `AppDatabase` est en `version = 12` avec `exportSchema = false`,
 3 migrations manuelles (9→10, 10→11, 11→12) écrites à la main dans

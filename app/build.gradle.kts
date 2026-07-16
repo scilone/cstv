@@ -20,6 +20,11 @@ android {
         versionName = "1.20.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // Export des schémas Room (JSON versionnés, requis par MigrationTestHelper).
+        ksp {
+            arg("room.schemaLocation", "$projectDir/schemas")
+        }
         vectorDrawables {
             useSupportLibrary = true
         }
@@ -134,4 +139,10 @@ dependencies {
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.0")
     testImplementation("org.mockito:mockito-core:5.11.0")
     testImplementation("org.mockito.kotlin:mockito-kotlin:5.2.1")
+
+    // Instrumented Testing (migrations Room — nécessite un émulateur/device,
+    // voir AGENTS.md : ./gradlew connectedDebugAndroidTest)
+    androidTestImplementation("androidx.test.ext:junit:1.1.5")
+    androidTestImplementation("androidx.test:runner:1.5.2")
+    androidTestImplementation("androidx.room:room-testing:$roomVersion")
 }
