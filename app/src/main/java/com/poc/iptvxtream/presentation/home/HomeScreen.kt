@@ -93,10 +93,14 @@ fun HomeScreen(
     // Section affichée en grille verticale (stringResource(R.string.common_see_all)). null = accueil normal.
     var expandedSection by remember { mutableStateOf<HomeExpandedSection?>(null) }
 
-    // Refresh home data when entering screen
-    LaunchedEffect(Unit) {
-        viewModel.loadHomeData()
-    }
+    // Pas de reload ici : HomeViewModel est scopé à l'Activity (hiltViewModel()
+    // appelé une fois au sommet de MainActivity), donc son état survit à la
+    // navigation. Un LaunchedEffect(Unit) { viewModel.loadHomeData() } relançait
+    // le fetch complet (6 requêtes séquentielles) à CHAQUE recomposition de cet
+    // écran (retour depuis un autre écran, changement de profil...), alors que
+    // "Continuer à regarder" et "Favoris" sont déjà tenus à jour en continu via
+    // Flow (voir HomeViewModel.init) — c'était la cause de la lenteur perçue à
+    // chaque changement de profil malgré le cache Room déjà chaud.
 
     // Clic sur un média "Continuer à regarder" (repris du bloc de la rangée).
     val handleResumeClick: (PlaybackPosition) -> Unit = { position ->

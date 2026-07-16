@@ -21,6 +21,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -66,7 +67,16 @@ fun ProfileSelectionScreen(
     var selectedProfile by remember { mutableStateOf<Profile?>(null) }
 
     LaunchedEffect(selectedProfile) {
-        selectedProfile?.let { onProfileSelected(it) }
+        selectedProfile?.let { profile ->
+            // Attend un frame réel avant de déclencher la navigation : sans ce
+            // point de synchronisation, un appel direct pouvait s'exécuter
+            // avant que Compose n'ait présenté le frame contenant le spinner
+            // (surtout au tout premier accès à la Home, dont la composition à
+            // froid est la plus lourde) — l'utilisateur ne voyait alors qu'un
+            // freeze, jamais l'indicateur de chargement.
+            withFrameNanos {}
+            onProfileSelected(profile)
+        }
     }
 
     Box(

@@ -159,4 +159,4 @@ Pour livrer une nouvelle version de l'application et générer un APK de product
    - Créer une Release GitHub officielle.
    - Attacher l'APK de release signé à la Release.
 
-Dernier tag poussé : `v1.21.3` (fix freeze démarrage : déchiffrement credentials hors Main thread + création différée des ViewModels Home/Favoris/Settings). Vérifie toujours `git tag --sort=-v:refname | head -1` avant de choisir le prochain numéro (patch pour un fix/correction, minor pour une nouvelle phase/fonctionnalité).
+Dernier tag poussé : `v1.21.4` (fix lenteur récurrente à la sélection de profil : reload Home redondant à chaque recomposition + garantie d'affichage du spinner). Vérifie toujours `git tag --sort=-v:refname | head -1` avant de choisir le prochain numéro (patch pour un fix/correction, minor pour une nouvelle phase/fonctionnalité).
