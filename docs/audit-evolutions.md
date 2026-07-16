@@ -23,7 +23,7 @@ une session IA, classé par urgence décroissante.
 | 9 | Restreindre réellement le cleartext HTTP | 🟡 | S |
 | 10 | ✅ Version catalog Gradle | 🟢 | S |
 | 11 | ✅ Finir l'externalisation i18n (55 strings) | 🟢 | M |
-| 12 | Configurer le cache images Coil | 🟢 | S |
+| 12 | ✅ Configurer le cache images Coil | 🟢 | S |
 | 13 | ✅ Mettre à jour les statuts de la feuille de route | 🟢 | S |
 
 Hors périmètre de cet audit : Phase 21 (autocomplétion recherche) et
@@ -355,7 +355,7 @@ faute : "Favorie" → "Favorite"). La Phase 45 a couvert ~50 % des écrans.
 
 ---
 
-## 12. 🟢 Configurer le cache images Coil — Effort S
+## 12. 🟢 Configurer le cache images Coil — Effort S — ✅ FAIT
 
 **Constat.** Aucun `ImageLoader` custom : Coil utilise ses défauts (25 % de
 la RAM en cache mémoire, cache disque 2 % du stockage). Avec des milliers de
