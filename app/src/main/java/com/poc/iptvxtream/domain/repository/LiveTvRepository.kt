@@ -10,4 +10,7 @@ interface LiveTvRepository {
     suspend fun saveRecentlyWatched(stream: LiveStream)
     suspend fun getRecentlyWatched(): List<LiveStream>
     suspend fun getLiveEpg(streamId: Int, forceRefresh: Boolean = false): LiveEpgProgram?
+
+    /** Nombre de chaînes par categoryId, basé sur le cache local (sélecteur de catégorie). */
+    suspend fun getCategoryCounts(): Map<String, Int>
 }

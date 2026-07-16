@@ -7,6 +7,7 @@ import com.poc.iptvxtream.domain.model.Credentials
 import com.poc.iptvxtream.domain.model.LiveCategory
 import com.poc.iptvxtream.domain.model.LiveStream
 import com.poc.iptvxtream.domain.usecase.GetLiveCategoriesUseCase
+import com.poc.iptvxtream.domain.usecase.GetLiveCategoryCountsUseCase
 import com.poc.iptvxtream.domain.usecase.GetLiveEpgUseCase
 import com.poc.iptvxtream.domain.usecase.GetLiveStreamsUseCase
 import com.poc.iptvxtream.domain.usecase.GetRecentlyWatchedUseCase
@@ -22,6 +23,7 @@ import javax.inject.Inject
 @HiltViewModel
 class LiveTvViewModel @Inject constructor(
     private val getLiveCategoriesUseCase: GetLiveCategoriesUseCase,
+    private val getLiveCategoryCountsUseCase: GetLiveCategoryCountsUseCase,
     private val getLiveStreamsUseCase: GetLiveStreamsUseCase,
     private val getRecentlyWatchedUseCase: GetRecentlyWatchedUseCase,
     private val saveRecentlyWatchedUseCase: SaveRecentlyWatchedUseCase,
@@ -137,9 +139,24 @@ class LiveTvViewModel @Inject constructor(
             try {
                 val streams = getLiveStreamsUseCase(categoryId, forceRefresh)
                 _state.update { it.copy(streams = streams, isLoadingStreams = false) }
+                refreshCategoryCounts()
             } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException) throw e
                 _state.update { it.copy(isLoadingStreams = false, error = e.message ?: "Impossible de charger les chaînes.") }
+            }
+        }
+    }
+
+    // Compteurs de la bottom sheet, rafraîchis après chaque sync de streams
+    // (le cache local vient potentiellement de changer). Échec silencieux :
+    // les compteurs sont un enrichissement, jamais bloquants.
+    private fun refreshCategoryCounts() {
+        viewModelScope.launch {
+            try {
+                val counts = getLiveCategoryCountsUseCase()
+                _state.update { it.copy(categoryCounts = counts) }
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
             }
         }
     }

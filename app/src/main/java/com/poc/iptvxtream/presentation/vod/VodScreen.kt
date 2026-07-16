@@ -47,6 +47,8 @@ import com.poc.iptvxtream.presentation.theme.Surface1
 import com.poc.iptvxtream.presentation.theme.Surface2
 import com.poc.iptvxtream.presentation.theme.Surface3
 import com.poc.iptvxtream.presentation.theme.TextSecondary
+import com.poc.iptvxtream.presentation.components.CategoryFilterSheet
+import com.poc.iptvxtream.presentation.components.CategorySheetEntry
 import com.poc.iptvxtream.presentation.components.CategorySelectorTrigger
 import com.poc.iptvxtream.presentation.components.CategorySearchField
 import com.poc.iptvxtream.presentation.home.components.HomeVodMovieCard
@@ -341,87 +343,32 @@ private fun MobileLayout(
         )
 
         // Category Modal Bottom Sheet (Opt-In Material 3)
+        // Bottom sheet de catégorie partagée, iso-maquette (compteurs = cache local ;
+        // "Tout" = somme de toutes les catégories).
         if (showCategorySheet) {
-            ModalBottomSheet(
-                onDismissRequest = { 
+            val totalCount = state.categoryCounts.values.sum().takeIf { it > 0 }
+            CategoryFilterSheet(
+                entries = filteredCategories.map { category ->
+                    CategorySheetEntry(
+                        id = category.categoryId,
+                        label = category.categoryName,
+                        count = if (category.categoryId == "all") totalCount
+                        else state.categoryCounts[category.categoryId]
+                    )
+                },
+                selectedId = state.selectedCategory?.categoryId,
+                searchQuery = categorySearchQuery,
+                onSearchQueryChange = { categorySearchQuery = it },
+                onSelect = { categoryId ->
+                    state.categories.find { it.categoryId == categoryId }?.let(onCategorySelected)
                     showCategorySheet = false
                     categorySearchQuery = ""
                 },
-                containerColor = Surface1,
-                contentColor = Color.White,
-                scrimColor = Color.Black.copy(alpha = 0.6f)
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp)
-                ) {
-                    Text(
-                        text = "Catégories",
-                        fontFamily = BricolageGrotesque,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 18.sp,
-                        color = Color.White,
-                        modifier = Modifier.padding(bottom = 12.dp)
-                    )
-
-                    OutlinedTextField(
-                        value = categorySearchQuery,
-                        onValueChange = { categorySearchQuery = it },
-                        placeholder = { Text("Rechercher une catégorie...", color = Color.Gray, fontSize = 13.sp) },
-                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = AccentLavande, modifier = Modifier.size(18.dp)) },
-                        singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = AccentLavande,
-                            unfocusedBorderColor = Color.DarkGray,
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White
-                        ),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(bottom = 12.dp)
-                    )
-
-                    LazyColumn(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(max = 400.dp)
-                    ) {
-                        items(filteredCategories) { category ->
-                            val isSelected = state.selectedCategory?.categoryId == category.categoryId
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        onCategorySelected(category)
-                                        showCategorySheet = false
-                                        categorySearchQuery = ""
-                                    }
-                                    .padding(vertical = 12.dp, horizontal = 4.dp)
-                            ) {
-                                Text(
-                                    text = category.categoryName,
-                                    fontFamily = HankenGrotesk,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                    fontSize = 14.sp,
-                                    color = if (isSelected) AccentLavande else Color.White,
-                                    modifier = Modifier.weight(1f)
-                                )
-                                if (isSelected) {
-                                    Icon(
-                                        imageVector = Icons.Default.Check,
-                                        contentDescription = "Sélectionné",
-                                        tint = AccentLavande,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }
-                            }
-                            HorizontalDivider(color = Color.White.copy(alpha = 0.05f))
-                        }
-                    }
+                onDismiss = {
+                    showCategorySheet = false
+                    categorySearchQuery = ""
                 }
-            }
+            )
         }
 
         if (state.isLoadingStreams || state.isLoadingCategories) {

@@ -9,6 +9,7 @@ import com.poc.iptvxtream.domain.model.SeriesDetails
 import com.poc.iptvxtream.domain.model.SeriesEpisode
 import com.poc.iptvxtream.domain.model.SeriesStream
 import com.poc.iptvxtream.domain.usecase.GetSeriesCategoriesUseCase
+import com.poc.iptvxtream.domain.usecase.GetSeriesCategoryCountsUseCase
 import com.poc.iptvxtream.domain.usecase.GetSeriesDetailsUseCase
 import com.poc.iptvxtream.domain.usecase.GetSeriesStreamsUseCase
 import com.poc.iptvxtream.domain.usecase.SavePlaybackPositionUseCase
@@ -25,6 +26,7 @@ import com.poc.iptvxtream.data.local.storage.SettingsManager
 @HiltViewModel
 class SeriesViewModel @Inject constructor(
     private val getSeriesCategoriesUseCase: GetSeriesCategoriesUseCase,
+    private val getSeriesCategoryCountsUseCase: GetSeriesCategoryCountsUseCase,
     private val getSeriesStreamsUseCase: GetSeriesStreamsUseCase,
     private val getSeriesDetailsUseCase: GetSeriesDetailsUseCase,
     private val savePlaybackPositionUseCase: SavePlaybackPositionUseCase,
@@ -123,9 +125,24 @@ class SeriesViewModel @Inject constructor(
             try {
                 val streams = getSeriesStreamsUseCase(categoryId, forceRefresh)
                 _state.update { it.copy(streams = streams, isLoadingStreams = false) }
+                refreshCategoryCounts()
             } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException) throw e
                 _state.update { it.copy(isLoadingStreams = false, error = e.message ?: "Impossible de charger les séries.") }
+            }
+        }
+    }
+
+    // Compteurs de la bottom sheet, rafraîchis après chaque sync de streams
+    // (le cache local vient potentiellement de changer). Échec silencieux :
+    // les compteurs sont un enrichissement, jamais bloquants.
+    private fun refreshCategoryCounts() {
+        viewModelScope.launch {
+            try {
+                val counts = getSeriesCategoryCountsUseCase()
+                _state.update { it.copy(categoryCounts = counts) }
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
             }
         }
     }

@@ -153,6 +153,10 @@ class LiveTvRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun getCategoryCounts(): Map<String, Int> {
+        return liveTvDao.getCategoryCounts().associate { it.categoryId to it.count }
+    }
+
     override suspend fun saveRecentlyWatched(stream: LiveStream) {
         val entity = com.poc.iptvxtream.data.local.entity.RecentlyWatchedLiveEntity(
             streamId = stream.streamId,

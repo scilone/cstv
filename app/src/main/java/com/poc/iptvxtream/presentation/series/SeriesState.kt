@@ -13,5 +13,7 @@ data class SeriesState(
     val isLoadingCategories: Boolean = false,
     val isLoadingStreams: Boolean = false,
     val isLoadingDetails: Boolean = false,
-    val error: String? = null
+    val error: String? = null,
+    // Compteur de séries par categoryId (cache local), pour la bottom sheet.
+    val categoryCounts: Map<String, Int> = emptyMap()
 )

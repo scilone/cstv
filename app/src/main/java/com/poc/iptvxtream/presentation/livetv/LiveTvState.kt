@@ -13,5 +13,7 @@ data class LiveTvState(
     val isLoadingStreams: Boolean = false,
     val error: String? = null,
     val recentlyWatched: List<LiveStream> = emptyList(),
-    val epgPrograms: Map<Int, LiveEpgProgram> = emptyMap()
+    val epgPrograms: Map<Int, LiveEpgProgram> = emptyMap(),
+    // Compteur de chaînes par categoryId (cache local), pour la bottom sheet.
+    val categoryCounts: Map<String, Int> = emptyMap()
 )

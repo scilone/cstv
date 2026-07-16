@@ -294,6 +294,10 @@ class SeriesRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun getCategoryCounts(): Map<String, Int> {
+        return seriesDao.getCategoryCounts().associate { it.categoryId to it.count }
+    }
+
     override suspend fun getSeriesDetails(seriesId: Int): SeriesDetails {
         val creds = credentialsManager.getCredentials()
             ?: throw InvalidCredentialsException("Utilisateur non connecté.")

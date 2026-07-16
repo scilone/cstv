@@ -32,6 +32,9 @@ interface VodRepository {
     // regarder" sans re-fetch manuel à chaque navigation.
     fun observeAllPlaybackPositions(): Flow<List<PlaybackPosition>>
 
+    /** Nombre de films par categoryId, basé sur le cache local (sélecteur de catégorie). */
+    suspend fun getCategoryCounts(): Map<String, Int>
+
     /**
      * Enrichit (acteurs/réalisateur/genre) les films qui en manquent encore,
      * par lots successifs jusqu'à [maxBatches] ou jusqu'à ce que le catalogue

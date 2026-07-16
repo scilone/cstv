@@ -9,6 +9,7 @@ import com.poc.iptvxtream.domain.model.VodCategory
 import com.poc.iptvxtream.domain.model.VodDetails
 import com.poc.iptvxtream.domain.model.VodStream
 import com.poc.iptvxtream.domain.usecase.GetVodCategoriesUseCase
+import com.poc.iptvxtream.domain.usecase.GetVodCategoryCountsUseCase
 import com.poc.iptvxtream.domain.usecase.GetVodDetailsUseCase
 import com.poc.iptvxtream.domain.usecase.GetVodStreamsUseCase
 import com.poc.iptvxtream.domain.usecase.SavePlaybackPositionUseCase
@@ -23,6 +24,7 @@ import javax.inject.Inject
 @HiltViewModel
 class VodViewModel @Inject constructor(
     private val getVodCategoriesUseCase: GetVodCategoriesUseCase,
+    private val getVodCategoryCountsUseCase: GetVodCategoryCountsUseCase,
     private val getVodStreamsUseCase: GetVodStreamsUseCase,
     private val getVodDetailsUseCase: GetVodDetailsUseCase,
     private val savePlaybackPositionUseCase: SavePlaybackPositionUseCase,
@@ -123,9 +125,24 @@ class VodViewModel @Inject constructor(
             try {
                 val streams = getVodStreamsUseCase(categoryId, forceRefresh)
                 _state.update { it.copy(streams = streams, isLoadingStreams = false) }
+                refreshCategoryCounts()
             } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException) throw e
                 _state.update { it.copy(isLoadingStreams = false, error = e.message ?: "Impossible de charger les films.") }
+            }
+        }
+    }
+
+    // Compteurs de la bottom sheet, rafraîchis après chaque sync de streams
+    // (le cache local vient potentiellement de changer). Échec silencieux :
+    // les compteurs sont un enrichissement, jamais bloquants.
+    private fun refreshCategoryCounts() {
+        viewModelScope.launch {
+            try {
+                val counts = getVodCategoryCountsUseCase()
+                _state.update { it.copy(categoryCounts = counts) }
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
             }
         }
     }

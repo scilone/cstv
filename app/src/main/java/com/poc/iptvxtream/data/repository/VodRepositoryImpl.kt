@@ -355,6 +355,10 @@ class VodRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun getCategoryCounts(): Map<String, Int> {
+        return vodDao.getCategoryCounts().associate { it.categoryId to it.count }
+    }
+
     override suspend fun getVodDetails(streamId: Int): VodDetails {
         val creds = credentialsManager.getCredentials()
             ?: throw InvalidCredentialsException("Utilisateur non connecté.")

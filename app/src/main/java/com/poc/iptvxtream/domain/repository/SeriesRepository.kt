@@ -27,4 +27,7 @@ interface SeriesRepository {
      * @return le nombre de séries traitées.
      */
     suspend fun enrichPendingSeries(maxBatches: Int = 3): Int
+
+    /** Nombre de séries par categoryId, basé sur le cache local (sélecteur de catégorie). */
+    suspend fun getCategoryCounts(): Map<String, Int>
 }
