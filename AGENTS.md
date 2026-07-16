@@ -159,4 +159,4 @@ Pour livrer une nouvelle version de l'application et générer un APK de product
    - Créer une Release GitHub officielle.
    - Attacher l'APK de release signé à la Release.
 
-Dernier tag poussé : `v1.21.1` (fix feedback de chargement à la sélection de profil). Vérifie toujours `git tag --sort=-v:refname | head -1` avant de choisir le prochain numéro (patch pour un fix/correction, minor pour une nouvelle phase/fonctionnalité).
+Dernier tag poussé : `v1.21.2` (fix régression perf : clé Keystore mise en cache dans KeystoreCredentialsCipher). Vérifie toujours `git tag --sort=-v:refname | head -1` avant de choisir le prochain numéro (patch pour un fix/correction, minor pour une nouvelle phase/fonctionnalité).

@@ -34,6 +34,15 @@ interface CredentialsCipher {
  */
 class KeystoreCredentialsCipher : CredentialsCipher {
 
+    // KeyStore.load() est un aller-retour IPC vers le daemon keystore : coûteux
+    // à répéter. CredentialsManager déchiffre 5 champs par getCredentials() ;
+    // sans ce cache, c'était 5 aller-retours Keystore synchrones à chaque
+    // lancement (appelé sur le thread principal depuis LoginViewModel.init),
+    // perceptible comme un freeze au démarrage. Un seul round-trip par process
+    // (l'instance vit le temps du process, portée par CredentialsManager
+    // @Singleton).
+    private val secretKey: SecretKey by lazy { getOrCreateKey() }
+
     private fun getOrCreateKey(): SecretKey {
         val keyStore = KeyStore.getInstance(KEYSTORE).apply { load(null) }
         (keyStore.getKey(KEY_ALIAS, null) as? SecretKey)?.let { return it }
@@ -54,7 +63,7 @@ class KeystoreCredentialsCipher : CredentialsCipher {
 
     override fun encrypt(plaintext: ByteArray): ByteArray {
         val cipher = Cipher.getInstance(TRANSFORMATION)
-        cipher.init(Cipher.ENCRYPT_MODE, getOrCreateKey())
+        cipher.init(Cipher.ENCRYPT_MODE, secretKey)
         return cipher.iv + cipher.doFinal(plaintext)
     }
 
@@ -63,7 +72,7 @@ class KeystoreCredentialsCipher : CredentialsCipher {
         val cipher = Cipher.getInstance(TRANSFORMATION)
         cipher.init(
             Cipher.DECRYPT_MODE,
-            getOrCreateKey(),
+            secretKey,
             GCMParameterSpec(GCM_TAG_BITS, payload, 0, IV_SIZE)
         )
         return cipher.doFinal(payload, IV_SIZE, payload.size - IV_SIZE)
