@@ -71,13 +71,24 @@ jobs:
         run: ./gradlew :app:assembleRelease --no-daemon
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          name: Release ${{ github.ref_name }}
-          draft: false
-          prerelease: false
-          generate_release_notes: true
-          files: |
-            app/build/outputs/apk/release/app-release.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          for attempt in 1 2 3; do
+            echo "Attempt $attempt of 3 to create/update GitHub release..."
+            if gh release view "${{ github.ref_name }}" > /dev/null 2>&1; then
+              echo "Release already exists, uploading APK..."
+              gh release upload "${{ github.ref_name }}" \
+                "app/build/outputs/apk/release/app-release.apk" --clobber \
+                && { echo "✅ APK uploaded successfully"; exit 0; }
+            else
+              gh release create "${{ github.ref_name }}" \
+                --title "Release ${{ github.ref_name }}" \
+                --generate-notes \
+                "app/build/outputs/apk/release/app-release.apk" \
+                && { echo "✅ Release created successfully"; exit 0; }
+            fi
+            [ $attempt -lt 3 ] && { echo "⚠️ Attempt $attempt failed, retrying in 30s..."; sleep 30; }
+          done
+          echo "❌ Failed to create/update release after 3 attempts"
+          exit 1
