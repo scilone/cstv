@@ -478,13 +478,13 @@ fun HomeLiveTvCard(
             .clip(RoundedCornerShape(16.dp))
             .clickable { onClick() }
             .background(Surface3)
-            .padding(12.dp)
+            .padding(10.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             // Logo de la chaîne
             Box(
                 modifier = Modifier
-                    .size(width = 48.dp, height = 36.dp)
+                    .size(width = 44.dp, height = 32.dp)
                     .clip(RoundedCornerShape(8.dp))
                     .background(Surface1),
                 contentAlignment = Alignment.Center
@@ -502,7 +502,7 @@ fun HomeLiveTvCard(
                     Text(
                         text = stream.name.firstOrNull()?.uppercase() ?: "?",
                         color = Color.White.copy(alpha = 0.85f),
-                        fontSize = 16.sp,
+                        fontSize = 15.sp,
                         fontWeight = FontWeight.Bold,
                         fontFamily = BricolageGrotesque
                     )
@@ -517,6 +517,7 @@ fun HomeLiveTvCard(
                     color = Color(0xFFF2F2F6),
                     fontWeight = FontWeight.Bold,
                     fontSize = 12.5.sp,
+                    lineHeight = 14.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     fontFamily = HankenGrotesk
@@ -524,11 +525,12 @@ fun HomeLiveTvCard(
                 Text(
                     text = epgProgram?.title ?: stringResource(R.string.home_no_program),
                     color = Color(0xFF9A9AA8),
-                    fontSize = 11.5.sp,
+                    fontSize = 11.sp,
+                    lineHeight = 12.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     fontFamily = HankenGrotesk,
-                    modifier = Modifier.padding(top = 3.dp)
+                    modifier = Modifier.padding(top = 1.dp)
                 )
             }
         }
@@ -539,7 +541,7 @@ fun HomeLiveTvCard(
                 program = epgProgram,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 12.dp)
+                    .padding(top = 6.dp)
                     .height(3.dp)
                     .clip(RoundedCornerShape(999.dp))
             )
@@ -547,7 +549,7 @@ fun HomeLiveTvCard(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 12.dp)
+                    .padding(top = 6.dp)
                     .height(3.dp)
                     .clip(RoundedCornerShape(999.dp))
                     .background(Color.White.copy(alpha = 0.1f))
@@ -559,11 +561,12 @@ fun HomeLiveTvCard(
             text = epgProgram?.formattedTimeRange() ?: "",
             color = Color(0xFF63636F),
             fontSize = 10.sp,
+            lineHeight = 12.sp,
             maxLines = 1,
             fontFamily = HankenGrotesk,
             modifier = Modifier
-                .padding(top = 5.dp)
-                .heightIn(min = 16.dp)
+                .padding(top = 2.dp)
+                .heightIn(min = 13.dp)
         )
     }
 }

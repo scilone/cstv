@@ -488,7 +488,7 @@ fun MobileChannelGridCard(
             .fillMaxWidth()
             // Hauteur fixe (Phase 33) : une chaîne sans EPG résolue ne doit pas
             // produire une tuile plus petite que ses voisines dans la grille.
-            .height(184.dp)
+            .height(150.dp)
             .clip(RoundedCornerShape(14.dp))
             .background(Surface3)
             .border(1.dp, Color.White.copy(alpha = 0.06f), RoundedCornerShape(14.dp))
@@ -498,7 +498,7 @@ fun MobileChannelGridCard(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(76.dp)
+                .height(60.dp)
                 .clip(RoundedCornerShape(8.dp))
                 .background(Surface1),
             contentAlignment = Alignment.Center
@@ -539,12 +539,13 @@ fun MobileChannelGridCard(
             }
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(6.dp))
 
         Text(
             text = stream.name,
             color = TextPrimary,
-            fontSize = 13.sp,
+            fontSize = 12.5.sp,
+            lineHeight = 14.sp,
             fontWeight = FontWeight.Bold,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
@@ -554,17 +555,18 @@ fun MobileChannelGridCard(
             text = epgProgram?.title ?: "Aucun programme",
             color = TextSecondary,
             fontSize = 11.sp,
+            lineHeight = 12.sp,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             fontFamily = HankenGrotesk,
-            modifier = Modifier.padding(top = 2.dp)
+            modifier = Modifier.padding(top = 1.dp)
         )
         if (epgProgram != null) {
             EpgProgressBar(
                 program = epgProgram,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 6.dp)
+                    .padding(top = 3.dp)
                     .height(3.dp)
                     .clip(RoundedCornerShape(999.dp))
             )
@@ -572,8 +574,9 @@ fun MobileChannelGridCard(
                 text = epgProgram.formattedTimeRange(),
                 color = Color(0xFF63636F),
                 fontSize = 10.sp,
+                lineHeight = 12.sp,
                 fontFamily = HankenGrotesk,
-                modifier = Modifier.padding(top = 4.dp)
+                modifier = Modifier.padding(top = 2.dp)
             )
         }
     }
