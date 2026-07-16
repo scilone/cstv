@@ -45,11 +45,6 @@ import androidx.tv.material3.MaterialTheme as TvTheme
 import androidx.tv.material3.Text as TvText
 import coil.compose.AsyncImage
 import com.poc.iptvxtream.domain.model.VodDetails
-import com.poc.iptvxtream.presentation.theme.SurfaceFocused
-import com.poc.iptvxtream.presentation.theme.SurfaceElevated
-import com.poc.iptvxtream.presentation.theme.WhiteOverlay20
-import com.poc.iptvxtream.R
-import androidx.compose.ui.res.stringResource
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
@@ -96,9 +91,9 @@ fun VodDetailsScreen(
             ) {
                 IconButton(
                     onClick = onBack,
-                    modifier = Modifier.background(WhiteOverlay20, shape = RoundedCornerShape(12.dp))
+                    modifier = Modifier.background(Color(0x33FFFFFF), shape = RoundedCornerShape(12.dp))
                 ) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.player_back), tint = Color.White)
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Retour", tint = Color.White)
                 }
             }
 
@@ -192,7 +187,7 @@ private fun TvLayoutDetails(
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     TvText(
-                        text = if (isFavorite) stringResource(R.string.details_in_favorites_upper) else stringResource(R.string.details_add_favorites_upper),
+                        text = if (isFavorite) "DANS LES FAVORIS" else "AJOUTER FAVORIS",
                         fontWeight = FontWeight.Bold,
                         style = TvTheme.typography.labelSmall
                     )
@@ -247,9 +242,9 @@ private fun TvLayoutDetails(
             HorizontalDivider(color = Color.DarkGray, thickness = 0.5.dp, modifier = Modifier.padding(vertical = 10.dp))
 
             // Clickable Credits: Director & Cast
-            ClickableCreditsRow(label = stringResource(R.string.details_director), names = details.director, onClickName = onSearchQueryTriggered)
+            ClickableCreditsRow(label = "Réalisateur", names = details.director, onClickName = onSearchQueryTriggered)
             Spacer(modifier = Modifier.height(6.dp))
-            ClickableCreditsRow(label = stringResource(R.string.details_actors), names = details.actors, onClickName = onSearchQueryTriggered)
+            ClickableCreditsRow(label = "Acteurs", names = details.actors, onClickName = onSearchQueryTriggered)
 
             Spacer(modifier = Modifier.height(24.dp))
 
@@ -324,7 +319,7 @@ private fun MobileLayoutDetails(
             IconButton(onClick = onToggleFavorite) {
                 Icon(
                     imageVector = Icons.Default.Star,
-                    contentDescription = stringResource(R.string.common_favorites),
+                    contentDescription = "Favoris",
                     tint = if (isFavorite) Color.Yellow else Color.DarkGray,
                     modifier = Modifier.size(28.dp)
                 )
@@ -373,9 +368,9 @@ private fun MobileLayoutDetails(
         HorizontalDivider(color = Color.DarkGray, thickness = 0.5.dp, modifier = Modifier.padding(vertical = 12.dp))
 
         // Clickable Credits: Director & Cast
-        ClickableCreditsRow(label = stringResource(R.string.details_director), names = details.director, onClickName = onSearchQueryTriggered)
+        ClickableCreditsRow(label = "Réalisateur", names = details.director, onClickName = onSearchQueryTriggered)
         Spacer(modifier = Modifier.height(8.dp))
-        ClickableCreditsRow(label = stringResource(R.string.details_actors), names = details.actors, onClickName = onSearchQueryTriggered)
+        ClickableCreditsRow(label = "Acteurs", names = details.actors, onClickName = onSearchQueryTriggered)
 
         Spacer(modifier = Modifier.height(24.dp))
 
@@ -395,7 +390,7 @@ private fun ClickableCreditsRow(
     names: String,
     onClickName: (String) -> Unit
 ) {
-    if (names.isBlank() || names == stringResource(R.string.common_unknown)) return
+    if (names.isBlank() || names == "Inconnu") return
 
     val nameList = remember(names) { names.split(",").map { it.trim() }.filter { it.isNotBlank() } }
 
@@ -439,7 +434,7 @@ private fun CreditNameChip(
                 color = if (isFocused) MaterialTheme.colorScheme.primary else Color.DarkGray,
                 shape = RoundedCornerShape(12.dp)
             )
-            .background(if (isFocused) SurfaceFocused else Surface3)
+            .background(if (isFocused) Color(0xFF2C2C35) else Surface3)
             .clickable { onClick() }
             .padding(horizontal = 10.dp, vertical = 4.dp)
     ) {
@@ -484,7 +479,7 @@ private fun PlayButtonsRow(
                         Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Color.White)
                         Spacer(modifier = Modifier.width(6.dp))
                         TvText(
-                            text = stringResource(R.string.details_resume_upper),
+                            text = "REPRENDRE LA LECTURE",
                             fontWeight = FontWeight.Bold,
                             style = TvTheme.typography.labelMedium,
                             color = Color.White
@@ -528,7 +523,7 @@ private fun PlayButtonsRow(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Color.White)
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text(stringResource(R.string.details_resume_upper), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        Text("REPRENDRE LA LECTURE", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                     }
                 }
             }
@@ -536,7 +531,7 @@ private fun PlayButtonsRow(
             Button(
                 onClick = onPlayFromBeginning,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = if (hasHistory) SurfaceElevated else MaterialTheme.colorScheme.primary
+                    containerColor = if (hasHistory) Color(0xFF2A2A35) else MaterialTheme.colorScheme.primary
                 ),
                 shape = RoundedCornerShape(8.dp),
                 modifier = Modifier.fillMaxWidth().height(44.dp)

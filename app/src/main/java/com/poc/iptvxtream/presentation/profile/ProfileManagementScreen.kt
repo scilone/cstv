@@ -35,8 +35,6 @@ import com.poc.iptvxtream.presentation.theme.Surface1
 import com.poc.iptvxtream.presentation.theme.Surface2
 import com.poc.iptvxtream.presentation.theme.Surface3
 import com.poc.iptvxtream.presentation.theme.mobileBackground
-import com.poc.iptvxtream.presentation.theme.ErrorRose
-import com.poc.iptvxtream.presentation.theme.SurfaceFocused
 
 /**
  * Écran de gestion des profils façon Netflix (Phase 27, revu suite retour
@@ -86,7 +84,7 @@ fun ProfileManagementScreen(
             )
 
             deleteError?.let {
-                Text(text = it, color = ErrorRose, fontSize = 13.sp, modifier = Modifier.padding(bottom = 16.dp))
+                Text(text = it, color = Color(0xFFCF6679), fontSize = 13.sp, modifier = Modifier.padding(bottom = 16.dp))
             }
 
             LazyVerticalGrid(
@@ -110,7 +108,7 @@ fun ProfileManagementScreen(
 
             Button(
                 onClick = onBack,
-                colors = ButtonDefaults.buttonColors(containerColor = SurfaceFocused),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2C2C35)),
                 shape = RoundedCornerShape(24.dp),
                 modifier = Modifier.fillMaxWidth(if (isTv) 0.4f else 0.7f).height(48.dp)
             ) {
@@ -296,17 +294,17 @@ private fun ProfileEditDialog(
 
                 if (confirmingDelete) {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(stringResource(R.string.profile_delete_confirm_prompt), color = ErrorRose, fontSize = 13.sp)
+                        Text(stringResource(R.string.profile_delete_confirm_prompt), color = Color(0xFFCF6679), fontSize = 13.sp)
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             TextButton(onClick = { confirmingDelete = false }) { Text("Annuler") }
                             TextButton(onClick = onDelete) {
-                                Text(stringResource(R.string.profile_delete_confirm), color = ErrorRose)
+                                Text(stringResource(R.string.profile_delete_confirm), color = Color(0xFFCF6679))
                             }
                         }
                     }
                 } else {
                     TextButton(onClick = { confirmingDelete = true }) {
-                        Text(stringResource(R.string.profile_delete_btn), color = ErrorRose)
+                        Text(stringResource(R.string.profile_delete_btn), color = Color(0xFFCF6679))
                     }
                 }
             }

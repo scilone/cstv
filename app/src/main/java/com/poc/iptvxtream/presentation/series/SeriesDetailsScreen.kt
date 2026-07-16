@@ -48,12 +48,6 @@ import com.poc.iptvxtream.presentation.theme.Surface2
 import com.poc.iptvxtream.presentation.theme.Surface3
 import com.poc.iptvxtream.domain.model.SeriesEpisode
 import com.poc.iptvxtream.domain.model.SeriesSeason
-import com.poc.iptvxtream.presentation.theme.SurfaceFocused
-import com.poc.iptvxtream.presentation.theme.SurfaceElevated
-import com.poc.iptvxtream.presentation.theme.SurfaceFocusedAlt
-import com.poc.iptvxtream.presentation.theme.WhiteOverlay20
-import com.poc.iptvxtream.R
-import androidx.compose.ui.res.stringResource
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
@@ -103,9 +97,9 @@ fun SeriesDetailsScreen(
             ) {
                 IconButton(
                     onClick = onBack,
-                    modifier = Modifier.background(WhiteOverlay20, shape = RoundedCornerShape(12.dp))
+                    modifier = Modifier.background(Color(0x33FFFFFF), shape = RoundedCornerShape(12.dp))
                 ) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.player_back), tint = Color.White)
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Retour", tint = Color.White)
                 }
             }
 
@@ -216,7 +210,7 @@ private fun TvLayout(
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     TvText(
-                        text = if (isFavorite) stringResource(R.string.details_in_favorites_upper) else stringResource(R.string.details_add_favorites_upper),
+                        text = if (isFavorite) "DANS LES FAVORIS" else "AJOUTER FAVORIS",
                         fontWeight = FontWeight.Bold,
                         style = TvTheme.typography.labelSmall
                     )
@@ -225,7 +219,7 @@ private fun TvLayout(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            Text(stringResource(R.string.details_seasons_upper), color = Color.Gray, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(bottom = 6.dp))
+            Text("SAISONS", color = Color.Gray, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(bottom = 6.dp))
 
             LazyColumn(
                 verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -246,7 +240,7 @@ private fun TvLayout(
                             .background(
                                 when {
                                     isFocused -> MaterialTheme.colorScheme.primary
-                                    isSelected -> SurfaceFocused
+                                    isSelected -> Color(0xFF2C2C35)
                                     else -> Color.Transparent
                                 }
                             )
@@ -280,10 +274,10 @@ private fun TvLayout(
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text(formatReleaseYear(details.releaseDate).ifBlank { stringResource(R.string.common_unknown) }, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    Text(formatReleaseYear(details.releaseDate).ifBlank { "Inconnu" }, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                     Text("|", color = Color.DarkGray)
                     Text(
-                        text = details.genre ?: stringResource(R.string.common_unknown),
+                        text = details.genre ?: "Inconnu",
                         color = Color.LightGray,
                         fontSize = 13.sp,
                         maxLines = 1,
@@ -302,7 +296,7 @@ private fun TvLayout(
 
                 // Plot
                 Text(
-                    text = details.plot ?: stringResource(R.string.details_no_plot),
+                    text = details.plot ?: "Aucun résumé disponible.",
                     color = Color.LightGray,
                     fontSize = 14.sp,
                     lineHeight = 20.sp,
@@ -312,9 +306,9 @@ private fun TvLayout(
                 HorizontalDivider(color = Color.DarkGray, thickness = 0.5.dp, modifier = Modifier.padding(vertical = 10.dp))
 
                 // Clickable Credits: Director & Cast
-                ClickableCreditsRow(label = stringResource(R.string.details_director), names = details.director ?: stringResource(R.string.common_unknown), onClickName = onSearchQueryTriggered)
+                ClickableCreditsRow(label = "Réalisateur", names = details.director ?: "Inconnu", onClickName = onSearchQueryTriggered)
                 Spacer(modifier = Modifier.height(6.dp))
-                ClickableCreditsRow(label = stringResource(R.string.details_actors), names = details.actors ?: stringResource(R.string.common_unknown), onClickName = onSearchQueryTriggered)
+                ClickableCreditsRow(label = "Acteurs", names = details.actors ?: "Inconnu", onClickName = onSearchQueryTriggered)
 
                 Spacer(modifier = Modifier.height(16.dp))
 
@@ -348,7 +342,7 @@ private fun TvLayout(
                 }
 
                 Text(
-                    text = stringResource(R.string.details_episodes_upper),
+                    text = "ÉPISODES",
                     color = MaterialTheme.colorScheme.primary,
                     fontWeight = FontWeight.Bold,
                     fontSize = 14.sp,
@@ -359,7 +353,7 @@ private fun TvLayout(
             if (episodes.isEmpty()) {
                 item {
                     Box(modifier = Modifier.fillMaxWidth().height(100.dp), contentAlignment = Alignment.Center) {
-                        Text(stringResource(R.string.details_no_episodes_for_season), color = Color.Gray)
+                        Text("Aucun épisode disponible pour cette saison", color = Color.Gray)
                     }
                 }
             } else {
@@ -447,7 +441,7 @@ private fun MobileLayout(
             IconButton(onClick = onToggleFavorite) {
                 Icon(
                     imageVector = Icons.Default.Star,
-                    contentDescription = stringResource(R.string.common_favorite),
+                    contentDescription = "Favori",
                     tint = if (isFavorite) Color.Yellow else Color.DarkGray,
                     modifier = Modifier.size(28.dp)
                 )
@@ -459,10 +453,10 @@ private fun MobileLayout(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
         ) {
-            Text(formatReleaseYear(details.releaseDate).ifBlank { stringResource(R.string.common_unknown) }, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+            Text(formatReleaseYear(details.releaseDate).ifBlank { "Inconnu" }, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, fontSize = 13.sp)
             Text("  •  ", color = Color.DarkGray)
             Text(
-                text = details.genre ?: stringResource(R.string.common_unknown),
+                text = details.genre ?: "Inconnu",
                 color = Color.LightGray,
                 fontSize = 12.sp,
                 maxLines = 1,
@@ -479,7 +473,7 @@ private fun MobileLayout(
 
         // Plot
         Text(
-            text = details.plot ?: stringResource(R.string.details_no_plot),
+            text = details.plot ?: "Aucun résumé disponible.",
             color = Color.LightGray,
             fontSize = 13.sp,
             lineHeight = 18.sp,
@@ -490,9 +484,9 @@ private fun MobileLayout(
         HorizontalDivider(color = Color.DarkGray, thickness = 0.5.dp, modifier = Modifier.padding(vertical = 8.dp))
 
         // Clickable Credits: Director & Cast
-        ClickableCreditsRow(label = stringResource(R.string.details_director), names = details.director ?: stringResource(R.string.common_unknown), onClickName = onSearchQueryTriggered)
+        ClickableCreditsRow(label = "Réalisateur", names = details.director ?: "Inconnu", onClickName = onSearchQueryTriggered)
         Spacer(modifier = Modifier.height(8.dp))
-        ClickableCreditsRow(label = stringResource(R.string.details_actors), names = details.actors ?: stringResource(R.string.common_unknown), onClickName = onSearchQueryTriggered)
+        ClickableCreditsRow(label = "Acteurs", names = details.actors ?: "Inconnu", onClickName = onSearchQueryTriggered)
 
         Spacer(modifier = Modifier.height(24.dp))
 
@@ -522,7 +516,7 @@ private fun MobileLayout(
 
         // Seasons lazy row
         Text(
-            text = stringResource(R.string.details_seasons_upper),
+            text = "SAISONS",
             color = Color.Gray,
             fontWeight = FontWeight.Bold,
             fontSize = 12.sp,
@@ -538,7 +532,7 @@ private fun MobileLayout(
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(16.dp))
-                        .background(if (isSelected) MaterialTheme.colorScheme.primary else SurfaceElevated)
+                        .background(if (isSelected) MaterialTheme.colorScheme.primary else Color(0xFF2A2A35))
                         .clickable { onSeasonSelected(season.seasonNumber) }
                         .padding(horizontal = 14.dp, vertical = 6.dp)
                 ) {
@@ -554,7 +548,7 @@ private fun MobileLayout(
 
         // List of episodes
         Text(
-            text = stringResource(R.string.details_episodes_upper),
+            text = "ÉPISODES",
             color = MaterialTheme.colorScheme.primary,
             fontWeight = FontWeight.Bold,
             fontSize = 14.sp,
@@ -563,7 +557,7 @@ private fun MobileLayout(
 
         if (episodes.isEmpty()) {
             Box(modifier = Modifier.fillMaxWidth().height(100.dp), contentAlignment = Alignment.Center) {
-                Text(stringResource(R.string.details_no_episodes), color = Color.Gray)
+                Text("Aucun épisode disponible", color = Color.Gray)
             }
         } else {
             Column(
@@ -584,7 +578,7 @@ private fun ClickableCreditsRow(
     names: String,
     onClickName: (String) -> Unit
 ) {
-    if (names.isBlank() || names == stringResource(R.string.common_unknown)) return
+    if (names.isBlank() || names == "Inconnu") return
 
     val nameList = remember(names) { names.split(",").map { it.trim() }.filter { it.isNotBlank() } }
 
@@ -628,7 +622,7 @@ private fun CreditNameChip(
                 color = if (isFocused) MaterialTheme.colorScheme.primary else Color.DarkGray,
                 shape = RoundedCornerShape(12.dp)
             )
-            .background(if (isFocused) SurfaceFocused else Surface3)
+            .background(if (isFocused) Color(0xFF2C2C35) else Surface3)
             .clickable { onClick() }
             .padding(horizontal = 10.dp, vertical = 4.dp)
     ) {
@@ -652,7 +646,7 @@ private fun EpisodeCardItem(
 
     Card(
         colors = CardDefaults.cardColors(
-            containerColor = if (isFocused) SurfaceFocusedAlt else Surface3
+            containerColor = if (isFocused) Color(0xFF23232D) else Surface3
         ),
         modifier = Modifier
             .fillMaxWidth()
@@ -698,7 +692,7 @@ private fun EpisodeCardItem(
 
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = stringResource(R.string.details_episode_upper, episode.episodeNum),
+                        text = "ÉPISODE ${episode.episodeNum}",
                         color = MaterialTheme.colorScheme.primary,
                         fontWeight = FontWeight.Bold,
                         fontSize = 11.sp
@@ -720,7 +714,7 @@ private fun EpisodeCardItem(
                 }
             }
 
-            if (episode.plot.isNotBlank() && episode.plot != stringResource(R.string.details_no_plot)) {
+            if (episode.plot.isNotBlank() && episode.plot != "Aucun résumé disponible.") {
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
                     text = episode.plot,
@@ -747,7 +741,7 @@ private fun EpisodeCardItem(
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = stringResource(R.string.details_resume_in_progress),
+                        text = "En cours de lecture (reprendre)",
                         color = Color.Gray,
                         fontSize = 9.sp,
                         fontWeight = FontWeight.Light

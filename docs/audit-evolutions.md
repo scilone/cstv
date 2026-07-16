@@ -12,26 +12,26 @@ une session IA, classé par urgence décroissante.
 
 | # | Évolution | Criticité | Effort |
 |---|---|---|---|
-| 1 | ✅ Exclure les credentials du backup Android | 🔴 | S |
-| 2 | ✅ Tester les migrations Room (exportSchema + tests instrumentés) | 🟠 | M |
-| 3 | ✅ Migrer hors de security-crypto (déprécié) | 🟠 | M |
-| 4 | ✅ Mettre à niveau la stack (AGP/Kotlin 2/Compose BOM) | 🟠 | L |
-| 5 | ✅ Compléter les tests ViewModels (5 manquants) | 🟡 | L |
-| 6 | ✅ Factoriser les 3 players (~2500 lignes dupliquées) | 🟡 | L |
+| 1 | Exclure les credentials du backup Android | 🔴 | S |
+| 2 | Tester les migrations Room (exportSchema + tests instrumentés) | 🟠 | M |
+| 3 | Migrer hors de security-crypto (déprécié) | 🟠 | M |
+| 4 | Mettre à niveau la stack (AGP/Kotlin 2/Compose BOM) | 🟠 | L |
+| 5 | Compléter les tests ViewModels (5 manquants) | 🟡 | L |
+| 6 | Factoriser les 3 players (~2500 lignes dupliquées) | 🟡 | L |
 | 7 | Pagination des catalogues volumineux | 🟡 | L |
-| 8 | ✅ Finir la migration couleurs vers le thème (99 restantes) | 🟡 | M |
-| 9 | ✅ Restreindre réellement le cleartext HTTP | 🟡 | S |
-| 10 | ✅ Version catalog Gradle | 🟢 | S |
-| 11 | ✅ Finir l'externalisation i18n (55 strings) | 🟢 | M |
-| 12 | ✅ Configurer le cache images Coil | 🟢 | S |
-| 13 | ✅ Mettre à jour les statuts de la feuille de route | 🟢 | S |
+| 8 | Finir la migration couleurs vers le thème (99 restantes) | 🟡 | M |
+| 9 | Restreindre réellement le cleartext HTTP | 🟡 | S |
+| 10 | Version catalog Gradle | 🟢 | S |
+| 11 | Finir l'externalisation i18n (55 strings) | 🟢 | M |
+| 12 | Configurer le cache images Coil | 🟢 | S |
+| 13 | Mettre à jour les statuts de la feuille de route | 🟢 | S |
 
 Hors périmètre de cet audit : Phase 21 (autocomplétion recherche) et
 Phase 54 (accent réglable), déjà décrites dans la feuille de route.
 
 ---
 
-## 1. 🔴 Exclure les credentials du backup Android — Effort S — ✅ FAIT
+## 1. 🔴 Exclure les credentials du backup Android — Effort S
 
 **Constat.** `AndroidManifest.xml` a `android:allowBackup="true"` sans
 `fullBackupContent`/`dataExtractionRules`. Les SharedPreferences chiffrées de
@@ -61,7 +61,7 @@ restaurées, cas classique d'EncryptedSharedPreferences + backup.
 
 ---
 
-## 2. 🟠 Tester les migrations Room — Effort M — ✅ FAIT
+## 2. 🟠 Tester les migrations Room — Effort M
 
 **Constat.** `AppDatabase` est en `version = 12` avec `exportSchema = false`,
 3 migrations manuelles (9→10, 10→11, 11→12) écrites à la main dans
@@ -94,7 +94,7 @@ schéma.
 
 ---
 
-## 3. 🟠 Migrer hors de security-crypto — Effort M — ✅ FAIT (minSdk 23, dépendance conservée une version pour la migration)
+## 3. 🟠 Migrer hors de security-crypto — Effort M
 
 **Constat.** `androidx.security:security-crypto:1.1.0-alpha06` : bibliothèque
 officiellement **dépréciée par Google** (abandonnée en alpha, plus de
@@ -127,7 +127,7 @@ augmente le risque d'incompatibilité binaire.
 
 ---
 
-## 4. 🟠 Mettre à niveau la stack — Effort L — ✅ FAIT (compileSdk reste 35 ; media3 1.9.0, minSdk 21→23 documenté)
+## 4. 🟠 Mettre à niveau la stack — Effort L
 
 **Constat.** AGP 8.2.2 (début 2024) avec le workaround
 `android.suppressUnsupportedCompileSdk=35` dans `gradle.properties`
@@ -157,7 +157,7 @@ workaround compileSdk masque de vrais avertissements de compatibilité.
 
 ---
 
-## 5. 🟡 Compléter les tests ViewModels — Effort L — ✅ FAIT
+## 5. 🟡 Compléter les tests ViewModels — Effort L
 
 **Constat.** 18 fichiers de test pour 142 fichiers source. Côté présentation,
 seuls `HomeViewModel`, `LoginViewModel` et `SettingsViewModel` sont testés.
@@ -189,7 +189,7 @@ sélection, garde-fou dernier profil). Les régressions UI récentes (bug
 
 ---
 
-## 6. 🟡 Factoriser les 3 players — Effort L — ✅ FAIT (VOD+Séries factorisés en MediaPlayerScreen ; live garde sa structure, utils partagés)
+## 6. 🟡 Factoriser les 3 players — Effort L
 
 **Constat.** `VodPlayerScreen.kt` (848 lignes), `SeriesPlayerScreen.kt`
 (838 lignes) et `PlayerScreen.kt` (live) partagent l'essentiel : setup
@@ -222,14 +222,7 @@ d'ailleurs prouvé. C'est le plus gros gisement de dette du projet
 
 ---
 
-## 7. 🟡 Pagination des catalogues volumineux — Effort L — ⏳ RESTE À FAIRE
-
-> **Note session 16/07/2026** : seule évolution non traitée. Le prompt exige
-> des mesures avant/après sur la plus grosse catégorie (données Xtream
-> réelles) et une vérification visuelle de la restauration de scroll —
-> aucun device/émulateur disponible dans la session. À lancer dans une
-> session avec device connecté. Prérequis déjà en place : stack à jour
-> (#4), version catalog (#10).
+## 7. 🟡 Pagination des catalogues volumineux — Effort L
 
 **Constat.** Aucune pagination (pas de Paging 3) : `getVodStreams`/
 `getSeriesStreams`/`getLiveStreams` chargent la catégorie entière (voire le
@@ -261,7 +254,7 @@ plafond de perf.
 
 ---
 
-## 8. 🟡 Finir la migration couleurs vers le thème — Effort M — ✅ FAIT
+## 8. 🟡 Finir la migration couleurs vers le thème — Effort M
 
 **Constat.** Le design system existe (Phase 46 : `presentation/theme/`,
 palette + typo) mais **99 occurrences de `Color(0x…)` en dur** subsistent
@@ -288,7 +281,7 @@ vérité couleur = dérive garantie à la prochaine retouche visuelle.
 
 ---
 
-## 9. 🟡 Restreindre réellement le cleartext HTTP — Effort S — ✅ FAIT (conclusion : permissif documenté, rien de bornable)
+## 9. 🟡 Restreindre réellement le cleartext HTTP — Effort S
 
 **Constat.** `network_security_config.xml` contient
 `<base-config cleartextTrafficPermitted="true"/>` : strictement équivalent à
@@ -322,7 +315,7 @@ pour tout le reste si l'app n'en a pas besoin (images posters ?).
 
 ---
 
-## 10. 🟢 Version catalog Gradle — Effort S — ✅ FAIT
+## 10. 🟢 Version catalog Gradle — Effort S
 
 **Constat.** Pas de `gradle/libs.versions.toml` : versions éparpillées dans
 deux build.gradle.kts, certaines dupliquées (Hilt en racine + module),
@@ -340,7 +333,7 @@ version propres (item 4).
 
 ---
 
-## 11. 🟢 Finir l'externalisation i18n — Effort M — ✅ FAIT
+## 11. 🟢 Finir l'externalisation i18n — Effort M
 
 **Constat.** ~55 `text = "…"` hardcodés restent hors `strings.xml` (surtout
 players, Settings, fiches détail, branche TV, et les fallbacks type
@@ -362,7 +355,7 @@ faute : "Favorie" → "Favorite"). La Phase 45 a couvert ~50 % des écrans.
 
 ---
 
-## 12. 🟢 Configurer le cache images Coil — Effort S — ✅ FAIT
+## 12. 🟢 Configurer le cache images Coil — Effort S
 
 **Constat.** Aucun `ImageLoader` custom : Coil utilise ses défauts (25 % de
 la RAM en cache mémoire, cache disque 2 % du stockage). Avec des milliers de
@@ -382,7 +375,7 @@ scroll des grilles et évite les re-téléchargements après éviction.
 
 ---
 
-## 13. 🟢 Mettre à jour les statuts de la feuille de route — Effort S — ✅ FAIT
+## 13. 🟢 Mettre à jour les statuts de la feuille de route — Effort S
 
 **Constat.** `feuille-de-route-phases.md` ne marque `[TERMINE]` que les
 phases 29 et 42-45, alors que les phases 18-28, 30-41, 46-53 et 55-57 sont

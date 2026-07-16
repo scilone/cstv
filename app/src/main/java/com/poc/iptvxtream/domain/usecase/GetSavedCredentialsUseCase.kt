@@ -7,7 +7,7 @@ import javax.inject.Inject
 class GetSavedCredentialsUseCase @Inject constructor(
     private val authRepository: AuthRepository
 ) {
-    suspend operator fun invoke(): Credentials? {
+    operator fun invoke(): Credentials? {
         return authRepository.getSavedCredentials()
     }
 }

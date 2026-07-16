@@ -28,11 +28,11 @@ Ce fichier contient les règles permanentes à suivre à chaque session de trava
 - UI : Jetpack Compose (mobile) + Compose for TV (`androidx.tv:tv-material`, `tv-foundation`) pour Android TV.
 - Architecture : Clean Architecture (`data` / `domain` / `presentation`) + MVVM.
 - DI : Hilt.
-- Réseau : Retrofit + OkHttp. Cleartext HTTP autorisé globalement (`network_security_config.xml`) — décision assumée lors de l'audit 2026, ne plus y revenir : le panel Xtream est un host dynamique presque toujours en HTTP pur, et les URLs d'images renvoyées par le panel pointent arbitrairement vers lui ou des CDN tiers (souvent HTTP) ; aucune restriction statique par domaine ne bornerait quoi que ce soit de réel.
+- Réseau : Retrofit + OkHttp.
 - Lecteur vidéo : ExoPlayer / Media3 (support HLS).
 - Persistance : Room (cache API) + DataStore chiffré ou EncryptedSharedPreferences (identifiants Xtream).
 - Images : Coil.
-- Min SDK 23 (monté de 21 lors de l'audit 2026 : requis par media3 1.9+ et par le chiffrement Android Keystore AES-GCM ; app personnelle, aucun appareil API 21-22 visé), target/compile SDK la dernière version stable disponible.
+- Min SDK 21, target/compile SDK la dernière version stable disponible.
 
 ## Commandes de build et de test
 
@@ -88,14 +88,12 @@ app/src/main/java/<package>/
 
 ## Base de données Room (schéma et migrations)
 
-- Base actuelle : `AppDatabase`, version **12** (voir `app/src/main/java/.../data/local/db/AppDatabase.kt`).
+- Base actuelle : `AppDatabase`, version **10** (voir `app/src/main/java/.../data/local/db/AppDatabase.kt`).
 - **Pas de `fallbackToDestructiveMigration()`** depuis la Phase 27. `AppModule.provideDatabase()` utilise `.addMigrations(*ALL_MIGRATIONS)` (voir `data/local/db/Migrations.kt`). Le cache catalogue, les favoris, l'historique, les positions de lecture et les profils **doivent survivre** à une mise à jour de l'app.
 - Règle impérative : toute nouvelle colonne/table/changement de clé primaire sur une entité Room doit être accompagné d'une `Migration(oldVersion, newVersion)` réelle dans `Migrations.kt`, ajoutée à `ALL_MIGRATIONS`, qui transforme le schéma en SQL brut (`CREATE TABLE`/`ALTER TABLE`/copie de données) sans perte. SQLite ne permettant pas d'ajouter une colonne à une clé primaire via `ALTER TABLE`, le pattern est : créer `<table>_new` avec le nouveau schéma, `INSERT INTO ... SELECT` depuis l'ancienne table (avec valeur de backfill pour la nouvelle colonne), `DROP TABLE` l'ancienne, `RENAME TO`. Voir `MIGRATION_9_10` comme référence.
 - Le fallback destructif (`fallbackToDestructiveMigration()`) est réservé à un **breaking change majeur explicitement décidé avec l'utilisateur** (ex: refonte complète du schéma jugée trop coûteuse à migrer). Dans ce cas : le signaler clairement en amont, obtenir confirmation, documenter dans le commit et dans AGENTS.md, et prévoir de le retirer au bump suivant.
 - Entités avec `profileId` dans leur clé primaire (données scopées par profil depuis la Phase 27) : `FavoriteEntity`, `PlaybackPositionEntity`, `RecentlyWatchedLiveEntity`. Les entités de catalogue (chaînes/films/séries/catégories/EPG) restent sans `profileId`, partagées entre tous les profils.
-- `exportSchema = true` : chaque version du schéma est exportée en JSON dans `app/schemas/` (option KSP `room.schemaLocation`) et **commitée** — ces fichiers documentent l'historique du schéma et sont requis par `MigrationTestHelper`. Couverture depuis la v9 (schémas 9-11 régénérés depuis l'historique git).
-- Les migrations sont testées par `MigrationsTest` (`app/src/androidTest/`, `MigrationTestHelper`) : chaque migration individuelle + un enchaînement complet 9→12. **Règle : toute nouvelle migration doit arriver avec son test dans `MigrationsTest` et son schéma JSON commité.**
-- Les tests instrumentés nécessitent un émulateur/device : `./gradlew connectedDebugAndroidTest`. Cette commande ne fait PAS partie de la checklist de build standard (build/tests unitaires/lint) — à lancer quand une migration change.
+- Limite connue : le projet n'a pas d'infrastructure de test instrumenté (`androidTest`) pour valider les migrations avec `MigrationTestHelper`. Les migrations sont donc relues manuellement (SQL vérifié contre le schéma des entités) plutôt que testées automatiquement — à améliorer si le projet passe en production.
 
 ## Stratégie de tests
 
@@ -159,4 +157,4 @@ Pour livrer une nouvelle version de l'application et générer un APK de product
    - Créer une Release GitHub officielle.
    - Attacher l'APK de release signé à la Release.
 
-Dernier tag poussé : `v1.21.6` (fix : spinner de sélection de profil invisible au tout premier accès Home, double withFrameNanos). Vérifie toujours `git tag --sort=-v:refname | head -1` avant de choisir le prochain numéro (patch pour un fix/correction, minor pour une nouvelle phase/fonctionnalité).
+Dernier tag poussé : `v1.20.0` (Phase 57, retours Films/Séries et fiches détail). Vérifie toujours `git tag --sort=-v:refname | head -1` avant de choisir le prochain numéro (patch pour un fix/correction, minor pour une nouvelle phase/fonctionnalité).

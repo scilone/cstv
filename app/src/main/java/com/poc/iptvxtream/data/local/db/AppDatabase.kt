@@ -43,7 +43,7 @@ import com.poc.iptvxtream.data.local.entity.SeriesStreamFtsEntity
         SeriesStreamFtsEntity::class
     ],
     version = 12,
-    exportSchema = true
+    exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun liveTvDao(): LiveTvDao

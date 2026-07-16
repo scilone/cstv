@@ -40,10 +40,6 @@ import com.poc.iptvxtream.presentation.theme.Surface2
 import com.poc.iptvxtream.presentation.theme.Surface3
 import com.poc.iptvxtream.presentation.theme.TextPrimary
 import com.poc.iptvxtream.presentation.theme.TextSecondary
-import com.poc.iptvxtream.presentation.theme.TextBright
-import com.poc.iptvxtream.presentation.theme.TextBrightAlt
-import com.poc.iptvxtream.presentation.theme.TextSoft
-import com.poc.iptvxtream.presentation.theme.TextMuted
 
 /**
  * Phase 56 : déclencheur unifié du sélecteur de catégorie (TV/Films/Séries).
@@ -180,8 +176,8 @@ fun CategoryFilterSheet(
                     unfocusedContainerColor = Surface1,
                     focusedBorderColor = Color.White.copy(alpha = 0.08f),
                     unfocusedBorderColor = Color.White.copy(alpha = 0.08f),
-                    focusedTextColor = TextBrightAlt,
-                    unfocusedTextColor = TextBrightAlt,
+                    focusedTextColor = Color(0xFFF2F2F6),
+                    unfocusedTextColor = Color(0xFFF2F2F6),
                     cursorColor = AccentLavande
                 ),
                 modifier = Modifier
@@ -212,7 +208,7 @@ fun CategoryFilterSheet(
                             fontFamily = HankenGrotesk,
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                             fontSize = 14.sp,
-                            color = if (isSelected) TextBright else TextSoft,
+                            color = if (isSelected) Color(0xFFF4F4F7) else Color(0xFFC7C7D1),
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f)
@@ -223,7 +219,7 @@ fun CategoryFilterSheet(
                                 fontFamily = HankenGrotesk,
                                 fontWeight = FontWeight.Medium,
                                 fontSize = 12.sp,
-                                color = TextMuted
+                                color = Color(0xFF63636F)
                             )
                         }
                         if (isSelected) {

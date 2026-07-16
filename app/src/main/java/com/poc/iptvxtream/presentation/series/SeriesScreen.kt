@@ -55,12 +55,6 @@ import com.poc.iptvxtream.presentation.home.components.HomeSeriesShowCard
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.ExperimentalMaterial3Api
-import com.poc.iptvxtream.presentation.theme.SurfaceFocused
-import com.poc.iptvxtream.presentation.theme.SurfaceElevated
-import com.poc.iptvxtream.presentation.theme.SurfaceFocusedAlt
-import com.poc.iptvxtream.presentation.theme.ScrimHeavy
-import com.poc.iptvxtream.R
-import androidx.compose.ui.res.stringResource
 
 @Composable
 fun SeriesScreen(
@@ -216,7 +210,7 @@ private fun TvLayout(
                     item {
                         CategorySectionRow(
                             categoryId = "favorites",
-                            title = stringResource(R.string.common_favorites),
+                            title = "Favoris",
                             series = favoriteSeries,
                             onSeriesSelected = onSeriesSelected,
                             isTv = true,
@@ -243,7 +237,7 @@ private fun TvLayout(
         } else {
             // Mode "Catégorie spécifique" : Search & Vertical Grid
             Text(
-                text = state.selectedCategory?.categoryName?.uppercase() ?: stringResource(R.string.tvnav_series),
+                text = state.selectedCategory?.categoryName?.uppercase() ?: "SÉRIES",
                 color = Color.White,
                 fontWeight = FontWeight.Bold,
                 fontSize = 18.sp,
@@ -254,7 +248,7 @@ private fun TvLayout(
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = onSearchQueryChanged,
-                    placeholder = { Text(stringResource(R.string.vod_search_placeholder), color = Color.Gray, fontSize = 13.sp) },
+                    placeholder = { Text("Rechercher dans cette catégorie...", color = Color.Gray, fontSize = 13.sp) },
                     leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp)) },
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
@@ -272,7 +266,7 @@ private fun TvLayout(
             if (filteredStreams.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(
-                        text = if (searchQuery.isBlank()) stringResource(R.string.series_empty_category) else stringResource(R.string.common_no_result_for, searchQuery),
+                        text = if (searchQuery.isBlank()) "Aucune série dans cette catégorie" else "Aucun résultat pour « $searchQuery »",
                         color = Color.Gray
                     )
                 }
@@ -394,7 +388,7 @@ private fun MobileLayout(
                     item {
                         CategorySectionRow(
                             categoryId = "favorites",
-                            title = stringResource(R.string.common_favorites),
+                            title = "Favoris",
                             series = favoriteSeries,
                             onSeriesSelected = onSeriesSelected,
                             isTv = false,
@@ -426,7 +420,7 @@ private fun MobileLayout(
                 CategorySearchField(
                     value = searchQuery,
                     onValueChange = onSearchQueryChanged,
-                    placeholder = stringResource(R.string.vod_search_placeholder),
+                    placeholder = "Rechercher dans cette catégorie...",
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                 )
             }
@@ -434,7 +428,7 @@ private fun MobileLayout(
             if (filteredStreams.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(
-                        text = if (searchQuery.isBlank()) stringResource(R.string.series_empty_category) else stringResource(R.string.common_no_result_for, searchQuery),
+                        text = if (searchQuery.isBlank()) "Aucune série dans cette catégorie" else "Aucun résultat pour « $searchQuery »",
                         color = Color.Gray
                     )
                 }
@@ -442,7 +436,7 @@ private fun MobileLayout(
                 val gridState = rememberForeverLazyGridState("series_mobile_cat_" + (state.selectedCategory?.categoryId ?: "0"), getScroll, saveScroll)
                 LazyVerticalGrid(
                     state = gridState,
-                    columns = GridCells.Fixed(3), // 3 colonnes (iso grille stringResource(R.string.common_see_all) recherche, Phase 57)
+                    columns = GridCells.Fixed(3), // 3 colonnes (iso grille "Voir tout" recherche, Phase 57)
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     modifier = Modifier
@@ -488,7 +482,7 @@ private fun MobileLayout(
                                                 .align(Alignment.TopEnd)
                                                 .padding(6.dp)
                                                 .clip(RoundedCornerShape(4.dp))
-                                                .background(ScrimHeavy)
+                                                .background(Color(0xCC000000))
                                                 .padding(horizontal = 6.dp, vertical = 3.dp)
                                         ) {
                                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -524,7 +518,7 @@ private fun CategorySectionRow(
             .fillMaxWidth()
             .padding(vertical = 4.dp)
     ) {
-        // Phase 56 : titre de catégorie grisé (texte secondaire) + lien stringResource(R.string.common_see_all).
+        // Phase 56 : titre de catégorie grisé (texte secondaire) + lien "Voir tout".
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
@@ -540,7 +534,7 @@ private fun CategorySectionRow(
             if (onSeeAll != null && !isTv) {
                 Spacer(modifier = Modifier.weight(1f))
                 Text(
-                    text = stringResource(R.string.common_see_all),
+                    text = "Voir tout",
                     color = AccentLavande,
                     fontFamily = HankenGrotesk,
                     fontWeight = FontWeight.SemiBold,
@@ -599,8 +593,8 @@ private fun CategoryFilterChip(
             .background(
                 when {
                     isSelected -> MaterialTheme.colorScheme.primary
-                    isFocused -> SurfaceFocused
-                    else -> SurfaceElevated
+                    isFocused -> Color(0xFF2C2C35)
+                    else -> Color(0xFF2A2A35)
                 }
             )
             .clickable { onClick() }
@@ -624,7 +618,7 @@ private fun SeriesTvCard(
 
     Card(
         colors = CardDefaults.cardColors(
-            containerColor = if (isFocused) SurfaceFocusedAlt else Surface3
+            containerColor = if (isFocused) Color(0xFF23232D) else Surface3
         ),
         modifier = Modifier
             .width(150.dp)
@@ -668,7 +662,7 @@ private fun SeriesTvCard(
                             .align(Alignment.TopEnd)
                             .padding(8.dp)
                             .clip(RoundedCornerShape(4.dp))
-                            .background(ScrimHeavy)
+                            .background(Color(0xCC000000))
                             .padding(horizontal = 6.dp, vertical = 3.dp)
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {

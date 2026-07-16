@@ -44,13 +44,17 @@ import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
 import android.view.WindowManager
-import com.poc.iptvxtream.presentation.theme.ScrimMedium
-import com.poc.iptvxtream.presentation.theme.ScrimLight
-import com.poc.iptvxtream.presentation.theme.PlayerScrim
-import com.poc.iptvxtream.presentation.theme.WhiteOverlay25
-import com.poc.iptvxtream.R
-import androidx.compose.ui.res.stringResource
-import com.poc.iptvxtream.presentation.player.common.findActivity
+
+private fun Context.findActivity(): Activity? {
+    var currentContext = this
+    while (currentContext is ContextWrapper) {
+        if (currentContext is Activity) {
+            return currentContext
+        }
+        currentContext = currentContext.baseContext
+    }
+    return null
+}
 
 @Composable
 fun PlayerScreen(
@@ -261,7 +265,7 @@ fun PlayerScreen(
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     CircularProgressIndicator(color = MaterialTheme.colorScheme.primary, modifier = Modifier.size(54.dp))
                     Spacer(modifier = Modifier.height(12.dp))
-                    Text(stringResource(R.string.player_loading), color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    Text("Chargement du flux...", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -271,7 +275,7 @@ fun PlayerScreen(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(PlayerScrim),
+                    .background(Color(0xE60F0F13)),
                 contentAlignment = Alignment.Center
             ) {
                 Column(
@@ -282,7 +286,7 @@ fun PlayerScreen(
                     Icon(Icons.Default.Warning, contentDescription = null, tint = Color.Red, modifier = Modifier.size(54.dp))
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(
-                        text = stringResource(R.string.player_error_title),
+                        text = "Erreur de Lecture",
                         color = Color.White,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold
@@ -309,14 +313,14 @@ fun PlayerScreen(
                         ) {
                             Icon(Icons.Default.Refresh, contentDescription = null)
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text(stringResource(R.string.player_retry))
+                            Text("Réessayer")
                         }
 
                         OutlinedButton(
                             onClick = handleClose,
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
                         ) {
-                            Text(stringResource(R.string.player_back))
+                            Text("Retour")
                         }
                     }
                 }
@@ -329,7 +333,7 @@ fun PlayerScreen(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(ScrimLight)
+                    .background(Color(0x80000000))
                     .padding(16.dp)
                     .align(Alignment.TopCenter)
             ) {
@@ -359,13 +363,13 @@ fun PlayerScreen(
                         Spacer(modifier = Modifier.width(12.dp))
                         Column {
                             Text(
-                                text = stringResource(R.string.player_channel_current, currentStream.num, currentStream.name),
+                                text = "CH ${currentStream.num} - ${currentStream.name}",
                                 color = Color.White,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 16.sp
                             )
                             Text(
-                                text = stringResource(R.string.player_stream_format, streamExtension.uppercase()),
+                                text = "Flux : ${streamExtension.uppercase()}",
                                 color = MaterialTheme.colorScheme.primary,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Light
@@ -375,9 +379,9 @@ fun PlayerScreen(
 
                     IconButton(
                         onClick = handleClose,
-                        modifier = Modifier.background(WhiteOverlay25, shape = CardDefaults.shape)
+                        modifier = Modifier.background(Color(0x40FFFFFF), shape = CardDefaults.shape)
                     ) {
-                        Icon(Icons.Default.Close, contentDescription = stringResource(R.string.player_close), tint = Color.White)
+                        Icon(Icons.Default.Close, contentDescription = "Fermer", tint = Color.White)
                     }
                 }
             }
@@ -391,10 +395,10 @@ fun PlayerScreen(
                         .align(Alignment.BottomCenter)
                 ) {
                     Card(
-                        colors = CardDefaults.cardColors(containerColor = ScrimMedium)
+                        colors = CardDefaults.cardColors(containerColor = Color(0x99000000))
                     ) {
                         Text(
-                            text = stringResource(R.string.player_zap_hint_touch),
+                            text = "Glissez vers le haut / bas pour zapper",
                             color = Color.LightGray,
                             fontSize = 12.sp,
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
@@ -409,10 +413,10 @@ fun PlayerScreen(
                         .align(Alignment.BottomCenter)
                 ) {
                     Card(
-                        colors = CardDefaults.cardColors(containerColor = ScrimMedium)
+                        colors = CardDefaults.cardColors(containerColor = Color(0x99000000))
                     ) {
                         Text(
-                            text = stringResource(R.string.player_zap_hint_remote),
+                            text = "Utilisez ▲ / ▼ de la télécommande pour zapper",
                             color = Color.LightGray,
                             fontSize = 12.sp,
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)

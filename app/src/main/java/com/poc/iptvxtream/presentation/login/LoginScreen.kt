@@ -37,9 +37,6 @@ import com.poc.iptvxtream.domain.model.ServerAddressParser
 import com.poc.iptvxtream.domain.model.UserInfo
 import com.poc.iptvxtream.presentation.theme.Surface1
 import com.poc.iptvxtream.presentation.theme.Surface3
-import com.poc.iptvxtream.presentation.theme.ErrorBright
-import com.poc.iptvxtream.presentation.theme.ErrorContainerDark
-import com.poc.iptvxtream.presentation.theme.ErrorOnContainer
 
 @Composable
 fun LoginScreen(
@@ -146,12 +143,12 @@ fun LoginScreen(
             // Error Display
             if (loginState is LoginState.Error) {
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = ErrorContainerDark),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF3F1616)),
                     modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
                 ) {
                     Text(
                         text = (loginState as LoginState.Error).message,
-                        color = ErrorOnContainer,
+                        color = Color(0xFFFFB4B4),
                         fontSize = 14.sp,
                         textAlign = TextAlign.Center,
                         modifier = Modifier.fillMaxWidth().padding(12.dp)
@@ -188,10 +185,10 @@ private fun loginFieldColors() = OutlinedTextFieldDefaults.colors(
     focusedPlaceholderColor = Color.Gray,
     unfocusedPlaceholderColor = Color.Gray,
     errorContainerColor = Surface3,
-    errorBorderColor = ErrorBright,
+    errorBorderColor = Color(0xFFFF6B6B),
     errorTextColor = Color.White,
-    errorLabelColor = ErrorBright,
-    errorSupportingTextColor = ErrorBright
+    errorLabelColor = Color(0xFFFF6B6B),
+    errorSupportingTextColor = Color(0xFFFF6B6B)
 )
 
 @OptIn(ExperimentalTvMaterial3Api::class)

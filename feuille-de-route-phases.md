@@ -1,4 +1,4 @@
-Phase 18 [TERMINE] : fluidifier le lancement de l'app en supprimant l'affichage
+Phase 18 : fluidifier le lancement de l'app en supprimant l'affichage
 inutile de l'écran de connexion.
 
 Au démarrage de l'app, si la case "se souvenir de moi" a été cochée lors
@@ -26,7 +26,7 @@ Attendu :
 
 ---
 
-Phase 19 [TERMINE] : correction du bug de recherche par acteur/réalisateur (voir
+Phase 19 : correction du bug de recherche par acteur/réalisateur (voir
 Phase 15).
 
 La recherche par acteur/réalisateur ne retourne que le film/série depuis
@@ -54,7 +54,7 @@ Attendu :
 
 ---
 
-Phase 20 [TERMINE] : préservation de la position de défilement dans les listes
+Phase 20 : préservation de la position de défilement dans les listes
 (Films/Séries/TV, voir Phase 14) au retour depuis une fiche détail.
 
 Quand l'utilisateur visite une fiche détail film/série/chaîne puis fait
@@ -95,7 +95,7 @@ Attendu :
 
 ---
 
-Phase 22 [TERMINE] : rafraîchissement automatique en arrière-plan de la base de
+Phase 22 : rafraîchissement automatique en arrière-plan de la base de
 données locale, avec fréquence réglable.
 
 Attendu :
@@ -115,7 +115,7 @@ Attendu :
 
 ---
 
-Phase 23 [TERMINE] : revoir les icônes TV/Films/Séries de la barre de navigation
+Phase 23 : revoir les icônes TV/Films/Séries de la barre de navigation
 mobile (Phase 7).
 
 Les icônes actuelles de ces trois onglets ne sont pas satisfaisantes
@@ -126,7 +126,7 @@ icônes conservées.
 
 ---
 
-Phase 24 [TERMINE] : correction d'accessibilité sur les boutons "voir tout" de la
+Phase 24 : correction d'accessibilité sur les boutons "voir tout" de la
 Home (Phase 6).
 
 Le contraste actuel de ces chips les rend peu lisibles.
@@ -144,7 +144,7 @@ Attendu (au choix, selon ce qui rend le mieux) :
 
 ---
 
-Phase 25 [TERMINE] : correction d'un chevauchement visuel dans le player film/
+Phase 25 : correction d'un chevauchement visuel dans le player film/
 série (Phase 16) en orientation portrait/verticale.
 
 Quand le titre du média est long, les boutons "paramètres" (audio/
@@ -159,7 +159,7 @@ Attendu :
 
 ---
 
-Phase 26 [TERMINE] : personnalisation de l'apparence des sous-titres du player
+Phase 26 : personnalisation de l'apparence des sous-titres du player
 film/série (Phase 16), réglable depuis les Paramètres.
 
 Attendu :
@@ -176,7 +176,7 @@ Attendu :
 
 ---
 
-Phase 27 [TERMINE] : profils multiples sur un même compte Xtream (type Netflix).
+Phase 27 : profils multiples sur un même compte Xtream (type Netflix).
 
 Note périmètre : AGENTS.md exclut "multi-comptes/profils utilisateurs" du
 périmètre initial du projet. Cette phase reste bien un seul compte Xtream
@@ -219,7 +219,7 @@ Attendu :
 
 ---
 
-Phase 28 [TERMINE] : correction de l'accessibilité et de l'ergonomie de l'écran de
+Phase 28 : correction de l'accessibilité et de l'ergonomie de l'écran de
 connexion.
 
 1. Bug de contraste : les champs de saisie remplis (host, username,
@@ -287,7 +287,7 @@ Attendu :
 
 ---
 
-Phase 30 [TERMINE] : regrouper "Continuer à regarder" par série sur la Home (Phase 6).
+Phase 30 : regrouper "Continuer à regarder" par série sur la Home (Phase 6).
 
 Actuellement, si plusieurs épisodes d'une même série ont une position de
 lecture sauvegardée, chacun apparaît comme une entrée séparée dans
@@ -310,7 +310,7 @@ Attendu :
 
 ---
 
-Phase 31 [TERMINE] : uniformiser la couleur du texte des boutons sur fond violet
+Phase 31 : uniformiser la couleur du texte des boutons sur fond violet
 (couleur primaire de l'app).
 
 Le texte de certains boutons à fond violet (couleur primaire du thème) est
@@ -330,7 +330,7 @@ Attendu :
 
 ---
 
-Phase 32 [TERMINE] : afficher l'heure de début/fin et la progression du programme en
+Phase 32 : afficher l'heure de début/fin et la progression du programme en
 cours sur les tuiles de chaînes Live TV.
 
 Attendu :
@@ -346,7 +346,7 @@ Attendu :
 
 ---
 
-Phase 33 [TERMINE] : uniformiser la taille des tuiles de chaînes Live TV, avec ou sans
+Phase 33 : uniformiser la taille des tuiles de chaînes Live TV, avec ou sans
 programme en cours affiché.
 
 Certaines chaînes n'affichent pas leur programme en cours (EPG absente ou
@@ -367,7 +367,7 @@ Attendu :
 
 ---
 
-Phase 34 [TERMINE] : corriger le cadrage de l'image des chaînes favorites dans la
+Phase 34 : corriger le cadrage de l'image des chaînes favorites dans la
 section Favoris de la Home (Phase 6).
 
 Les chaînes Live TV ont des logos au format carré. La section Favoris de la
@@ -388,7 +388,7 @@ Attendu :
 
 ---
 
-Phase 35 [TERMINE] : ajouter une section Favoris sur l'écran Live TV en mode filtre
+Phase 35 : ajouter une section Favoris sur l'écran Live TV en mode filtre
 "Tout", sous "Récemment regardées".
 
 Sur les écrans Films et Séries, en mode filtre "Tout", la section Favoris
@@ -409,7 +409,7 @@ Attendu :
 
 ---
 
-Phase 36 [TERMINE] : désactiver le logging HTTP verbeux en dehors du debug.
+Phase 36 : désactiver le logging HTTP verbeux en dehors du debug.
 
 L'`HttpLoggingInterceptor` est configuré en `Level.BODY` en dur : chaque
 réponse API est intégralement écrite dans logcat (les catalogues "Tout"
@@ -424,7 +424,7 @@ Attendu :
 
 ---
 
-Phase 37 [TERMINE] : debounce + annulation de la recherche globale.
+Phase 37 : debounce + annulation de la recherche globale.
 
 `FavoritesViewModel.onSearchQueryChanged` lance une coroutine de recherche
 à chaque frappe, sans annuler la précédente ni attendre de pause de
@@ -441,7 +441,7 @@ Attendu :
 
 ---
 
-Phase 38 [TERMINE] : activer la minification R8 sur le build release.
+Phase 38 : activer la minification R8 sur le build release.
 
 `isMinifyEnabled = false` et `proguard-rules.pro` absent : APK ~27 Mo,
 code non obfusqué.
@@ -456,7 +456,7 @@ Attendu :
 
 ---
 
-Phase 39 [TERMINE] : synchroniser versionCode/versionName avec les tags git.
+Phase 39 : synchroniser versionCode/versionName avec les tags git.
 
 `versionCode = 1` / `versionName = "1.0"` figés depuis le début alors que
 les tags git sont en v1.x.y : deux installations successives ne se
@@ -470,7 +470,7 @@ Attendu :
 
 ---
 
-Phase 40 [TERMINE] : recherche plein texte via table FTS Room.
+Phase 40 : recherche plein texte via table FTS Room.
 
 La recherche globale utilise `LIKE '%query%'` sur 4 colonnes × 3 tables :
 non-indexable par SQLite (wildcard en préfixe), full scan à chaque
@@ -486,7 +486,7 @@ Attendu :
 
 ---
 
-Phase 41 [TERMINE] : réactivité Room via Flow sur favoris et positions de lecture.
+Phase 41 : réactivité Room via Flow sur favoris et positions de lecture.
 
 Tous les DAOs exposent des `List` ponctuelles : un favori ajouté/retiré
 sur un écran n'actualise pas les autres écrans sans re-fetch manuel
@@ -599,7 +599,7 @@ phases, à respecter sans le répéter à chaque fois :
 
 ---
 
-Phase 46 [TERMINE] : fondation du design system (thème centralisé + polices).
+Phase 46 : fondation du design system (thème centralisé + polices).
 
 Aucun `Theme.kt` / `Color.kt` / `Type.kt` n'existe : chaque composable
 code ses couleurs en dur (`Color(0xFF1E1E24)`…) et l'app tourne sur le
@@ -624,7 +624,7 @@ Attendu :
 
 ---
 
-Phase 47 [TERMINE] : chrome global mobile (fond dégradé + barre de navigation).
+Phase 47 : chrome global mobile (fond dégradé + barre de navigation).
 
 Attendu :
 - Remplacer le fond plat `#0F0F13` des écrans mobile par le dégradé
@@ -640,7 +640,7 @@ Attendu :
 
 ---
 
-Phase 48 [TERMINE] : refonte de l'écran d'accueil (Home).
+Phase 48 : refonte de l'écran d'accueil (Home).
 
 Écran vitrine, le plus visible et le plus proche de la maquette. Contient
 le seul composant réellement nouveau de la refonte : le hero "Reprendre".
@@ -663,7 +663,7 @@ Attendu :
 
 ---
 
-Phase 49 [TERMINE] : refonte de l'écran TV en direct (Live TV).
+Phase 49 : refonte de l'écran TV en direct (Live TV).
 
 Attendu :
 - Sélecteur de catégorie : aligner sur la bottom sheet de la maquette
@@ -679,7 +679,7 @@ Attendu :
 
 ---
 
-Phase 50 [TERMINE] : refonte des écrans Films et Séries (navigation catalogue).
+Phase 50 : refonte des écrans Films et Séries (navigation catalogue).
 
 `VodScreen` et `SeriesScreen` partagent la même structure (rangées par
 catégorie fournisseur + mode filtre) : à traiter ensemble pour rester
@@ -696,7 +696,7 @@ Attendu :
 
 ---
 
-Phase 51 [TERMINE] : refonte des fiches détail Film et Série.
+Phase 51 : refonte des fiches détail Film et Série.
 
 Attendu :
 - Fiche Film : image/backdrop, titre en Bricolage Grotesque, métadonnées
@@ -711,7 +711,7 @@ Attendu :
 
 ---
 
-Phase 52 [TERMINE] : refonte de la recherche et de la grille "Voir tout".
+Phase 52 : refonte de la recherche et de la grille "Voir tout".
 
 Attendu :
 - Écran Recherche : champ restylé, résultats groupés par type (Chaînes /
@@ -726,7 +726,7 @@ Attendu :
 
 ---
 
-Phase 53 [TERMINE] : refonte des écrans secondaires (Profil, Paramètres, Connexion).
+Phase 53 : refonte des écrans secondaires (Profil, Paramètres, Connexion).
 
 Applique le design system aux écrans restants. Fonctionnalités déjà
 complètes : uniquement du reskin.
@@ -744,7 +744,7 @@ Attendu :
 
 ---
 
-Phase 54 (optionnelle) [TERMINE] : accent réglable par l'utilisateur.
+Phase 54 (optionnelle) : accent réglable par l'utilisateur.
 
 La maquette expose l'accent comme variable de thème (lavande `#9C86FF`
 par défaut, + bleu `#0070F3`, sarcelle `#2BB8A6`, ambre `#E5A13A`). Une
@@ -763,7 +763,7 @@ Attendu :
 
 ---
 
-Phase 55 [TERMINE] : corrections et peaufinages de la refonte UI/UX (retours utilisateur).
+Phase 55 : corrections et peaufinages de la refonte UI/UX (retours utilisateur).
 
 Attendu :
 - Harmonisation des icônes : s'assurer que toutes les icônes de l'application (paramètres, accueil, TV, etc.) correspondent exactement aux visuels de la maquette.
@@ -774,7 +774,7 @@ Attendu :
 
 ---
 
-Phase 56 [TERMINE] : retours liés à l'onglet TV et affichage catalogue.
+Phase 56 : retours liés à l'onglet TV et affichage catalogue.
 
 Attendu :
 - Titres des catégories plus gris : les titres de catégories doivent être affichés avec une couleur de texte plus grisée (cohérente avec le texte secondaire `#9A9AA8` de la maquette).
@@ -792,7 +792,7 @@ Attendu :
 
 ---
 
-Phase 57 [TERMINE] : retours sur les onglets Films/Séries et fiches détails.
+Phase 57 : retours sur les onglets Films/Séries et fiches détails.
 
 Attendu :
 - Bouton "Voir tout" sur les Favoris : dans l'onglet "Tout" des écrans Films et Séries, s'assurer de rajouter le bouton "Voir tout" à droite de la section "Favoris" (comme pour les autres sections et cohérent avec la Phase 56).

@@ -40,16 +40,6 @@ import com.poc.iptvxtream.presentation.theme.Surface2
 import com.poc.iptvxtream.presentation.theme.Surface3
 import com.poc.iptvxtream.presentation.theme.BricolageGrotesque
 import com.poc.iptvxtream.presentation.theme.HankenGrotesk
-import com.poc.iptvxtream.presentation.theme.BadgeLiveRed
-import com.poc.iptvxtream.presentation.theme.BadgeSeriesPurple
-import com.poc.iptvxtream.presentation.theme.AccentBlue
-import com.poc.iptvxtream.presentation.theme.TextBrightAlt
-import com.poc.iptvxtream.presentation.theme.TextSoftAlt
-import com.poc.iptvxtream.presentation.theme.TextMuted
-import com.poc.iptvxtream.presentation.theme.TextOnAccent
-import com.poc.iptvxtream.presentation.theme.TextSecondary
-import com.poc.iptvxtream.presentation.theme.ScrimHeavy
-import com.poc.iptvxtream.presentation.theme.ScrimLight
 
 @Composable
 fun HomeHeroCard(
@@ -67,7 +57,7 @@ fun HomeHeroCard(
         val e = position.episodeNum ?: 1
         "S$s E$e" + if (!position.duration.isNullOrBlank()) " · ${position.duration}" else ""
     } else {
-        if (!position.duration.isNullOrBlank()) position.duration else stringResource(R.string.home_fallback_movie)
+        if (!position.duration.isNullOrBlank()) position.duration else "Film"
     }
 
     val typeBadgeText = if (position.type == "series") "4K · SÉRIE" else "4K · FILM"
@@ -133,8 +123,8 @@ fun HomeHeroCard(
                         .padding(horizontal = 9.dp, vertical = 4.dp)
                 ) {
                     Text(
-                        text = stringResource(R.string.home_resume_upper),
-                        color = TextOnAccent,
+                        text = "REPRENDRE",
+                        color = Color(0xFF0E0E12),
                         fontWeight = FontWeight.Bold,
                         fontSize = 10.sp,
                         letterSpacing = 0.05.sp,
@@ -183,7 +173,7 @@ fun HomeHeroCard(
                     fontFamily = HankenGrotesk,
                     fontWeight = FontWeight.Medium,
                     fontSize = 12.5.sp,
-                    color = TextSoftAlt,
+                    color = Color(0xFFC9C9D4),
                     modifier = Modifier.padding(top = 5.dp)
                 )
 
@@ -206,12 +196,12 @@ fun HomeHeroCard(
                         Icon(
                             imageVector = Icons.Default.PlayArrow,
                             contentDescription = null,
-                            tint = TextOnAccent,
+                            tint = Color(0xFF0E0E12),
                             modifier = Modifier.size(20.dp)
                         )
                         Text(
-                            text = stringResource(R.string.home_resume_btn),
-                            color = TextOnAccent,
+                            text = "Reprendre",
+                            color = Color(0xFF0E0E12),
                             fontWeight = FontWeight.Bold,
                             fontSize = 14.sp,
                             fontFamily = HankenGrotesk
@@ -314,7 +304,7 @@ fun HomeResumeWatchingCard(
                     .fillMaxSize()
                     .background(
                         Brush.verticalGradient(
-                            colors = listOf(Color.Transparent, ScrimHeavy),
+                            colors = listOf(Color.Transparent, Color(0xCC000000)),
                             startY = 60f
                         )
                     )
@@ -328,7 +318,7 @@ fun HomeResumeWatchingCard(
                 modifier = Modifier
                     .size(36.dp)
                     .align(Alignment.Center)
-                    .background(ScrimLight, shape = RoundedCornerShape(18.dp))
+                    .background(Color(0x80000000), shape = RoundedCornerShape(18.dp))
                     .padding(6.dp)
             )
 
@@ -431,9 +421,9 @@ fun HomeFavoriteItemCard(
 
         // Type Badge (top left)
         val badgeColor = when (favorite.type) {
-            "live" -> BadgeLiveRed // Red for live direct
-            "movie" -> AccentBlue // Blue for movies
-            "series" -> BadgeSeriesPurple // Purple for series
+            "live" -> Color(0xFFE50914) // Red for live direct
+            "movie" -> Color(0xFF0070F3) // Blue for movies
+            "series" -> Color(0xFF8A2BE2) // Purple for series
             else -> Color.Gray
         }
         val badgeLabel = when (favorite.type) {
@@ -522,7 +512,7 @@ fun HomeLiveTvCard(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = stream.name,
-                    color = TextBrightAlt,
+                    color = Color(0xFFF2F2F6),
                     fontWeight = FontWeight.Bold,
                     fontSize = 12.5.sp,
                     lineHeight = 14.sp,
@@ -532,7 +522,7 @@ fun HomeLiveTvCard(
                 )
                 Text(
                     text = epgProgram?.title ?: stringResource(R.string.home_no_program),
-                    color = TextSecondary,
+                    color = Color(0xFF9A9AA8),
                     fontSize = 11.sp,
                     lineHeight = 12.sp,
                     maxLines = 1,
@@ -567,7 +557,7 @@ fun HomeLiveTvCard(
         // Heures de début/fin (espace réservé si pas d'EPG, hauteur uniforme)
         Text(
             text = epgProgram?.formattedTimeRange() ?: "",
-            color = TextMuted,
+            color = Color(0xFF63636F),
             fontSize = 10.sp,
             lineHeight = 12.sp,
             maxLines = 1,
@@ -647,7 +637,7 @@ fun HomeVodMovieCard(
                     .align(Alignment.TopEnd)
                     .padding(6.dp)
                     .clip(RoundedCornerShape(4.dp))
-                    .background(ScrimHeavy)
+                    .background(Color(0xCC000000))
                     .padding(horizontal = 4.dp, vertical = 2.dp)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -707,7 +697,7 @@ fun HomeSeriesShowCard(
                     .align(Alignment.TopEnd)
                     .padding(6.dp)
                     .clip(RoundedCornerShape(4.dp))
-                    .background(ScrimHeavy)
+                    .background(Color(0xCC000000))
                     .padding(horizontal = 4.dp, vertical = 2.dp)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {

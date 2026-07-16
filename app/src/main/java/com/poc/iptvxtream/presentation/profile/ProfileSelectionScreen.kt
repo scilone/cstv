@@ -10,21 +10,13 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -58,33 +50,6 @@ fun ProfileSelectionScreen(
     onLogout: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    // Le chargement de la Home après sélection (catalogue, favoris, positions
-    // de lecture) peut prendre un instant perceptible au premier lancement ou
-    // sur un profil jamais ouvert. selectedProfile déclenche un overlay de
-    // chargement immédiat au tap ; onProfileSelected n'est appelé qu'au frame
-    // suivant (LaunchedEffect) pour garantir que l'overlay a le temps d'être
-    // dessiné avant la navigation vers la Home.
-    var selectedProfile by remember { mutableStateOf<Profile?>(null) }
-
-    LaunchedEffect(selectedProfile) {
-        selectedProfile?.let { profile ->
-            // Attend DEUX frames réels avant de déclencher la navigation. Un seul
-            // withFrameNanos() ne suffisait pas : la recomposition qui affiche le
-            // spinner et la reprise de cette coroutine peuvent tomber dans le même
-            // passage du Choreographer, auquel cas ce frame n'est jamais réellement
-            // *présenté* à l'écran avant que onProfileSelected() ne monopolise le
-            // thread principal avec la composition à froid de la Home — constaté
-            // au tout premier accès (après le gate de sélection de profil au
-            // démarrage), où aucun spinner n'était visible, juste un freeze. Le
-            // second withFrameNanos() force un vrai aller-retour par la boucle de
-            // rendu, garantissant que le frame du spinner a été soumis avant de
-            // continuer.
-            withFrameNanos {}
-            withFrameNanos {}
-            onProfileSelected(profile)
-        }
-    }
-
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -113,9 +78,7 @@ fun ProfileSelectionScreen(
                 items(profiles, key = { it.id }) { profile ->
                     ProfileAvatarItem(
                         profile = profile,
-                        isLoading = selectedProfile?.id == profile.id,
-                        enabled = selectedProfile == null,
-                        onClick = { selectedProfile = profile }
+                        onClick = { onProfileSelected(profile) }
                     )
                 }
             }
@@ -124,7 +87,6 @@ fun ProfileSelectionScreen(
 
             OutlinedButton(
                 onClick = onManageProfiles,
-                enabled = selectedProfile == null,
                 border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
                 colors = ButtonDefaults.outlinedButtonColors(
                     contentColor = Color.White,
@@ -142,28 +104,8 @@ fun ProfileSelectionScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            TextButton(onClick = onLogout, enabled = selectedProfile == null) {
+            TextButton(onClick = onLogout) {
                 Text("Déconnexion", color = Color.Gray)
-            }
-
-            if (selectedProfile != null) {
-                Spacer(modifier = Modifier.height(24.dp))
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    CircularProgressIndicator(
-                        color = AccentLavande,
-                        modifier = Modifier.size(20.dp),
-                        strokeWidth = 2.dp
-                    )
-                    Text(
-                        text = stringResource(R.string.profile_selection_loading),
-                        color = Color.White,
-                        fontSize = 14.sp,
-                        fontFamily = HankenGrotesk
-                    )
-                }
             }
         }
     }
@@ -188,34 +130,15 @@ fun ProfileAvatar(avatarId: Int, name: String, size: Int, modifier: Modifier = M
 }
 
 @Composable
-private fun ProfileAvatarItem(
-    profile: Profile,
-    onClick: () -> Unit,
-    isLoading: Boolean = false,
-    enabled: Boolean = true
-) {
+private fun ProfileAvatarItem(profile: Profile, onClick: () -> Unit) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
             .clip(MaterialTheme.shapes.medium)
-            .clickable(enabled = enabled) { onClick() }
-            .alpha(if (enabled || isLoading) 1f else 0.4f)
+            .clickable { onClick() }
             .padding(8.dp)
     ) {
-        Box(contentAlignment = Alignment.Center) {
-            ProfileAvatar(avatarId = profile.avatarId, name = profile.name, size = 96)
-            if (isLoading) {
-                Box(
-                    modifier = Modifier
-                        .size(96.dp)
-                        .clip(CircleShape)
-                        .background(Color.Black.copy(alpha = 0.5f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator(color = Color.White, modifier = Modifier.size(36.dp))
-                }
-            }
-        }
+        ProfileAvatar(avatarId = profile.avatarId, name = profile.name, size = 96)
         Spacer(modifier = Modifier.height(10.dp))
         Text(
             text = profile.name,

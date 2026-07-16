@@ -43,10 +43,9 @@ import com.poc.iptvxtream.presentation.theme.HankenGrotesk
 import com.poc.iptvxtream.presentation.theme.Surface1
 import com.poc.iptvxtream.presentation.theme.Surface2
 import com.poc.iptvxtream.presentation.theme.Surface3
-import com.poc.iptvxtream.presentation.theme.WhiteOverlay20
 
 // Type de média dont on affiche la liste complète (grille verticale) après
-// un clic sur stringResource(R.string.common_see_all). null = vue combinée (rangées horizontales).
+// un clic sur "Voir tout". null = vue combinée (rangées horizontales).
 private enum class SearchExpandedType { LIVE, VOD, SERIES }
 
 @Composable
@@ -61,7 +60,7 @@ fun SearchScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
 
-    // Vue stringResource(R.string.common_see_all) : on ne montre qu'un type de média en grille verticale.
+    // Vue "Voir tout" : on ne montre qu'un type de média en grille verticale.
     var expandedType by remember { mutableStateOf<SearchExpandedType?>(null) }
 
     // Toute nouvelle saisie recasse la vue développée pour revenir aux rangées.
@@ -80,7 +79,7 @@ fun SearchScreen(
             ) {
                 IconButton(
                     onClick = { if (expandedType != null) expandedType = null else onBack() },
-                    modifier = Modifier.background(WhiteOverlay20, shape = RoundedCornerShape(12.dp))
+                    modifier = Modifier.background(Color(0x33FFFFFF), shape = RoundedCornerShape(12.dp))
                 ) {
                     Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.common_back), tint = Color.White)
                 }

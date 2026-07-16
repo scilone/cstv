@@ -59,11 +59,6 @@ import com.poc.iptvxtream.domain.model.FavoriteItem
 import com.poc.iptvxtream.domain.model.LiveStream
 import com.poc.iptvxtream.domain.model.VodStream
 import com.poc.iptvxtream.domain.model.SeriesStream
-import com.poc.iptvxtream.presentation.theme.DividerDark
-import com.poc.iptvxtream.presentation.theme.TextBright
-import com.poc.iptvxtream.presentation.theme.TextSoft
-import com.poc.iptvxtream.presentation.theme.TextDim
-import com.poc.iptvxtream.presentation.theme.WhiteOverlay20
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
@@ -90,17 +85,13 @@ fun HomeScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
 
-    // Section affichée en grille verticale (stringResource(R.string.common_see_all)). null = accueil normal.
+    // Section affichée en grille verticale ("Voir tout"). null = accueil normal.
     var expandedSection by remember { mutableStateOf<HomeExpandedSection?>(null) }
 
-    // Pas de reload ici : HomeViewModel est scopé à l'Activity (hiltViewModel()
-    // appelé une fois au sommet de MainActivity), donc son état survit à la
-    // navigation. Un LaunchedEffect(Unit) { viewModel.loadHomeData() } relançait
-    // le fetch complet (6 requêtes séquentielles) à CHAQUE recomposition de cet
-    // écran (retour depuis un autre écran, changement de profil...), alors que
-    // "Continuer à regarder" et "Favoris" sont déjà tenus à jour en continu via
-    // Flow (voir HomeViewModel.init) — c'était la cause de la lenteur perçue à
-    // chaque changement de profil malgré le cache Room déjà chaud.
+    // Refresh home data when entering screen
+    LaunchedEffect(Unit) {
+        viewModel.loadHomeData()
+    }
 
     // Clic sur un média "Continuer à regarder" (repris du bloc de la rangée).
     val handleResumeClick: (PlaybackPosition) -> Unit = { position ->
@@ -198,7 +189,7 @@ fun HomeScreen(
                             Column(modifier = Modifier.align(Alignment.CenterVertically)) {
                                 if (!isTv) {
                                     Text(
-                                        text = stringResource(R.string.home_greeting),
+                                        text = "Bonsoir",
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.SemiBold,
                                         color = AccentLavande,
@@ -209,7 +200,7 @@ fun HomeScreen(
                                         text = activeProfileName,
                                         fontSize = 19.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = TextBright,
+                                        color = Color(0xFFF4F4F7),
                                         letterSpacing = (-0.01).sp,
                                         fontFamily = BricolageGrotesque
                                     )
@@ -222,19 +213,19 @@ fun HomeScreen(
                                             text = userInfo.username.uppercase(),
                                             fontSize = 10.5.sp,
                                             fontWeight = FontWeight.Medium,
-                                            color = TextDim,
+                                            color = Color(0xFF7A7A86),
                                             fontFamily = FontFamily.Monospace
                                         )
                                         Box(
                                             modifier = Modifier
                                                 .size(3.dp)
-                                                .background(DividerDark, shape = RoundedCornerShape(1.5.dp))
+                                                .background(Color(0xFF4A4A54), shape = RoundedCornerShape(1.5.dp))
                                         )
                                         Text(
-                                            text = stringResource(R.string.home_expiry, userInfo.expiryDate),
+                                            text = "Exp. ${userInfo.expiryDate}",
                                             fontSize = 10.5.sp,
                                             fontWeight = FontWeight.Medium,
-                                            color = TextDim,
+                                            color = Color(0xFF7A7A86),
                                             fontFamily = HankenGrotesk
                                         )
                                     }
@@ -265,7 +256,7 @@ fun HomeScreen(
                                 Icon(
                                     Icons.Default.Settings,
                                     contentDescription = stringResource(R.string.home_see_all),
-                                    tint = TextSoft,
+                                    tint = Color(0xFFC7C7D1),
                                     modifier = Modifier.size(21.dp)
                                 )
                             }
@@ -283,33 +274,33 @@ fun HomeScreen(
                             ) {
                                 val buttonModifier = Modifier.weight(1f).height(38.dp)
                                 TvButton(onClick = onNavigateToLiveTv, modifier = buttonModifier) {
-                                    TvText(stringResource(R.string.tvnav_live), fontWeight = FontWeight.Bold, style = TvTheme.typography.labelSmall)
+                                    TvText("LIVE TV", fontWeight = FontWeight.Bold, style = TvTheme.typography.labelSmall)
                                 }
                                 TvButton(onClick = onNavigateToVod, modifier = buttonModifier) {
-                                    TvText(stringResource(R.string.tvnav_vod), fontWeight = FontWeight.Bold, style = TvTheme.typography.labelSmall)
+                                    TvText("FILMS VOD", fontWeight = FontWeight.Bold, style = TvTheme.typography.labelSmall)
                                 }
                                 TvButton(onClick = onNavigateToSeries, modifier = buttonModifier) {
-                                    TvText(stringResource(R.string.tvnav_series), fontWeight = FontWeight.Bold, style = TvTheme.typography.labelSmall)
+                                    TvText("SÉRIES", fontWeight = FontWeight.Bold, style = TvTheme.typography.labelSmall)
                                 }
                                 TvButton(onClick = onNavigateToFavorites, modifier = buttonModifier) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Icon(Icons.Default.Star, contentDescription = null, tint = Color.Yellow, modifier = Modifier.size(14.dp))
                                         Spacer(modifier = Modifier.width(4.dp))
-                                        TvText(stringResource(R.string.tvnav_favorites), fontWeight = FontWeight.Bold, style = TvTheme.typography.labelSmall)
+                                        TvText("FAVS", fontWeight = FontWeight.Bold, style = TvTheme.typography.labelSmall)
                                     }
                                 }
                                 TvButton(onClick = onNavigateToSearch, modifier = buttonModifier) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(14.dp))
                                         Spacer(modifier = Modifier.width(4.dp))
-                                        TvText(stringResource(R.string.tvnav_search), fontWeight = FontWeight.Bold, style = TvTheme.typography.labelSmall)
+                                        TvText("RECH", fontWeight = FontWeight.Bold, style = TvTheme.typography.labelSmall)
                                     }
                                 }
                                 TvButton(onClick = onNavigateToSettings, modifier = buttonModifier) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Icon(Icons.Default.Settings, contentDescription = null, tint = Color.LightGray, modifier = Modifier.size(14.dp))
                                         Spacer(modifier = Modifier.width(4.dp))
-                                        TvText(stringResource(R.string.tvnav_settings), fontWeight = FontWeight.Bold, style = TvTheme.typography.labelSmall)
+                                        TvText("PARAMS", fontWeight = FontWeight.Bold, style = TvTheme.typography.labelSmall)
                                     }
                                 }
                             }
@@ -317,7 +308,7 @@ fun HomeScreen(
                     }
                 }
 
-                // NOUVEAU: Hero stringResource(R.string.home_resume) (Phase 48)
+                // NOUVEAU: Hero "Reprendre" (Phase 48)
                 if (state.resumeWatchingList.isNotEmpty() && !isTv) {
                     item {
                         HomeHeroCard(
@@ -455,7 +446,7 @@ fun HomeScreen(
     }
 }
 
-// Section de l'accueil affichable en grille verticale via stringResource(R.string.common_see_all).
+// Section de l'accueil affichable en grille verticale via "Voir tout".
 private enum class HomeExpandedSection { RESUME, FAVORITES }
 
 @Composable
@@ -487,7 +478,7 @@ private fun HomeExpandedGrid(
         ) {
             IconButton(
                 onClick = onBack,
-                modifier = Modifier.background(WhiteOverlay20, shape = RoundedCornerShape(12.dp))
+                modifier = Modifier.background(Color(0x33FFFFFF), shape = RoundedCornerShape(12.dp))
             ) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.common_back), tint = Color.White)
             }
@@ -546,7 +537,7 @@ private fun HomeSectionRow(
                 fontSize = 18.sp,
                 fontWeight = FontWeight.SemiBold,
                 letterSpacing = (-0.01).sp,
-                color = TextBright
+                color = Color(0xFFF4F4F7)
             )
             if (onSeeAll != null) {
                 Spacer(modifier = Modifier.weight(1f))

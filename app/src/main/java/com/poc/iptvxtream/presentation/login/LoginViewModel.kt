@@ -34,16 +34,11 @@ class LoginViewModel @Inject constructor(
     }
 
     private fun checkAutoLogin() {
-        // getSavedCredentialsUseCase() était appelé en synchrone sur Main dans
-        // init{} : le déchiffrement Keystore (IPC vers le daemon keystore)
-        // gelait le splash quand ce round-trip était lent (daemon froid après
-        // reboot). Le use case est désormais suspend et bascule sur IO côté
-        // AuthRepositoryImpl ; il suffit de l'appeler depuis une coroutine.
-        viewModelScope.launch {
-            val creds = getSavedCredentialsUseCase()
-            _savedCredentials.value = creds
-            if (creds != null && creds.rememberMe) {
-                _autoLoginState.value = AutoLoginState.Checking
+        val creds = getSavedCredentialsUseCase()
+        _savedCredentials.value = creds
+        if (creds != null && creds.rememberMe) {
+            _autoLoginState.value = AutoLoginState.Checking
+            viewModelScope.launch {
                 try {
                     val userInfo = loginUseCase(creds)
                     _autoLoginState.value = AutoLoginState.Success(userInfo)
@@ -51,9 +46,9 @@ class LoginViewModel @Inject constructor(
                     if (e is kotlinx.coroutines.CancellationException) throw e
                     _autoLoginState.value = AutoLoginState.Error(e.message ?: "La connexion automatique a échoué.")
                 }
-            } else {
-                _autoLoginState.value = AutoLoginState.NoCredentials
             }
+        } else {
+            _autoLoginState.value = AutoLoginState.NoCredentials
         }
     }
 

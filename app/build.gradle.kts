@@ -1,9 +1,8 @@
 plugins {
-    alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
-    alias(libs.plugins.kotlin.compose)
-    alias(libs.plugins.ksp)
-    alias(libs.plugins.hilt)
+    id("com.android.application")
+    id("org.jetbrains.kotlin.android")
+    id("com.google.devtools.ksp")
+    id("com.google.dagger.hilt.android")
 }
 
 android {
@@ -12,22 +11,15 @@ android {
 
     defaultConfig {
         applicationId = "com.poc.iptvxtream"
-        // minSdk 23 depuis l'audit #4 : requis par media3 1.9 et par le
-        // chiffrement Keystore AES-GCM (audit #3). Voir AGENTS.md.
-        minSdk = 23
+        minSdk = 21
         targetSdk = 35
         // Phase 39 : synchronisés avec le dernier tag git poussé (voir AGENTS.md,
         // section "Checklist avant de conclure une tâche"). versionCode dérivé du
         // SemVer : major*10_000 + minor*100 + patch (marge de 0-99 par segment).
-        versionCode = 12_106
-        versionName = "1.21.6"
+        versionCode = 12_001
+        versionName = "1.20.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-
-        // Export des schémas Room (JSON versionnés, requis par MigrationTestHelper).
-        ksp {
-            arg("room.schemaLocation", "$projectDir/schemas")
-        }
         vectorDrawables {
             useSupportLibrary = true
         }
@@ -70,10 +62,8 @@ android {
         // Nécessaire pour BuildConfig.DEBUG (logging HTTP conditionnel, Phase 36).
         buildConfig = true
     }
-    testOptions {
-        // Les tests JVM traversent android.util.Log (ex : CredentialsManager) :
-        // no-op au lieu de "not mocked".
-        unitTests.isReturnDefaultValues = true
+    composeOptions {
+        kotlinCompilerExtensionVersion = "1.5.14" // Compatible with Kotlin 1.9.24
     }
     packaging {
         resources {
@@ -84,72 +74,64 @@ android {
 
 dependencies {
     // AndroidX Core & Lifecycle
-    implementation(libs.androidx.core.ktx)
-    implementation(libs.androidx.lifecycle.runtime.ktx)
-    implementation(libs.androidx.lifecycle.viewmodel.compose)
-    implementation(libs.androidx.lifecycle.runtime.compose)
-
+    implementation("androidx.core:core-ktx:1.12.0")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.7.0")
+    
     // Compose Mobile
-    implementation(libs.androidx.activity.compose)
-    implementation(platform(libs.androidx.compose.bom))
-    implementation(libs.androidx.compose.ui)
-    implementation(libs.androidx.compose.ui.graphics)
-    implementation(libs.androidx.compose.ui.tooling.preview)
-    implementation(libs.androidx.compose.material3)
-    implementation(libs.androidx.compose.material.icons.extended)
-
+    implementation("androidx.activity:activity-compose:1.8.2")
+    implementation(platform("androidx.compose:compose-bom:2024.02.02"))
+    implementation("androidx.compose.ui:ui")
+    implementation("androidx.compose.ui:ui-graphics")
+    implementation("androidx.compose.ui:ui-tooling-preview")
+    implementation("androidx.compose.material3:material3")
+    implementation("androidx.compose.material:material-icons-extended")
+    
     // Compose TV (Android TV support)
-    implementation(libs.androidx.tv.material)
-    implementation(libs.androidx.tv.foundation)
-
+    implementation("androidx.tv:tv-material:1.0.0-alpha10")
+    implementation("androidx.tv:tv-foundation:1.0.0-alpha10")
+    
     // Navigation Compose
-    implementation(libs.androidx.navigation.compose)
-
+    implementation("androidx.navigation:navigation-compose:2.7.7")
+    
     // Hilt DI
-    implementation(libs.hilt.android)
-    ksp(libs.hilt.compiler)
-    implementation(libs.androidx.hilt.navigation.compose)
-
+    implementation("com.google.dagger:hilt-android:2.51.1")
+    ksp("com.google.dagger:hilt-compiler:2.51.1")
+    implementation("androidx.hilt:hilt-navigation-compose:1.2.0")
+    
     // Retrofit & OkHttp (Network)
-    implementation(libs.retrofit)
-    implementation(libs.retrofit.converter.gson)
-    implementation(libs.okhttp)
-    implementation(libs.okhttp.logging.interceptor)
-
+    implementation("com.squareup.retrofit2:retrofit:2.11.0")
+    implementation("com.squareup.retrofit2:converter-gson:2.11.0")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
+    
     // Room (Local DB)
-    implementation(libs.androidx.room.runtime)
-    implementation(libs.androidx.room.ktx)
-    ksp(libs.androidx.room.compiler)
-
+    val roomVersion = "2.6.1"
+    implementation("androidx.room:room-runtime:$roomVersion")
+    implementation("androidx.room:room-ktx:$roomVersion")
+    ksp("androidx.room:room-compiler:$roomVersion")
+    
     // DataStore & Crypto (Secure credentials storage)
-    implementation(libs.androidx.datastore.preferences)
-    // TODO(2026-07): security-crypto (déprécié) n'est plus utilisé que par
-    // EncryptedPrefsLegacySource pour migrer les anciens credentials vers le
-    // chiffrement Keystore maison — retirer la dépendance et la classe une
-    // version après la release contenant la migration.
-    implementation(libs.androidx.security.crypto)
-
+    implementation("androidx.datastore:datastore-preferences:1.1.1")
+    implementation("androidx.security:security-crypto:1.1.0-alpha06")
+    
     // Coil (Image loading)
-    implementation(libs.coil.compose)
+    implementation("io.coil-kt:coil-compose:2.6.0")
 
     // WorkManager
-    implementation(libs.androidx.work.runtime.ktx)
-
+    implementation("androidx.work:work-runtime-ktx:2.9.0")
+    
     // Media3 ExoPlayer (Video playing)
-    implementation(libs.androidx.media3.exoplayer)
-    implementation(libs.androidx.media3.exoplayer.hls)
-    implementation(libs.androidx.media3.ui)
-    implementation(libs.androidx.media3.session)
-
+    val media3Version = "1.3.1"
+    implementation("androidx.media3:media3-exoplayer:$media3Version")
+    implementation("androidx.media3:media3-exoplayer-hls:$media3Version")
+    implementation("androidx.media3:media3-ui:$media3Version")
+    implementation("androidx.media3:media3-session:$media3Version")
+    
     // Unit Testing
-    testImplementation(libs.junit)
-    testImplementation(libs.kotlinx.coroutines.test)
-    testImplementation(libs.mockito.core)
-    testImplementation(libs.mockito.kotlin)
-
-    // Instrumented Testing (migrations Room — nécessite un émulateur/device,
-    // voir AGENTS.md : ./gradlew connectedDebugAndroidTest)
-    androidTestImplementation(libs.androidx.test.ext.junit)
-    androidTestImplementation(libs.androidx.test.runner)
-    androidTestImplementation(libs.androidx.room.testing)
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.0")
+    testImplementation("org.mockito:mockito-core:5.11.0")
+    testImplementation("org.mockito.kotlin:mockito-kotlin:5.2.1")
 }
