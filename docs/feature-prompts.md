@@ -135,7 +135,7 @@ Tests : troncature correcte, bouton apparaît seulement si overflow réel, bascu
 
 ## 7. Icône "relire depuis le début"
 
-**Modèle recommandé : Haiku 4.5, effort faible** — changement d'icône visuel, pas de logique, tâche mécanique de localisation + remplacement.
+✅ **TERMINÉE** — Haiku 4.5, effort faible. Icons.Default.Replay appliqué en remplacement de PlayArrow sur VodDetailsScreen (TV et mobile).
 
 Remplace l'icône actuelle (triangle play) par une flèche en boucle pour l'action "relire depuis le début".
 

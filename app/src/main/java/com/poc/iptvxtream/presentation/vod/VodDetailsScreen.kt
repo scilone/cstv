@@ -17,6 +17,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
@@ -503,7 +504,7 @@ private fun PlayButtonsRow(
                     horizontalArrangement = Arrangement.Center,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Color.White)
+                    Icon(if (hasHistory) Icons.Default.Replay else Icons.Default.PlayArrow, contentDescription = null, tint = Color.White)
                     Spacer(modifier = Modifier.width(6.dp))
                     TvText(
                         text = if (hasHistory) "RELIRE DEPUIS LE DÉBUT" else "LIRE LE FILM",
@@ -539,7 +540,7 @@ private fun PlayButtonsRow(
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
-                        imageVector = Icons.Default.PlayArrow,
+                        imageVector = if (hasHistory) Icons.Default.Replay else Icons.Default.PlayArrow,
                         contentDescription = null,
                         tint = Color.White
                     )
