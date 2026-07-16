@@ -15,6 +15,9 @@ import com.poc.iptvxtream.domain.repository.LiveTvRepository
 import com.poc.iptvxtream.domain.repository.SeriesRepository
 import com.poc.iptvxtream.domain.repository.VodRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -164,71 +167,35 @@ class HomeViewModel @Inject constructor(
                 // Flow collectés dans init() (voir groupResumeWatching) : plus de fetch
                 // ponctuel ici.
 
-                // 3. Fetch TV - First Live Category and its Streams
-                val liveCategories = try {
-                    liveTvRepository.getLiveCategories(forceRefresh = false)
-                } catch (e: Exception) {
-                    if (e is kotlinx.coroutines.CancellationException) throw e
-                    emptyList()
-                }
-                val firstLiveCat = liveCategories.firstOrNull()
-                val firstLiveStreams = if (firstLiveCat != null) {
-                    try {
-                        liveTvRepository.getLiveStreams(firstLiveCat.categoryId, forceRefresh = false)
-                    } catch (e: Exception) {
-                        if (e is kotlinx.coroutines.CancellationException) throw e
-                        emptyList()
-                    }
-                } else emptyList()
+                // Live/VOD/Séries sont indépendants : lancés en parallèle (coroutineScope
+                // + async) plutôt qu'attendus séquentiellement, pour que le temps total
+                // au démarrage soit celui du plus lent des trois plutôt que leur somme —
+                // sensible au tout premier chargement (Home vient d'être créé, aucun des
+                // trois n'a encore de résultat en mémoire).
+                coroutineScope {
+                    val liveDeferred = async { loadFirstLiveSection() }
+                    val vodDeferred = async { loadFirstVodSection() }
+                    val seriesDeferred = async { loadFirstSeriesSection() }
 
-                // 4. Fetch Movies - First VOD Category and its Streams
-                val vodCategories = try {
-                    vodRepository.getVodCategories(forceRefresh = false)
-                } catch (e: Exception) {
-                    if (e is kotlinx.coroutines.CancellationException) throw e
-                    emptyList()
-                }
-                val firstVodCat = vodCategories.firstOrNull()
-                val firstVodStreams = if (firstVodCat != null) {
-                    try {
-                        vodRepository.getVodStreams(firstVodCat.categoryId, forceRefresh = false)
-                    } catch (e: Exception) {
-                        if (e is kotlinx.coroutines.CancellationException) throw e
-                        emptyList()
-                    }
-                } else emptyList()
+                    val (firstLiveCat, firstLiveStreams) = liveDeferred.await()
+                    val (firstVodCat, firstVodStreams) = vodDeferred.await()
+                    val (firstSeriesCat, firstSeriesStreams) = seriesDeferred.await()
 
-                // 5. Fetch Series - First Series Category and its Streams
-                val seriesCategories = try {
-                    seriesRepository.getSeriesCategories(forceRefresh = false)
-                } catch (e: Exception) {
-                    if (e is kotlinx.coroutines.CancellationException) throw e
-                    emptyList()
-                }
-                val firstSeriesCat = seriesCategories.firstOrNull()
-                val firstSeriesStreams = if (firstSeriesCat != null) {
-                    try {
-                        seriesRepository.getSeriesStreams(firstSeriesCat.categoryId, forceRefresh = false)
-                    } catch (e: Exception) {
-                        if (e is kotlinx.coroutines.CancellationException) throw e
-                        emptyList()
+                    _state.update {
+                        it.copy(
+                            isLoading = false,
+                            firstLiveCategory = firstLiveCat,
+                            firstLiveStreams = firstLiveStreams,
+                            firstVodCategory = firstVodCat,
+                            firstVodStreams = firstVodStreams,
+                            firstSeriesCategory = firstSeriesCat,
+                            firstSeriesStreams = firstSeriesStreams
+                        )
                     }
-                } else emptyList()
-
-                _state.update {
-                    it.copy(
-                        isLoading = false,
-                        firstLiveCategory = firstLiveCat,
-                        firstLiveStreams = firstLiveStreams,
-                        firstVodCategory = firstVodCat,
-                        firstVodStreams = firstVodStreams,
-                        firstSeriesCategory = firstSeriesCat,
-                        firstSeriesStreams = firstSeriesStreams
-                    )
                 }
                 refreshVisibleEpg()
             } catch (e: Exception) {
-                if (e is kotlinx.coroutines.CancellationException) throw e
+                if (e is CancellationException) throw e
                 _state.update {
                     it.copy(
                         isLoading = false,
@@ -237,5 +204,56 @@ class HomeViewModel @Inject constructor(
                 }
             }
         }
+    }
+
+    private suspend fun loadFirstLiveSection(): Pair<LiveCategory?, List<LiveStream>> {
+        val categories = try {
+            liveTvRepository.getLiveCategories(forceRefresh = false)
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            emptyList()
+        }
+        val firstCategory = categories.firstOrNull() ?: return null to emptyList()
+        val streams = try {
+            liveTvRepository.getLiveStreams(firstCategory.categoryId, forceRefresh = false)
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            emptyList()
+        }
+        return firstCategory to streams
+    }
+
+    private suspend fun loadFirstVodSection(): Pair<VodCategory?, List<VodStream>> {
+        val categories = try {
+            vodRepository.getVodCategories(forceRefresh = false)
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            emptyList()
+        }
+        val firstCategory = categories.firstOrNull() ?: return null to emptyList()
+        val streams = try {
+            vodRepository.getVodStreams(firstCategory.categoryId, forceRefresh = false)
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            emptyList()
+        }
+        return firstCategory to streams
+    }
+
+    private suspend fun loadFirstSeriesSection(): Pair<SeriesCategory?, List<SeriesStream>> {
+        val categories = try {
+            seriesRepository.getSeriesCategories(forceRefresh = false)
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            emptyList()
+        }
+        val firstCategory = categories.firstOrNull() ?: return null to emptyList()
+        val streams = try {
+            seriesRepository.getSeriesStreams(firstCategory.categoryId, forceRefresh = false)
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            emptyList()
+        }
+        return firstCategory to streams
     }
 }
