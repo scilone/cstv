@@ -434,6 +434,8 @@ private fun MobileLayout(
                 fontSize = 24.sp,
                 fontWeight = FontWeight.Bold,
                 fontFamily = BricolageGrotesque,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f)
             )
             IconButton(onClick = onToggleFavorite) {

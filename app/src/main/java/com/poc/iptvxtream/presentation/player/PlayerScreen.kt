@@ -95,7 +95,16 @@ fun PlayerScreen(
         }
     }
 
-    var currentStreamIndex by remember { mutableStateOf(streamsList.indexOf(initialStream).coerceAtLeast(0)) }
+    // Recherche par streamId (identité stable) et non par égalité structurelle :
+    // une chaîne ouverte depuis "Récemment regardées" est reconstruite depuis
+    // RecentlyWatchedLiveEntity (epgChannelId = null, num/categoryId éventuellement
+    // différents), donc jamais structurellement égale à sa version dans streamsList
+    // -> indexOf renvoyait -1, coerceAtLeast(0) forçait l'index 0 et lançait
+    // toujours la première chaîne de la liste. En cas d'absence (-1), le fallback
+    // ?: initialStream de la ligne suivante lit bien la chaîne cliquée.
+    var currentStreamIndex by remember {
+        mutableStateOf(streamsList.indexOfFirst { it.streamId == initialStream.streamId })
+    }
     val currentStream = remember(currentStreamIndex) { streamsList.getOrNull(currentStreamIndex) ?: initialStream }
 
     LaunchedEffect(currentStream) {

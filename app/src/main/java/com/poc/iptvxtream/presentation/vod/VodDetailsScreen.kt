@@ -311,6 +311,8 @@ private fun MobileLayoutDetails(
                 fontSize = 24.sp,
                 fontWeight = FontWeight.Bold,
                 fontFamily = BricolageGrotesque,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f)
             )
 
@@ -328,7 +330,6 @@ private fun MobileLayoutDetails(
 
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center,
             modifier = Modifier.fillMaxWidth()
         ) {
             Text(formatReleaseYear(details.releaseDate), color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, fontSize = 13.sp)
