@@ -32,7 +32,7 @@ Ce fichier contient les règles permanentes à suivre à chaque session de trava
 - Lecteur vidéo : ExoPlayer / Media3 (support HLS).
 - Persistance : Room (cache API) + DataStore chiffré ou EncryptedSharedPreferences (identifiants Xtream).
 - Images : Coil.
-- Min SDK 21, target/compile SDK la dernière version stable disponible.
+- Min SDK 23 (monté de 21 lors de l'audit 2026 : requis par media3 1.9+ et par le chiffrement Android Keystore AES-GCM ; app personnelle, aucun appareil API 21-22 visé), target/compile SDK la dernière version stable disponible.
 
 ## Commandes de build et de test
 

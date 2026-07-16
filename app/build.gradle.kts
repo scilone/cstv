@@ -12,7 +12,9 @@ android {
 
     defaultConfig {
         applicationId = "com.poc.iptvxtream"
-        minSdk = 21
+        // minSdk 23 depuis l'audit #4 : requis par media3 1.9 et par le
+        // chiffrement Keystore AES-GCM (audit #3). Voir AGENTS.md.
+        minSdk = 23
         targetSdk = 35
         // Phase 39 : synchronisés avec le dernier tag git poussé (voir AGENTS.md,
         // section "Checklist avant de conclure une tâche"). versionCode dérivé du

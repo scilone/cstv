@@ -15,7 +15,7 @@ une session IA, classé par urgence décroissante.
 | 1 | ✅ Exclure les credentials du backup Android | 🔴 | S |
 | 2 | ✅ Tester les migrations Room (exportSchema + tests instrumentés) | 🟠 | M |
 | 3 | Migrer hors de security-crypto (déprécié) | 🟠 | M |
-| 4 | Mettre à niveau la stack (AGP/Kotlin 2/Compose BOM) | 🟠 | L |
+| 4 | ✅ Mettre à niveau la stack (AGP/Kotlin 2/Compose BOM) | 🟠 | L |
 | 5 | Compléter les tests ViewModels (5 manquants) | 🟡 | L |
 | 6 | Factoriser les 3 players (~2500 lignes dupliquées) | 🟡 | L |
 | 7 | Pagination des catalogues volumineux | 🟡 | L |
@@ -127,7 +127,7 @@ augmente le risque d'incompatibilité binaire.
 
 ---
 
-## 4. 🟠 Mettre à niveau la stack — Effort L
+## 4. 🟠 Mettre à niveau la stack — Effort L — ✅ FAIT (compileSdk reste 35 ; media3 1.9.0, minSdk 21→23 documenté)
 
 **Constat.** AGP 8.2.2 (début 2024) avec le workaround
 `android.suppressUnsupportedCompileSdk=35` dans `gradle.properties`
