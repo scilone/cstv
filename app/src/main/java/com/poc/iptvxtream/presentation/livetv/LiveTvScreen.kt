@@ -540,7 +540,8 @@ private fun MobileLayout(
                     value = searchQuery,
                     onValueChange = onSearchQueryChanged,
                     placeholder = "Rechercher une chaîne...",
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                    // Espace champ->liste (10) légèrement plus petit que dropdown->champ (14).
+                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 10.dp)
                 )
             }
 

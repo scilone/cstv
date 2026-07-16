@@ -229,13 +229,13 @@ fun MobileStreamCard(
                 )
                 IconButton(
                     onClick = onToggleFavorite,
-                    modifier = Modifier.size(20.dp)
+                    modifier = Modifier.size(26.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.Star,
                         contentDescription = "Favori",
-                        tint = if (isFavorite) Color.Yellow else Color.DarkGray,
-                        modifier = Modifier.size(14.dp)
+                        tint = if (isFavorite) Color.Yellow else Color.White.copy(alpha = 0.55f),
+                        modifier = Modifier.size(18.dp)
                     )
                 }
             }
@@ -382,7 +382,7 @@ fun MobileRecentlyWatchedItem(
     ) {
         Box(
             modifier = Modifier
-                .size(width = 58.dp, height = 44.dp)
+                .size(width = 64.dp, height = 58.dp)
                 .clip(RoundedCornerShape(10.dp))
                 .background(Surface1),
             contentAlignment = Alignment.Center
@@ -426,6 +426,7 @@ fun MobileRecentlyWatchedItem(
                 fontFamily = HankenGrotesk,
                 modifier = Modifier.padding(top = 3.dp)
             )
+            // Jauge + heures toujours réservées (hauteur uniforme même sans EPG).
             if (epgProgram != null) {
                 EpgProgressBar(
                     program = epgProgram,
@@ -435,14 +436,25 @@ fun MobileRecentlyWatchedItem(
                         .height(3.dp)
                         .clip(RoundedCornerShape(999.dp))
                 )
-                Text(
-                    text = epgProgram.formattedTimeRange(),
-                    color = Color(0xFF63636F),
-                    fontSize = 10.5.sp,
-                    fontFamily = HankenGrotesk,
-                    modifier = Modifier.padding(top = 5.dp)
+            } else {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 7.dp)
+                        .height(3.dp)
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(Color.White.copy(alpha = 0.1f))
                 )
             }
+            Text(
+                text = epgProgram?.formattedTimeRange() ?: "",
+                color = Color(0xFF63636F),
+                fontSize = 10.5.sp,
+                fontFamily = HankenGrotesk,
+                modifier = Modifier
+                    .padding(top = 5.dp)
+                    .heightIn(min = 16.dp)
+            )
         }
     }
 }
@@ -504,17 +516,22 @@ fun MobileChannelGridCard(
                 )
             }
 
+            // Bouton favori toujours visible (fond sombre pour rester lisible
+            // même sur un logo clair), étoile agrandie.
             IconButton(
                 onClick = onToggleFavorite,
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .size(28.dp)
+                    .padding(4.dp)
+                    .size(30.dp)
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(Color.Black.copy(alpha = 0.45f))
             ) {
                 Icon(
                     imageVector = Icons.Default.Star,
                     contentDescription = "Favori",
-                    tint = if (isFavorite) Color.Yellow else Color.White.copy(alpha = 0.4f),
-                    modifier = Modifier.size(16.dp)
+                    tint = if (isFavorite) Color.Yellow else Color.White.copy(alpha = 0.85f),
+                    modifier = Modifier.size(20.dp)
                 )
             }
         }

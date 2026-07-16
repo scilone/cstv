@@ -563,7 +563,7 @@ fun HomeLiveTvCard(
             fontFamily = HankenGrotesk,
             modifier = Modifier
                 .padding(top = 5.dp)
-                .height(14.dp)
+                .heightIn(min = 16.dp)
         )
     }
 }
