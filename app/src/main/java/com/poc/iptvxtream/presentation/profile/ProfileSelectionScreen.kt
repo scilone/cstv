@@ -68,12 +68,18 @@ fun ProfileSelectionScreen(
 
     LaunchedEffect(selectedProfile) {
         selectedProfile?.let { profile ->
-            // Attend un frame réel avant de déclencher la navigation : sans ce
-            // point de synchronisation, un appel direct pouvait s'exécuter
-            // avant que Compose n'ait présenté le frame contenant le spinner
-            // (surtout au tout premier accès à la Home, dont la composition à
-            // froid est la plus lourde) — l'utilisateur ne voyait alors qu'un
-            // freeze, jamais l'indicateur de chargement.
+            // Attend DEUX frames réels avant de déclencher la navigation. Un seul
+            // withFrameNanos() ne suffisait pas : la recomposition qui affiche le
+            // spinner et la reprise de cette coroutine peuvent tomber dans le même
+            // passage du Choreographer, auquel cas ce frame n'est jamais réellement
+            // *présenté* à l'écran avant que onProfileSelected() ne monopolise le
+            // thread principal avec la composition à froid de la Home — constaté
+            // au tout premier accès (après le gate de sélection de profil au
+            // démarrage), où aucun spinner n'était visible, juste un freeze. Le
+            // second withFrameNanos() force un vrai aller-retour par la boucle de
+            // rendu, garantissant que le frame du spinner a été soumis avant de
+            // continuer.
+            withFrameNanos {}
             withFrameNanos {}
             onProfileSelected(profile)
         }
