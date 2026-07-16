@@ -542,20 +542,6 @@ private fun MobileLayout(
                                         }
                                     }
                                 }
-
-                                // Movie Title
-                                Text(
-                                    text = stream.name,
-                                    color = Color.White,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 13.sp,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(8.dp),
-                                    textAlign = TextAlign.Center
-                                )
                             }
                         }
                     }
@@ -669,19 +655,6 @@ private fun MobileMovieCard(
                     )
                 }
             }
-
-            Text(
-                text = stream.name,
-                color = Color.White,
-                fontWeight = FontWeight.Bold,
-                fontSize = 11.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(6.dp),
-                textAlign = TextAlign.Center
-            )
         }
     }
 }

@@ -419,8 +419,6 @@ fun HomeFavoriteItemCard(
             )
         }
 
-        HomeCardTitleOverlay(title = favorite.name)
-
         // Type Badge (top left)
         val badgeColor = when (favorite.type) {
             "live" -> Color(0xFFE50914) // Red for live direct
@@ -631,8 +629,6 @@ fun HomeVodMovieCard(
             )
         }
 
-        HomeCardTitleOverlay(title = stream.name)
-
         // Rating Badge (top right)
         val cleanRating = stream.rating?.trim()
         if (!cleanRating.isNullOrBlank() && cleanRating != "0" && cleanRating != "0.0") {
@@ -652,40 +648,6 @@ fun HomeVodMovieCard(
             }
         }
     }
-}
-
-/**
- * Phase 55 : dégradé bas + titre en overlay dans une vignette d'affiche
- * (maquette : gradient noir 6% -> transparent 52%, titre 11.5sp en bas).
- */
-@Composable
-private fun BoxScope.HomeCardTitleOverlay(title: String) {
-    Box(
-        modifier = Modifier
-            .matchParentSize()
-            .background(
-                Brush.verticalGradient(
-                    colorStops = arrayOf(
-                        0.48f to Color.Transparent,
-                        1.0f to Color.Black.copy(alpha = 0.88f)
-                    )
-                )
-            )
-    )
-    Text(
-        text = title,
-        color = Color(0xFFF2F2F6),
-        fontWeight = FontWeight.SemiBold,
-        fontSize = 11.5.sp,
-        lineHeight = 14.sp,
-        maxLines = 2,
-        overflow = TextOverflow.Ellipsis,
-        fontFamily = HankenGrotesk,
-        modifier = Modifier
-            .align(Alignment.BottomStart)
-            .fillMaxWidth()
-            .padding(horizontal = 9.dp, vertical = 9.dp)
-    )
 }
 
 @Composable
@@ -726,8 +688,6 @@ fun HomeSeriesShowCard(
                 modifier = Modifier.size(32.dp)
             )
         }
-
-        HomeCardTitleOverlay(title = stream.name)
 
         // Rating Badge (top right)
         val cleanRating = stream.rating?.trim()
