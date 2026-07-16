@@ -3,8 +3,11 @@ package com.poc.iptvxtream.presentation.player
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.*
@@ -13,9 +16,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -73,6 +81,7 @@ fun PlayerScreen(
     }
 
     var isPlayerVisible by remember { mutableStateOf(true) }
+    var showChannelList by remember { mutableStateOf(false) }
 
     val handleClose = {
         isPlayerVisible = false
@@ -82,7 +91,11 @@ fun PlayerScreen(
     }
 
     androidx.activity.compose.BackHandler {
-        handleClose()
+        if (showChannelList) {
+            showChannelList = false
+        } else {
+            handleClose()
+        }
     }
     
     // Prevent screen lock during playback
@@ -117,8 +130,8 @@ fun PlayerScreen(
     var streamExtension by remember { mutableStateOf("m3u8") } // Default to m3u8
 
     // Auto-hide overlay after 5 seconds of inactivity
-    LaunchedEffect(showOverlay) {
-        if (showOverlay) {
+    LaunchedEffect(showOverlay, showChannelList) {
+        if (showOverlay && !showChannelList) {
             delay(5000)
             showOverlay = false
         }
@@ -192,16 +205,29 @@ fun PlayerScreen(
                 if (keyEvent.type == KeyEventType.KeyDown) {
                     when (keyEvent.key) {
                         Key.DirectionUp -> {
-                            zapPrev()
-                            true
+                            if (showChannelList) {
+                                false
+                            } else {
+                                zapPrev()
+                                true
+                            }
                         }
                         Key.DirectionDown -> {
-                            zapNext()
-                            true
+                            if (showChannelList) {
+                                false
+                            } else {
+                                zapNext()
+                                true
+                            }
                         }
                         Key.Back -> {
-                            handleClose()
-                            true
+                            if (showChannelList) {
+                                showChannelList = false
+                                true
+                            } else {
+                                handleClose()
+                                true
+                            }
                         }
                         else -> {
                             showOverlay = true
@@ -377,11 +403,22 @@ fun PlayerScreen(
                         }
                     }
 
-                    IconButton(
-                        onClick = handleClose,
-                        modifier = Modifier.background(Color(0x40FFFFFF), shape = CardDefaults.shape)
-                    ) {
-                        Icon(Icons.Default.Close, contentDescription = "Fermer", tint = Color.White)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        if (streamsList.isNotEmpty()) {
+                            IconButton(
+                                onClick = { showChannelList = !showChannelList },
+                                modifier = Modifier.background(Color(0x40FFFFFF), shape = CardDefaults.shape)
+                            ) {
+                                Icon(Icons.Default.Menu, contentDescription = "Liste des chaînes", tint = Color.White)
+                            }
+                        }
+
+                        IconButton(
+                            onClick = handleClose,
+                            modifier = Modifier.background(Color(0x40FFFFFF), shape = CardDefaults.shape)
+                        ) {
+                            Icon(Icons.Default.Close, contentDescription = "Fermer", tint = Color.White)
+                        }
                     }
                 }
             }
@@ -421,6 +458,151 @@ fun PlayerScreen(
                             fontSize = 12.sp,
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                         )
+                    }
+                }
+            }
+        }
+
+        // Channel List Drawer Overlay
+        if (showChannelList && streamsList.isNotEmpty()) {
+            val listState = rememberLazyListState()
+            
+            // Auto-scroll to the active channel when opened
+            LaunchedEffect(showChannelList) {
+                if (currentStreamIndex >= 0) {
+                    listState.animateScrollToItem(currentStreamIndex)
+                }
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .width(320.dp)
+                    .background(Color(0xF20F0F13)) // Semi-transparent dark background
+                    .align(Alignment.CenterStart)
+                    .pointerInput(Unit) {
+                        detectTapGestures(onTap = {}) // Absorb tap events so they don't toggle overlay
+                    }
+                    .padding(vertical = 16.dp, horizontal = 12.dp)
+            ) {
+                Column(modifier = Modifier.fillMaxSize()) {
+                    // Header
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column {
+                            Text(
+                                text = "Chaînes TV",
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 18.sp
+                            )
+                            Text(
+                                text = "${streamsList.size} chaînes",
+                                color = Color.Gray,
+                                fontSize = 11.sp
+                            )
+                        }
+                        IconButton(
+                            onClick = { showChannelList = false }
+                        ) {
+                            Icon(Icons.Default.Close, contentDescription = "Fermer la liste", tint = Color.LightGray)
+                        }
+                    }
+
+                    HorizontalDivider(color = Color(0x20FFFFFF), modifier = Modifier.padding(bottom = 12.dp))
+
+                    // Channel List
+                    LazyColumn(
+                        state = listState,
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
+                    ) {
+                        itemsIndexed(streamsList) { index, stream ->
+                            val isCurrent = index == currentStreamIndex
+                            var isFocused by remember { mutableStateOf(false) }
+
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .onFocusChanged { isFocused = it.isFocused }
+                                    .background(
+                                        when {
+                                            isCurrent -> MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
+                                            isFocused -> Color(0x1EFFFFFF)
+                                            else -> Color.Transparent
+                                        }
+                                    )
+                                    .border(
+                                        width = 1.5.dp,
+                                        color = if (isFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
+                                        shape = RoundedCornerShape(8.dp)
+                                    )
+                                    .clickable {
+                                        currentStreamIndex = index
+                                        streamExtension = "m3u8"
+                                        showChannelList = false
+                                    }
+                                    .padding(8.dp),
+                                contentAlignment = Alignment.CenterStart
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    // Logo
+                                    Box(
+                                        modifier = Modifier
+                                            .size(36.dp)
+                                            .clip(RoundedCornerShape(4.dp))
+                                            .background(Color(0xFF1E1E24)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        if (!stream.streamIcon.isNullOrBlank()) {
+                                            AsyncImage(
+                                                model = stream.streamIcon,
+                                                contentDescription = null,
+                                                contentScale = ContentScale.Fit,
+                                                modifier = Modifier.fillMaxSize()
+                                            )
+                                        } else {
+                                            Icon(
+                                                imageVector = Icons.Default.PlayArrow,
+                                                contentDescription = null,
+                                                tint = Color.Gray,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.width(10.dp))
+
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = "CH ${stream.num}",
+                                            color = MaterialTheme.colorScheme.primary,
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Text(
+                                            text = stream.name,
+                                            color = Color.White,
+                                            fontSize = 13.sp,
+                                            fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }

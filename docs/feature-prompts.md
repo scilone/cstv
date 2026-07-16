@@ -72,7 +72,7 @@ Tests : logique de calcul du prochain épisode (même saison / changement de sai
 
 ## 4. Live TV : accès rapide aux autres chaînes pendant la lecture
 
-**Modèle recommandé : Sonnet 5, effort moyen** — base logique déjà présente, surtout UI overlay + focus D-pad à réutiliser d'un pattern existant.
+✅ **TERMINÉE** — Sonnet 5, effort moyen. Ajout d'un panneau latéral (drawer) semi-transparent affichant la liste des chaînes (`streamsList`) avec logos et numéros. Intégration d'un bouton menu à côté du bouton de fermeture. Auto-défilement vers la chaîne active, gestion intelligente du focus et navigation clavier/D-pad sur TV, ainsi que fermeture par clic extérieur ou touche retour/back.
 
 Sur `PlayerScreen` (Live TV), ajoute un accès rapide à la liste des chaînes pour zapper sans quitter le lecteur.
 
