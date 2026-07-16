@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
 }
@@ -66,9 +67,6 @@ android {
         compose = true
         // Nécessaire pour BuildConfig.DEBUG (logging HTTP conditionnel, Phase 36).
         buildConfig = true
-    }
-    composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.14" // Compatible with Kotlin 1.9.24
     }
     packaging {
         resources {

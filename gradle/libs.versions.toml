@@ -4,8 +4,8 @@
 
 [versions]
 agp = "8.7.3"
-kotlin = "1.9.24"
-ksp = "1.9.24-1.0.20"
+kotlin = "2.0.21"
+ksp = "2.0.21-1.0.28"
 hilt = "2.51.1"
 coreKtx = "1.12.0"
 lifecycle = "2.7.0"
@@ -97,5 +97,6 @@ androidx-test-runner = { group = "androidx.test", name = "runner", version.ref =
 android-application = { id = "com.android.application", version.ref = "agp" }
 android-library = { id = "com.android.library", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 hilt = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
