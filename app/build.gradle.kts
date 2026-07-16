@@ -70,6 +70,11 @@ android {
         // Nécessaire pour BuildConfig.DEBUG (logging HTTP conditionnel, Phase 36).
         buildConfig = true
     }
+    testOptions {
+        // Les tests JVM traversent android.util.Log (ex : CredentialsManager) :
+        // no-op au lieu de "not mocked".
+        unitTests.isReturnDefaultValues = true
+    }
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
@@ -118,6 +123,10 @@ dependencies {
 
     // DataStore & Crypto (Secure credentials storage)
     implementation(libs.androidx.datastore.preferences)
+    // TODO(2026-07): security-crypto (déprécié) n'est plus utilisé que par
+    // EncryptedPrefsLegacySource pour migrer les anciens credentials vers le
+    // chiffrement Keystore maison — retirer la dépendance et la classe une
+    // version après la release contenant la migration.
     implementation(libs.androidx.security.crypto)
 
     // Coil (Image loading)

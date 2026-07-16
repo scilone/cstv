@@ -14,7 +14,7 @@ une session IA, classé par urgence décroissante.
 |---|---|---|---|
 | 1 | ✅ Exclure les credentials du backup Android | 🔴 | S |
 | 2 | ✅ Tester les migrations Room (exportSchema + tests instrumentés) | 🟠 | M |
-| 3 | Migrer hors de security-crypto (déprécié) | 🟠 | M |
+| 3 | ✅ Migrer hors de security-crypto (déprécié) | 🟠 | M |
 | 4 | ✅ Mettre à niveau la stack (AGP/Kotlin 2/Compose BOM) | 🟠 | L |
 | 5 | Compléter les tests ViewModels (5 manquants) | 🟡 | L |
 | 6 | Factoriser les 3 players (~2500 lignes dupliquées) | 🟡 | L |
@@ -94,7 +94,7 @@ schéma.
 
 ---
 
-## 3. 🟠 Migrer hors de security-crypto — Effort M
+## 3. 🟠 Migrer hors de security-crypto — Effort M — ✅ FAIT (minSdk 23, dépendance conservée une version pour la migration)
 
 **Constat.** `androidx.security:security-crypto:1.1.0-alpha06` : bibliothèque
 officiellement **dépréciée par Google** (abandonnée en alpha, plus de
