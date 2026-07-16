@@ -114,7 +114,7 @@ Tests : persistance du choix, application correcte sur les 3 players, pas de ré
 
 ## 6. Description film/série : troncature + "voir plus"
 
-**Modèle recommandé : Haiku 4.5, effort faible** — composant Compose isolé et mécanique, appliqué à 4 emplacements connus, zéro logique métier.
+✅ **TERMINÉE** — Haiku 4.5, effort faible. Composant `ExpandableText` créé + appliqué à 5 emplacements (VOD TV/Mobile + Séries TV/Mobile + episode plot).
 
 Limite la taille affichée du synopsis (plot) et ajoute un "voir plus" / "voir moins".
 

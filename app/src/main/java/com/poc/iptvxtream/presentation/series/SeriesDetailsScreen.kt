@@ -1,6 +1,7 @@
 package com.poc.iptvxtream.presentation.series
 
 import com.poc.iptvxtream.presentation.components.formatReleaseYear
+import com.poc.iptvxtream.presentation.components.ExpandableText
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -295,11 +296,11 @@ private fun TvLayout(
                 Spacer(modifier = Modifier.height(12.dp))
 
                 // Plot
-                Text(
+                ExpandableText(
                     text = details.plot ?: "Aucun résumé disponible.",
-                    color = Color.LightGray,
                     fontSize = 14.sp,
                     lineHeight = 20.sp,
+                    maxLinesCollapsed = 3,
                     modifier = Modifier.padding(bottom = 12.dp)
                 )
 
@@ -472,11 +473,11 @@ private fun MobileLayout(
         }
 
         // Plot
-        Text(
+        ExpandableText(
             text = details.plot ?: "Aucun résumé disponible.",
-            color = Color.LightGray,
             fontSize = 13.sp,
             lineHeight = 18.sp,
+            maxLinesCollapsed = 3,
             textAlign = TextAlign.Justify,
             modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
         )
@@ -716,13 +717,11 @@ private fun EpisodeCardItem(
 
             if (episode.plot.isNotBlank() && episode.plot != "Aucun résumé disponible.") {
                 Spacer(modifier = Modifier.height(6.dp))
-                Text(
+                ExpandableText(
                     text = episode.plot,
-                    color = Color.LightGray,
                     fontSize = 12.sp,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    lineHeight = 16.sp
+                    lineHeight = 16.sp,
+                    maxLinesCollapsed = 2
                 )
             }
 

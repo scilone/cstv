@@ -1,6 +1,7 @@
 package com.poc.iptvxtream.presentation.vod
 
 import com.poc.iptvxtream.presentation.components.formatReleaseYear
+import com.poc.iptvxtream.presentation.components.ExpandableText
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -231,11 +232,11 @@ private fun TvLayoutDetails(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            Text(
+            ExpandableText(
                 text = details.plot,
-                color = Color.LightGray,
                 fontSize = 14.sp,
                 lineHeight = 20.sp,
+                maxLinesCollapsed = 3,
                 modifier = Modifier.padding(bottom = 16.dp)
             )
 
@@ -356,11 +357,11 @@ private fun MobileLayoutDetails(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        Text(
+        ExpandableText(
             text = details.plot,
-            color = Color.LightGray,
             fontSize = 13.sp,
             lineHeight = 18.sp,
+            maxLinesCollapsed = 3,
             textAlign = TextAlign.Justify,
             modifier = Modifier.fillMaxWidth()
         )
