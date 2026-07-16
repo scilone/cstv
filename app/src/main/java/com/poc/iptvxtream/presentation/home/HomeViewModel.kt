@@ -6,9 +6,7 @@ import com.poc.iptvxtream.domain.model.PlaybackPosition
 import com.poc.iptvxtream.domain.model.FavoriteItem
 import com.poc.iptvxtream.domain.model.LiveCategory
 import com.poc.iptvxtream.domain.model.LiveStream
-import com.poc.iptvxtream.domain.model.VodCategory
 import com.poc.iptvxtream.domain.model.VodStream
-import com.poc.iptvxtream.domain.model.SeriesCategory
 import com.poc.iptvxtream.domain.model.SeriesStream
 import com.poc.iptvxtream.domain.repository.FavoritesRepository
 import com.poc.iptvxtream.domain.repository.LiveTvRepository
@@ -36,10 +34,7 @@ data class HomeState(
     val firstLiveCategory: LiveCategory? = null,
     val firstLiveStreams: List<LiveStream> = emptyList(),
     
-    val firstVodCategory: VodCategory? = null,
     val firstVodStreams: List<VodStream> = emptyList(),
-    
-    val firstSeriesCategory: SeriesCategory? = null,
     val firstSeriesStreams: List<SeriesStream> = emptyList(),
     
     val error: String? = null,
@@ -208,9 +203,7 @@ class HomeViewModel @Inject constructor(
                         isLoading = false,
                         firstLiveCategory = firstLiveCat,
                         firstLiveStreams = firstLiveStreams,
-                        firstVodCategory = null,
                         firstVodStreams = firstVodStreams,
-                        firstSeriesCategory = null,
                         firstSeriesStreams = firstSeriesStreams
                     )
                 }

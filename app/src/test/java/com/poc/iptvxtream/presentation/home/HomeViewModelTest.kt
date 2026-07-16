@@ -116,10 +116,8 @@ class HomeViewModelTest {
         assertEquals("1", state.firstLiveCategory?.categoryId)
         assertEquals(1, state.firstLiveStreams.size)
         assertEquals("Channel 1", state.firstLiveStreams[0].name)
-        assertNull(state.firstVodCategory)
         assertEquals(1, state.firstVodStreams.size)
         assertEquals("Movie A", state.firstVodStreams[0].name)
-        assertNull(state.firstSeriesCategory)
         assertEquals(1, state.firstSeriesStreams.size)
         assertEquals("Series X", state.firstSeriesStreams[0].name)
 
@@ -151,7 +149,6 @@ class HomeViewModelTest {
         assertTrue(state.firstLiveStreams.isEmpty())
 
         // VOD should be loaded successfully
-        assertNull(state.firstVodCategory)
         assertEquals(1, state.firstVodStreams.size)
         assertEquals("Movie A", state.firstVodStreams[0].name)
 
@@ -186,6 +183,52 @@ class HomeViewModelTest {
         assertFalse(resumeWatching.any { it.streamId == 101 }) // ancien épisode de la série 10, exclu
         assertTrue(resumeWatching.any { it.streamId == 501 }) // film, toujours présent
         assertTrue(resumeWatching.any { it.streamId == 201 }) // seule entrée de la série 20
+
+        viewModel.viewModelScope.cancel()
+    }
+
+    @Test
+    fun test_loadHomeData_sortsVodAndSeriesByAddedDescending_andLimitsTo20() = runTest {
+        stubReactiveSources()
+        whenever(liveTvRepository.getLiveCategories(false)).thenReturn(emptyList())
+
+        // 22 streams générés avec des dates d'ajout croissantes : le plus récent (id 21, added "21")
+        // doit apparaître en premier, et seuls les 20 plus récents doivent être conservés.
+        val vodStreams = (0..21).map { i -> VodStream(i, "Movie $i", "icon", "5.0", i.toString(), "1") }
+        val seriesStreams = (0..21).map { i -> SeriesStream(i, "Series $i", "cover", "5.0", i.toString(), "1") }
+        whenever(vodRepository.getVodStreams("all", false)).thenReturn(vodStreams)
+        whenever(seriesRepository.getSeriesStreams("all", false)).thenReturn(seriesStreams)
+
+        viewModel = createViewModel()
+
+        val state = viewModel.state.value
+        assertEquals(20, state.firstVodStreams.size)
+        assertEquals("Movie 21", state.firstVodStreams.first().name)
+        assertEquals("Movie 2", state.firstVodStreams.last().name)
+
+        assertEquals(20, state.firstSeriesStreams.size)
+        assertEquals("Series 21", state.firstSeriesStreams.first().name)
+        assertEquals("Series 2", state.firstSeriesStreams.last().name)
+
+        viewModel.viewModelScope.cancel()
+    }
+
+    @Test
+    fun test_loadHomeData_liveTvFallback_keepsFirstCategoryLogic_whenSucceeds() = runTest {
+        stubReactiveSources()
+        val liveCats = listOf(LiveCategory("1", "Live Cat 1", 0), LiveCategory("2", "Live Cat 2", 1))
+        val liveStreams = listOf(LiveStream(101, "Channel 1", "icon1", null, 1, "1"))
+        whenever(liveTvRepository.getLiveCategories(false)).thenReturn(liveCats)
+        whenever(liveTvRepository.getLiveStreams("1", false)).thenReturn(liveStreams)
+        whenever(vodRepository.getVodStreams("all", false)).thenReturn(emptyList())
+        whenever(seriesRepository.getSeriesStreams("all", false)).thenReturn(emptyList())
+
+        viewModel = createViewModel()
+
+        val state = viewModel.state.value
+        // TV en direct garde la logique "première catégorie" (pas de notion d'ajout exploitable)
+        assertEquals("1", state.firstLiveCategory?.categoryId)
+        assertEquals(1, state.firstLiveStreams.size)
 
         viewModel.viewModelScope.cancel()
     }
