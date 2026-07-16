@@ -12,7 +12,7 @@ une session IA, classé par urgence décroissante.
 
 | # | Évolution | Criticité | Effort |
 |---|---|---|---|
-| 1 | Exclure les credentials du backup Android | 🔴 | S |
+| 1 | ✅ Exclure les credentials du backup Android | 🔴 | S |
 | 2 | Tester les migrations Room (exportSchema + tests instrumentés) | 🟠 | M |
 | 3 | Migrer hors de security-crypto (déprécié) | 🟠 | M |
 | 4 | Mettre à niveau la stack (AGP/Kotlin 2/Compose BOM) | 🟠 | L |
@@ -31,7 +31,7 @@ Phase 54 (accent réglable), déjà décrites dans la feuille de route.
 
 ---
 
-## 1. 🔴 Exclure les credentials du backup Android — Effort S
+## 1. 🔴 Exclure les credentials du backup Android — Effort S — ✅ FAIT
 
 **Constat.** `AndroidManifest.xml` a `android:allowBackup="true"` sans
 `fullBackupContent`/`dataExtractionRules`. Les SharedPreferences chiffrées de
