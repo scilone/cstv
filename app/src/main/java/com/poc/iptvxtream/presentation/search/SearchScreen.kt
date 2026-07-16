@@ -28,8 +28,6 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
@@ -366,19 +364,6 @@ private fun SearchGridCard(
                 )
             }
         }
-
-        Text(
-            text = name,
-            color = Color.White,
-            fontWeight = FontWeight.Bold,
-            fontSize = 12.sp,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(6.dp),
-            textAlign = TextAlign.Center
-        )
     }
 }
 
@@ -429,18 +414,5 @@ private fun SearchCardItem(
                 )
             }
         }
-
-        Text(
-            text = name,
-            color = Color.White,
-            fontWeight = FontWeight.Bold,
-            fontSize = 11.sp,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(6.dp),
-            textAlign = TextAlign.Center
-        )
     }
 }
