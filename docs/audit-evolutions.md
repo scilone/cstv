@@ -222,7 +222,14 @@ d'ailleurs prouvé. C'est le plus gros gisement de dette du projet
 
 ---
 
-## 7. 🟡 Pagination des catalogues volumineux — Effort L
+## 7. 🟡 Pagination des catalogues volumineux — Effort L — ⏳ RESTE À FAIRE
+
+> **Note session 16/07/2026** : seule évolution non traitée. Le prompt exige
+> des mesures avant/après sur la plus grosse catégorie (données Xtream
+> réelles) et une vérification visuelle de la restauration de scroll —
+> aucun device/émulateur disponible dans la session. À lancer dans une
+> session avec device connecté. Prérequis déjà en place : stack à jour
+> (#4), version catalog (#10).
 
 **Constat.** Aucune pagination (pas de Paging 3) : `getVodStreams`/
 `getSeriesStreams`/`getLiveStreams` chargent la catégorie entière (voire le
