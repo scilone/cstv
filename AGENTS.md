@@ -28,7 +28,7 @@ Ce fichier contient les règles permanentes à suivre à chaque session de trava
 - UI : Jetpack Compose (mobile) + Compose for TV (`androidx.tv:tv-material`, `tv-foundation`) pour Android TV.
 - Architecture : Clean Architecture (`data` / `domain` / `presentation`) + MVVM.
 - DI : Hilt.
-- Réseau : Retrofit + OkHttp.
+- Réseau : Retrofit + OkHttp. Cleartext HTTP autorisé globalement (`network_security_config.xml`) — décision assumée lors de l'audit 2026, ne plus y revenir : le panel Xtream est un host dynamique presque toujours en HTTP pur, et les URLs d'images renvoyées par le panel pointent arbitrairement vers lui ou des CDN tiers (souvent HTTP) ; aucune restriction statique par domaine ne bornerait quoi que ce soit de réel.
 - Lecteur vidéo : ExoPlayer / Media3 (support HLS).
 - Persistance : Room (cache API) + DataStore chiffré ou EncryptedSharedPreferences (identifiants Xtream).
 - Images : Coil.

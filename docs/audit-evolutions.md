@@ -20,7 +20,7 @@ une session IA, classé par urgence décroissante.
 | 6 | Factoriser les 3 players (~2500 lignes dupliquées) | 🟡 | L |
 | 7 | Pagination des catalogues volumineux | 🟡 | L |
 | 8 | ✅ Finir la migration couleurs vers le thème (99 restantes) | 🟡 | M |
-| 9 | Restreindre réellement le cleartext HTTP | 🟡 | S |
+| 9 | ✅ Restreindre réellement le cleartext HTTP | 🟡 | S |
 | 10 | ✅ Version catalog Gradle | 🟢 | S |
 | 11 | ✅ Finir l'externalisation i18n (55 strings) | 🟢 | M |
 | 12 | ✅ Configurer le cache images Coil | 🟢 | S |
@@ -281,7 +281,7 @@ vérité couleur = dérive garantie à la prochaine retouche visuelle.
 
 ---
 
-## 9. 🟡 Restreindre réellement le cleartext HTTP — Effort S
+## 9. 🟡 Restreindre réellement le cleartext HTTP — Effort S — ✅ FAIT (conclusion : permissif documenté, rien de bornable)
 
 **Constat.** `network_security_config.xml` contient
 `<base-config cleartextTrafficPermitted="true"/>` : strictement équivalent à

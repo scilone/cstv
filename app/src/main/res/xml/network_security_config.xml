@@ -1,4 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+    Décision assumée (audit #9, ne plus y revenir) : le cleartext HTTP reste
+    autorisé globalement car aucune restriction statique n'est possible :
+    - le panel Xtream (API + flux vidéo) est un host DYNAMIQUE saisi par
+      l'utilisateur, presque toujours en HTTP pur (pas de TLS côté panels) ;
+      network_security_config ne permet pas de déclarer un domaine à runtime ;
+    - les URLs d'images (stream_icon/cover) sont renvoyées par le panel et
+      pointent arbitrairement vers le panel lui-même ou des CDN tiers,
+      souvent en HTTP également — les interdire casserait les posters.
+    Une restriction par domaine ne bornerait donc rien de réel. Voir AGENTS.md.
+-->
 <network-security-config>
     <base-config cleartextTrafficPermitted="true" />
 </network-security-config>
