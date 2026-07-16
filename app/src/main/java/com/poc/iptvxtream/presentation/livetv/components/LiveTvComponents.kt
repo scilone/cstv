@@ -378,12 +378,12 @@ fun MobileRecentlyWatchedItem(
             .background(Surface3)
             .border(1.dp, Color.White.copy(alpha = 0.06f), RoundedCornerShape(16.dp))
             .clickable { onClick() }
-            .padding(11.dp)
+            .padding(horizontal = 10.dp, vertical = 7.dp)
     ) {
         Box(
             modifier = Modifier
-                .size(width = 64.dp, height = 58.dp)
-                .clip(RoundedCornerShape(10.dp))
+                .size(width = 50.dp, height = 40.dp)
+                .clip(RoundedCornerShape(8.dp))
                 .background(Surface1),
             contentAlignment = Alignment.Center
         ) {
@@ -398,20 +398,21 @@ fun MobileRecentlyWatchedItem(
                 Text(
                     text = "${stream.num}",
                     color = Color.White.copy(alpha = 0.82f),
-                    fontSize = 20.sp,
+                    fontSize = 17.sp,
                     fontWeight = FontWeight.Bold,
                     fontFamily = BricolageGrotesque
                 )
             }
         }
 
-        Spacer(modifier = Modifier.width(11.dp))
+        Spacer(modifier = Modifier.width(10.dp))
 
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = stream.name,
                 color = TextPrimary,
-                fontSize = 13.sp,
+                fontSize = 12.5.sp,
+                lineHeight = 14.sp,
                 fontWeight = FontWeight.Bold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -420,11 +421,12 @@ fun MobileRecentlyWatchedItem(
             Text(
                 text = epgProgram?.title ?: "Aucun programme",
                 color = TextSecondary,
-                fontSize = 11.5.sp,
+                fontSize = 11.sp,
+                lineHeight = 12.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 fontFamily = HankenGrotesk,
-                modifier = Modifier.padding(top = 3.dp)
+                modifier = Modifier.padding(top = 1.dp)
             )
             // Jauge + heures toujours réservées (hauteur uniforme même sans EPG).
             if (epgProgram != null) {
@@ -432,7 +434,7 @@ fun MobileRecentlyWatchedItem(
                     program = epgProgram,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 7.dp)
+                        .padding(top = 3.dp)
                         .height(3.dp)
                         .clip(RoundedCornerShape(999.dp))
                 )
@@ -440,7 +442,7 @@ fun MobileRecentlyWatchedItem(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 7.dp)
+                        .padding(top = 3.dp)
                         .height(3.dp)
                         .clip(RoundedCornerShape(999.dp))
                         .background(Color.White.copy(alpha = 0.1f))
@@ -449,11 +451,12 @@ fun MobileRecentlyWatchedItem(
             Text(
                 text = epgProgram?.formattedTimeRange() ?: "",
                 color = Color(0xFF63636F),
-                fontSize = 10.5.sp,
+                fontSize = 10.sp,
+                lineHeight = 12.sp,
                 fontFamily = HankenGrotesk,
                 modifier = Modifier
-                    .padding(top = 5.dp)
-                    .heightIn(min = 16.dp)
+                    .padding(top = 2.dp)
+                    .heightIn(min = 13.dp)
             )
         }
     }
