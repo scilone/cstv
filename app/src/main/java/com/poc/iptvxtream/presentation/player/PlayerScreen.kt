@@ -23,6 +23,8 @@ import androidx.compose.material.icons.filled.Warning
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -466,11 +468,23 @@ fun PlayerScreen(
         // Channel List Drawer Overlay
         if (showChannelList && streamsList.isNotEmpty()) {
             val listState = rememberLazyListState()
-            
-            // Auto-scroll to the active channel when opened
+            val currentItemFocusRequester = remember { FocusRequester() }
+
+            // Scrim: un clic en dehors du tiroir le ferme (le tiroir absorbe ses propres taps ci-dessous)
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .pointerInput(Unit) {
+                        detectTapGestures(onTap = { showChannelList = false })
+                    }
+            )
+
+            // Auto-scroll vers la chaîne active à l'ouverture, puis lui donne le focus D-pad
+            // pour que la première pression haut/bas navigue directement dans la liste.
             LaunchedEffect(showChannelList) {
                 if (currentStreamIndex >= 0) {
                     listState.animateScrollToItem(currentStreamIndex)
+                    runCatching { currentItemFocusRequester.requestFocus() }
                 }
             }
 
@@ -532,6 +546,7 @@ fun PlayerScreen(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(8.dp))
+                                    .then(if (isCurrent) Modifier.focusRequester(currentItemFocusRequester) else Modifier)
                                     .onFocusChanged { isFocused = it.isFocused }
                                     .background(
                                         when {
