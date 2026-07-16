@@ -42,6 +42,7 @@
     <string name="profile_delete_btn">Supprimer le profil</string>
     <string name="profile_save_btn">Enregistrer</string>
     <string name="profile_selection_title">Qui regarde ?</string>
+    <string name="profile_selection_loading">Chargement du profil…</string>
     <string name="home_welcome">BIENVENUE, %1$s</string>
     <string name="home_expiration_connections">Expiration : %1$s | Max connexions : %2$s</string>
     <string name="home_resume">Continuer à regarder</string>
