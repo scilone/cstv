@@ -46,9 +46,9 @@
     <string name="home_expiration_connections">Expiration : %1$s | Max connexions : %2$s</string>
     <string name="home_resume">Continuer à regarder</string>
     <string name="home_favorites">Favoris</string>
-    <string name="home_section_tv">TV : %1$s</string>
-    <string name="home_section_vod">Films : %1$s</string>
-    <string name="home_section_series">Séries : %1$s</string>
+    <string name="home_section_tv">TV en direct</string>
+    <string name="home_section_vod">Films</string>
+    <string name="home_section_series">Séries</string>
     <string name="home_see_all">Voir tout</string>
     <string name="home_no_title">Sans titre</string>
     <string name="home_live_badge">DIRECT</string>

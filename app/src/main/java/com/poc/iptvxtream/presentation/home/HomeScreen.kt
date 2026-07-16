@@ -373,7 +373,7 @@ fun HomeScreen(
                 if (state.firstLiveCategory != null && state.firstLiveStreams.isNotEmpty()) {
                     item {
                         HomeSectionRow(
-                            title = stringResource(R.string.home_section_tv, state.firstLiveCategory!!.categoryName),
+                            title = stringResource(R.string.home_section_tv),
                             isTv = isTv,
                             onSeeAll = onNavigateToLiveTv
                         ) {
@@ -394,11 +394,11 @@ fun HomeScreen(
                     }
                 }
 
-                // 5. Section: "Films" (First Category VOD Streams)
-                if (state.firstVodCategory != null && state.firstVodStreams.isNotEmpty()) {
+                // 5. Section: "Films" (Latest additions VOD Streams)
+                if (state.firstVodStreams.isNotEmpty()) {
                     item {
                         HomeSectionRow(
-                            title = stringResource(R.string.home_section_vod, state.firstVodCategory!!.categoryName),
+                            title = stringResource(R.string.home_section_vod),
                             isTv = isTv,
                             onSeeAll = onNavigateToVod
                         ) {
@@ -418,11 +418,11 @@ fun HomeScreen(
                     }
                 }
 
-                // 6. Section: "Séries" (First Category Series Streams)
-                if (state.firstSeriesCategory != null && state.firstSeriesStreams.isNotEmpty()) {
+                // 6. Section: "Séries" (Latest additions Series Streams)
+                if (state.firstSeriesStreams.isNotEmpty()) {
                     item {
                         HomeSectionRow(
-                            title = stringResource(R.string.home_section_series, state.firstSeriesCategory!!.categoryName),
+                            title = stringResource(R.string.home_section_series),
                             isTv = isTv,
                             onSeeAll = onNavigateToSeries
                         ) {

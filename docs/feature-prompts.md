@@ -30,7 +30,7 @@ Tests : migration Room, DAO (masquage + tri par profil), ViewModel de gestion de
 
 ## 2. Home : sections par derniers ajouts + renommage
 
-**Modèle recommandé : Sonnet 5, effort moyen** — logique de tri localisée + décision produit simple à trancher, pas de migration.
+✅ **TERMINÉE** — Sonnet 5, effort moyen. Logique de chargement par "derniers ajouts" (tri par `added` décroissant, limite à 20 items) implémentée pour les sections Films et Séries. Renommage des sections en "TV en direct", "Films", et "Séries" dans `strings.xml`.
 
 Sur la Home, remplace la logique "première catégorie de chaque média" par "derniers ajouts", et renomme les sections.
 

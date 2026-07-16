@@ -181,48 +181,36 @@ class HomeViewModel @Inject constructor(
                     }
                 } else emptyList()
 
-                // 4. Fetch Movies - First VOD Category and its Streams
-                val vodCategories = try {
-                    vodRepository.getVodCategories(forceRefresh = false)
+                // 4. Fetch Movies - Latest additions (toutes catégories confondues)
+                val allVodStreams = try {
+                    vodRepository.getVodStreams("all", forceRefresh = false)
                 } catch (e: Exception) {
                     if (e is kotlinx.coroutines.CancellationException) throw e
                     emptyList()
                 }
-                val firstVodCat = vodCategories.firstOrNull()
-                val firstVodStreams = if (firstVodCat != null) {
-                    try {
-                        vodRepository.getVodStreams(firstVodCat.categoryId, forceRefresh = false)
-                    } catch (e: Exception) {
-                        if (e is kotlinx.coroutines.CancellationException) throw e
-                        emptyList()
-                    }
-                } else emptyList()
+                val firstVodStreams = allVodStreams
+                    .sortedByDescending { it.added?.toLongOrNull() ?: 0L }
+                    .take(20)
 
-                // 5. Fetch Series - First Series Category and its Streams
-                val seriesCategories = try {
-                    seriesRepository.getSeriesCategories(forceRefresh = false)
+                // 5. Fetch Series - Latest additions (toutes catégories confondues)
+                val allSeriesStreams = try {
+                    seriesRepository.getSeriesStreams("all", forceRefresh = false)
                 } catch (e: Exception) {
                     if (e is kotlinx.coroutines.CancellationException) throw e
                     emptyList()
                 }
-                val firstSeriesCat = seriesCategories.firstOrNull()
-                val firstSeriesStreams = if (firstSeriesCat != null) {
-                    try {
-                        seriesRepository.getSeriesStreams(firstSeriesCat.categoryId, forceRefresh = false)
-                    } catch (e: Exception) {
-                        if (e is kotlinx.coroutines.CancellationException) throw e
-                        emptyList()
-                    }
-                } else emptyList()
+                val firstSeriesStreams = allSeriesStreams
+                    .sortedByDescending { it.added?.toLongOrNull() ?: 0L }
+                    .take(20)
 
                 _state.update {
                     it.copy(
                         isLoading = false,
                         firstLiveCategory = firstLiveCat,
                         firstLiveStreams = firstLiveStreams,
-                        firstVodCategory = firstVodCat,
+                        firstVodCategory = null,
                         firstVodStreams = firstVodStreams,
-                        firstSeriesCategory = firstSeriesCat,
+                        firstSeriesCategory = null,
                         firstSeriesStreams = firstSeriesStreams
                     )
                 }

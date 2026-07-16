@@ -97,16 +97,12 @@ class HomeViewModelTest {
         whenever(liveTvRepository.getLiveStreams("1", false)).thenReturn(liveStreams)
 
         // Mock VOD Movies
-        val vodCats = listOf(VodCategory("1", "VOD Cat 1", 0))
         val vodStreams = listOf(VodStream(201, "Movie A", "icon2", "8.5", "2026", "1"))
-        whenever(vodRepository.getVodCategories(false)).thenReturn(vodCats)
-        whenever(vodRepository.getVodStreams("1", false)).thenReturn(vodStreams)
+        whenever(vodRepository.getVodStreams("all", false)).thenReturn(vodStreams)
 
         // Mock Series
-        val seriesCats = listOf(SeriesCategory("1", "Series Cat 1", 0))
         val seriesStreams = listOf(SeriesStream(301, "Series X", "cover3", "9.0", "2026", "1"))
-        whenever(seriesRepository.getSeriesCategories(false)).thenReturn(seriesCats)
-        whenever(seriesRepository.getSeriesStreams("1", false)).thenReturn(seriesStreams)
+        whenever(seriesRepository.getSeriesStreams("all", false)).thenReturn(seriesStreams)
 
         viewModel = createViewModel()
 
@@ -120,10 +116,10 @@ class HomeViewModelTest {
         assertEquals("1", state.firstLiveCategory?.categoryId)
         assertEquals(1, state.firstLiveStreams.size)
         assertEquals("Channel 1", state.firstLiveStreams[0].name)
-        assertEquals("1", state.firstVodCategory?.categoryId)
+        assertNull(state.firstVodCategory)
         assertEquals(1, state.firstVodStreams.size)
         assertEquals("Movie A", state.firstVodStreams[0].name)
-        assertEquals("1", state.firstSeriesCategory?.categoryId)
+        assertNull(state.firstSeriesCategory)
         assertEquals(1, state.firstSeriesStreams.size)
         assertEquals("Series X", state.firstSeriesStreams[0].name)
 
@@ -138,13 +134,11 @@ class HomeViewModelTest {
         whenever(liveTvRepository.getLiveCategories(false)).thenThrow(RuntimeException("API Error Live TV"))
 
         // Mock VOD Movies succeeds
-        val vodCats = listOf(VodCategory("1", "VOD Cat 1", 0))
         val vodStreams = listOf(VodStream(201, "Movie A", "icon2", "8.5", "2026", "1"))
-        whenever(vodRepository.getVodCategories(false)).thenReturn(vodCats)
-        whenever(vodRepository.getVodStreams("1", false)).thenReturn(vodStreams)
+        whenever(vodRepository.getVodStreams("all", false)).thenReturn(vodStreams)
 
         // Mock Series to be empty
-        whenever(seriesRepository.getSeriesCategories(false)).thenReturn(emptyList())
+        whenever(seriesRepository.getSeriesStreams("all", false)).thenReturn(emptyList())
 
         viewModel = createViewModel()
 
@@ -157,7 +151,7 @@ class HomeViewModelTest {
         assertTrue(state.firstLiveStreams.isEmpty())
 
         // VOD should be loaded successfully
-        assertEquals("1", state.firstVodCategory?.categoryId)
+        assertNull(state.firstVodCategory)
         assertEquals(1, state.firstVodStreams.size)
         assertEquals("Movie A", state.firstVodStreams[0].name)
 
@@ -181,8 +175,8 @@ class HomeViewModelTest {
         )
         stubReactiveSources(positions = positions)
         whenever(liveTvRepository.getLiveCategories(false)).thenReturn(emptyList())
-        whenever(vodRepository.getVodCategories(false)).thenReturn(emptyList())
-        whenever(seriesRepository.getSeriesCategories(false)).thenReturn(emptyList())
+        whenever(vodRepository.getVodStreams("all", false)).thenReturn(emptyList())
+        whenever(seriesRepository.getSeriesStreams("all", false)).thenReturn(emptyList())
 
         viewModel = createViewModel()
 
