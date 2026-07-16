@@ -189,4 +189,27 @@ val MIGRATION_11_12 = object : Migration(11, 12) {
     }
 }
 
-val ALL_MIGRATIONS = arrayOf(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12)
+/**
+ * MIGRATION_12_13 (Phase 58 - gestion des catégories par profil) :
+ * crée la table `category_preferences` (masquage + ordre personnalisé des
+ * catégories Live/VOD/Séries, scopés par profil). Aucune donnée existante à
+ * transformer : une catégorie sans ligne reste visible à l'ordre API.
+ */
+val MIGRATION_12_13 = object : Migration(12, 13) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS category_preferences (
+                categoryId TEXT NOT NULL,
+                type TEXT NOT NULL,
+                profileId INTEGER NOT NULL,
+                hidden INTEGER NOT NULL,
+                sortOrder INTEGER,
+                PRIMARY KEY(categoryId, type, profileId)
+            )
+            """.trimIndent()
+        )
+    }
+}
+
+val ALL_MIGRATIONS = arrayOf(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13)

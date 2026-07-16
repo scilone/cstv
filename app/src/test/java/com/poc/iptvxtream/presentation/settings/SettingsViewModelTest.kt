@@ -1,6 +1,5 @@
 package com.poc.iptvxtream.presentation.settings
 
-import com.poc.iptvxtream.data.local.storage.CategorySorting
 import com.poc.iptvxtream.data.local.storage.SettingsManager
 import com.poc.iptvxtream.data.local.storage.SyncFrequency
 import com.poc.iptvxtream.domain.model.SubtitleBackground
@@ -32,9 +31,6 @@ class SettingsViewModelTest {
         MockitoAnnotations.openMocks(this)
         
         // Mock default behaviors
-        whenever(settingsManager.getTvCategorySorting()).thenReturn(CategorySorting.DEFAULT)
-        whenever(settingsManager.getVodCategorySorting()).thenReturn(CategorySorting.DEFAULT)
-        whenever(settingsManager.getSeriesCategorySorting()).thenReturn(CategorySorting.DEFAULT)
         whenever(settingsManager.getSyncFrequency()).thenReturn(SyncFrequency.DISABLED)
         whenever(settingsManager.getSubtitleStyle()).thenReturn(SubtitleStyle())
 
@@ -44,33 +40,7 @@ class SettingsViewModelTest {
     @Test
     fun test_initialState_loadsFromSettingsManager() {
         val state = viewModel.state.value
-        assertEquals(CategorySorting.DEFAULT, state.tvSorting)
-        assertEquals(CategorySorting.DEFAULT, state.vodSorting)
-        assertEquals(CategorySorting.DEFAULT, state.seriesSorting)
-    }
-
-    @Test
-    fun test_updateTvSorting_savesToSettingsManager_andUpdatesState() {
-        viewModel.updateTvSorting(CategorySorting.ALPHABETICAL)
-        
-        verify(settingsManager).setTvCategorySorting(CategorySorting.ALPHABETICAL)
-        assertEquals(CategorySorting.ALPHABETICAL, viewModel.state.value.tvSorting)
-    }
-
-    @Test
-    fun test_updateVodSorting_savesToSettingsManager_andUpdatesState() {
-        viewModel.updateVodSorting(CategorySorting.ALPHABETICAL)
-        
-        verify(settingsManager).setVodCategorySorting(CategorySorting.ALPHABETICAL)
-        assertEquals(CategorySorting.ALPHABETICAL, viewModel.state.value.vodSorting)
-    }
-
-    @Test
-    fun test_updateSeriesSorting_savesToSettingsManager_andUpdatesState() {
-        viewModel.updateSeriesSorting(CategorySorting.ALPHABETICAL)
-        
-        verify(settingsManager).setSeriesCategorySorting(CategorySorting.ALPHABETICAL)
-        assertEquals(CategorySorting.ALPHABETICAL, viewModel.state.value.seriesSorting)
+        assertEquals(SyncFrequency.DISABLED, state.syncFrequency)
     }
 
     @Test

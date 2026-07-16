@@ -38,6 +38,12 @@ class HomeViewModelTest {
     @Mock
     private lateinit var getLiveEpgUseCase: com.poc.iptvxtream.domain.usecase.GetLiveEpgUseCase
 
+    @Mock
+    private lateinit var getLiveCategoriesUseCase: com.poc.iptvxtream.domain.usecase.GetLiveCategoriesUseCase
+
+    @Mock
+    private lateinit var categoryPreferenceRepository: com.poc.iptvxtream.domain.repository.CategoryPreferenceRepository
+
     // Phase 42 : StandardTestDispatcher (et non Unconfined) + runCurrent() après
     // construction. HomeViewModel lance désormais un ticker EPG infini
     // (while(true) { delay(60s); ... }) dans son init : avec un dispatcher
@@ -64,7 +70,15 @@ class HomeViewModelTest {
     }
 
     private fun createViewModel(): HomeViewModel {
-        val vm = HomeViewModel(vodRepository, liveTvRepository, seriesRepository, favoritesRepository, getLiveEpgUseCase)
+        val vm = HomeViewModel(
+            vodRepository,
+            liveTvRepository,
+            seriesRepository,
+            favoritesRepository,
+            getLiveEpgUseCase,
+            getLiveCategoriesUseCase,
+            categoryPreferenceRepository
+        )
         testDispatcher.scheduler.runCurrent()
         return vm
     }
@@ -78,6 +92,13 @@ class HomeViewModelTest {
     ) {
         doReturn(flowOf(positions)).whenever(vodRepository).observeAllPlaybackPositions()
         doReturn(flowOf(favorites)).whenever(favoritesRepository).observeFavorites()
+        // Phase 58 : flux de changements de préférences collecté dans init{},
+        // et préférences vides par défaut (aucune catégorie masquée).
+        doReturn(kotlinx.coroutines.flow.emptyFlow<Unit>()).whenever(categoryPreferenceRepository).changes
+    }
+
+    private suspend fun stubEmptyCategoryPreferences() {
+        whenever(categoryPreferenceRepository.getPreferences(any())).thenReturn(emptyMap())
     }
 
     @Test
@@ -89,11 +110,12 @@ class HomeViewModelTest {
             FavoriteItem(2, "live", "Live 1", "cover2", "cat1")
         )
         stubReactiveSources(positions, favorites)
+        stubEmptyCategoryPreferences()
 
         // Mock Live TV
         val liveCats = listOf(LiveCategory("1", "Live Cat 1", 0))
         val liveStreams = listOf(LiveStream(101, "Channel 1", "icon1", null, 1, "1"))
-        whenever(liveTvRepository.getLiveCategories(false)).thenReturn(liveCats)
+        whenever(getLiveCategoriesUseCase(false)).thenReturn(liveCats)
         whenever(liveTvRepository.getLiveStreams("1", false)).thenReturn(liveStreams)
 
         // Mock VOD Movies
@@ -127,9 +149,10 @@ class HomeViewModelTest {
     @Test
     fun test_loadHomeData_partialFailure_keepsOtherSectionsFunctional() = runTest {
         stubReactiveSources()
+        stubEmptyCategoryPreferences()
 
         // Mock Live TV throws exception
-        whenever(liveTvRepository.getLiveCategories(false)).thenThrow(RuntimeException("API Error Live TV"))
+        whenever(getLiveCategoriesUseCase(false)).thenThrow(RuntimeException("API Error Live TV"))
 
         // Mock VOD Movies succeeds
         val vodStreams = listOf(VodStream(201, "Movie A", "icon2", "8.5", "2026", "1"))
@@ -171,7 +194,8 @@ class HomeViewModelTest {
             PlaybackPosition(201, 1000L, 50000L, 1000L, "Show B - S1E1", "cover", "series", "mp4", seriesId = 20, episodeNum = 1, seasonNum = 1)
         )
         stubReactiveSources(positions = positions)
-        whenever(liveTvRepository.getLiveCategories(false)).thenReturn(emptyList())
+        stubEmptyCategoryPreferences()
+        whenever(getLiveCategoriesUseCase(false)).thenReturn(emptyList())
         whenever(vodRepository.getVodStreams("all", false)).thenReturn(emptyList())
         whenever(seriesRepository.getSeriesStreams("all", false)).thenReturn(emptyList())
 
@@ -190,7 +214,8 @@ class HomeViewModelTest {
     @Test
     fun test_loadHomeData_sortsVodAndSeriesByAddedDescending_andLimitsTo20() = runTest {
         stubReactiveSources()
-        whenever(liveTvRepository.getLiveCategories(false)).thenReturn(emptyList())
+        stubEmptyCategoryPreferences()
+        whenever(getLiveCategoriesUseCase(false)).thenReturn(emptyList())
 
         // 22 streams générés avec des dates d'ajout croissantes : le plus récent (id 21, added "21")
         // doit apparaître en premier, et seuls les 20 plus récents doivent être conservés.
@@ -216,9 +241,10 @@ class HomeViewModelTest {
     @Test
     fun test_loadHomeData_liveTvFallback_keepsFirstCategoryLogic_whenSucceeds() = runTest {
         stubReactiveSources()
+        stubEmptyCategoryPreferences()
         val liveCats = listOf(LiveCategory("1", "Live Cat 1", 0), LiveCategory("2", "Live Cat 2", 1))
         val liveStreams = listOf(LiveStream(101, "Channel 1", "icon1", null, 1, "1"))
-        whenever(liveTvRepository.getLiveCategories(false)).thenReturn(liveCats)
+        whenever(getLiveCategoriesUseCase(false)).thenReturn(liveCats)
         whenever(liveTvRepository.getLiveStreams("1", false)).thenReturn(liveStreams)
         whenever(vodRepository.getVodStreams("all", false)).thenReturn(emptyList())
         whenever(seriesRepository.getSeriesStreams("all", false)).thenReturn(emptyList())

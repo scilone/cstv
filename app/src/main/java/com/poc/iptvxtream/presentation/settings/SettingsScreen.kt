@@ -36,7 +36,6 @@ import androidx.tv.material3.Button as TvButton
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.MaterialTheme as TvTheme
 import androidx.tv.material3.Text as TvText
-import com.poc.iptvxtream.data.local.storage.CategorySorting
 
 @Composable
 fun SettingsScreen(
@@ -44,6 +43,7 @@ fun SettingsScreen(
     isTv: Boolean,
     onBack: () -> Unit,
     onLogout: () -> Unit,
+    onManageCategories: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -57,9 +57,7 @@ fun SettingsScreen(
         if (isTv) {
             TvSettingsLayout(
                 state = state,
-                onTvSortingChanged = { viewModel.updateTvSorting(it) },
-                onVodSortingChanged = { viewModel.updateVodSorting(it) },
-                onSeriesSortingChanged = { viewModel.updateSeriesSorting(it) },
+                onManageCategories = onManageCategories,
                 onSyncFrequencyChanged = { viewModel.updateSyncFrequency(it) },
                 onForceSyncNow = { viewModel.forceSyncNow() },
                 onSubtitleSizeChanged = { viewModel.updateSubtitleSize(it) },
@@ -71,9 +69,7 @@ fun SettingsScreen(
         } else {
             MobileSettingsLayout(
                 state = state,
-                onTvSortingChanged = { viewModel.updateTvSorting(it) },
-                onVodSortingChanged = { viewModel.updateVodSorting(it) },
-                onSeriesSortingChanged = { viewModel.updateSeriesSorting(it) },
+                onManageCategories = onManageCategories,
                 onSyncFrequencyChanged = { viewModel.updateSyncFrequency(it) },
                 onForceSyncNow = { viewModel.forceSyncNow() },
                 onSubtitleSizeChanged = { viewModel.updateSubtitleSize(it) },
@@ -90,9 +86,7 @@ fun SettingsScreen(
 @Composable
 private fun TvSettingsLayout(
     state: SettingsState,
-    onTvSortingChanged: (CategorySorting) -> Unit,
-    onVodSortingChanged: (CategorySorting) -> Unit,
-    onSeriesSortingChanged: (CategorySorting) -> Unit,
+    onManageCategories: () -> Unit,
     onSyncFrequencyChanged: (SyncFrequency) -> Unit,
     onForceSyncNow: () -> Unit,
     onSubtitleSizeChanged: (SubtitleTextSize) -> Unit,
@@ -140,30 +134,14 @@ private fun TvSettingsLayout(
         }
 
         TvText(
-            text = "Configurez l'ordre d'affichage des catégories par défaut (ordre renvoyé par l'API) ou alphabétique, ainsi que la mise à jour automatique en arrière-plan.",
+            text = "Gérez les catégories affichées (masquage et ordre par profil) et la mise à jour automatique en arrière-plan.",
             color = Color.Gray,
             style = TvTheme.typography.bodyMedium,
             modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
         )
 
-        // TV Configuration Sections
-        TvSettingCard(
-            title = "CATÉGORIES LIVE TV",
-            currentSorting = state.tvSorting,
-            onSortingChanged = onTvSortingChanged
-        )
-
-        TvSettingCard(
-            title = "CATÉGORIES FILMS VOD",
-            currentSorting = state.vodSorting,
-            onSortingChanged = onVodSortingChanged
-        )
-
-        TvSettingCard(
-            title = "CATÉGORIES SÉRIES",
-            currentSorting = state.seriesSorting,
-            onSortingChanged = onSeriesSortingChanged
-        )
+        // Gestion des catégories (Phase 58)
+        TvManageCategoriesCard(onManageCategories = onManageCategories)
 
         TvSyncFrequencyCard(
             currentFrequency = state.syncFrequency,
@@ -201,11 +179,7 @@ private fun TvSettingsLayout(
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
-private fun TvSettingCard(
-    title: String,
-    currentSorting: CategorySorting,
-    onSortingChanged: (CategorySorting) -> Unit
-) {
+private fun TvManageCategoriesCard(onManageCategories: () -> Unit) {
     Card(
         colors = CardDefaults.cardColors(containerColor = Surface3),
         modifier = Modifier.fillMaxWidth()
@@ -215,29 +189,21 @@ private fun TvSettingCard(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             TvText(
-                text = title,
+                text = "GESTION DES CATÉGORIES",
                 color = MaterialTheme.colorScheme.primary,
                 fontWeight = FontWeight.Bold,
                 style = TvTheme.typography.titleMedium
             )
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            TvText(
+                text = "Masquez ou réordonnez les catégories Live TV, Films et Séries pour le profil actif.",
+                color = Color.Gray,
+                style = TvTheme.typography.bodySmall
+            )
+            TvButton(
+                onClick = onManageCategories,
+                modifier = Modifier.fillMaxWidth().height(40.dp)
             ) {
-                TvSortingOptionButton(
-                    label = "ORDRE PAR DÉFAUT (API)",
-                    isSelected = currentSorting == CategorySorting.DEFAULT,
-                    onClick = { onSortingChanged(CategorySorting.DEFAULT) },
-                    modifier = Modifier.weight(1f)
-                )
-
-                TvSortingOptionButton(
-                    label = "ORDRE ALPHABÉTIQUE (A-Z)",
-                    isSelected = currentSorting == CategorySorting.ALPHABETICAL,
-                    onClick = { onSortingChanged(CategorySorting.ALPHABETICAL) },
-                    modifier = Modifier.weight(1f)
-                )
+                TvText("GÉRER LES CATÉGORIES", style = TvTheme.typography.labelMedium)
             }
         }
     }
@@ -289,9 +255,7 @@ private fun TvSortingOptionButton(
 @Composable
 private fun MobileSettingsLayout(
     state: SettingsState,
-    onTvSortingChanged: (CategorySorting) -> Unit,
-    onVodSortingChanged: (CategorySorting) -> Unit,
-    onSeriesSortingChanged: (CategorySorting) -> Unit,
+    onManageCategories: () -> Unit,
     onSyncFrequencyChanged: (SyncFrequency) -> Unit,
     onForceSyncNow: () -> Unit,
     onSubtitleSizeChanged: (SubtitleTextSize) -> Unit,
@@ -329,7 +293,7 @@ private fun MobileSettingsLayout(
         }
 
         Text(
-            text = "Configurez vos préférences de tri et de mise à jour en arrière-plan.",
+            text = "Gérez les catégories affichées et la mise à jour en arrière-plan.",
             color = Color.Gray,
             fontSize = 14.sp,
             textAlign = TextAlign.Start,
@@ -338,29 +302,8 @@ private fun MobileSettingsLayout(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // TV Categories
-        MobileSettingCard(
-            title = "Télévision en Direct (Live TV)",
-            description = "Ordre des catégories pour la télévision en direct.",
-            currentSorting = state.tvSorting,
-            onSortingChanged = onTvSortingChanged
-        )
-
-        // VOD Categories
-        MobileSettingCard(
-            title = "Films (VOD)",
-            description = "Ordre des catégories pour le catalogue de films.",
-            currentSorting = state.vodSorting,
-            onSortingChanged = onVodSortingChanged
-        )
-
-        // Series Categories
-        MobileSettingCard(
-            title = "Séries",
-            description = "Ordre des catégories pour le catalogue de séries.",
-            currentSorting = state.seriesSorting,
-            onSortingChanged = onSeriesSortingChanged
-        )
+        // Gestion des catégories (Phase 58)
+        MobileManageCategoriesCard(onManageCategories = onManageCategories)
 
         // Background Sync Frequency
         MobileSyncFrequencyCard(
@@ -407,12 +350,7 @@ private fun MobileSettingsLayout(
 }
 
 @Composable
-private fun MobileSettingCard(
-    title: String,
-    description: String,
-    currentSorting: CategorySorting,
-    onSortingChanged: (CategorySorting) -> Unit
-) {
+private fun MobileManageCategoriesCard(onManageCategories: () -> Unit) {
     Card(
         colors = CardDefaults.cardColors(containerColor = Surface3),
         modifier = Modifier.fillMaxWidth()
@@ -423,35 +361,25 @@ private fun MobileSettingCard(
         ) {
             Column {
                 Text(
-                    text = title,
+                    text = "Gestion des catégories",
                     color = Color.White,
                     fontWeight = FontWeight.Bold,
                     fontSize = 15.sp
                 )
                 Text(
-                    text = description,
+                    text = "Masquez ou réordonnez les catégories Live TV, Films et Séries pour le profil actif.",
                     color = Color.Gray,
                     fontSize = 12.sp
                 )
             }
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            Button(
+                onClick = onManageCategories,
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                shape = RoundedCornerShape(8.dp),
+                modifier = Modifier.fillMaxWidth().height(40.dp)
             ) {
-                MobileSortingOptionButton(
-                    label = "Par défaut (API)",
-                    isSelected = currentSorting == CategorySorting.DEFAULT,
-                    onClick = { onSortingChanged(CategorySorting.DEFAULT) },
-                    modifier = Modifier.weight(1f)
-                )
-
-                MobileSortingOptionButton(
-                    label = "Alphabétique (A-Z)",
-                    isSelected = currentSorting == CategorySorting.ALPHABETICAL,
-                    onClick = { onSortingChanged(CategorySorting.ALPHABETICAL) },
-                    modifier = Modifier.weight(1f)
-                )
+                Text("Gérer les catégories", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
             }
         }
     }

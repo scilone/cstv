@@ -28,7 +28,8 @@ class LiveTvViewModel @Inject constructor(
     private val getRecentlyWatchedUseCase: GetRecentlyWatchedUseCase,
     private val saveRecentlyWatchedUseCase: SaveRecentlyWatchedUseCase,
     private val getLiveEpgUseCase: GetLiveEpgUseCase,
-    private val credentialsManager: CredentialsManager
+    private val credentialsManager: CredentialsManager,
+    private val categoryPreferenceRepository: com.poc.iptvxtream.domain.repository.CategoryPreferenceRepository
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(LiveTvState())
@@ -47,6 +48,12 @@ class LiveTvViewModel @Inject constructor(
     init {
         loadCategories()
         loadRecentlyWatched()
+        // Recharge les catégories quand les préférences (masquage/ordre, Phase 58)
+        // changent : ce ViewModel survit en backstack pendant le passage par les
+        // Paramètres, l'init seul ne suffit pas.
+        viewModelScope.launch {
+            categoryPreferenceRepository.changes.collect { loadCategories() }
+        }
     }
 
     // Guards against duplicate concurrent fetches and hammering channels without EPG data

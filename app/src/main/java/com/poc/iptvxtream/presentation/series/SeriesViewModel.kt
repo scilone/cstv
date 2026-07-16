@@ -32,7 +32,8 @@ class SeriesViewModel @Inject constructor(
     private val savePlaybackPositionUseCase: SavePlaybackPositionUseCase,
     private val credentialsManager: CredentialsManager,
     private val settingsManager: SettingsManager,
-    private val trackPreferenceRepository: com.poc.iptvxtream.domain.repository.TrackPreferenceRepository
+    private val trackPreferenceRepository: com.poc.iptvxtream.domain.repository.TrackPreferenceRepository,
+    private val categoryPreferenceRepository: com.poc.iptvxtream.domain.repository.CategoryPreferenceRepository
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(SeriesState())
@@ -50,6 +51,11 @@ class SeriesViewModel @Inject constructor(
 
     init {
         loadCategories()
+        // Recharge les catégories au changement de préférences (masquage/ordre,
+        // Phase 58) : le ViewModel survit en backstack pendant les Paramètres.
+        viewModelScope.launch {
+            categoryPreferenceRepository.changes.collect { loadCategories() }
+        }
     }
 
     fun savePreferredAudio(lang: String?) {

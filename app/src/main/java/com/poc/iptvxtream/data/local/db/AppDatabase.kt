@@ -8,6 +8,8 @@ import com.poc.iptvxtream.data.local.dao.VodDao
 import com.poc.iptvxtream.data.local.dao.FavoritesDao
 import com.poc.iptvxtream.data.local.dao.ProfileDao
 import com.poc.iptvxtream.data.local.dao.TrackPreferenceDao
+import com.poc.iptvxtream.data.local.dao.CategoryPreferenceDao
+import com.poc.iptvxtream.data.local.entity.CategoryPreferenceEntity
 import com.poc.iptvxtream.data.local.entity.ProfileEntity
 import com.poc.iptvxtream.data.local.entity.TrackPreferenceEntity
 import com.poc.iptvxtream.data.local.entity.LiveCategoryEntity
@@ -40,9 +42,10 @@ import com.poc.iptvxtream.data.local.entity.SeriesStreamFtsEntity
         TrackPreferenceEntity::class,
         LiveStreamFtsEntity::class,
         VodStreamFtsEntity::class,
-        SeriesStreamFtsEntity::class
+        SeriesStreamFtsEntity::class,
+        CategoryPreferenceEntity::class
     ],
-    version = 12,
+    version = 13,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -52,4 +55,5 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun favoritesDao(): FavoritesDao
     abstract fun profileDao(): ProfileDao
     abstract fun trackPreferenceDao(): TrackPreferenceDao
+    abstract fun categoryPreferenceDao(): CategoryPreferenceDao
 }

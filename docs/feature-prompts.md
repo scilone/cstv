@@ -6,7 +6,7 @@ Chaque bloc est un prompt autonome, prêt à être donné tel quel dans une sess
 
 ## 1. Gestion des catégories (masquer / réordonner) par profil
 
-**Modèle recommandé : Opus 4.8, effort élevé** — migration Room + refonte requêtes multi-écrans + UI drag&drop, périmètre large et risque de régression élevé.
+✅ **TERMINÉE** — Fable 5. Table Room `category_preferences` (clé composite `categoryId, type, profileId`, migration 12→13), repository `CategoryPreferenceRepository` (avec flux `changes` pour recharger les grilles/Home au retour des Paramètres), filtrage+ordre appliqués dans les 3 use cases de catégories et sur la Home, écran « Gestion des catégories » dans les Paramètres (onglets TV/Films/Séries, toggle masquer, réordonnancement par boutons haut/bas compatibles D-pad), suppression de `CategorySorting.ALPHABETICAL`, nettoyage des préférences à la suppression d'un profil.
 
 Ajoute la possibilité de masquer et réordonner les catégories Live TV / VOD / Séries, avec une configuration **par profil** (pas globale).
 

@@ -8,10 +8,13 @@ import com.poc.iptvxtream.domain.model.LiveCategory
 import com.poc.iptvxtream.domain.model.LiveStream
 import com.poc.iptvxtream.domain.model.VodStream
 import com.poc.iptvxtream.domain.model.SeriesStream
+import com.poc.iptvxtream.domain.model.CategoryType
+import com.poc.iptvxtream.domain.repository.CategoryPreferenceRepository
 import com.poc.iptvxtream.domain.repository.FavoritesRepository
 import com.poc.iptvxtream.domain.repository.LiveTvRepository
 import com.poc.iptvxtream.domain.repository.SeriesRepository
 import com.poc.iptvxtream.domain.repository.VodRepository
+import com.poc.iptvxtream.domain.usecase.GetLiveCategoriesUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -47,7 +50,9 @@ class HomeViewModel @Inject constructor(
     private val liveTvRepository: LiveTvRepository,
     private val seriesRepository: SeriesRepository,
     private val favoritesRepository: FavoritesRepository,
-    private val getLiveEpgUseCase: GetLiveEpgUseCase
+    private val getLiveEpgUseCase: GetLiveEpgUseCase,
+    private val getLiveCategoriesUseCase: GetLiveCategoriesUseCase,
+    private val categoryPreferenceRepository: CategoryPreferenceRepository
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(HomeState())
@@ -78,6 +83,11 @@ class HomeViewModel @Inject constructor(
 
     init {
         loadHomeData()
+        // Phase 58 : recharge la Home quand les préférences de catégories
+        // (masquage/ordre) changent — le ViewModel est partagé au niveau app.
+        viewModelScope.launch {
+            categoryPreferenceRepository.changes.collect { loadHomeData() }
+        }
         // Phase 41 : "Continuer à regarder" et "Favoris" restent à jour en
         // continu (ajout/suppression d'un favori ailleurs dans l'app, reprise
         // de lecture) sans reload manuel ni ré-écoute du changement de profil
@@ -151,6 +161,17 @@ class HomeViewModel @Inject constructor(
         }
     }
 
+    private suspend fun hiddenCategoryIds(type: CategoryType): Set<String> {
+        return try {
+            categoryPreferenceRepository.getPreferences(type)
+                .filterValues { it.hidden }
+                .keys
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            emptySet()
+        }
+    }
+
     fun loadHomeData() {
         viewModelScope.launch {
             _state.update { it.copy(isLoading = true, error = null) }
@@ -160,8 +181,9 @@ class HomeViewModel @Inject constructor(
                 // ponctuel ici.
 
                 // 3. Fetch TV - First Live Category and its Streams
+                // (catégories filtrées/ordonnées selon les préférences du profil, Phase 58)
                 val liveCategories = try {
-                    liveTvRepository.getLiveCategories(forceRefresh = false)
+                    getLiveCategoriesUseCase(forceRefresh = false)
                 } catch (e: Exception) {
                     if (e is kotlinx.coroutines.CancellationException) throw e
                     emptyList()
@@ -183,7 +205,9 @@ class HomeViewModel @Inject constructor(
                     if (e is kotlinx.coroutines.CancellationException) throw e
                     emptyList()
                 }
+                val hiddenVodCategories = hiddenCategoryIds(CategoryType.VOD)
                 val firstVodStreams = allVodStreams
+                    .filter { it.categoryId !in hiddenVodCategories }
                     .sortedByDescending { it.added?.toLongOrNull() ?: 0L }
                     .take(20)
 
@@ -194,7 +218,9 @@ class HomeViewModel @Inject constructor(
                     if (e is kotlinx.coroutines.CancellationException) throw e
                     emptyList()
                 }
+                val hiddenSeriesCategories = hiddenCategoryIds(CategoryType.SERIES)
                 val firstSeriesStreams = allSeriesStreams
+                    .filter { it.categoryId !in hiddenSeriesCategories }
                     .sortedByDescending { it.added?.toLongOrNull() ?: 0L }
                     .take(20)
 

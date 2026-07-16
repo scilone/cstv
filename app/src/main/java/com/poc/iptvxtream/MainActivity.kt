@@ -90,6 +90,7 @@ enum class AppScreen {
     FAVORITES,
     SEARCH,
     SETTINGS,
+    CATEGORY_MANAGEMENT,
     PROFILE_SELECTION,
     PROFILE_MANAGEMENT
 }
@@ -612,6 +613,19 @@ class MainActivity : ComponentActivity() {
                                     loggedInUser = null
                                     screenHistory.clear()
                                     currentScreen = AppScreen.LOGIN
+                                },
+                                onManageCategories = {
+                                    navigateTo(AppScreen.CATEGORY_MANAGEMENT)
+                                }
+                            )
+                        }
+                        AppScreen.CATEGORY_MANAGEMENT -> {
+                            val categoryManagementViewModel: com.poc.iptvxtream.presentation.settings.CategoryManagementViewModel = hiltViewModel()
+                            com.poc.iptvxtream.presentation.settings.CategoryManagementScreen(
+                                viewModel = categoryManagementViewModel,
+                                isTv = isTv,
+                                onBack = {
+                                    navigateBack()
                                 }
                             )
                         }

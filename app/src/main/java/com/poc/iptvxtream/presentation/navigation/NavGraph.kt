@@ -313,6 +313,19 @@ fun AppNavGraph(
                     navController.navigate("login") {
                         popUpTo(0) { inclusive = true }
                     }
+                },
+                onManageCategories = {
+                    navController.navigate("category_management")
+                }
+            )
+        }
+        composable("category_management") {
+            val categoryManagementViewModel: com.poc.iptvxtream.presentation.settings.CategoryManagementViewModel = hiltViewModel()
+            com.poc.iptvxtream.presentation.settings.CategoryManagementScreen(
+                viewModel = categoryManagementViewModel,
+                isTv = false,
+                onBack = {
+                    navController.popBackStack()
                 }
             )
         }

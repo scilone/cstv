@@ -24,6 +24,7 @@ class ProfileRepositoryImplTest {
     @Mock private lateinit var vodDao: VodDao
     @Mock private lateinit var liveTvDao: LiveTvDao
     @Mock private lateinit var trackPreferenceDao: com.poc.iptvxtream.data.local.dao.TrackPreferenceDao
+    @Mock private lateinit var categoryPreferenceDao: com.poc.iptvxtream.data.local.dao.CategoryPreferenceDao
 
     private lateinit var repository: ProfileRepositoryImpl
 
@@ -33,7 +34,7 @@ class ProfileRepositoryImplTest {
     @Before
     fun setUp() {
         MockitoAnnotations.openMocks(this)
-        repository = ProfileRepositoryImpl(profileDao, profileManager, favoritesDao, vodDao, liveTvDao, trackPreferenceDao)
+        repository = ProfileRepositoryImpl(profileDao, profileManager, favoritesDao, vodDao, liveTvDao, trackPreferenceDao, categoryPreferenceDao)
     }
 
     @Test
