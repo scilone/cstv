@@ -6,6 +6,6 @@ import com.poc.iptvxtream.domain.model.UserInfo
 interface AuthRepository {
     suspend fun login(credentials: Credentials): UserInfo
     fun saveCredentials(credentials: Credentials)
-    fun getSavedCredentials(): Credentials?
+    suspend fun getSavedCredentials(): Credentials?
     fun clearCredentials()
 }

@@ -6,6 +6,8 @@ import com.poc.iptvxtream.data.remote.api.XtreamApiService
 import com.poc.iptvxtream.data.remote.api.XtreamRequestGate
 import com.poc.iptvxtream.domain.model.*
 import com.poc.iptvxtream.domain.repository.AuthRepository
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.io.IOException
 import java.net.ConnectException
 import java.net.SocketTimeoutException
@@ -73,8 +75,12 @@ class AuthRepositoryImpl @Inject constructor(
         credentialsManager.saveCredentials(credentials)
     }
 
-    override fun getSavedCredentials(): Credentials? {
-        return credentialsManager.getCredentials()
+    // Déchiffrement Keystore (IPC vers le daemon keystore) : coûteux et
+    // synchrone dans CredentialsManager, ne doit jamais tourner sur Main
+    // (voir historique de LoginViewModel.checkAutoLogin, appelé depuis
+    // ViewModel.init avant la première frame Compose).
+    override suspend fun getSavedCredentials(): Credentials? = withContext(Dispatchers.IO) {
+        credentialsManager.getCredentials()
     }
 
     override fun clearCredentials() {

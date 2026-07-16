@@ -113,9 +113,6 @@ class MainActivity : ComponentActivity() {
             
             Surface(modifier = Modifier.fillMaxSize()) {
                 val loginViewModel: LoginViewModel = hiltViewModel()
-                val favoritesViewModel: FavoritesViewModel = hiltViewModel()
-                val homeViewModel: HomeViewModel = hiltViewModel()
-                val settingsViewModel: SettingsViewModel = hiltViewModel()
 
                 val autoLoginState by loginViewModel.autoLoginState.collectAsStateWithLifecycle()
                 
@@ -179,9 +176,6 @@ class MainActivity : ComponentActivity() {
                 var activeSeriesDetails by remember { mutableStateOf<SeriesDetails?>(null) }
                 var activeEpisode by remember { mutableStateOf<SeriesEpisode?>(null) }
 
-                // Get global reactive favorites list
-                val favsState by favoritesViewModel.state.collectAsStateWithLifecycle()
-
                 // --- Sélection de profil (Phase 27) ---
                 // Gate unique couvrant TV et mobile : après login/auto-login, on
                 // garantit un profil actif et on affiche l'écran de sélection
@@ -237,6 +231,16 @@ class MainActivity : ComponentActivity() {
                         }
                     )
                 } else {
+                    // Home/Favoris/Settings ne servent qu'à partir d'ici (après
+                    // splash + gate profil) : les créer plus tôt faisait tourner
+                    // leur fetch réseau initial (loadHomeData, etc.) en concurrence
+                    // avec l'auto-login et le gate profil, contribuant aux
+                    // freezes/chargements à rallonge observés au démarrage à froid.
+                    val favoritesViewModel: FavoritesViewModel = hiltViewModel()
+                    val homeViewModel: HomeViewModel = hiltViewModel()
+                    val settingsViewModel: SettingsViewModel = hiltViewModel()
+                    val favsState by favoritesViewModel.state.collectAsStateWithLifecycle()
+
                     if (isTv) {
                         // Safe Back Button Handler for Android TV / Custom Back
                     BackHandler(enabled = currentScreen != AppScreen.LOGIN) {
