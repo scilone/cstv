@@ -3,7 +3,7 @@
 # suivre la démarche par étapes de l'audit (#4).
 
 [versions]
-agp = "8.2.2"
+agp = "8.7.3"
 kotlin = "1.9.24"
 ksp = "1.9.24-1.0.20"
 hilt = "2.51.1"
