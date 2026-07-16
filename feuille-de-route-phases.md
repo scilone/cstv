@@ -789,3 +789,14 @@ Attendu :
   - Quand on est sur la catégorie virtuelle "Tout", ajouter un bouton "Voir tout" à droite de chaque section horizontale (comme sur l'écran d'accueil).
   - Ajouter également la section "Favoris" sur cet écran de TV en direct.
 - Grille de chaînes à 2 colonnes par ligne : lorsqu'on clique sur une catégorie spécifique, les chaînes doivent s'afficher en défilement vertical, mais sous forme d'une grille à 2 colonnes par ligne (2 médias par ligne) au lieu d'une seule colonne.
+
+---
+
+Phase 57 : retours sur les onglets Films/Séries et fiches détails.
+
+Attendu :
+- Bouton "Voir tout" sur les Favoris : dans l'onglet "Tout" des écrans Films et Séries, s'assurer de rajouter le bouton "Voir tout" à droite de la section "Favoris" (comme pour les autres sections et cohérent avec la Phase 56).
+- Grille à 3 colonnes pour les catégories filtrées : lorsqu'un utilisateur sélectionne une catégorie spécifique dans le catalogue Films ou Séries, l'affichage vertical en grille doit s'organiser en lignes de 3 médias par ligne au lieu de 2 (identique au design des grilles "Voir tout" de la recherche).
+- Unification de la taille des vignettes Films/Séries : la taille des vignettes de films et séries entre les sliders de la Home et ceux de l'onglet "Tout" des catalogues doit être harmonisée. Conserver et généraliser le format de la Home car il permet d'intégrer élégamment la note de notation que l'utilisateur apprécie.
+- Année uniquement sur les fiches détails : sur la fiche détail de film (`VodDetailsScreen.kt`) et de série (`SeriesDetailsScreen.kt`), afficher uniquement l'année de sortie à la place de la date de sortie complète.
+- Épurage de l'en-tête retour arrière : sur les fiches détails, tout en haut à gauche à côté de la flèche de retour arrière, supprimer définitivement le texte d'en-tête "Détail..." pour avoir une navigation épurée.
