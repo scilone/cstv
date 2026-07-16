@@ -59,6 +59,11 @@ import com.poc.iptvxtream.domain.model.FavoriteItem
 import com.poc.iptvxtream.domain.model.LiveStream
 import com.poc.iptvxtream.domain.model.VodStream
 import com.poc.iptvxtream.domain.model.SeriesStream
+import com.poc.iptvxtream.presentation.theme.DividerDark
+import com.poc.iptvxtream.presentation.theme.TextBright
+import com.poc.iptvxtream.presentation.theme.TextSoft
+import com.poc.iptvxtream.presentation.theme.TextDim
+import com.poc.iptvxtream.presentation.theme.WhiteOverlay20
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
@@ -200,7 +205,7 @@ fun HomeScreen(
                                         text = activeProfileName,
                                         fontSize = 19.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = Color(0xFFF4F4F7),
+                                        color = TextBright,
                                         letterSpacing = (-0.01).sp,
                                         fontFamily = BricolageGrotesque
                                     )
@@ -213,19 +218,19 @@ fun HomeScreen(
                                             text = userInfo.username.uppercase(),
                                             fontSize = 10.5.sp,
                                             fontWeight = FontWeight.Medium,
-                                            color = Color(0xFF7A7A86),
+                                            color = TextDim,
                                             fontFamily = FontFamily.Monospace
                                         )
                                         Box(
                                             modifier = Modifier
                                                 .size(3.dp)
-                                                .background(Color(0xFF4A4A54), shape = RoundedCornerShape(1.5.dp))
+                                                .background(DividerDark, shape = RoundedCornerShape(1.5.dp))
                                         )
                                         Text(
                                             text = "Exp. ${userInfo.expiryDate}",
                                             fontSize = 10.5.sp,
                                             fontWeight = FontWeight.Medium,
-                                            color = Color(0xFF7A7A86),
+                                            color = TextDim,
                                             fontFamily = HankenGrotesk
                                         )
                                     }
@@ -256,7 +261,7 @@ fun HomeScreen(
                                 Icon(
                                     Icons.Default.Settings,
                                     contentDescription = stringResource(R.string.home_see_all),
-                                    tint = Color(0xFFC7C7D1),
+                                    tint = TextSoft,
                                     modifier = Modifier.size(21.dp)
                                 )
                             }
@@ -478,7 +483,7 @@ private fun HomeExpandedGrid(
         ) {
             IconButton(
                 onClick = onBack,
-                modifier = Modifier.background(Color(0x33FFFFFF), shape = RoundedCornerShape(12.dp))
+                modifier = Modifier.background(WhiteOverlay20, shape = RoundedCornerShape(12.dp))
             ) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.common_back), tint = Color.White)
             }
@@ -537,7 +542,7 @@ private fun HomeSectionRow(
                 fontSize = 18.sp,
                 fontWeight = FontWeight.SemiBold,
                 letterSpacing = (-0.01).sp,
-                color = Color(0xFFF4F4F7)
+                color = TextBright
             )
             if (onSeeAll != null) {
                 Spacer(modifier = Modifier.weight(1f))

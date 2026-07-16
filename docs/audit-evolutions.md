@@ -19,7 +19,7 @@ une session IA, classé par urgence décroissante.
 | 5 | ✅ Compléter les tests ViewModels (5 manquants) | 🟡 | L |
 | 6 | Factoriser les 3 players (~2500 lignes dupliquées) | 🟡 | L |
 | 7 | Pagination des catalogues volumineux | 🟡 | L |
-| 8 | Finir la migration couleurs vers le thème (99 restantes) | 🟡 | M |
+| 8 | ✅ Finir la migration couleurs vers le thème (99 restantes) | 🟡 | M |
 | 9 | Restreindre réellement le cleartext HTTP | 🟡 | S |
 | 10 | ✅ Version catalog Gradle | 🟢 | S |
 | 11 | Finir l'externalisation i18n (55 strings) | 🟢 | M |
@@ -254,7 +254,7 @@ plafond de perf.
 
 ---
 
-## 8. 🟡 Finir la migration couleurs vers le thème — Effort M
+## 8. 🟡 Finir la migration couleurs vers le thème — Effort M — ✅ FAIT
 
 **Constat.** Le design system existe (Phase 46 : `presentation/theme/`,
 palette + typo) mais **99 occurrences de `Color(0x…)` en dur** subsistent

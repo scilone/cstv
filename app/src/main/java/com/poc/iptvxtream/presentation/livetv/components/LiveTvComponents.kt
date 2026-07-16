@@ -46,6 +46,10 @@ import com.poc.iptvxtream.presentation.theme.TextPrimary
 import com.poc.iptvxtream.presentation.theme.TextSecondary
 import com.poc.iptvxtream.presentation.rememberForeverLazyListState
 import kotlinx.coroutines.delay
+import com.poc.iptvxtream.presentation.theme.SurfaceFocused
+import com.poc.iptvxtream.presentation.theme.SurfaceElevated
+import com.poc.iptvxtream.presentation.theme.SurfaceFocusedAlt
+import com.poc.iptvxtream.presentation.theme.TextMuted
 
 @Composable
 fun CategorySectionRow(
@@ -263,8 +267,8 @@ fun CategoryFilterChip(
             .background(
                 when {
                     isSelected -> MaterialTheme.colorScheme.primary
-                    isFocused -> Color(0xFF2C2C35)
-                    else -> Color(0xFF2A2A35)
+                    isFocused -> SurfaceFocused
+                    else -> SurfaceElevated
                 }
             )
             .clickable { onClick() }
@@ -450,7 +454,7 @@ fun MobileRecentlyWatchedItem(
             }
             Text(
                 text = epgProgram?.formattedTimeRange() ?: "",
-                color = Color(0xFF63636F),
+                color = TextMuted,
                 fontSize = 10.sp,
                 lineHeight = 12.sp,
                 fontFamily = HankenGrotesk,
@@ -572,7 +576,7 @@ fun MobileChannelGridCard(
             )
             Text(
                 text = epgProgram.formattedTimeRange(),
-                color = Color(0xFF63636F),
+                color = TextMuted,
                 fontSize = 10.sp,
                 lineHeight = 12.sp,
                 fontFamily = HankenGrotesk,
@@ -600,7 +604,7 @@ fun RecentlyWatchedTvItem(
 
     Card(
         colors = CardDefaults.cardColors(
-            containerColor = if (isFocused) Color(0xFF23232D) else Surface3
+            containerColor = if (isFocused) SurfaceFocusedAlt else Surface3
         ),
         modifier = Modifier
             .width(180.dp)
@@ -700,7 +704,7 @@ fun StreamTvCard(
 
     Card(
         colors = CardDefaults.cardColors(
-            containerColor = if (isFocused) Color(0xFF23232D) else Surface3
+            containerColor = if (isFocused) SurfaceFocusedAlt else Surface3
         ),
         modifier = Modifier
             .fillMaxWidth()

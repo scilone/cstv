@@ -55,6 +55,10 @@ import com.poc.iptvxtream.presentation.home.components.HomeSeriesShowCard
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.ExperimentalMaterial3Api
+import com.poc.iptvxtream.presentation.theme.SurfaceFocused
+import com.poc.iptvxtream.presentation.theme.SurfaceElevated
+import com.poc.iptvxtream.presentation.theme.SurfaceFocusedAlt
+import com.poc.iptvxtream.presentation.theme.ScrimHeavy
 
 @Composable
 fun SeriesScreen(
@@ -482,7 +486,7 @@ private fun MobileLayout(
                                                 .align(Alignment.TopEnd)
                                                 .padding(6.dp)
                                                 .clip(RoundedCornerShape(4.dp))
-                                                .background(Color(0xCC000000))
+                                                .background(ScrimHeavy)
                                                 .padding(horizontal = 6.dp, vertical = 3.dp)
                                         ) {
                                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -593,8 +597,8 @@ private fun CategoryFilterChip(
             .background(
                 when {
                     isSelected -> MaterialTheme.colorScheme.primary
-                    isFocused -> Color(0xFF2C2C35)
-                    else -> Color(0xFF2A2A35)
+                    isFocused -> SurfaceFocused
+                    else -> SurfaceElevated
                 }
             )
             .clickable { onClick() }
@@ -618,7 +622,7 @@ private fun SeriesTvCard(
 
     Card(
         colors = CardDefaults.cardColors(
-            containerColor = if (isFocused) Color(0xFF23232D) else Surface3
+            containerColor = if (isFocused) SurfaceFocusedAlt else Surface3
         ),
         modifier = Modifier
             .width(150.dp)
@@ -662,7 +666,7 @@ private fun SeriesTvCard(
                             .align(Alignment.TopEnd)
                             .padding(8.dp)
                             .clip(RoundedCornerShape(4.dp))
-                            .background(Color(0xCC000000))
+                            .background(ScrimHeavy)
                             .padding(horizontal = 6.dp, vertical = 3.dp)
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {

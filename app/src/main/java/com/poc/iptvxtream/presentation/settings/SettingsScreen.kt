@@ -37,6 +37,9 @@ import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.MaterialTheme as TvTheme
 import androidx.tv.material3.Text as TvText
 import com.poc.iptvxtream.data.local.storage.CategorySorting
+import com.poc.iptvxtream.presentation.theme.ErrorRose
+import com.poc.iptvxtream.presentation.theme.SurfaceFocused
+import com.poc.iptvxtream.presentation.theme.SurfaceSlider
 
 @Composable
 fun SettingsScreen(
@@ -189,11 +192,11 @@ private fun TvSettingsLayout(
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ExitToApp,
                     contentDescription = "Déconnexion",
-                    tint = Color(0xFFCF6679),
+                    tint = ErrorRose,
                     modifier = Modifier.size(18.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
-                TvText("DÉCONNEXION", style = TvTheme.typography.labelLarge, color = Color(0xFFCF6679), fontWeight = FontWeight.Bold)
+                TvText("DÉCONNEXION", style = TvTheme.typography.labelLarge, color = ErrorRose, fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -263,7 +266,7 @@ private fun TvSortingOptionButton(
                 when {
                     isSelected -> MaterialTheme.colorScheme.primary
                     isFocused -> Color.LightGray.copy(alpha = 0.2f)
-                    else -> Color(0xFF2C2C35)
+                    else -> SurfaceFocused
                 }
             )
             .border(
@@ -383,7 +386,7 @@ private fun MobileSettingsLayout(
 
         Button(
             onClick = onLogout,
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFCF6679)),
+            colors = ButtonDefaults.buttonColors(containerColor = ErrorRose),
             shape = RoundedCornerShape(8.dp),
             modifier = Modifier.fillMaxWidth().height(44.dp)
         ) {
@@ -467,7 +470,7 @@ private fun MobileSortingOptionButton(
     Button(
         onClick = onClick,
         colors = ButtonDefaults.buttonColors(
-            containerColor = if (isSelected) MaterialTheme.colorScheme.primary else Color(0xFF2C2C35),
+            containerColor = if (isSelected) MaterialTheme.colorScheme.primary else SurfaceFocused,
             contentColor = Color.White
         ),
         shape = RoundedCornerShape(8.dp),
@@ -663,7 +666,7 @@ private fun SubtitlePreview(style: SubtitleStyle, modifier: Modifier = Modifier)
             .fillMaxWidth()
             .height(72.dp)
             .clip(RoundedCornerShape(8.dp))
-            .background(Color(0xFF2A2A33)),
+            .background(SurfaceSlider),
         contentAlignment = Alignment.Center
     ) {
         Text(

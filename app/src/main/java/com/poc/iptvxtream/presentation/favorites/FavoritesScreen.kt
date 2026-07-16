@@ -33,6 +33,7 @@ import coil.compose.AsyncImage
 import com.poc.iptvxtream.domain.model.FavoriteItem
 import com.poc.iptvxtream.presentation.theme.Surface1
 import com.poc.iptvxtream.presentation.theme.Surface3
+import com.poc.iptvxtream.presentation.theme.WhiteOverlay20
 
 @Composable
 fun FavoritesScreen(
@@ -66,7 +67,7 @@ fun FavoritesScreen(
             ) {
                 IconButton(
                     onClick = onBack,
-                    modifier = Modifier.background(Color(0x33FFFFFF), shape = RoundedCornerShape(12.dp))
+                    modifier = Modifier.background(WhiteOverlay20, shape = RoundedCornerShape(12.dp))
                 ) {
                     Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.common_back), tint = Color.White)
                 }

@@ -45,6 +45,9 @@ import androidx.tv.material3.MaterialTheme as TvTheme
 import androidx.tv.material3.Text as TvText
 import coil.compose.AsyncImage
 import com.poc.iptvxtream.domain.model.VodDetails
+import com.poc.iptvxtream.presentation.theme.SurfaceFocused
+import com.poc.iptvxtream.presentation.theme.SurfaceElevated
+import com.poc.iptvxtream.presentation.theme.WhiteOverlay20
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
@@ -91,7 +94,7 @@ fun VodDetailsScreen(
             ) {
                 IconButton(
                     onClick = onBack,
-                    modifier = Modifier.background(Color(0x33FFFFFF), shape = RoundedCornerShape(12.dp))
+                    modifier = Modifier.background(WhiteOverlay20, shape = RoundedCornerShape(12.dp))
                 ) {
                     Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Retour", tint = Color.White)
                 }
@@ -434,7 +437,7 @@ private fun CreditNameChip(
                 color = if (isFocused) MaterialTheme.colorScheme.primary else Color.DarkGray,
                 shape = RoundedCornerShape(12.dp)
             )
-            .background(if (isFocused) Color(0xFF2C2C35) else Surface3)
+            .background(if (isFocused) SurfaceFocused else Surface3)
             .clickable { onClick() }
             .padding(horizontal = 10.dp, vertical = 4.dp)
     ) {
@@ -531,7 +534,7 @@ private fun PlayButtonsRow(
             Button(
                 onClick = onPlayFromBeginning,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = if (hasHistory) Color(0xFF2A2A35) else MaterialTheme.colorScheme.primary
+                    containerColor = if (hasHistory) SurfaceElevated else MaterialTheme.colorScheme.primary
                 ),
                 shape = RoundedCornerShape(8.dp),
                 modifier = Modifier.fillMaxWidth().height(44.dp)

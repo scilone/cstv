@@ -44,6 +44,10 @@ import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
 import android.view.WindowManager
+import com.poc.iptvxtream.presentation.theme.ScrimMedium
+import com.poc.iptvxtream.presentation.theme.ScrimLight
+import com.poc.iptvxtream.presentation.theme.PlayerScrim
+import com.poc.iptvxtream.presentation.theme.WhiteOverlay25
 
 private fun Context.findActivity(): Activity? {
     var currentContext = this
@@ -275,7 +279,7 @@ fun PlayerScreen(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color(0xE60F0F13)),
+                    .background(PlayerScrim),
                 contentAlignment = Alignment.Center
             ) {
                 Column(
@@ -333,7 +337,7 @@ fun PlayerScreen(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Color(0x80000000))
+                    .background(ScrimLight)
                     .padding(16.dp)
                     .align(Alignment.TopCenter)
             ) {
@@ -379,7 +383,7 @@ fun PlayerScreen(
 
                     IconButton(
                         onClick = handleClose,
-                        modifier = Modifier.background(Color(0x40FFFFFF), shape = CardDefaults.shape)
+                        modifier = Modifier.background(WhiteOverlay25, shape = CardDefaults.shape)
                     ) {
                         Icon(Icons.Default.Close, contentDescription = "Fermer", tint = Color.White)
                     }
@@ -395,7 +399,7 @@ fun PlayerScreen(
                         .align(Alignment.BottomCenter)
                 ) {
                     Card(
-                        colors = CardDefaults.cardColors(containerColor = Color(0x99000000))
+                        colors = CardDefaults.cardColors(containerColor = ScrimMedium)
                     ) {
                         Text(
                             text = "Glissez vers le haut / bas pour zapper",
@@ -413,7 +417,7 @@ fun PlayerScreen(
                         .align(Alignment.BottomCenter)
                 ) {
                     Card(
-                        colors = CardDefaults.cardColors(containerColor = Color(0x99000000))
+                        colors = CardDefaults.cardColors(containerColor = ScrimMedium)
                     ) {
                         Text(
                             text = "Utilisez ▲ / ▼ de la télécommande pour zapper",

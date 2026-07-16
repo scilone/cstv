@@ -49,6 +49,12 @@ import com.poc.iptvxtream.presentation.theme.Surface3
 import com.poc.iptvxtream.domain.model.Credentials
 import com.poc.iptvxtream.domain.model.SeriesEpisode
 import kotlinx.coroutines.delay
+import com.poc.iptvxtream.presentation.theme.SurfaceFocused
+import com.poc.iptvxtream.presentation.theme.ScrimMedium
+import com.poc.iptvxtream.presentation.theme.PlayerScrim
+import com.poc.iptvxtream.presentation.theme.WhiteOverlay20
+import com.poc.iptvxtream.presentation.theme.WhiteOverlay25
+import com.poc.iptvxtream.presentation.theme.TrackSelectedAmber
 
 private fun Context.findActivity(): Activity? {
     var currentContext = this
@@ -409,7 +415,7 @@ fun SeriesPlayerScreen(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color(0xE60F0F13)),
+                    .background(PlayerScrim),
                 contentAlignment = Alignment.Center
             ) {
                 Column(
@@ -467,7 +473,7 @@ fun SeriesPlayerScreen(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Color(0x99000000))
+                    .background(ScrimMedium)
                     .padding(16.dp)
                     .align(Alignment.TopCenter)
             ) {
@@ -502,7 +508,7 @@ fun SeriesPlayerScreen(
                         if (hasMultipleAudio || hasSubtitles) {
                             IconButton(
                                 onClick = { showTrackDialog = true },
-                                modifier = Modifier.background(Color(0x40FFFFFF), shape = RoundedCornerShape(12.dp))
+                                modifier = Modifier.background(WhiteOverlay25, shape = RoundedCornerShape(12.dp))
                             ) {
                                 Icon(Icons.Default.Settings, contentDescription = "Pistes Audio & Sous-titres", tint = Color.White)
                             }
@@ -511,7 +517,7 @@ fun SeriesPlayerScreen(
 
                         IconButton(
                             onClick = handleClose,
-                            modifier = Modifier.background(Color(0x40FFFFFF), shape = RoundedCornerShape(12.dp))
+                            modifier = Modifier.background(WhiteOverlay25, shape = RoundedCornerShape(12.dp))
                         ) {
                             Icon(Icons.Default.Close, contentDescription = "Fermer", tint = Color.White)
                         }
@@ -523,7 +529,7 @@ fun SeriesPlayerScreen(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Color(0x99000000))
+                    .background(ScrimMedium)
                     .padding(24.dp)
                     .align(Alignment.BottomCenter)
             ) {
@@ -582,7 +588,7 @@ fun SeriesPlayerScreen(
                             Box(
                                 modifier = Modifier
                                     .fillMaxSize()
-                                    .background(Color(0x33FFFFFF), shape = RoundedCornerShape(27.dp)),
+                                    .background(WhiteOverlay20, shape = RoundedCornerShape(27.dp)),
                                 contentAlignment = Alignment.Center
                             ) {
                                 if (isPlaying) {
@@ -717,7 +723,7 @@ private fun TrackSelectionDialog(
                                     color = if (isFocused) MaterialTheme.colorScheme.primary else Color.DarkGray,
                                     shape = RoundedCornerShape(8.dp)
                                 )
-                                .background(if (isFocused) Color(0xFF2C2C35) else if (isSelected) Color(0x33FFB300) else Surface1)
+                                .background(if (isFocused) SurfaceFocused else if (isSelected) TrackSelectedAmber else Surface1)
                                 .clickable { onAudioTrackSelected(track) }
                                 .padding(12.dp)
                         ) {
@@ -757,7 +763,7 @@ private fun TrackSelectionDialog(
                                 color = if (isNoneFocused) MaterialTheme.colorScheme.primary else Color.DarkGray,
                                 shape = RoundedCornerShape(8.dp)
                             )
-                            .background(if (isNoneFocused) Color(0xFF2C2C35) else if (isNoneSelected) Color(0x33FFB300) else Surface1)
+                            .background(if (isNoneFocused) SurfaceFocused else if (isNoneSelected) TrackSelectedAmber else Surface1)
                             .clickable { onSubtitleTrackSelected(null) }
                             .padding(12.dp)
                     ) {
@@ -791,7 +797,7 @@ private fun TrackSelectionDialog(
                                     color = if (isFocused) MaterialTheme.colorScheme.primary else Color.DarkGray,
                                     shape = RoundedCornerShape(8.dp)
                                 )
-                                .background(if (isFocused) Color(0xFF2C2C35) else if (isSelected) Color(0x33FFB300) else Surface1)
+                                .background(if (isFocused) SurfaceFocused else if (isSelected) TrackSelectedAmber else Surface1)
                                 .clickable { onSubtitleTrackSelected(track) }
                                 .padding(12.dp)
                         ) {

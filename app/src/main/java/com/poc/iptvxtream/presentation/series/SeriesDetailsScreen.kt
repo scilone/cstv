@@ -48,6 +48,10 @@ import com.poc.iptvxtream.presentation.theme.Surface2
 import com.poc.iptvxtream.presentation.theme.Surface3
 import com.poc.iptvxtream.domain.model.SeriesEpisode
 import com.poc.iptvxtream.domain.model.SeriesSeason
+import com.poc.iptvxtream.presentation.theme.SurfaceFocused
+import com.poc.iptvxtream.presentation.theme.SurfaceElevated
+import com.poc.iptvxtream.presentation.theme.SurfaceFocusedAlt
+import com.poc.iptvxtream.presentation.theme.WhiteOverlay20
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
@@ -97,7 +101,7 @@ fun SeriesDetailsScreen(
             ) {
                 IconButton(
                     onClick = onBack,
-                    modifier = Modifier.background(Color(0x33FFFFFF), shape = RoundedCornerShape(12.dp))
+                    modifier = Modifier.background(WhiteOverlay20, shape = RoundedCornerShape(12.dp))
                 ) {
                     Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Retour", tint = Color.White)
                 }
@@ -240,7 +244,7 @@ private fun TvLayout(
                             .background(
                                 when {
                                     isFocused -> MaterialTheme.colorScheme.primary
-                                    isSelected -> Color(0xFF2C2C35)
+                                    isSelected -> SurfaceFocused
                                     else -> Color.Transparent
                                 }
                             )
@@ -532,7 +536,7 @@ private fun MobileLayout(
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(16.dp))
-                        .background(if (isSelected) MaterialTheme.colorScheme.primary else Color(0xFF2A2A35))
+                        .background(if (isSelected) MaterialTheme.colorScheme.primary else SurfaceElevated)
                         .clickable { onSeasonSelected(season.seasonNumber) }
                         .padding(horizontal = 14.dp, vertical = 6.dp)
                 ) {
@@ -622,7 +626,7 @@ private fun CreditNameChip(
                 color = if (isFocused) MaterialTheme.colorScheme.primary else Color.DarkGray,
                 shape = RoundedCornerShape(12.dp)
             )
-            .background(if (isFocused) Color(0xFF2C2C35) else Surface3)
+            .background(if (isFocused) SurfaceFocused else Surface3)
             .clickable { onClick() }
             .padding(horizontal = 10.dp, vertical = 4.dp)
     ) {
@@ -646,7 +650,7 @@ private fun EpisodeCardItem(
 
     Card(
         colors = CardDefaults.cardColors(
-            containerColor = if (isFocused) Color(0xFF23232D) else Surface3
+            containerColor = if (isFocused) SurfaceFocusedAlt else Surface3
         ),
         modifier = Modifier
             .fillMaxWidth()
