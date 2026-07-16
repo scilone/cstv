@@ -75,6 +75,7 @@ import com.poc.iptvxtream.presentation.theme.IptvXtreamTheme
 import com.poc.iptvxtream.presentation.theme.mobileBackground
 import androidx.compose.ui.unit.dp
 import dagger.hilt.android.AndroidEntryPoint
+import androidx.compose.ui.res.stringResource
 
 enum class AppScreen {
     LOGIN,
@@ -263,6 +264,13 @@ class MainActivity : ComponentActivity() {
                         }
                         AppScreen.DASHBOARD -> {
                             val activeProfile = profileState.profiles.find { it.id == profileState.activeProfileId }
+                            // Fallbacks résolus ici (contexte composable) car les lambdas
+                            // onPlayResumeWatching* ne sont pas composables.
+                            val strUnknown = stringResource(R.string.common_unknown)
+                            val strNoPlot = stringResource(R.string.details_no_plot)
+                            val strMovie = stringResource(R.string.home_fallback_movie)
+                            val strSeries = stringResource(R.string.common_series)
+                            val strEpisode = stringResource(R.string.common_episode)
                             HomeScreen(
                                 userInfo = loggedInUser!!,
                                 isTv = isTv,
@@ -294,12 +302,12 @@ class MainActivity : ComponentActivity() {
                                 onPlayResumeWatchingMovie = { position ->
                                     activeVodDetails = VodDetails(
                                         streamId = position.streamId,
-                                        name = position.title ?: "Film",
-                                        director = "Inconnu",
-                                        actors = "Inconnu",
-                                        releaseDate = "Inconnu",
-                                        genre = "Inconnu",
-                                        plot = position.plot ?: "Aucun résumé disponible.",
+                                        name = position.title ?: strMovie,
+                                        director = strUnknown,
+                                        actors = strUnknown,
+                                        releaseDate = strUnknown,
+                                        genre = strUnknown,
+                                        plot = position.plot ?: strNoPlot,
                                         rating = "0",
                                         coverBig = position.coverUrl,
                                         containerExtension = position.containerExtension ?: "mp4",
@@ -310,14 +318,14 @@ class MainActivity : ComponentActivity() {
                                     navigateTo(AppScreen.VOD_PLAYER)
                                 },
                                 onPlayResumeWatchingSeries = { position ->
-                                    val sName = position.title?.substringBefore(" - ") ?: "Série"
-                                    val epTitle = position.title?.substringAfter(" - ")?.substringAfter(" ") ?: "Épisode"
+                                    val sName = position.title?.substringBefore(" - ") ?: strSeries
+                                    val epTitle = position.title?.substringAfter(" - ")?.substringAfter(" ") ?: strEpisode
                                     activeEpisode = SeriesEpisode(
                                         id = position.streamId,
                                         episodeNum = position.episodeNum ?: 1,
                                         title = epTitle,
                                         containerExtension = position.containerExtension ?: "mp4",
-                                        plot = position.plot ?: "Aucun résumé disponible.",
+                                        plot = position.plot ?: strNoPlot,
                                         duration = position.duration ?: "00:00",
                                         releaseDate = position.releaseDate ?: "",
                                         resumePositionMs = position.positionMs,
@@ -543,7 +551,7 @@ class MainActivity : ComponentActivity() {
                                 SeriesPlayerScreen(
                                     episode = activeEpisode!!,
                                     seriesId = activeSeriesDetails?.seriesId ?: 0,
-                                    seriesName = activeSeriesDetails?.name ?: "Série",
+                                    seriesName = activeSeriesDetails?.name ?: stringResource(R.string.common_series),
                                     seriesCover = activeSeriesDetails?.cover,
                                     credentials = creds,
                                     isTv = isTv,
@@ -557,20 +565,25 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                         AppScreen.FAVORITES -> {
+                            // Placeholders résolus ici (contexte composable) car les lambdas
+                            // onPlayLive/onSelectMovie/onSelectSeries ne sont pas composables.
+                            val favChannelName = stringResource(R.string.favorites_placeholder_channel)
+                            val favMovieName = stringResource(R.string.favorites_placeholder_movie)
+                            val favSeriesName = stringResource(R.string.favorites_placeholder_series)
                             FavoritesScreen(
                                 viewModel = favoritesViewModel,
                                 isTv = isTv,
                                 onPlayLive = { id, catId ->
-                                    activeStream = LiveStream(id, "Chaîne Favorie", null, null, 1, catId)
+                                    activeStream = LiveStream(id, favChannelName, null, null, 1, catId)
                                     activeStreamsList = listOf(activeStream!!)
                                     navigateTo(AppScreen.PLAYER)
                                 },
                                 onSelectMovie = { id, catId ->
-                                    activeVodMovie = VodStream(id, "Film Favori", null, null, null, catId)
+                                    activeVodMovie = VodStream(id, favMovieName, null, null, null, catId)
                                     navigateTo(AppScreen.VOD_DETAILS)
                                 },
                                 onSelectSeries = { id, catId ->
-                                    activeSeriesShow = SeriesStream(id, "Série Favorie", null, null, null, catId)
+                                    activeSeriesShow = SeriesStream(id, favSeriesName, null, null, null, catId)
                                     navigateTo(AppScreen.SERIES_DETAILS)
                                 },
                                 onBack = {

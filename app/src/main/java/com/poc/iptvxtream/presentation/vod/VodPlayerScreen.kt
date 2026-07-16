@@ -55,6 +55,8 @@ import com.poc.iptvxtream.presentation.theme.PlayerScrim
 import com.poc.iptvxtream.presentation.theme.WhiteOverlay20
 import com.poc.iptvxtream.presentation.theme.WhiteOverlay25
 import com.poc.iptvxtream.presentation.theme.TrackSelectedAmber
+import com.poc.iptvxtream.R
+import androidx.compose.ui.res.stringResource
 
 private fun Context.findActivity(): Activity? {
     var currentContext = this
@@ -414,7 +416,7 @@ fun VodPlayerScreen(
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     CircularProgressIndicator(color = MaterialTheme.colorScheme.primary, modifier = Modifier.size(54.dp))
                     Spacer(modifier = Modifier.height(12.dp))
-                    Text("Chargement du flux...", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.player_loading), color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -435,7 +437,7 @@ fun VodPlayerScreen(
                     Icon(Icons.Default.Warning, contentDescription = null, tint = Color.Red, modifier = Modifier.size(54.dp))
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(
-                        text = "Erreur de Lecture",
+                        text = stringResource(R.string.player_error_title),
                         color = Color.White,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold
@@ -462,14 +464,14 @@ fun VodPlayerScreen(
                         ) {
                             Icon(Icons.Default.Refresh, contentDescription = null)
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("Réessayer")
+                            Text(stringResource(R.string.player_retry))
                         }
 
                         OutlinedButton(
                             onClick = handleClose,
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
                         ) {
-                            Text("Retour")
+                            Text(stringResource(R.string.player_back))
                         }
                     }
                 }
@@ -528,7 +530,7 @@ fun VodPlayerScreen(
                             onClick = handleClose,
                             modifier = Modifier.background(WhiteOverlay25, shape = RoundedCornerShape(12.dp))
                         ) {
-                            Icon(Icons.Default.Close, contentDescription = "Fermer", tint = Color.White)
+                            Icon(Icons.Default.Close, contentDescription = stringResource(R.string.player_close), tint = Color.White)
                         }
                     }
                 }
@@ -587,7 +589,7 @@ fun VodPlayerScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         IconButton(onClick = { skipBackward() }) {
-                            Text("◀◀ 10s", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            Text(stringResource(R.string.player_rewind_10), color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         }
 
                         IconButton(
@@ -626,7 +628,7 @@ fun VodPlayerScreen(
                         }
 
                         IconButton(onClick = { skipForward() }) {
-                            Text("10s ▶▶", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            Text(stringResource(R.string.player_forward_10), color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -717,7 +719,7 @@ private fun TrackSelectionDialog(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 // Audio Piste
-                Text("PISTE AUDIO", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Text(stringResource(R.string.player_audio_track_upper), color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     availableAudioTracks.forEach { track ->
                         val isSelected = track.isSelected
@@ -745,7 +747,7 @@ private fun TrackSelectionDialog(
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = "${track.label} (${track.language?.uppercase() ?: "Inconnu"})",
+                                    text = stringResource(R.string.player_track_label, track.label ?: "", track.language?.uppercase() ?: stringResource(R.string.common_unknown)),
                                     color = Color.White,
                                     fontSize = 14.sp,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
@@ -758,7 +760,7 @@ private fun TrackSelectionDialog(
                 HorizontalDivider(color = Color.DarkGray, thickness = 0.5.dp)
 
                 // Subtitle Piste
-                Text("SOUS-TITRES", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Text(stringResource(R.string.player_subtitles_upper), color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     val isNoneSelected = availableSubtitleTracks.none { it.isSelected }
                     var isNoneFocused by remember { mutableStateOf(false) }
@@ -785,7 +787,7 @@ private fun TrackSelectionDialog(
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "Aucun",
+                                text = stringResource(R.string.player_track_none),
                                 color = Color.White,
                                 fontSize = 14.sp,
                                 fontWeight = if (isNoneSelected) FontWeight.Bold else FontWeight.Normal
@@ -819,7 +821,7 @@ private fun TrackSelectionDialog(
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = "${track.label} (${track.language?.uppercase() ?: "Inconnu"})",
+                                    text = stringResource(R.string.player_track_label, track.label ?: "", track.language?.uppercase() ?: stringResource(R.string.common_unknown)),
                                     color = Color.White,
                                     fontSize = 14.sp,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
@@ -835,7 +837,7 @@ private fun TrackSelectionDialog(
                 onClick = onDismiss,
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
             ) {
-                Text("Fermer", color = Color.White, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.player_close), color = Color.White, fontWeight = FontWeight.Bold)
             }
         }
     )

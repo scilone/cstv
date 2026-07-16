@@ -46,7 +46,7 @@ import com.poc.iptvxtream.presentation.theme.Surface3
 import com.poc.iptvxtream.presentation.theme.WhiteOverlay20
 
 // Type de média dont on affiche la liste complète (grille verticale) après
-// un clic sur "Voir tout". null = vue combinée (rangées horizontales).
+// un clic sur stringResource(R.string.common_see_all). null = vue combinée (rangées horizontales).
 private enum class SearchExpandedType { LIVE, VOD, SERIES }
 
 @Composable
@@ -61,7 +61,7 @@ fun SearchScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
 
-    // Vue "Voir tout" : on ne montre qu'un type de média en grille verticale.
+    // Vue stringResource(R.string.common_see_all) : on ne montre qu'un type de média en grille verticale.
     var expandedType by remember { mutableStateOf<SearchExpandedType?>(null) }
 
     // Toute nouvelle saisie recasse la vue développée pour revenir aux rangées.

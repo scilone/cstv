@@ -54,6 +54,8 @@ import com.poc.iptvxtream.presentation.components.CategorySearchField
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Check
 import kotlinx.coroutines.delay
+import com.poc.iptvxtream.R
+import androidx.compose.ui.res.stringResource
 
 @Composable
 fun LiveTvScreen(
@@ -235,7 +237,7 @@ private fun TvLayout(
                     item {
                         CategorySectionRow(
                             categoryId = "favorites",
-                            title = "Favoris",
+                            title = stringResource(R.string.common_favorites),
                             streams = favoriteStreams,
                             favoritesList = favoritesList,
                             onToggleFavorite = onToggleFavorite,
@@ -282,7 +284,7 @@ private fun TvLayout(
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = onSearchQueryChanged,
-                    placeholder = { Text("Rechercher une chaîne...", color = Color.Gray, fontSize = 13.sp) },
+                    placeholder = { Text(stringResource(R.string.livetv_search_placeholder), color = Color.Gray, fontSize = 13.sp) },
                     leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp)) },
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
@@ -300,7 +302,7 @@ private fun TvLayout(
             if (filteredStreams.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(
-                        text = if (searchQuery.isBlank()) "Aucune chaîne dans cette catégorie" else "Aucun résultat pour « $searchQuery »",
+                        text = if (searchQuery.isBlank()) stringResource(R.string.livetv_empty_category) else stringResource(R.string.common_no_result_for, searchQuery),
                         color = Color.Gray
                     )
                 }
@@ -445,7 +447,7 @@ private fun MobileLayout(
                     item {
                         CategorySectionRow(
                             categoryId = "favorites",
-                            title = "Favoris",
+                            title = stringResource(R.string.common_favorites),
                             streams = favoriteStreams,
                             favoritesList = favoritesList,
                             onToggleFavorite = onToggleFavorite,
@@ -485,7 +487,7 @@ private fun MobileLayout(
                 CategorySearchField(
                     value = searchQuery,
                     onValueChange = onSearchQueryChanged,
-                    placeholder = "Rechercher une chaîne...",
+                    placeholder = stringResource(R.string.livetv_search_placeholder),
                     // Espace champ->liste (10) légèrement plus petit que dropdown->champ (14).
                     modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 10.dp)
                 )
@@ -494,7 +496,7 @@ private fun MobileLayout(
             if (filteredStreams.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(
-                        text = if (searchQuery.isBlank()) "Aucune chaîne dans cette catégorie" else "Aucun résultat pour « $searchQuery »",
+                        text = if (searchQuery.isBlank()) stringResource(R.string.livetv_empty_category) else stringResource(R.string.common_no_result_for, searchQuery),
                         color = Color.Gray
                     )
                 }

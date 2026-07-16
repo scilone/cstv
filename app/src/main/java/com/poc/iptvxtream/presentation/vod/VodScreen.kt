@@ -59,6 +59,8 @@ import com.poc.iptvxtream.presentation.theme.SurfaceFocused
 import com.poc.iptvxtream.presentation.theme.SurfaceElevated
 import com.poc.iptvxtream.presentation.theme.SurfaceFocusedAlt
 import com.poc.iptvxtream.presentation.theme.ScrimHeavy
+import com.poc.iptvxtream.R
+import androidx.compose.ui.res.stringResource
 
 @Composable
 fun VodScreen(
@@ -214,7 +216,7 @@ private fun TvLayout(
                     item {
                         CategorySectionRow(
                             categoryId = "favorites",
-                            title = "Favoris",
+                            title = stringResource(R.string.common_favorites),
                             movies = favoriteMovies,
                             onMovieSelected = onMovieSelected,
                             isTv = true,
@@ -252,7 +254,7 @@ private fun TvLayout(
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = onSearchQueryChanged,
-                    placeholder = { Text("Rechercher dans cette catégorie...", color = Color.Gray, fontSize = 13.sp) },
+                    placeholder = { Text(stringResource(R.string.vod_search_placeholder), color = Color.Gray, fontSize = 13.sp) },
                     leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp)) },
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
@@ -270,7 +272,7 @@ private fun TvLayout(
             if (filteredStreams.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(
-                        text = if (searchQuery.isBlank()) "Aucun film dans cette catégorie" else "Aucun résultat pour « $searchQuery »",
+                        text = if (searchQuery.isBlank()) stringResource(R.string.vod_empty_category) else stringResource(R.string.common_no_result_for, searchQuery),
                         color = Color.Gray
                     )
                 }
@@ -392,7 +394,7 @@ private fun MobileLayout(
                     item {
                         CategorySectionRow(
                             categoryId = "favorites",
-                            title = "Favoris",
+                            title = stringResource(R.string.common_favorites),
                             movies = favoriteMovies,
                             onMovieSelected = onMovieSelected,
                             isTv = false,
@@ -424,7 +426,7 @@ private fun MobileLayout(
                 CategorySearchField(
                     value = searchQuery,
                     onValueChange = onSearchQueryChanged,
-                    placeholder = "Rechercher dans cette catégorie...",
+                    placeholder = stringResource(R.string.vod_search_placeholder),
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                 )
             }
@@ -432,7 +434,7 @@ private fun MobileLayout(
             if (filteredStreams.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(
-                        text = if (searchQuery.isBlank()) "Aucun film dans cette catégorie" else "Aucun résultat pour « $searchQuery »",
+                        text = if (searchQuery.isBlank()) stringResource(R.string.vod_empty_category) else stringResource(R.string.common_no_result_for, searchQuery),
                         color = Color.Gray
                     )
                 }
@@ -440,7 +442,7 @@ private fun MobileLayout(
                 val gridState = rememberForeverLazyGridState("vod_mobile_cat_" + (state.selectedCategory?.categoryId ?: "0"), getScroll, saveScroll)
                 LazyVerticalGrid(
                     state = gridState,
-                    columns = GridCells.Fixed(3), // 3 colonnes (iso grille "Voir tout" recherche, Phase 57)
+                    columns = GridCells.Fixed(3), // 3 colonnes (iso grille stringResource(R.string.common_see_all) recherche, Phase 57)
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     modifier = Modifier
@@ -523,7 +525,7 @@ private fun CategorySectionRow(
             .fillMaxWidth()
             .padding(vertical = 4.dp)
     ) {
-        // Phase 56 : titre de catégorie grisé (texte secondaire) + lien "Voir tout".
+        // Phase 56 : titre de catégorie grisé (texte secondaire) + lien stringResource(R.string.common_see_all).
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
@@ -539,7 +541,7 @@ private fun CategorySectionRow(
             if (onSeeAll != null && !isTv) {
                 Spacer(modifier = Modifier.weight(1f))
                 Text(
-                    text = "Voir tout",
+                    text = stringResource(R.string.common_see_all),
                     color = AccentLavande,
                     fontFamily = HankenGrotesk,
                     fontWeight = FontWeight.SemiBold,

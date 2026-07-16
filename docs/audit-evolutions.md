@@ -22,7 +22,7 @@ une session IA, classé par urgence décroissante.
 | 8 | ✅ Finir la migration couleurs vers le thème (99 restantes) | 🟡 | M |
 | 9 | Restreindre réellement le cleartext HTTP | 🟡 | S |
 | 10 | ✅ Version catalog Gradle | 🟢 | S |
-| 11 | Finir l'externalisation i18n (55 strings) | 🟢 | M |
+| 11 | ✅ Finir l'externalisation i18n (55 strings) | 🟢 | M |
 | 12 | Configurer le cache images Coil | 🟢 | S |
 | 13 | ✅ Mettre à jour les statuts de la feuille de route | 🟢 | S |
 
@@ -333,7 +333,7 @@ version propres (item 4).
 
 ---
 
-## 11. 🟢 Finir l'externalisation i18n — Effort M
+## 11. 🟢 Finir l'externalisation i18n — Effort M — ✅ FAIT
 
 **Constat.** ~55 `text = "…"` hardcodés restent hors `strings.xml` (surtout
 players, Settings, fiches détail, branche TV, et les fallbacks type

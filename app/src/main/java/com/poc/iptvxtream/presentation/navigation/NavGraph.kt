@@ -47,6 +47,8 @@ import com.poc.iptvxtream.presentation.profile.ProfileViewModel
 import com.poc.iptvxtream.presentation.profile.ProfileUiState
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.foundation.lazy.LazyListState
+import com.poc.iptvxtream.R
+import androidx.compose.ui.res.stringResource
 
 @Composable
 fun AppNavGraph(
@@ -101,6 +103,13 @@ fun AppNavGraph(
         }
         composable("home") {
             val activeProfile = profileState.profiles.find { it.id == profileState.activeProfileId }
+            // Fallbacks résolus ici (contexte composable) car les lambdas
+            // onPlayResumeWatching* ne sont pas composables.
+            val strUnknown = stringResource(R.string.common_unknown)
+            val strNoPlot = stringResource(R.string.details_no_plot)
+            val strMovie = stringResource(R.string.home_fallback_movie)
+            val strSeries = stringResource(R.string.common_series)
+            val strEpisode = stringResource(R.string.common_episode)
             HomeScreen(
                 userInfo = loggedInUser ?: UserInfo("User", true, "Active", "Inconnue", 1, 0, "Connecté"),
                 isTv = false,
@@ -148,12 +157,12 @@ fun AppNavGraph(
                 onPlayResumeWatchingMovie = { position ->
                     val details = VodDetails(
                         streamId = position.streamId,
-                        name = position.title ?: "Film",
-                        director = "Inconnu",
-                        actors = "Inconnu",
-                        releaseDate = "Inconnu",
-                        genre = "Inconnu",
-                        plot = position.plot ?: "Aucun résumé disponible.",
+                        name = position.title ?: strMovie,
+                        director = strUnknown,
+                        actors = strUnknown,
+                        releaseDate = strUnknown,
+                        genre = strUnknown,
+                        plot = position.plot ?: strNoPlot,
                         rating = "0",
                         coverBig = position.coverUrl,
                         containerExtension = position.containerExtension ?: "mp4",
@@ -165,14 +174,14 @@ fun AppNavGraph(
                     navController.navigate("vod_player")
                 },
                 onPlayResumeWatchingSeries = { position ->
-                    val sName = position.title?.substringBefore(" - ") ?: "Série"
-                    val epTitle = position.title?.substringAfter(" - ")?.substringAfter(" ") ?: "Épisode"
+                    val sName = position.title?.substringBefore(" - ") ?: strSeries
+                    val epTitle = position.title?.substringAfter(" - ")?.substringAfter(" ") ?: strEpisode
                     val episode = SeriesEpisode(
                         id = position.streamId,
                         episodeNum = position.episodeNum ?: 1,
                         title = epTitle,
                         containerExtension = position.containerExtension ?: "mp4",
-                        plot = position.plot ?: "Aucun résumé disponible.",
+                        plot = position.plot ?: strNoPlot,
                         duration = position.duration ?: "00:00",
                         releaseDate = position.releaseDate ?: "",
                         resumePositionMs = position.positionMs,
@@ -277,21 +286,26 @@ fun AppNavGraph(
             )
         }
         composable("favorites") {
+            // Placeholders résolus ici (contexte composable) car les lambdas
+            // onPlayLive/onSelectMovie/onSelectSeries ne sont pas composables.
+            val favChannelName = stringResource(R.string.favorites_placeholder_channel)
+            val favMovieName = stringResource(R.string.favorites_placeholder_movie)
+            val favSeriesName = stringResource(R.string.favorites_placeholder_series)
             FavoritesScreen(
                 viewModel = favoritesViewModel,
                 isTv = false,
                 onPlayLive = { id, catId ->
-                    val stream = LiveStream(id, "Chaîne Favorie", null, null, 1, catId)
+                    val stream = LiveStream(id, favChannelName, null, null, 1, catId)
                     onActiveStreamChanged(stream)
                     onActiveStreamsListChanged(listOf(stream))
                     navController.navigate("live_player")
                 },
                 onSelectMovie = { id, catId ->
-                    onActiveVodMovieChanged(VodStream(id, "Film Favori", null, null, null, catId))
+                    onActiveVodMovieChanged(VodStream(id, favMovieName, null, null, null, catId))
                     navController.navigate("vod_details")
                 },
                 onSelectSeries = { id, catId ->
-                    onActiveSeriesShowChanged(SeriesStream(id, "Série Favorie", null, null, null, catId))
+                    onActiveSeriesShowChanged(SeriesStream(id, favSeriesName, null, null, null, catId))
                     navController.navigate("series_details")
                 },
                 onBack = {
@@ -492,7 +506,7 @@ fun AppNavGraph(
                 SeriesPlayerScreen(
                     episode = activeEpisode,
                     seriesId = activeSeriesDetails?.seriesId ?: 0,
-                    seriesName = activeSeriesDetails?.name ?: "Série",
+                    seriesName = activeSeriesDetails?.name ?: stringResource(R.string.common_series),
                     seriesCover = activeSeriesDetails?.cover,
                     credentials = creds,
                     isTv = false,

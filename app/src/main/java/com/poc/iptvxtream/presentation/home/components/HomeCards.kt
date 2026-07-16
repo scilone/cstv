@@ -67,7 +67,7 @@ fun HomeHeroCard(
         val e = position.episodeNum ?: 1
         "S$s E$e" + if (!position.duration.isNullOrBlank()) " · ${position.duration}" else ""
     } else {
-        if (!position.duration.isNullOrBlank()) position.duration else "Film"
+        if (!position.duration.isNullOrBlank()) position.duration else stringResource(R.string.home_fallback_movie)
     }
 
     val typeBadgeText = if (position.type == "series") "4K · SÉRIE" else "4K · FILM"
@@ -133,7 +133,7 @@ fun HomeHeroCard(
                         .padding(horizontal = 9.dp, vertical = 4.dp)
                 ) {
                     Text(
-                        text = "REPRENDRE",
+                        text = stringResource(R.string.home_resume_upper),
                         color = TextOnAccent,
                         fontWeight = FontWeight.Bold,
                         fontSize = 10.sp,
@@ -210,7 +210,7 @@ fun HomeHeroCard(
                             modifier = Modifier.size(20.dp)
                         )
                         Text(
-                            text = "Reprendre",
+                            text = stringResource(R.string.home_resume_btn),
                             color = TextOnAccent,
                             fontWeight = FontWeight.Bold,
                             fontSize = 14.sp,

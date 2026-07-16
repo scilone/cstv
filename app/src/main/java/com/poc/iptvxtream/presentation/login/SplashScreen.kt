@@ -14,6 +14,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.poc.iptvxtream.presentation.theme.Surface1
+import com.poc.iptvxtream.R
+import androidx.compose.ui.res.stringResource
 
 @Composable
 fun SplashScreen(
@@ -31,7 +33,7 @@ fun SplashScreen(
             modifier = Modifier.padding(24.dp)
         ) {
             Text(
-                text = "XTREAM CODES",
+                text = stringResource(R.string.splash_title),
                 fontSize = 32.sp,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary,
@@ -39,7 +41,7 @@ fun SplashScreen(
                 textAlign = TextAlign.Center
             )
             Text(
-                text = "CONNEXION AUTOMATIQUE EN COURS...",
+                text = stringResource(R.string.splash_autologin),
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Light,
                 color = Color.Gray,

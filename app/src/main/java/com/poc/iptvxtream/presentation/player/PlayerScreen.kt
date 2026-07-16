@@ -48,6 +48,8 @@ import com.poc.iptvxtream.presentation.theme.ScrimMedium
 import com.poc.iptvxtream.presentation.theme.ScrimLight
 import com.poc.iptvxtream.presentation.theme.PlayerScrim
 import com.poc.iptvxtream.presentation.theme.WhiteOverlay25
+import com.poc.iptvxtream.R
+import androidx.compose.ui.res.stringResource
 
 private fun Context.findActivity(): Activity? {
     var currentContext = this
@@ -269,7 +271,7 @@ fun PlayerScreen(
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     CircularProgressIndicator(color = MaterialTheme.colorScheme.primary, modifier = Modifier.size(54.dp))
                     Spacer(modifier = Modifier.height(12.dp))
-                    Text("Chargement du flux...", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.player_loading), color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -290,7 +292,7 @@ fun PlayerScreen(
                     Icon(Icons.Default.Warning, contentDescription = null, tint = Color.Red, modifier = Modifier.size(54.dp))
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(
-                        text = "Erreur de Lecture",
+                        text = stringResource(R.string.player_error_title),
                         color = Color.White,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold
@@ -317,14 +319,14 @@ fun PlayerScreen(
                         ) {
                             Icon(Icons.Default.Refresh, contentDescription = null)
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("Réessayer")
+                            Text(stringResource(R.string.player_retry))
                         }
 
                         OutlinedButton(
                             onClick = handleClose,
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
                         ) {
-                            Text("Retour")
+                            Text(stringResource(R.string.player_back))
                         }
                     }
                 }
@@ -367,13 +369,13 @@ fun PlayerScreen(
                         Spacer(modifier = Modifier.width(12.dp))
                         Column {
                             Text(
-                                text = "CH ${currentStream.num} - ${currentStream.name}",
+                                text = stringResource(R.string.player_channel_current, currentStream.num, currentStream.name),
                                 color = Color.White,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 16.sp
                             )
                             Text(
-                                text = "Flux : ${streamExtension.uppercase()}",
+                                text = stringResource(R.string.player_stream_format, streamExtension.uppercase()),
                                 color = MaterialTheme.colorScheme.primary,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Light
@@ -385,7 +387,7 @@ fun PlayerScreen(
                         onClick = handleClose,
                         modifier = Modifier.background(WhiteOverlay25, shape = CardDefaults.shape)
                     ) {
-                        Icon(Icons.Default.Close, contentDescription = "Fermer", tint = Color.White)
+                        Icon(Icons.Default.Close, contentDescription = stringResource(R.string.player_close), tint = Color.White)
                     }
                 }
             }
@@ -402,7 +404,7 @@ fun PlayerScreen(
                         colors = CardDefaults.cardColors(containerColor = ScrimMedium)
                     ) {
                         Text(
-                            text = "Glissez vers le haut / bas pour zapper",
+                            text = stringResource(R.string.player_zap_hint_touch),
                             color = Color.LightGray,
                             fontSize = 12.sp,
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
@@ -420,7 +422,7 @@ fun PlayerScreen(
                         colors = CardDefaults.cardColors(containerColor = ScrimMedium)
                     ) {
                         Text(
-                            text = "Utilisez ▲ / ▼ de la télécommande pour zapper",
+                            text = stringResource(R.string.player_zap_hint_remote),
                             color = Color.LightGray,
                             fontSize = 12.sp,
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)

@@ -40,6 +40,8 @@ import com.poc.iptvxtream.data.local.storage.CategorySorting
 import com.poc.iptvxtream.presentation.theme.ErrorRose
 import com.poc.iptvxtream.presentation.theme.SurfaceFocused
 import com.poc.iptvxtream.presentation.theme.SurfaceSlider
+import com.poc.iptvxtream.R
+import androidx.compose.ui.res.stringResource
 
 @Composable
 fun SettingsScreen(
@@ -125,17 +127,17 @@ private fun TvSettingsLayout(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Retour",
+                        contentDescription = stringResource(R.string.player_back),
                         tint = Color.White,
                         modifier = Modifier.size(16.dp)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
-                    TvText("RETOUR", style = TvTheme.typography.labelMedium)
+                    TvText(stringResource(R.string.settings_back_upper), style = TvTheme.typography.labelMedium)
                 }
             }
             Spacer(modifier = Modifier.width(16.dp))
             TvText(
-                text = "PARAMÈTRES DE L'APPLICATION",
+                text = stringResource(R.string.settings_title_upper),
                 style = TvTheme.typography.headlineMedium,
                 color = Color.White,
                 fontWeight = FontWeight.Bold
@@ -143,7 +145,7 @@ private fun TvSettingsLayout(
         }
 
         TvText(
-            text = "Configurez l'ordre d'affichage des catégories par défaut (ordre renvoyé par l'API) ou alphabétique, ainsi que la mise à jour automatique en arrière-plan.",
+            text = stringResource(R.string.settings_desc_tv),
             color = Color.Gray,
             style = TvTheme.typography.bodyMedium,
             modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
@@ -196,7 +198,7 @@ private fun TvSettingsLayout(
                     modifier = Modifier.size(18.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
-                TvText("DÉCONNEXION", style = TvTheme.typography.labelLarge, color = ErrorRose, fontWeight = FontWeight.Bold)
+                TvText(stringResource(R.string.settings_logout_upper), style = TvTheme.typography.labelLarge, color = ErrorRose, fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -318,13 +320,13 @@ private fun MobileSettingsLayout(
             IconButton(onClick = onBack) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Retour",
+                    contentDescription = stringResource(R.string.player_back),
                     tint = Color.White
                 )
             }
             Spacer(modifier = Modifier.width(8.dp))
             Text(
-                text = "PARAMÈTRES DE L'APPLICATION",
+                text = stringResource(R.string.settings_title_upper),
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color.White
@@ -332,7 +334,7 @@ private fun MobileSettingsLayout(
         }
 
         Text(
-            text = "Configurez vos préférences de tri et de mise à jour en arrière-plan.",
+            text = stringResource(R.string.settings_desc_mobile),
             color = Color.Gray,
             fontSize = 14.sp,
             textAlign = TextAlign.Start,
@@ -399,7 +401,7 @@ private fun MobileSettingsLayout(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "Se déconnecter",
+                    text = stringResource(R.string.settings_logout),
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color.White
@@ -502,14 +504,14 @@ private fun TvSyncFrequencyCard(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             TvText(
-                text = "FRÉQUENCE DE RAFRAÎCHISSEMENT DU CACHE",
+                text = stringResource(R.string.settings_cache_frequency_upper),
                 color = MaterialTheme.colorScheme.primary,
                 fontWeight = FontWeight.Bold,
                 style = TvTheme.typography.titleMedium
             )
 
             TvText(
-                text = "Mise à jour automatique en arrière-plan des catégories et listes de chaînes, films et séries.",
+                text = stringResource(R.string.settings_cache_auto_desc),
                 color = Color.Gray,
                 style = TvTheme.typography.bodySmall
             )
@@ -545,9 +547,9 @@ private fun TvSyncFrequencyCard(
                         modifier = Modifier.size(16.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    TvText("SYNCHRONISATION...", style = TvTheme.typography.labelMedium)
+                    TvText(stringResource(R.string.settings_syncing_upper), style = TvTheme.typography.labelMedium)
                 } else {
-                    TvText("FORCER LA MISE À JOUR MAINTENANT", style = TvTheme.typography.labelMedium)
+                    TvText(stringResource(R.string.settings_force_sync_upper), style = TvTheme.typography.labelMedium)
                 }
             }
         }
@@ -571,13 +573,13 @@ private fun MobileSyncFrequencyCard(
         ) {
             Column {
                 Text(
-                    text = "Mise à jour automatique du cache",
+                    text = stringResource(R.string.settings_cache_auto),
                     color = Color.White,
                     fontWeight = FontWeight.Bold,
                     fontSize = 15.sp
                 )
                 Text(
-                    text = "Mise à jour automatique en arrière-plan des catégories et listes de chaînes, films et séries.",
+                    text = stringResource(R.string.settings_cache_auto_desc),
                     color = Color.Gray,
                     fontSize = 12.sp
                 )
@@ -639,9 +641,9 @@ private fun MobileSyncFrequencyCard(
                         modifier = Modifier.size(16.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Synchronisation...", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    Text(stringResource(R.string.settings_syncing), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
                 } else {
-                    Text("Forcer la mise à jour maintenant", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    Text(stringResource(R.string.settings_force_sync), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
                 }
             }
         }
@@ -670,7 +672,7 @@ private fun SubtitlePreview(style: SubtitleStyle, modifier: Modifier = Modifier)
         contentAlignment = Alignment.Center
     ) {
         Text(
-            text = "Exemple de sous-titre",
+            text = stringResource(R.string.settings_subtitle_sample),
             color = Color(style.textColor.argb),
             fontSize = style.size.previewSp(),
             fontWeight = FontWeight.Medium,
@@ -698,20 +700,20 @@ private fun TvSubtitleStyleCard(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             TvText(
-                text = "APPARENCE DES SOUS-TITRES",
+                text = stringResource(R.string.settings_subtitle_appearance_upper),
                 color = MaterialTheme.colorScheme.primary,
                 fontWeight = FontWeight.Bold,
                 style = TvTheme.typography.titleMedium
             )
             TvText(
-                text = "Taille, couleur du texte et fond appliqués aux lectures de films et d'épisodes.",
+                text = stringResource(R.string.settings_subtitle_desc),
                 color = Color.Gray,
                 style = TvTheme.typography.bodySmall
             )
 
             SubtitlePreview(style)
 
-            TvText("TAILLE", color = Color.White, style = TvTheme.typography.labelMedium)
+            TvText(stringResource(R.string.settings_size_upper), color = Color.White, style = TvTheme.typography.labelMedium)
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 SubtitleTextSize.values().forEach { size ->
                     TvSortingOptionButton(
@@ -723,7 +725,7 @@ private fun TvSubtitleStyleCard(
                 }
             }
 
-            TvText("COULEUR DU TEXTE", color = Color.White, style = TvTheme.typography.labelMedium)
+            TvText(stringResource(R.string.settings_text_color_upper), color = Color.White, style = TvTheme.typography.labelMedium)
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 SubtitleTextColor.values().forEach { color ->
                     TvSortingOptionButton(
@@ -735,7 +737,7 @@ private fun TvSubtitleStyleCard(
                 }
             }
 
-            TvText("FOND", color = Color.White, style = TvTheme.typography.labelMedium)
+            TvText(stringResource(R.string.settings_background_upper), color = Color.White, style = TvTheme.typography.labelMedium)
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 SubtitleBackground.values().forEach { bg ->
                     TvSortingOptionButton(
@@ -767,13 +769,13 @@ private fun MobileSubtitleStyleCard(
         ) {
             Column {
                 Text(
-                    text = "Apparence des sous-titres",
+                    text = stringResource(R.string.settings_subtitle_appearance),
                     color = Color.White,
                     fontWeight = FontWeight.Bold,
                     fontSize = 15.sp
                 )
                 Text(
-                    text = "Taille, couleur du texte et fond appliqués aux lectures de films et d'épisodes.",
+                    text = stringResource(R.string.settings_subtitle_desc),
                     color = Color.Gray,
                     fontSize = 12.sp
                 )
@@ -781,7 +783,7 @@ private fun MobileSubtitleStyleCard(
 
             SubtitlePreview(style)
 
-            Text("Taille", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.settings_size), color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 SubtitleTextSize.values().forEach { size ->
                     MobileSortingOptionButton(
@@ -793,7 +795,7 @@ private fun MobileSubtitleStyleCard(
                 }
             }
 
-            Text("Couleur du texte", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.settings_text_color), color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 SubtitleTextColor.values().forEach { color ->
                     MobileSortingOptionButton(
@@ -805,7 +807,7 @@ private fun MobileSubtitleStyleCard(
                 }
             }
 
-            Text("Fond", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.settings_background), color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 SubtitleBackground.values().forEach { bg ->
                     MobileSortingOptionButton(

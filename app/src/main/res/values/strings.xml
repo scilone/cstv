@@ -55,4 +55,109 @@
     <string name="home_movie_badge">FILM</string>
     <string name="home_series_badge">SÉRIE</string>
     <string name="home_no_program">Pas de programme</string>
+
+    <!-- Splash (audit #11) -->
+    <string name="splash_title">XTREAM CODES</string>
+    <string name="splash_autologin">CONNEXION AUTOMATIQUE EN COURS…</string>
+
+    <!-- Communs -->
+    <string name="common_see_all">Voir tout</string>
+    <string name="common_no_result_for">Aucun résultat pour « %1$s »</string>
+    <string name="common_unknown">Inconnu</string>
+
+    <!-- Home -->
+    <string name="home_resume_upper">REPRENDRE</string>
+    <string name="home_resume_btn">Reprendre</string>
+    <string name="home_greeting">Bonsoir</string>
+    <string name="home_expiry">Exp. %1$s</string>
+    <string name="home_fallback_movie">Film</string>
+
+    <!-- Navigation TV -->
+    <string name="tvnav_live">LIVE TV</string>
+    <string name="tvnav_vod">FILMS VOD</string>
+    <string name="tvnav_series">SÉRIES</string>
+    <string name="tvnav_favorites">FAVS</string>
+    <string name="tvnav_search">RECH</string>
+    <string name="tvnav_settings">PARAMS</string>
+
+    <!-- Live TV -->
+    <string name="livetv_recently_watched_upper">RÉCEMMENT REGARDÉES</string>
+    <string name="livetv_channel_number">CH %1$d</string>
+    <string name="livetv_channel_number_name">CH %1$d %2$s</string>
+    <string name="livetv_no_program">Aucun programme</string>
+    <string name="livetv_no_program_info">Aucune information de programme</string>
+    <string name="livetv_search_placeholder">Rechercher une chaîne…</string>
+    <string name="livetv_empty_category">Aucune chaîne dans cette catégorie</string>
+
+    <!-- Players -->
+    <string name="player_error_title">Erreur de Lecture</string>
+    <string name="player_retry">Réessayer</string>
+    <string name="player_back">Retour</string>
+    <string name="player_loading">Chargement du flux…</string>
+    <string name="player_rewind_10">◀◀ 10s</string>
+    <string name="player_forward_10">10s ▶▶</string>
+    <string name="player_audio_track_upper">PISTE AUDIO</string>
+    <string name="player_subtitles_upper">SOUS-TITRES</string>
+    <string name="player_track_none">Aucun</string>
+    <string name="player_close">Fermer</string>
+    <string name="player_track_label">%1$s (%2$s)</string>
+    <string name="player_stream_format">Flux : %1$s</string>
+    <string name="player_channel_current">CH %1$d - %2$s</string>
+    <string name="player_zap_hint_touch">Glissez vers le haut / bas pour zapper</string>
+    <string name="player_zap_hint_remote">Utilisez ▲ / ▼ de la télécommande pour zapper</string>
+    <string name="player_episode">Épisode %1$d</string>
+
+    <!-- Fiches détail -->
+    <string name="details_resume_upper">REPRENDRE LA LECTURE</string>
+    <string name="details_episodes_upper">ÉPISODES</string>
+    <string name="details_seasons_upper">SAISONS</string>
+    <string name="details_episode_upper">ÉPISODE %1$d</string>
+    <string name="details_resume_in_progress">En cours de lecture (reprendre)</string>
+    <string name="details_no_plot">Aucun résumé disponible.</string>
+    <string name="details_director">Réalisateur</string>
+    <string name="details_actors">Acteurs</string>
+    <string name="details_no_episodes_for_season">Aucun épisode disponible pour cette saison</string>
+    <string name="details_no_episodes">Aucun épisode disponible</string>
+
+    <!-- Films / Séries -->
+    <string name="vod_search_placeholder">Rechercher dans cette catégorie…</string>
+    <string name="vod_empty_category">Aucun film dans cette catégorie</string>
+
+    <!-- Paramètres -->
+    <string name="settings_back_upper">RETOUR</string>
+    <string name="settings_title_upper">PARAMÈTRES DE L\'APPLICATION</string>
+    <string name="settings_desc_tv">Configurez l\'ordre d\'affichage des catégories par défaut (ordre renvoyé par l\'API) ou alphabétique, ainsi que la mise à jour automatique en arrière-plan.</string>
+    <string name="settings_desc_mobile">Configurez vos préférences de tri et de mise à jour en arrière-plan.</string>
+    <string name="settings_logout_upper">DÉCONNEXION</string>
+    <string name="settings_logout">Se déconnecter</string>
+    <string name="settings_cache_frequency_upper">FRÉQUENCE DE RAFRAÎCHISSEMENT DU CACHE</string>
+    <string name="settings_cache_auto">Mise à jour automatique du cache</string>
+    <string name="settings_cache_auto_desc">Mise à jour automatique en arrière-plan des catégories et listes de chaînes, films et séries.</string>
+    <string name="settings_syncing_upper">SYNCHRONISATION…</string>
+    <string name="settings_force_sync_upper">FORCER LA MISE À JOUR MAINTENANT</string>
+    <string name="settings_syncing">Synchronisation…</string>
+    <string name="settings_force_sync">Forcer la mise à jour maintenant</string>
+    <string name="settings_subtitle_sample">Exemple de sous-titre</string>
+    <string name="settings_subtitle_appearance_upper">APPARENCE DES SOUS-TITRES</string>
+    <string name="settings_subtitle_appearance">Apparence des sous-titres</string>
+    <string name="settings_subtitle_desc">Taille, couleur du texte et fond appliqués aux lectures de films et d\'épisodes.</string>
+    <string name="settings_size_upper">TAILLE</string>
+    <string name="settings_text_color_upper">COULEUR DU TEXTE</string>
+    <string name="settings_background_upper">FOND</string>
+    <string name="settings_size">Taille</string>
+    <string name="settings_text_color">Couleur du texte</string>
+    <string name="settings_background">Fond</string>
+
+    <!-- Placeholders favoris (fiche ouverte depuis Favoris, faute "Favorie" corrigée) -->
+    <string name="favorites_placeholder_channel">Chaîne favorite</string>
+    <string name="favorites_placeholder_movie">Film favori</string>
+    <string name="favorites_placeholder_series">Série favorite</string>
+
+    <string name="series_empty_category">Aucune série dans cette catégorie</string>
+    <string name="common_series">Série</string>
+    <string name="common_episode">Épisode</string>
+    <string name="common_favorite">Favori</string>
+    <string name="common_favorites">Favoris</string>
+    <string name="details_in_favorites_upper">DANS LES FAVORIS</string>
+    <string name="details_add_favorites_upper">AJOUTER FAVORIS</string>
 </resources>

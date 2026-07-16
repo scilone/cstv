@@ -50,6 +50,8 @@ import com.poc.iptvxtream.presentation.theme.SurfaceFocused
 import com.poc.iptvxtream.presentation.theme.SurfaceElevated
 import com.poc.iptvxtream.presentation.theme.SurfaceFocusedAlt
 import com.poc.iptvxtream.presentation.theme.TextMuted
+import com.poc.iptvxtream.R
+import androidx.compose.ui.res.stringResource
 
 @Composable
 fun CategorySectionRow(
@@ -71,7 +73,7 @@ fun CategorySectionRow(
             .fillMaxWidth()
             .padding(vertical = 4.dp)
     ) {
-        // Phase 56 : titre de catégorie grisé (texte secondaire) + lien "Voir tout".
+        // Phase 56 : titre de catégorie grisé (texte secondaire) + lien stringResource(R.string.common_see_all).
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
@@ -87,7 +89,7 @@ fun CategorySectionRow(
             if (onSeeAll != null && !isTv) {
                 Spacer(modifier = Modifier.weight(1f))
                 Text(
-                    text = "Voir tout",
+                    text = stringResource(R.string.common_see_all),
                     color = AccentLavande,
                     fontFamily = HankenGrotesk,
                     fontWeight = FontWeight.SemiBold,
@@ -226,7 +228,7 @@ fun MobileStreamCard(
                 modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
             ) {
                 Text(
-                    text = "CH ${stream.num}",
+                    text = stringResource(R.string.livetv_channel_number, stream.num),
                     color = MaterialTheme.colorScheme.primary,
                     fontSize = 9.sp,
                     fontWeight = FontWeight.Bold
@@ -237,7 +239,7 @@ fun MobileStreamCard(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Star,
-                        contentDescription = "Favori",
+                        contentDescription = stringResource(R.string.common_favorite),
                         tint = if (isFavorite) Color.Yellow else Color.White.copy(alpha = 0.55f),
                         modifier = Modifier.size(18.dp)
                     )
@@ -320,7 +322,7 @@ fun RecentlyWatchedRow(
             .padding(vertical = 4.dp)
     ) {
         Text(
-            text = "RÉCEMMENT REGARDÉES",
+            text = stringResource(R.string.livetv_recently_watched_upper),
             color = TextSecondary,
             fontWeight = FontWeight.Bold,
             fontSize = 14.sp,
@@ -423,7 +425,7 @@ fun MobileRecentlyWatchedItem(
                 fontFamily = HankenGrotesk
             )
             Text(
-                text = epgProgram?.title ?: "Aucun programme",
+                text = epgProgram?.title ?: stringResource(R.string.livetv_no_program),
                 color = TextSecondary,
                 fontSize = 11.sp,
                 lineHeight = 12.sp,
@@ -536,7 +538,7 @@ fun MobileChannelGridCard(
             ) {
                 Icon(
                     imageVector = Icons.Default.Star,
-                    contentDescription = "Favori",
+                    contentDescription = stringResource(R.string.common_favorite),
                     tint = if (isFavorite) Color.Yellow else Color.White.copy(alpha = 0.85f),
                     modifier = Modifier.size(20.dp)
                 )
@@ -556,7 +558,7 @@ fun MobileChannelGridCard(
             fontFamily = HankenGrotesk
         )
         Text(
-            text = epgProgram?.title ?: "Aucun programme",
+            text = epgProgram?.title ?: stringResource(R.string.livetv_no_program),
             color = TextSecondary,
             fontSize = 11.sp,
             lineHeight = 12.sp,
@@ -650,7 +652,7 @@ fun RecentlyWatchedTvItem(
 
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "CH ${stream.num} ${stream.name}",
+                    text = stringResource(R.string.livetv_channel_number_name, stream.num, stream.name),
                     color = Color.White,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
@@ -750,7 +752,7 @@ fun StreamTvCard(
 
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "CH ${stream.num} ${stream.name}",
+                    text = stringResource(R.string.livetv_channel_number_name, stream.num, stream.name),
                     color = Color.White,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Bold,
@@ -784,7 +786,7 @@ fun StreamTvCard(
                     )
                 } else {
                     Text(
-                        text = "Aucune information de programme",
+                        text = stringResource(R.string.livetv_no_program_info),
                         color = Color.Gray,
                         fontSize = 11.sp,
                         maxLines = 1,
@@ -799,7 +801,7 @@ fun StreamTvCard(
                 IconButton(onClick = onToggleFavorite) {
                     Icon(
                         imageVector = Icons.Default.Star,
-                        contentDescription = "Favori",
+                        contentDescription = stringResource(R.string.common_favorite),
                         tint = if (isFavorite) Color.Yellow else Color.DarkGray
                     )
                 }

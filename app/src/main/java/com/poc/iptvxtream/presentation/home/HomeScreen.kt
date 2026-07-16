@@ -90,7 +90,7 @@ fun HomeScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
 
-    // Section affichée en grille verticale ("Voir tout"). null = accueil normal.
+    // Section affichée en grille verticale (stringResource(R.string.common_see_all)). null = accueil normal.
     var expandedSection by remember { mutableStateOf<HomeExpandedSection?>(null) }
 
     // Refresh home data when entering screen
@@ -194,7 +194,7 @@ fun HomeScreen(
                             Column(modifier = Modifier.align(Alignment.CenterVertically)) {
                                 if (!isTv) {
                                     Text(
-                                        text = "Bonsoir",
+                                        text = stringResource(R.string.home_greeting),
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.SemiBold,
                                         color = AccentLavande,
@@ -227,7 +227,7 @@ fun HomeScreen(
                                                 .background(DividerDark, shape = RoundedCornerShape(1.5.dp))
                                         )
                                         Text(
-                                            text = "Exp. ${userInfo.expiryDate}",
+                                            text = stringResource(R.string.home_expiry, userInfo.expiryDate),
                                             fontSize = 10.5.sp,
                                             fontWeight = FontWeight.Medium,
                                             color = TextDim,
@@ -279,33 +279,33 @@ fun HomeScreen(
                             ) {
                                 val buttonModifier = Modifier.weight(1f).height(38.dp)
                                 TvButton(onClick = onNavigateToLiveTv, modifier = buttonModifier) {
-                                    TvText("LIVE TV", fontWeight = FontWeight.Bold, style = TvTheme.typography.labelSmall)
+                                    TvText(stringResource(R.string.tvnav_live), fontWeight = FontWeight.Bold, style = TvTheme.typography.labelSmall)
                                 }
                                 TvButton(onClick = onNavigateToVod, modifier = buttonModifier) {
-                                    TvText("FILMS VOD", fontWeight = FontWeight.Bold, style = TvTheme.typography.labelSmall)
+                                    TvText(stringResource(R.string.tvnav_vod), fontWeight = FontWeight.Bold, style = TvTheme.typography.labelSmall)
                                 }
                                 TvButton(onClick = onNavigateToSeries, modifier = buttonModifier) {
-                                    TvText("SÉRIES", fontWeight = FontWeight.Bold, style = TvTheme.typography.labelSmall)
+                                    TvText(stringResource(R.string.tvnav_series), fontWeight = FontWeight.Bold, style = TvTheme.typography.labelSmall)
                                 }
                                 TvButton(onClick = onNavigateToFavorites, modifier = buttonModifier) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Icon(Icons.Default.Star, contentDescription = null, tint = Color.Yellow, modifier = Modifier.size(14.dp))
                                         Spacer(modifier = Modifier.width(4.dp))
-                                        TvText("FAVS", fontWeight = FontWeight.Bold, style = TvTheme.typography.labelSmall)
+                                        TvText(stringResource(R.string.tvnav_favorites), fontWeight = FontWeight.Bold, style = TvTheme.typography.labelSmall)
                                     }
                                 }
                                 TvButton(onClick = onNavigateToSearch, modifier = buttonModifier) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(14.dp))
                                         Spacer(modifier = Modifier.width(4.dp))
-                                        TvText("RECH", fontWeight = FontWeight.Bold, style = TvTheme.typography.labelSmall)
+                                        TvText(stringResource(R.string.tvnav_search), fontWeight = FontWeight.Bold, style = TvTheme.typography.labelSmall)
                                     }
                                 }
                                 TvButton(onClick = onNavigateToSettings, modifier = buttonModifier) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Icon(Icons.Default.Settings, contentDescription = null, tint = Color.LightGray, modifier = Modifier.size(14.dp))
                                         Spacer(modifier = Modifier.width(4.dp))
-                                        TvText("PARAMS", fontWeight = FontWeight.Bold, style = TvTheme.typography.labelSmall)
+                                        TvText(stringResource(R.string.tvnav_settings), fontWeight = FontWeight.Bold, style = TvTheme.typography.labelSmall)
                                     }
                                 }
                             }
@@ -313,7 +313,7 @@ fun HomeScreen(
                     }
                 }
 
-                // NOUVEAU: Hero "Reprendre" (Phase 48)
+                // NOUVEAU: Hero stringResource(R.string.home_resume) (Phase 48)
                 if (state.resumeWatchingList.isNotEmpty() && !isTv) {
                     item {
                         HomeHeroCard(
@@ -451,7 +451,7 @@ fun HomeScreen(
     }
 }
 
-// Section de l'accueil affichable en grille verticale via "Voir tout".
+// Section de l'accueil affichable en grille verticale via stringResource(R.string.common_see_all).
 private enum class HomeExpandedSection { RESUME, FAVORITES }
 
 @Composable
