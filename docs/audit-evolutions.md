@@ -16,7 +16,7 @@ une session IA, classé par urgence décroissante.
 | 2 | ✅ Tester les migrations Room (exportSchema + tests instrumentés) | 🟠 | M |
 | 3 | ✅ Migrer hors de security-crypto (déprécié) | 🟠 | M |
 | 4 | ✅ Mettre à niveau la stack (AGP/Kotlin 2/Compose BOM) | 🟠 | L |
-| 5 | Compléter les tests ViewModels (5 manquants) | 🟡 | L |
+| 5 | ✅ Compléter les tests ViewModels (5 manquants) | 🟡 | L |
 | 6 | Factoriser les 3 players (~2500 lignes dupliquées) | 🟡 | L |
 | 7 | Pagination des catalogues volumineux | 🟡 | L |
 | 8 | Finir la migration couleurs vers le thème (99 restantes) | 🟡 | M |
@@ -157,7 +157,7 @@ workaround compileSdk masque de vrais avertissements de compatibilité.
 
 ---
 
-## 5. 🟡 Compléter les tests ViewModels — Effort L
+## 5. 🟡 Compléter les tests ViewModels — Effort L — ✅ FAIT
 
 **Constat.** 18 fichiers de test pour 142 fichiers source. Côté présentation,
 seuls `HomeViewModel`, `LoginViewModel` et `SettingsViewModel` sont testés.
