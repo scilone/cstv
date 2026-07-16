@@ -24,7 +24,7 @@ une session IA, classé par urgence décroissante.
 | 10 | Version catalog Gradle | 🟢 | S |
 | 11 | Finir l'externalisation i18n (55 strings) | 🟢 | M |
 | 12 | Configurer le cache images Coil | 🟢 | S |
-| 13 | Mettre à jour les statuts de la feuille de route | 🟢 | S |
+| 13 | ✅ Mettre à jour les statuts de la feuille de route | 🟢 | S |
 
 Hors périmètre de cet audit : Phase 21 (autocomplétion recherche) et
 Phase 54 (accent réglable), déjà décrites dans la feuille de route.
@@ -375,7 +375,7 @@ scroll des grilles et évite les re-téléchargements après éviction.
 
 ---
 
-## 13. 🟢 Mettre à jour les statuts de la feuille de route — Effort S
+## 13. 🟢 Mettre à jour les statuts de la feuille de route — Effort S — ✅ FAIT
 
 **Constat.** `feuille-de-route-phases.md` ne marque `[TERMINE]` que les
 phases 29 et 42-45, alors que les phases 18-28, 30-41, 46-53 et 55-57 sont
