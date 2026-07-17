@@ -840,7 +840,7 @@ fun SeriesPlayerScreen(
                             if (nextEpisode != null) {
                                 PlayerBottomAction(
                                     icon = Icons.Default.SkipNext,
-                                    label = "Épisode suivant",
+                                    label = "Suivant",
                                     onClick = { goToEpisode(nextEpisode, false) }
                                 )
                             }
