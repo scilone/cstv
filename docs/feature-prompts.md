@@ -219,22 +219,7 @@ Tests : requête "100 derniers" (tri, limite, respect des catégories masquées)
 
 ## 14. Home : Top 10 sans "voir tout", note ≥ 8 uniquement (sans palier de repli)
 
-Sonnet 5, effort faible.
-
-Sur la Home, les sections "Top 10 Films"/"Top 10 Séries" ([feature #9](#9-top-10-filmsséries-sur-la-home-derniers-ajouts-note-décroissante-avec-palier)) doivent : (a) ne plus avoir de bouton "voir tout", (b) n'afficher que des médias avec note **≥ 8**, sans le système de paliers de repli actuel.
-
-Contexte existant :
-- `TopRatedSelector.kt:21-45` (`selectTop10`) : système à 5 paliers (`rating > 8.0`, sinon `> 7.0`, `> 6.0`, `> 5.0`, `> 0.0`, sinon tout) qui complète jusqu'à 10 items en descendant les seuils si le palier supérieur n'en fournit pas assez.
-- `HomeScreen.kt:421-489` : sections "Top 10 Films"/"Top 10 Séries" avec `onSeeAll = onNavigateToVod`/`onNavigateToSeries` (via `SectionHeader`, `HomeScreen.kt:427,475`).
-
-Décision : note **≥ 8** strictement (pas de repli sur les paliers inférieurs) — si moins de 10 items qualifient, afficher moins de 10 (voire masquer la section si vide, cohérent avec `state.topVodStreams.isNotEmpty()` déjà en place `HomeScreen.kt:422,470`).
-
-À faire :
-1. Simplifie `TopRatedSelector.selectTop10` (ou crée une nouvelle fonction dédiée si `selectTop10` est utilisé ailleurs avec l'ancien comportement — vérifie les appels) : filtre unique `rating >= 8.0`, tri par `added` décroissant, `take(10)`. Supprime la logique de paliers (tier1-tier5) devenue inutile.
-2. Sur `HomeScreen.kt`, retire le `onSeeAll` des `SectionHeader` des sections "Top 10 Films" (l.427) et "Top 10 Séries" (l.475) — passe `onSeeAll = null` (le composant `SectionHeader` gère déjà ce cas, voir `HomeScreen.kt:590` `if (onSeeAll != null)`).
-3. Adapte les tests existants `TopRatedSelectorTest` (retire les cas de paliers, ajoute le cas seuil ≥ 8 strict).
-
-Tests : filtrage note ≥ 8 (limite exacte à 8.0 incluse), tri par added, absence de bouton "voir tout" dans la section, non-régression sur les autres sections Home.
+✅ **TERMINÉE** — Sonnet 5, effort faible. Simplification du sélecteur `TopRatedSelector.selectTop10` pour filtrer strictement les notes `rating >= 8.0`, trier par date d'ajout décroissante (`added`), et limiter à un maximum de 10 résultats, éliminant totalement l'ancien mécanisme de repli multi-palier. Sur l'écran d'accueil (`HomeScreen.kt`), retrait du bouton "voir tout" des en-têtes des deux sections "Top 10" (en passant `onSeeAll = null`). Adaptation complète des tests unitaires existants dans `TopRatedSelectorTest.kt` pour refléter la nouvelle logique de filtrage strict et de tri de la note `≥ 8.0` incluse.
 
 ---
 

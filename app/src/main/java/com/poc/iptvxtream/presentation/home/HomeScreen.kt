@@ -425,7 +425,7 @@ fun HomeScreen(
                         HomeSectionRow(
                             title = stringResource(R.string.home_top_movies),
                             isTv = isTv,
-                            onSeeAll = onNavigateToVod
+                            onSeeAll = null
                         ) {
                             LazyRow(
                                 state = rememberForeverLazyListState("home_top_vod", { viewModel.getScrollPosition(it) }, { k, i, o -> viewModel.saveScrollPosition(k, i, o) }),
@@ -473,7 +473,7 @@ fun HomeScreen(
                         HomeSectionRow(
                             title = stringResource(R.string.home_top_series),
                             isTv = isTv,
-                            onSeeAll = onNavigateToSeries
+                            onSeeAll = null
                         ) {
                             LazyRow(
                                 state = rememberForeverLazyListState("home_top_series", { viewModel.getScrollPosition(it) }, { k, i, o -> viewModel.saveScrollPosition(k, i, o) }),
