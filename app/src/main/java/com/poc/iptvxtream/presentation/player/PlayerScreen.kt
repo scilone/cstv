@@ -56,6 +56,7 @@ import android.content.ContextWrapper
 import android.view.WindowManager
 
 import androidx.compose.material.icons.filled.AspectRatio
+import androidx.compose.material.icons.filled.PictureInPictureAlt
 import com.poc.iptvxtream.data.local.storage.ResizeMode
 import com.poc.iptvxtream.presentation.livetv.LiveTvViewModel
 
@@ -145,6 +146,34 @@ fun PlayerScreen(
     var playbackError by remember { mutableStateOf<String?>(null) }
     var showOverlay by remember { mutableStateOf(true) }
     var streamExtension by remember { mutableStateOf("m3u8") } // Default to m3u8
+
+    val componentActivity = remember(context) { context.findActivity() as? androidx.activity.ComponentActivity }
+    var isInPipMode by remember {
+        mutableStateOf(
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+                componentActivity?.isInPictureInPictureMode == true
+            } else {
+                false
+            }
+        )
+    }
+
+    DisposableEffect(componentActivity) {
+        if (componentActivity == null) return@DisposableEffect onDispose {}
+        val listener = androidx.core.util.Consumer<androidx.core.app.PictureInPictureModeChangedInfo> { info ->
+            isInPipMode = info.isInPictureInPictureMode
+        }
+        componentActivity.addOnPictureInPictureModeChangedListener(listener)
+        onDispose {
+            componentActivity.removeOnPictureInPictureModeChangedListener(listener)
+        }
+    }
+
+    LaunchedEffect(isInPipMode) {
+        if (isInPipMode) {
+            showChannelList = false
+        }
+    }
 
     // Auto-hide overlay after 5 seconds of inactivity
     LaunchedEffect(showOverlay, showChannelList) {
@@ -391,7 +420,7 @@ fun PlayerScreen(
         }
 
         // Custom Overlay UI (Auto-hides)
-        if (showOverlay && playbackError == null) {
+        if (showOverlay && playbackError == null && !isInPipMode) {
             // Top Bar: Close Button
             Box(
                 modifier = Modifier
@@ -470,6 +499,39 @@ fun PlayerScreen(
                             Icon(Icons.Default.AspectRatio, contentDescription = "Format de l'image", tint = Color.White)
                         }
 
+                        if (!isTv) {
+                            IconButton(
+                                onClick = {
+                                    val act = componentActivity ?: return@IconButton
+                                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                                        val builder = android.app.PictureInPictureParams.Builder()
+                                        val videoSize = exoPlayer.videoSize
+                                        if (videoSize.width > 0 && videoSize.height > 0) {
+                                            try {
+                                                val ratio = videoSize.width.toFloat() / videoSize.height.toFloat()
+                                                if (ratio in 0.4184f..2.39f) {
+                                                    builder.setAspectRatio(android.util.Rational(videoSize.width, videoSize.height))
+                                                } else {
+                                                    builder.setAspectRatio(android.util.Rational(16, 9))
+                                                }
+                                            } catch (e: Exception) {
+                                                builder.setAspectRatio(android.util.Rational(16, 9))
+                                            }
+                                        } else {
+                                            builder.setAspectRatio(android.util.Rational(16, 9))
+                                        }
+                                        act.enterPictureInPictureMode(builder.build())
+                                    } else if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+                                        @Suppress("DEPRECATION")
+                                        act.enterPictureInPictureMode()
+                                    }
+                                },
+                                modifier = Modifier.background(Color(0x40FFFFFF), shape = CardDefaults.shape)
+                            ) {
+                                Icon(Icons.Default.PictureInPictureAlt, contentDescription = "Picture-in-Picture", tint = Color.White)
+                            }
+                        }
+
                         IconButton(
                             onClick = handleClose,
                             modifier = Modifier.background(Color(0x40FFFFFF), shape = CardDefaults.shape)
@@ -521,7 +583,7 @@ fun PlayerScreen(
         }
 
         // Channel List Drawer Overlay
-        if (showChannelList && streamsList.isNotEmpty()) {
+        if (showChannelList && streamsList.isNotEmpty() && !isInPipMode) {
             val listState = rememberLazyListState()
             val currentItemFocusRequester = remember { FocusRequester() }
 

@@ -237,24 +237,7 @@ Tests : construction de `TrackInfo.isSupported` à partir d'un `Tracks.Group` mo
 
 ## 12. Mode Picture-in-Picture (PIP) à la demande dans le player
 
-**Modèle recommandé : Sonnet 5, effort moyen** — API Android bien documentée (`PictureInPictureParams`), mais à câbler correctement sur 3 écrans player + cycle de vie de l'Activity, quelques pièges classiques (rotation, contrôles qui doivent disparaître en mode PIP).
-
-Ajoute un bouton dans les contrôles de chaque player (Live TV, VOD, Séries) qui bascule l'app en mode PIP à la demande — pas de déclenchement automatique en quittant l'app (`onUserLeaveHint`).
-
-Contexte existant :
-- Aucun support PIP dans le repo actuellement : aucune trace de `PictureInPictureParams`, `enterPictureInPictureMode`, `onUserLeaveHint`, ni d'attribut `android:supportsPictureInPicture` dans `AndroidManifest.xml`.
-- `MainActivity` (`AndroidManifest.xml:23-27`) déclare déjà `android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize"` — il manque `screenLayout` n'est pas suffisant seul pour PIP sans re-création : il faudra ajouter `smallestScreenSize` (déjà présent) et vérifier que `screenSize` (déjà présent) suffit ; teste en conditions réelles plutôt que de supposer.
-- Les 3 écrans player (`PlayerScreen.kt`, `VodPlayerScreen.kt`, `SeriesPlayerScreen.kt`) ont chacun leur propre `Context.findActivity()` (utilitaire dupliqué en tête de fichier) et leur propre rangée de contrôles (boutons `IconButton` en haut/bas de l'overlay) — le nouveau bouton PIP doit suivre le même pattern visuel que les boutons existants (ex. le bouton `AspectRatio` ajouté par la feature #5).
-- Décision produit déjà actée par l'utilisateur : PIP **sur demande uniquement** via bouton dédié, jamais automatique au `onUserLeaveHint`/passage en arrière-plan.
-
-À faire :
-1. `AndroidManifest.xml` : ajoute `android:supportsPictureInPicture="true"` et `android:resizeableActivity="true"` sur la déclaration de `MainActivity` (ligne 23-27), vérifie/ajuste `android:configChanges` pour couvrir les changements déclenchés par le mode PIP sans recréer l'Activity (teste concrètement sur device/émulateur).
-2. Ajoute un bouton (icône, ex. `Icons.Default.PictureInPictureAlt` si disponible dans le set d'icônes du projet, sinon vérifie l'alternative la plus proche déjà utilisée ailleurs) dans les contrôles de chacun des 3 players, qui appelle `activity.enterPictureInPictureMode(PictureInPictureParams.Builder()...build())` (via le `findActivity()` déjà présent dans chaque fichier) avec un ratio d'aspect cohérent avec la vidéo en cours si récupérable depuis ExoPlayer (`exoPlayer.videoSize`), sinon un ratio par défaut 16:9.
-3. Masque les contrôles custom (overlay Compose : boutons, titre, slider, tiroir de chaînes, etc.) quand l'Activity est en mode PIP (`Activity.isInPictureInPictureMode`, à observer via un `Configuration`/callback approprié en Compose — vérifie le pattern recommandé pour Compose + PIP, probablement un `DisposableEffect` avec un listener sur l'Activity) : en PIP, seule la vidéo doit rester visible, ExoPlayer continue de jouer.
-4. Vérifie qu'en sortant du mode PIP (retour à la taille normale), les contrôles custom réapparaissent normalement et que l'état de lecture (position, piste sélectionnée, etc.) n'est pas perturbé.
-5. Sur Android TV (`isTv == true`), le mode PIP n'a généralement pas de sens (pas de multi-fenêtrage utilisateur standard sur la plupart des launchers TV) — masque le bouton PIP si `isTv`, à moins que tu constates que ça fonctionne correctement en test sur l'émulateur TV du projet.
-
-Tests : essentiellement recette manuelle sur device/émulateur (voir notes transverses) — le mode PIP n'est pas testable unitairement. Vérifie au minimum : le bouton bascule bien en PIP sur les 3 players mobile, les contrôles disparaissent en PIP, la lecture continue sans coupure, le retour au mode normal restaure l'UI, le bouton est absent sur TV.
+✅ **TERMINÉE** — Sonnet 5, effort moyen. Support Picture-in-Picture déclaré dans le manifest (`supportsPictureInPicture="true"`, `resizeableActivity="true"`). Ajout d'un bouton PIP (`Icons.Default.PictureInPictureAlt`) sur les 3 lecteurs mobiles (`isTv == false`). Le bouton bascule l'application en mode PIP à la demande avec un ratio dynamique extrait de la taille vidéo active d'ExoPlayer. Les contrôles custom (overlays, tiroir, etc.) sont automatiquement masqués en mode PIP grâce à l'observation réactive du changement de mode (`OnPictureInPictureModeChangedListener`) via un `DisposableEffect` sécurisé qui évite le name shadowing.
 
 ---
 

@@ -47,6 +47,7 @@ import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.Tracks
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.compose.material.icons.filled.AspectRatio
+import androidx.compose.material.icons.filled.PictureInPictureAlt
 import com.poc.iptvxtream.data.local.storage.ResizeMode
 import androidx.media3.ui.PlayerView
 import com.poc.iptvxtream.presentation.player.applySubtitleStyle
@@ -105,6 +106,28 @@ fun SeriesPlayerScreen(
         if (resizeModeNotification != null) {
             delay(2000)
             resizeModeNotification = null
+        }
+    }
+
+    val componentActivity = remember(context) { context.findActivity() as? androidx.activity.ComponentActivity }
+    var isInPipMode by remember {
+        mutableStateOf(
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+                componentActivity?.isInPictureInPictureMode == true
+            } else {
+                false
+            }
+        )
+    }
+
+    DisposableEffect(componentActivity) {
+        if (componentActivity == null) return@DisposableEffect onDispose {}
+        val listener = androidx.core.util.Consumer<androidx.core.app.PictureInPictureModeChangedInfo> { info ->
+            isInPipMode = info.isInPictureInPictureMode
+        }
+        componentActivity.addOnPictureInPictureModeChangedListener(listener)
+        onDispose {
+            componentActivity.removeOnPictureInPictureModeChangedListener(listener)
         }
     }
 
@@ -587,7 +610,7 @@ fun SeriesPlayerScreen(
         }
 
         // Custom Media Controls Overlay
-        if (showControls && playbackError == null) {
+        if (showControls && playbackError == null && !isInPipMode) {
             // Top Panel: Title and Exit/Settings Buttons
             Box(
                 modifier = Modifier
@@ -654,6 +677,40 @@ fun SeriesPlayerScreen(
                             Icon(Icons.Default.AspectRatio, contentDescription = "Format de l'image", tint = Color.White)
                         }
                         Spacer(modifier = Modifier.width(10.dp))
+
+                        if (!isTv) {
+                            IconButton(
+                                onClick = {
+                                    val act = componentActivity ?: return@IconButton
+                                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                                        val builder = android.app.PictureInPictureParams.Builder()
+                                        val videoSize = exoPlayer.videoSize
+                                        if (videoSize.width > 0 && videoSize.height > 0) {
+                                            try {
+                                                val ratio = videoSize.width.toFloat() / videoSize.height.toFloat()
+                                                if (ratio in 0.4184f..2.39f) {
+                                                    builder.setAspectRatio(android.util.Rational(videoSize.width, videoSize.height))
+                                                } else {
+                                                    builder.setAspectRatio(android.util.Rational(16, 9))
+                                                }
+                                            } catch (e: Exception) {
+                                                builder.setAspectRatio(android.util.Rational(16, 9))
+                                            }
+                                        } else {
+                                            builder.setAspectRatio(android.util.Rational(16, 9))
+                                        }
+                                        act.enterPictureInPictureMode(builder.build())
+                                    } else if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+                                        @Suppress("DEPRECATION")
+                                        act.enterPictureInPictureMode()
+                                    }
+                                },
+                                modifier = Modifier.background(Color(0x40FFFFFF), shape = RoundedCornerShape(12.dp))
+                            ) {
+                                Icon(Icons.Default.PictureInPictureAlt, contentDescription = "Picture-in-Picture", tint = Color.White)
+                            }
+                            Spacer(modifier = Modifier.width(10.dp))
+                        }
 
                         IconButton(
                             onClick = handleClose,
