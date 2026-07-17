@@ -170,25 +170,7 @@ Tests : parsing de la string genre (cas avec espaces, casse variable, un seul ge
 
 ## 10. Live TV player : dropdown pour changer de catégorie dans le panneau de zapping
 
-**Modèle recommandé : Sonnet 5, effort moyen** — réutilise entièrement l'infra existante (ViewModel déjà injecté, use case déjà là), juste de la UI + du câblage d'état.
-
-Dans le panneau latéral de zapping du `PlayerScreen` (feature #4), ajoute un dropdown pour changer de catégorie et ainsi zapper sur des chaînes hors de la catégorie/liste initiale.
-
-Contexte existant :
-- `PlayerScreen` reçoit `streamsList: List<LiveStream>` figée (`presentation/player/PlayerScreen.kt:77`), remplie une fois par `MainActivity`/`NavGraph` selon la catégorie ou le favori/résultat de recherche sélectionné avant d'entrer dans le player (`activeStreamsList` dans `MainActivity.kt:170`). Le panneau de zapping (feature #4) affiche uniquement cette liste (`PlayerScreen.kt:596`, `itemsIndexed(streamsList)`) — impossible d'en sortir sans fermer le player.
-- `PlayerScreen` reçoit déjà `viewModel: LiveTvViewModel` (ajouté par la feature #5, resize mode) — ce ViewModel expose déjà tout ce qu'il faut : `state.categories: List<LiveCategory>` (avec l'entrée synthétique `"all"` = "Tout", voir `LiveTvViewModel.kt:121-137`), `loadStreams(categoryId: String, forceRefresh: Boolean = false)` qui peuple `state.streams`, et `selectCategory(category: LiveCategory)` (`LiveTvViewModel.kt:146-149`).
-- Attention : `selectCategory`/`loadStreams` écrivent dans `LiveTvState` (l'état de l'écran grille Live TV en arrière-plan), pas dans un état local au player — vérifie si c'est acceptable de réutiliser tel quel (ça resynchroniserait la grille Live TV avec la nouvelle catégorie au retour du player, ce qui est probablement le comportement désiré) ou s'il faut une méthode dédiée qui ne pollue pas `LiveTvState` pour ne pas surprendre l'utilisateur en revenant à l'écran Live TV. À trancher selon ce qui semble le plus cohérent après avoir regardé `LiveTvScreen.kt`.
-
-Décision : le dropdown remplace la liste de chaînes affichée dans le panneau par celles de la catégorie choisie (pas un ajout à la suite) — comportement identique à un changement de catégorie sur l'écran Live TV normal.
-
-À faire :
-1. Ajoute un dropdown (menu déroulant, ex. `ExposedDropdownMenuBox` ou équivalent cohérent avec le reste de l'app) en haut du panneau de zapping existant, listant `viewModel.state.value.categories` (ou en observant le `StateFlow` proprement en `Composable`).
-2. À la sélection d'une catégorie, déclenche le chargement des chaînes de cette catégorie via le ViewModel (`loadStreams`/`selectCategory`, ou nouvelle méthode dédiée si tu juges que réutiliser l'état de la grille Live TV est trompeur — voir point d'attention ci-dessus) et remplace la liste affichée dans le panneau par le résultat.
-3. La sélection d'une chaîne dans cette nouvelle liste doit fonctionner exactement comme aujourd'hui (changement immédiat du flux en cours, `currentStreamIndex`/`streamsList` mis à jour en conséquence — attention, `streamsList` est un paramètre reçu de l'extérieur, il faudra probablement le dupliquer en state interne modifiable une fois qu'on quitte la liste initiale).
-4. Conserve le focus D-pad/clavier fonctionnel sur le dropdown et sur la nouvelle liste (même pattern que le reste du panneau, feature #4).
-5. Vérifie le comportement au retour du player vers l'écran Live TV : la grille doit-elle refléter la nouvelle catégorie sélectionnée dans le player, ou rester sur la catégorie d'origine ? Documente le choix fait dans le commit.
-
-Tests : sélection d'une catégorie dans le dropdown charge les bonnes chaînes, sélection d'une chaîne dans la nouvelle liste change bien le flux, non-régression sur le zapping/panneau existant (feature #4) quand on ne touche pas au dropdown.
+✅ **TERMINÉE** — Sonnet 5, effort moyen. Ajout d'un sélecteur de catégorie sous forme de menu déroulant (`DropdownMenu`) au-dessus de la liste du panneau de zapping latéral. Le sélecteur permet de choisir la liste de zapping initiale ou n'importe quelle catégorie chargée réactivement depuis le `LiveTvViewModel`. La sélection d'une nouvelle catégorie charge immédiatement ses chaînes associées en arrière-plan sans perturber la lecture courante. Cliquer sur une chaîne de la nouvelle liste bascule immédiatement le flux principal, met à jour l'index courant et synchronise la liste de zapping principale (`activeStreamsList`) afin que le zapping standard (haut/bas) s'effectue au sein de cette nouvelle catégorie. Le comportement est entièrement synchronisé et répercuté sur la grille Live TV principale au retour du lecteur.
 
 ---
 

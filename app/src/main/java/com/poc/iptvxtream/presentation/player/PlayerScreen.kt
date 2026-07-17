@@ -2,6 +2,7 @@ package com.poc.iptvxtream.presentation.player
 
 import android.view.ViewGroup
 import android.widget.FrameLayout
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -51,6 +52,7 @@ import androidx.media3.ui.PlayerView
 import coil.compose.AsyncImage
 import com.poc.iptvxtream.domain.model.Credentials
 import com.poc.iptvxtream.domain.model.LiveStream
+import com.poc.iptvxtream.domain.model.LiveCategory
 import com.poc.iptvxtream.presentation.theme.Surface3
 import kotlinx.coroutines.delay
 import android.app.Activity
@@ -138,10 +140,11 @@ fun PlayerScreen(
     // -> indexOf renvoyait -1, coerceAtLeast(0) forçait l'index 0 et lançait
     // toujours la première chaîne de la liste. En cas d'absence (-1), le fallback
     // ?: initialStream de la ligne suivante lit bien la chaîne cliquée.
+    var activeStreamsList by remember { mutableStateOf(streamsList) }
     var currentStreamIndex by remember {
-        mutableStateOf(streamsList.indexOfFirst { it.streamId == initialStream.streamId })
+        mutableStateOf(activeStreamsList.indexOfFirst { it.streamId == initialStream.streamId })
     }
-    val currentStream = remember(currentStreamIndex) { streamsList.getOrNull(currentStreamIndex) ?: initialStream }
+    val currentStream = remember(currentStreamIndex, activeStreamsList) { activeStreamsList.getOrNull(currentStreamIndex) ?: initialStream }
 
     LaunchedEffect(currentStream) {
         onStreamChanged(currentStream)
@@ -263,16 +266,16 @@ fun PlayerScreen(
     }
 
     fun zapNext() {
-        if (streamsList.isNotEmpty()) {
-            currentStreamIndex = (currentStreamIndex + 1) % streamsList.size
+        if (activeStreamsList.isNotEmpty()) {
+            currentStreamIndex = (currentStreamIndex + 1) % activeStreamsList.size
             showOverlay = true
             streamExtension = "m3u8" // Reset extension to default on zap
         }
     }
 
     fun zapPrev() {
-        if (streamsList.isNotEmpty()) {
-            currentStreamIndex = if (currentStreamIndex - 1 < 0) streamsList.size - 1 else currentStreamIndex - 1
+        if (activeStreamsList.isNotEmpty()) {
+            currentStreamIndex = if (currentStreamIndex - 1 < 0) activeStreamsList.size - 1 else currentStreamIndex - 1
             showOverlay = true
             streamExtension = "m3u8" // Reset extension to default on zap
         }
@@ -654,7 +657,7 @@ fun PlayerScreen(
                         Spacer(modifier = Modifier.height(4.dp))
 
                         // Barre d'actions : « Chaînes » (ouvre le tiroir de zapping)
-                        if (streamsList.isNotEmpty()) {
+                        if (activeStreamsList.isNotEmpty()) {
                             PlayerBottomAction(
                                 icon = Icons.Default.Tv,
                                 label = "Chaînes",
@@ -667,7 +670,30 @@ fun PlayerScreen(
         }
 
         // Channel List Drawer Overlay
-        if (showChannelList && streamsList.isNotEmpty() && !isInPipMode) {
+        if (showChannelList && activeStreamsList.isNotEmpty() && !isInPipMode) {
+            val liveTvState by viewModel.state.collectAsStateWithLifecycle()
+
+            LaunchedEffect(Unit) {
+                if (viewModel.state.value.categories.isEmpty()) {
+                    viewModel.loadCategories()
+                }
+            }
+
+            val initialListCategory = remember { LiveCategory("initial", "Liste de zapping", 0) }
+            var selectedDrawerCategory by remember { mutableStateOf(initialListCategory) }
+
+            val dropdownCategories = remember(liveTvState.categories) {
+                listOf(initialListCategory) + liveTvState.categories
+            }
+
+            val drawerStreams = remember(selectedDrawerCategory, liveTvState.streams, streamsList) {
+                if (selectedDrawerCategory.categoryId == "initial") {
+                    streamsList
+                } else {
+                    liveTvState.streams
+                }
+            }
+
             val listState = rememberLazyListState()
             val currentItemFocusRequester = remember { FocusRequester() }
 
@@ -682,10 +708,18 @@ fun PlayerScreen(
 
             // Auto-scroll vers la chaîne active à l'ouverture, puis lui donne le focus D-pad
             // pour que la première pression haut/bas navigue directement dans la liste.
-            LaunchedEffect(showChannelList) {
-                if (currentStreamIndex >= 0) {
+            LaunchedEffect(showChannelList, selectedDrawerCategory, drawerStreams) {
+                val isInitial = selectedDrawerCategory.categoryId == "initial"
+                if (isInitial && currentStreamIndex >= 0) {
                     listState.animateScrollToItem(currentStreamIndex)
                     runCatching { currentItemFocusRequester.requestFocus() }
+                } else if (!isInitial && drawerStreams.isNotEmpty()) {
+                    val matchingIndex = drawerStreams.indexOfFirst { it.streamId == currentStream.streamId }
+                    if (matchingIndex >= 0) {
+                        listState.animateScrollToItem(matchingIndex)
+                    } else {
+                        listState.animateScrollToItem(0)
+                    }
                 }
             }
 
@@ -717,7 +751,7 @@ fun PlayerScreen(
                                 fontSize = 18.sp
                             )
                             Text(
-                                text = "${streamsList.size} chaînes",
+                                text = "${drawerStreams.size} chaînes",
                                 color = Color.Gray,
                                 fontSize = 11.sp
                             )
@@ -729,7 +763,77 @@ fun PlayerScreen(
                         }
                     }
 
-                    HorizontalDivider(color = Color(0x20FFFFFF), modifier = Modifier.padding(bottom = 12.dp))
+                    HorizontalDivider(color = Color(0x20FFFFFF), modifier = Modifier.padding(bottom = 8.dp))
+
+                    // Category Dropdown Selection
+                    var dropdownExpanded by remember { mutableStateOf(false) }
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 12.dp)
+                    ) {
+                        Surface(
+                            onClick = { dropdownExpanded = true },
+                            color = Color(0x15FFFFFF),
+                            shape = RoundedCornerShape(8.dp),
+                            border = BorderStroke(1.dp, Color(0x10FFFFFF)),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(40.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(horizontal = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = selectedDrawerCategory.categoryName,
+                                    color = Color.White,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f, fill = false)
+                                )
+                                Icon(
+                                    imageVector = Icons.Default.KeyboardArrowDown,
+                                    contentDescription = null,
+                                    tint = Color.LightGray,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+
+                        DropdownMenu(
+                            expanded = dropdownExpanded,
+                            onDismissRequest = { dropdownExpanded = false },
+                            modifier = Modifier
+                                .width(296.dp)
+                                .background(Color(0xFF16161C))
+                        ) {
+                            dropdownCategories.forEach { category ->
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            text = category.categoryName,
+                                            color = if (category.categoryId == selectedDrawerCategory.categoryId) MaterialTheme.colorScheme.primary else Color.White,
+                                            fontSize = 13.sp,
+                                            fontWeight = if (category.categoryId == selectedDrawerCategory.categoryId) FontWeight.Bold else FontWeight.Normal
+                                        )
+                                    },
+                                    onClick = {
+                                        selectedDrawerCategory = category
+                                        if (category.categoryId != "initial") {
+                                            viewModel.selectCategory(category)
+                                        }
+                                        dropdownExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
 
                     // Channel List
                     LazyColumn(
@@ -739,8 +843,12 @@ fun PlayerScreen(
                             .weight(1f)
                             .fillMaxWidth()
                     ) {
-                        itemsIndexed(streamsList) { index, stream ->
-                            val isCurrent = index == currentStreamIndex
+                        itemsIndexed(drawerStreams) { index, stream ->
+                            val isCurrent = if (selectedDrawerCategory.categoryId == "initial") {
+                                index == currentStreamIndex
+                            } else {
+                                stream.streamId == currentStream.streamId
+                            }
                             var isFocused by remember { mutableStateOf(false) }
 
                             Box(
@@ -762,7 +870,13 @@ fun PlayerScreen(
                                         shape = RoundedCornerShape(8.dp)
                                     )
                                     .clickable {
-                                        currentStreamIndex = index
+                                        if (selectedDrawerCategory.categoryId != "initial") {
+                                            activeStreamsList = drawerStreams
+                                        } else {
+                                            activeStreamsList = streamsList
+                                        }
+                                        val newIndex = activeStreamsList.indexOfFirst { it.streamId == stream.streamId }
+                                        currentStreamIndex = if (newIndex != -1) newIndex else 0
                                         streamExtension = "m3u8"
                                         showChannelList = false
                                     }
