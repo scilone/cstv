@@ -71,6 +71,7 @@ fun HomeScreen(
     onNavigateToLiveTv: () -> Unit,
     onNavigateToVod: () -> Unit,
     onNavigateToSeries: () -> Unit,
+    onNavigateToRecentlyAdded: (Boolean) -> Unit,
     onNavigateToFavorites: () -> Unit,
     onNavigateToSearch: () -> Unit,
     onNavigateToSettings: () -> Unit,
@@ -400,7 +401,7 @@ fun HomeScreen(
                         HomeSectionRow(
                             title = stringResource(R.string.home_section_vod),
                             isTv = isTv,
-                            onSeeAll = onNavigateToVod
+                            onSeeAll = { onNavigateToRecentlyAdded(false) }
                         ) {
                             LazyRow(
                                 state = rememberForeverLazyListState("home_vod", { viewModel.getScrollPosition(it) }, { k, i, o -> viewModel.saveScrollPosition(k, i, o) }),
@@ -448,7 +449,7 @@ fun HomeScreen(
                         HomeSectionRow(
                             title = stringResource(R.string.home_section_series),
                             isTv = isTv,
-                            onSeeAll = onNavigateToSeries
+                            onSeeAll = { onNavigateToRecentlyAdded(true) }
                         ) {
                             LazyRow(
                                 state = rememberForeverLazyListState("home_series", { viewModel.getScrollPosition(it) }, { k, i, o -> viewModel.saveScrollPosition(k, i, o) }),

@@ -25,6 +25,10 @@ import com.poc.iptvxtream.domain.model.SeriesDetails
 import com.poc.iptvxtream.domain.model.SeriesEpisode
 import com.poc.iptvxtream.presentation.home.HomeScreen
 import com.poc.iptvxtream.presentation.home.HomeViewModel
+import com.poc.iptvxtream.presentation.home.RecentlyAddedScreen
+import com.poc.iptvxtream.presentation.home.RecentlyAddedViewModel
+import androidx.navigation.NavType
+import androidx.navigation.navArgument
 import com.poc.iptvxtream.presentation.livetv.LiveTvScreen
 import com.poc.iptvxtream.presentation.livetv.LiveTvViewModel
 import com.poc.iptvxtream.presentation.login.LoginScreen
@@ -128,6 +132,9 @@ fun AppNavGraph(
                         launchSingleTop = true
                         restoreState = true
                     }
+                },
+                onNavigateToRecentlyAdded = { isSeries ->
+                    navController.navigate("recently_added/$isSeries")
                 },
                 onNavigateToFavorites = {
                     navController.navigate("favorites")
@@ -529,6 +536,29 @@ fun AppNavGraph(
             } else {
                 navController.popBackStack()
             }
+        }
+        composable(
+            "recently_added/{isSeries}",
+            arguments = listOf(navArgument("isSeries") { type = NavType.BoolType })
+        ) { backStackEntry ->
+            val isSeriesParam = backStackEntry.arguments?.getBoolean("isSeries") ?: false
+            val recentlyAddedViewModel: RecentlyAddedViewModel = hiltViewModel()
+            RecentlyAddedScreen(
+                viewModel = recentlyAddedViewModel,
+                isTv = false,
+                isSeries = isSeriesParam,
+                onBack = {
+                    navController.popBackStack()
+                },
+                onSelectMovieDetail = { stream ->
+                    onActiveVodMovieChanged(stream)
+                    navController.navigate("vod_details")
+                },
+                onSelectSeriesDetail = { stream ->
+                    onActiveSeriesShowChanged(stream)
+                    navController.navigate("series_details")
+                }
+            )
         }
     }
 }

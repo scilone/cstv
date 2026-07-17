@@ -48,6 +48,8 @@ import com.poc.iptvxtream.domain.model.SeriesDetails
 import com.poc.iptvxtream.domain.model.SeriesEpisode
 import com.poc.iptvxtream.presentation.home.HomeScreen
 import com.poc.iptvxtream.presentation.home.HomeViewModel
+import com.poc.iptvxtream.presentation.home.RecentlyAddedScreen
+import com.poc.iptvxtream.presentation.home.RecentlyAddedViewModel
 import com.poc.iptvxtream.presentation.livetv.LiveTvScreen
 import com.poc.iptvxtream.presentation.livetv.LiveTvViewModel
 import com.poc.iptvxtream.presentation.login.LoginScreen
@@ -92,7 +94,8 @@ enum class AppScreen {
     SETTINGS,
     CATEGORY_MANAGEMENT,
     PROFILE_SELECTION,
-    PROFILE_MANAGEMENT
+    PROFILE_MANAGEMENT,
+    RECENTLY_ADDED
 }
 
 enum class MobileTab(val route: String, val title: String, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
@@ -178,6 +181,7 @@ class MainActivity : ComponentActivity() {
                 var activeSeriesShow by remember { mutableStateOf<SeriesStream?>(null) }
                 var activeSeriesDetails by remember { mutableStateOf<SeriesDetails?>(null) }
                 var activeEpisode by remember { mutableStateOf<SeriesEpisode?>(null) }
+                var recentlyAddedIsSeries by remember { mutableStateOf(false) }
 
                 // Get global reactive favorites list
                 val favsState by favoritesViewModel.state.collectAsStateWithLifecycle()
@@ -279,6 +283,10 @@ class MainActivity : ComponentActivity() {
                                 },
                                 onNavigateToSeries = {
                                     navigateTo(AppScreen.SERIES_GRID)
+                                },
+                                onNavigateToRecentlyAdded = { isSeries ->
+                                    recentlyAddedIsSeries = isSeries
+                                    navigateTo(AppScreen.RECENTLY_ADDED)
                                 },
                                 onNavigateToFavorites = {
                                     navigateTo(AppScreen.FAVORITES)
@@ -665,6 +673,25 @@ class MainActivity : ComponentActivity() {
                                 isTv = isTv,
                                 onBack = {
                                     navigateBack()
+                                }
+                            )
+                        }
+                        AppScreen.RECENTLY_ADDED -> {
+                            val recentlyAddedViewModel: RecentlyAddedViewModel = hiltViewModel()
+                            RecentlyAddedScreen(
+                                viewModel = recentlyAddedViewModel,
+                                isTv = isTv,
+                                isSeries = recentlyAddedIsSeries,
+                                onBack = {
+                                    navigateBack()
+                                },
+                                onSelectMovieDetail = { stream ->
+                                    activeVodMovie = stream
+                                    navigateTo(AppScreen.VOD_DETAILS)
+                                },
+                                onSelectSeriesDetail = { stream ->
+                                    activeSeriesShow = stream
+                                    navigateTo(AppScreen.SERIES_DETAILS)
                                 }
                             )
                         }

@@ -195,23 +195,8 @@ Tests : parsing de la string genre (cas avec espaces, casse variable, un seul ge
 
 ## 13. Home : "voir tout" Films/Séries → 100 derniers médias ajoutés
 
-Sonnet 5, effort faible-moyen.
-
-Sur la Home, les sections "Films" et "Séries" (derniers ajouts, [feature #2](#2-home--sections-par-derniers-ajouts--renommage)) ont un bouton "voir tout" qui navigue actuellement vers `onNavigateToVod`/`onNavigateToSeries` (l'onglet complet, `HomeScreen.kt:403,427,451,475`). Remplace cette navigation par un écran listant les **100 derniers médias ajoutés** (tri par `added` décroissant), et non l'onglet catégories habituel.
-
-Contexte existant :
-- `HomeScreen.kt` : 4 `onSeeAll` pointent vers `onNavigateToVod`/`onNavigateToSeries` — 2 pour la section "Films"/"Séries" (derniers ajouts), 2 pour "Top 10 Films"/"Top 10 Séries" (feature #9, à laisser inchangés — ces "voir tout" sont retirés par la feature #14 ci-dessous).
-- Pas d'écran existant listant "tous les derniers ajouts" au-delà de la limite de 20 affichée en row (`HomeViewModel.kt:159` et suivants).
-- `VodStream`/`SeriesStream` ont déjà `added` (voir feature #2).
-
-À faire :
-1. Crée un nouvel écran (ex. `presentation/home/RecentlyAddedScreen.kt` ou équivalent, réutilise le style grille des écrans VOD/Séries existants) affichant les 100 items les plus récents par `added` décroissant, pour le type concerné (VOD ou Séries), en respectant les catégories masquées du profil actif si [feature #1](#1-gestion-des-catégories-masquer--réordonner-par-profil) est active côté requête.
-2. Ajoute la route de navigation correspondante (`NavGraph.kt` pour mobile, `MainActivity.kt`/`NavGraph.kt` pour TV selon le pattern existant).
-3. Requête : soit un nouveau DAO query `getRecentlyAdded(limit: Int)` (VOD/Séries), soit réutilisation de la logique déjà en place dans `HomeViewModel` en changeant juste la limite (20 → 100) et le nombre de colonnes/mode grille pour l'écran dédié.
-4. Change `onSeeAll` des sections "Films" et "Séries" (derniers ajouts) sur `HomeScreen.kt` pour naviguer vers ce nouvel écran au lieu de `onNavigateToVod`/`onNavigateToSeries`.
-5. Clic sur un item → détails du média (comportement standard, réutilise le pattern déjà en place ailleurs).
-
-Tests : requête "100 derniers" (tri, limite, respect des catégories masquées), navigation, non-régression sur les autres `onSeeAll` de la Home.
+... [TRUNCATED] ...
+Création d'un nouvel écran réutilisable et adaptatif `RecentlyAddedScreen` (`presentation/home/RecentlyAddedScreen.kt`) et de son ViewModel associé `RecentlyAddedViewModel` (`presentation/home/RecentlyAddedViewModel.kt`). Cet écran permet d'afficher sous forme de grille adaptative les 100 films (VOD) ou séries les plus récemment ajoutés (`added` décroissant), tout en respectant et en filtrant les catégories masquées du profil actif. La navigation a été entièrement intégrée dans `NavGraph.kt` pour les mobiles (via la route `recently_added/{isSeries}`) et dans `MainActivity.kt` pour les téléviseurs (via la route TV `AppScreen.RECENTLY_ADDED`). Le clic sur un élément redirige de façon transparente vers l'écran de détails correspondant. Ajout de tests unitaires complets dans `RecentlyAddedViewModelTest.kt`.
 
 ---
 
