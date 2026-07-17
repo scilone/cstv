@@ -26,6 +26,7 @@ import javax.inject.Inject
 
 import com.poc.iptvxtream.domain.model.LiveEpgProgram
 import com.poc.iptvxtream.domain.usecase.GetLiveEpgUseCase
+import com.poc.iptvxtream.domain.model.TopRatedSelector
 
 private const val EPG_POLL_INTERVAL_MILLIS = 60_000L
 
@@ -39,6 +40,9 @@ data class HomeState(
     
     val firstVodStreams: List<VodStream> = emptyList(),
     val firstSeriesStreams: List<SeriesStream> = emptyList(),
+    
+    val topVodStreams: List<VodStream> = emptyList(),
+    val topSeriesStreams: List<SeriesStream> = emptyList(),
     
     val error: String? = null,
     val epgPrograms: Map<Int, LiveEpgProgram> = emptyMap()
@@ -206,10 +210,16 @@ class HomeViewModel @Inject constructor(
                     emptyList()
                 }
                 val hiddenVodCategories = hiddenCategoryIds(CategoryType.VOD)
-                val firstVodStreams = allVodStreams
-                    .filter { it.categoryId !in hiddenVodCategories }
+                val filteredVodStreams = allVodStreams.filter { it.categoryId !in hiddenVodCategories }
+                val firstVodStreams = filteredVodStreams
                     .sortedByDescending { it.added?.toLongOrNull() ?: 0L }
                     .take(20)
+
+                val topVodStreams = TopRatedSelector.selectTop10(
+                    items = filteredVodStreams,
+                    ratingExtractor = { it.rating },
+                    addedExtractor = { it.added }
+                )
 
                 // 5. Fetch Series - Latest additions (toutes catégories confondues)
                 val allSeriesStreams = try {
@@ -219,10 +229,16 @@ class HomeViewModel @Inject constructor(
                     emptyList()
                 }
                 val hiddenSeriesCategories = hiddenCategoryIds(CategoryType.SERIES)
-                val firstSeriesStreams = allSeriesStreams
-                    .filter { it.categoryId !in hiddenSeriesCategories }
+                val filteredSeriesStreams = allSeriesStreams.filter { it.categoryId !in hiddenSeriesCategories }
+                val firstSeriesStreams = filteredSeriesStreams
                     .sortedByDescending { it.added?.toLongOrNull() ?: 0L }
                     .take(20)
+
+                val topSeriesStreams = TopRatedSelector.selectTop10(
+                    items = filteredSeriesStreams,
+                    ratingExtractor = { it.rating },
+                    addedExtractor = { it.added }
+                )
 
                 _state.update {
                     it.copy(
@@ -230,7 +246,9 @@ class HomeViewModel @Inject constructor(
                         firstLiveCategory = firstLiveCat,
                         firstLiveStreams = firstLiveStreams,
                         firstVodStreams = firstVodStreams,
-                        firstSeriesStreams = firstSeriesStreams
+                        firstSeriesStreams = firstSeriesStreams,
+                        topVodStreams = topVodStreams,
+                        topSeriesStreams = topSeriesStreams
                     )
                 }
                 refreshVisibleEpg()

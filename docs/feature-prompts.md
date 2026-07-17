@@ -164,27 +164,7 @@ Tests : parsing de la string genre (cas avec espaces, casse variable, un seul ge
 
 ## 9. Top 10 Films/Séries sur la Home (derniers ajouts, note décroissante avec palier)
 
-**Modèle recommandé : Sonnet 5, effort moyen** — algorithme de sélection multi-palier bien spécifié, logique pure testable, parsing défensif classique.
-
-Ajoute une section "Top 10" Films et une "Top 10" Séries sur la Home.
-
-Contexte existant :
-- `VodStream.rating: String?` et `VodStream.added: String?` existent déjà au niveau liste (`domain/model/VodStream.kt:7-8`), idem `SeriesStream.rating`/`added` (`domain/model/SeriesStream.kt:7-8`) — donc calculable sans fetch détail supplémentaire, uniquement à partir des listes déjà chargées.
-
-Décision (algorithme de sélection, validé avec l'utilisateur) :
-1. Prendre les items avec note > 8, triés par date d'ajout décroissante.
-2. Si moins de 10 items, compléter avec les items notés > 7 (mais ≤ 8), toujours triés par date d'ajout décroissante, sans doublons avec l'étape précédente.
-3. Si toujours moins de 10, continuer en baissant le palier de note (> 6, > 5, etc.) jusqu'à atteindre 10 ou épuiser les paliers pertinents.
-4. S'il reste moins de 10 après avoir descendu jusqu'à un palier minimal raisonnable (à définir, ex. note > 0 ou pas de filtre note du tout en dernier recours), compléter avec le reste des items disponibles triés par date d'ajout décroissante, sans filtre de note, jusqu'à 10 ou épuisement du catalogue.
-
-À faire :
-1. Implémente cette logique de sélection en fonction pure testable (ex. `TopRatedSelector` ou logique directement dans `HomeViewModel`), prenant en entrée la liste complète des streams (VOD ou Séries) et retournant les 10 sélectionnés selon l'algorithme ci-dessus.
-2. Parse `rating` (`String?`) en `Double` de façon défensive (valeurs vides/invalides exclues du tri, pas de crash).
-3. Parse `added` (`String?`, probablement un timestamp epoch en secondes façon Xtream) en date comparable, défensivement aussi.
-4. Ajoute deux nouvelles sections sur la Home ("Top 10 Films", "Top 10 Séries"), alimentées par cette sélection sur l'ensemble du catalogue VOD/Séries en cache (toutes catégories confondues, ou catégories visibles pour le profil si la feature #1 est faite avant).
-5. Décide si ces sections remplacent ou s'ajoutent aux sections "Films"/"Séries" du point #2 (recommandation : les deux sections coexistent — "Films" = derniers ajouts bruts, "Top 10 Films" = derniers ajouts filtrés qualité — à valider visuellement une fois en place).
-
-Tests : `TopRatedSelector` avec jeux de données couvrant chaque palier de fallback (assez de notes >8, besoin de compléter à >7, jusqu'à épuisement total du catalogue), parsing défensif de `rating`/`added`.
+✅ **TERMINÉE** — Sonnet 5, effort moyen. Implémentation du sélecteur algorithmique multi-palier générique et purement testé `TopRatedSelector`. Ce sélecteur extrait, filtre et trie défensivement les flux par note (rating > 8.0, puis > 7.0, > 6.0, > 5.0, > 0.0, puis sans filtre) tout en respectant l'ordre décroissant d'ajout (`added`). Ajout des propriétés `topVodStreams` et `topSeriesStreams` dans `HomeState` et `HomeViewModel` (alimentées en filtrant les catégories masquées du profil actif). Ajout des sections horizontales correspondantes "Top 10 Films" et "Top 10 Séries" sur la page d'accueil avec des clés d'état de défilement indépendantes (`"home_top_vod"`, `"home_top_series"`). Ajout de tests unitaires exhaustifs dans `TopRatedSelectorTest`.
 
 ---
 

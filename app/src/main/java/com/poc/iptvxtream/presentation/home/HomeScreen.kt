@@ -418,6 +418,30 @@ fun HomeScreen(
                     }
                 }
 
+                // NOUVEAU: Section "Top 10 Films"
+                if (state.topVodStreams.isNotEmpty()) {
+                    item {
+                        HomeSectionRow(
+                            title = stringResource(R.string.home_top_movies),
+                            isTv = isTv,
+                            onSeeAll = onNavigateToVod
+                        ) {
+                            LazyRow(
+                                state = rememberForeverLazyListState("home_top_vod", { viewModel.getScrollPosition(it) }, { k, i, o -> viewModel.saveScrollPosition(k, i, o) }),
+                                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                                modifier = Modifier.fillMaxWidth().focusGroup()
+                            ) {
+                                items(state.topVodStreams) { stream ->
+                                    HomeVodMovieCard(
+                                        stream = stream,
+                                        onClick = { onSelectMovieDetail(stream) }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
                 // 6. Section: "Séries" (Latest additions Series Streams)
                 if (state.firstSeriesStreams.isNotEmpty()) {
                     item {
@@ -432,6 +456,30 @@ fun HomeScreen(
                                 modifier = Modifier.fillMaxWidth().focusGroup()
                             ) {
                                 items(state.firstSeriesStreams) { stream ->
+                                    HomeSeriesShowCard(
+                                        stream = stream,
+                                        onClick = { onSelectSeriesDetail(stream) }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // NOUVEAU: Section "Top 10 Séries"
+                if (state.topSeriesStreams.isNotEmpty()) {
+                    item {
+                        HomeSectionRow(
+                            title = stringResource(R.string.home_top_series),
+                            isTv = isTv,
+                            onSeeAll = onNavigateToSeries
+                        ) {
+                            LazyRow(
+                                state = rememberForeverLazyListState("home_top_series", { viewModel.getScrollPosition(it) }, { k, i, o -> viewModel.saveScrollPosition(k, i, o) }),
+                                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                                modifier = Modifier.fillMaxWidth().focusGroup()
+                            ) {
+                                items(state.topSeriesStreams) { stream ->
                                     HomeSeriesShowCard(
                                         stream = stream,
                                         onClick = { onSelectSeriesDetail(stream) }

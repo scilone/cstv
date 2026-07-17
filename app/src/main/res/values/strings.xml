@@ -49,6 +49,8 @@
     <string name="home_section_tv">TV en direct</string>
     <string name="home_section_vod">Films</string>
     <string name="home_section_series">Séries</string>
+    <string name="home_top_movies">Top 10 Films</string>
+    <string name="home_top_series">Top 10 Séries</string>
     <string name="home_see_all">Voir tout</string>
     <string name="home_no_title">Sans titre</string>
     <string name="home_live_badge">DIRECT</string>
