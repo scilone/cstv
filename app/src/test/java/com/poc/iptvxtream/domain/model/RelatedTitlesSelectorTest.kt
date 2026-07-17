@@ -55,24 +55,26 @@ class RelatedTitlesSelectorTest {
     }
 
     @Test
-    fun tieBreakPrefersSameCategoryWhenRatingAndAddedEqual() {
+    fun sameCategoryCountsAsOneExtraGenre() {
         val current = listOf("Action")
         val candidates = listOf(
-            cand(1, listOf("Action"), rating = 7.0, added = 100L, categoryId = "99"),
-            cand(2, listOf("Action"), rating = 7.0, added = 100L, categoryId = "5")
+            cand(1, listOf("Action"), rating = 9.0, added = 0L, categoryId = "99"), // rang 1
+            cand(2, listOf("Action"), rating = 2.0, added = 0L, categoryId = "5")   // rang 2 (même cat), malgré note faible
         )
-        // Note et ajout égaux -> le candidat de même catégorie que le média courant ("5") passe devant.
+        // Même catégorie que le média courant ("5") -> rang supérieur, prime sur la note.
         assertEquals(listOf(2, 1), RelatedTitlesSelector.select(current, "5", candidates, 10))
     }
 
     @Test
-    fun ratingOutweighsCategory() {
-        val current = listOf("Action")
+    fun categoryBonusTiesWithAnExtraCommonGenre() {
+        val current = listOf("Action", "Thriller")
         val candidates = listOf(
-            // Même catégorie mais note faible : 0.3 de bonus catégorie ne compense pas l'écart de note.
-            cand(1, listOf("Action"), rating = 2.0, added = 0L, categoryId = "5"),
-            cand(2, listOf("Action"), rating = 10.0, added = 0L, categoryId = "99")
+            // 2 genres communs, catégorie différente -> rang 2.
+            cand(1, listOf("Action", "Thriller"), rating = 1.0, added = 0L, categoryId = "99"),
+            // 1 genre commun + même catégorie -> rang 2 aussi ; départage par note.
+            cand(2, listOf("Action"), rating = 8.0, added = 0L, categoryId = "5")
         )
+        // Rangs égaux (2 = 2) -> la meilleure note départage : candidat 2.
         assertEquals(listOf(2, 1), RelatedTitlesSelector.select(current, "5", candidates, 10))
     }
 
@@ -83,18 +85,19 @@ class RelatedTitlesSelectorTest {
             cand(1, listOf("Action"), rating = 7.0, added = 100L),
             cand(2, listOf("Action"), rating = 7.0, added = 500L)
         )
-        // Note égale (et pas de catégorie) -> le plus récemment ajouté passe devant.
+        // Rang et note égaux (pas de catégorie) -> le plus récemment ajouté passe devant.
         assertEquals(listOf(2, 1), RelatedTitlesSelector.select(current, null, candidates, 10))
     }
 
     @Test
-    fun sharedCountDominatesScore() {
-        val current = listOf("Action", "Thriller")
+    fun moreCommonGenresStillOutranksCategoryBonus() {
+        val current = listOf("Action", "Thriller", "Drame")
         val candidates = listOf(
-            cand(1, listOf("Action", "Thriller"), rating = 1.0, added = 0L), // 2 communs, faible note
-            cand(2, listOf("Action"), rating = 10.0, added = 999L, categoryId = "5") // 1 commun, forte note, même cat
+            // 3 genres communs, catégorie différente -> rang 3.
+            cand(1, listOf("Action", "Thriller", "Drame"), rating = 1.0, added = 0L, categoryId = "99"),
+            // 1 genre commun + même catégorie -> rang 2.
+            cand(2, listOf("Action"), rating = 10.0, added = 999L, categoryId = "5")
         )
-        // Le nombre de genres communs prime sur le score de départage.
         assertEquals(listOf(1, 2), RelatedTitlesSelector.select(current, "5", candidates, 10))
     }
 
