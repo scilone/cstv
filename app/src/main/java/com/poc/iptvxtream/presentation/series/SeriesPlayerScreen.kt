@@ -44,7 +44,6 @@ import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.Tracks
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.compose.material.icons.filled.AspectRatio
-import androidx.media3.ui.AspectRatioFrameLayout
 import com.poc.iptvxtream.data.local.storage.ResizeMode
 import androidx.media3.ui.PlayerView
 import com.poc.iptvxtream.presentation.player.applySubtitleStyle

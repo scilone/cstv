@@ -56,7 +56,6 @@ import android.content.ContextWrapper
 import android.view.WindowManager
 
 import androidx.compose.material.icons.filled.AspectRatio
-import androidx.media3.ui.AspectRatioFrameLayout
 import com.poc.iptvxtream.data.local.storage.ResizeMode
 import com.poc.iptvxtream.presentation.livetv.LiveTvViewModel
 
@@ -72,6 +71,7 @@ private fun Context.findActivity(): Activity? {
 }
 
 @Composable
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 fun PlayerScreen(
     initialStream: LiveStream,
     streamsList: List<LiveStream>,

@@ -117,12 +117,7 @@ class SettingsManager @Inject constructor(context: Context) {
     }
 
     fun getResizeMode(): ResizeMode {
-        val name = sharedPreferences.getString(KEY_RESIZE_MODE, ResizeMode.FIT.name)
-        return try {
-            ResizeMode.valueOf(name ?: ResizeMode.FIT.name)
-        } catch (e: Exception) {
-            ResizeMode.FIT
-        }
+        return enumOrDefault(sharedPreferences.getString(KEY_RESIZE_MODE, ResizeMode.FIT.name), ResizeMode.FIT)
     }
 
     fun setResizeMode(mode: ResizeMode) {
