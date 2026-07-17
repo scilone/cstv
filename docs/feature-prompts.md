@@ -193,6 +193,119 @@ Tests : parsing de la string genre (cas avec espaces, casse variable, un seul ge
 
 ---
 
+## 13. Home : "voir tout" Films/Séries → 100 derniers médias ajoutés
+
+Sonnet 5, effort faible-moyen.
+
+Sur la Home, les sections "Films" et "Séries" (derniers ajouts, [feature #2](#2-home--sections-par-derniers-ajouts--renommage)) ont un bouton "voir tout" qui navigue actuellement vers `onNavigateToVod`/`onNavigateToSeries` (l'onglet complet, `HomeScreen.kt:403,427,451,475`). Remplace cette navigation par un écran listant les **100 derniers médias ajoutés** (tri par `added` décroissant), et non l'onglet catégories habituel.
+
+Contexte existant :
+- `HomeScreen.kt` : 4 `onSeeAll` pointent vers `onNavigateToVod`/`onNavigateToSeries` — 2 pour la section "Films"/"Séries" (derniers ajouts), 2 pour "Top 10 Films"/"Top 10 Séries" (feature #9, à laisser inchangés — ces "voir tout" sont retirés par la feature #14 ci-dessous).
+- Pas d'écran existant listant "tous les derniers ajouts" au-delà de la limite de 20 affichée en row (`HomeViewModel.kt:159` et suivants).
+- `VodStream`/`SeriesStream` ont déjà `added` (voir feature #2).
+
+À faire :
+1. Crée un nouvel écran (ex. `presentation/home/RecentlyAddedScreen.kt` ou équivalent, réutilise le style grille des écrans VOD/Séries existants) affichant les 100 items les plus récents par `added` décroissant, pour le type concerné (VOD ou Séries), en respectant les catégories masquées du profil actif si [feature #1](#1-gestion-des-catégories-masquer--réordonner-par-profil) est active côté requête.
+2. Ajoute la route de navigation correspondante (`NavGraph.kt` pour mobile, `MainActivity.kt`/`NavGraph.kt` pour TV selon le pattern existant).
+3. Requête : soit un nouveau DAO query `getRecentlyAdded(limit: Int)` (VOD/Séries), soit réutilisation de la logique déjà en place dans `HomeViewModel` en changeant juste la limite (20 → 100) et le nombre de colonnes/mode grille pour l'écran dédié.
+4. Change `onSeeAll` des sections "Films" et "Séries" (derniers ajouts) sur `HomeScreen.kt` pour naviguer vers ce nouvel écran au lieu de `onNavigateToVod`/`onNavigateToSeries`.
+5. Clic sur un item → détails du média (comportement standard, réutilise le pattern déjà en place ailleurs).
+
+Tests : requête "100 derniers" (tri, limite, respect des catégories masquées), navigation, non-régression sur les autres `onSeeAll` de la Home.
+
+---
+
+## 14. Home : Top 10 sans "voir tout", note ≥ 8 uniquement (sans palier de repli)
+
+Sonnet 5, effort faible.
+
+Sur la Home, les sections "Top 10 Films"/"Top 10 Séries" ([feature #9](#9-top-10-filmsséries-sur-la-home-derniers-ajouts-note-décroissante-avec-palier)) doivent : (a) ne plus avoir de bouton "voir tout", (b) n'afficher que des médias avec note **≥ 8**, sans le système de paliers de repli actuel.
+
+Contexte existant :
+- `TopRatedSelector.kt:21-45` (`selectTop10`) : système à 5 paliers (`rating > 8.0`, sinon `> 7.0`, `> 6.0`, `> 5.0`, `> 0.0`, sinon tout) qui complète jusqu'à 10 items en descendant les seuils si le palier supérieur n'en fournit pas assez.
+- `HomeScreen.kt:421-489` : sections "Top 10 Films"/"Top 10 Séries" avec `onSeeAll = onNavigateToVod`/`onNavigateToSeries` (via `SectionHeader`, `HomeScreen.kt:427,475`).
+
+Décision : note **≥ 8** strictement (pas de repli sur les paliers inférieurs) — si moins de 10 items qualifient, afficher moins de 10 (voire masquer la section si vide, cohérent avec `state.topVodStreams.isNotEmpty()` déjà en place `HomeScreen.kt:422,470`).
+
+À faire :
+1. Simplifie `TopRatedSelector.selectTop10` (ou crée une nouvelle fonction dédiée si `selectTop10` est utilisé ailleurs avec l'ancien comportement — vérifie les appels) : filtre unique `rating >= 8.0`, tri par `added` décroissant, `take(10)`. Supprime la logique de paliers (tier1-tier5) devenue inutile.
+2. Sur `HomeScreen.kt`, retire le `onSeeAll` des `SectionHeader` des sections "Top 10 Films" (l.427) et "Top 10 Séries" (l.475) — passe `onSeeAll = null` (le composant `SectionHeader` gère déjà ce cas, voir `HomeScreen.kt:590` `if (onSeeAll != null)`).
+3. Adapte les tests existants `TopRatedSelectorTest` (retire les cas de paliers, ajoute le cas seuil ≥ 8 strict).
+
+Tests : filtrage note ≥ 8 (limite exacte à 8.0 incluse), tri par added, absence de bouton "voir tout" dans la section, non-régression sur les autres sections Home.
+
+---
+
+## 15. Téléchargement hors-ligne des films et épisodes de séries
+
+Opus 4.8, effort élevé.
+
+Ajoute la possibilité de télécharger un film ou un épisode de série pour le regarder hors-ligne.
+
+Contexte existant :
+- **Aucune infrastructure de téléchargement dans le repo** — pas de `DownloadManager` Media3, pas d'entité Room liée, pas de worker/service de téléchargement. Feature entièrement à construire.
+- Lecture actuelle exclusivement en streaming via ExoPlayer/media3 (`presentation/vod/VodPlayerScreen.kt`, `presentation/series/SeriesPlayerScreen.kt`) à partir des URLs Xtream (construction d'URL à localiser dans les repositories VOD/Séries).
+- Room DB déjà en place avec pattern de migrations explicites (`di/AppModule.kt`, `ALL_MIGRATIONS`), voir `AGENTS.md`.
+- Le player gère déjà des cas où le flux vient d'une URL réseau — pour la lecture hors-ligne il faudra pouvoir pointer ExoPlayer vers un fichier local à la place.
+
+Décisions à valider avec l'utilisateur avant de coder (poser la question en session dédiée si ambiguïté) :
+- Bibliothèque : `androidx.media3.exoplayer.offline` (`DownloadManager`, `DownloadService`) est le choix standard media3, cohérent avec le player déjà utilisé — recommandé plutôt qu'une solution maison.
+- Stockage : dossier app-privé (`context.getExternalFilesDir` ou interne) pour respecter le scoped storage Android, pas de permission stockage externe supplémentaire à demander si évitable.
+
+À faire :
+1. Intègre `androidx.media3.exoplayer.offline` : dépendance Gradle (`media3-exoplayer-dash`/`hls` selon le format de flux Xtream déjà utilisé — vérifie le format actuel avant de choisir), `DownloadService` (foreground service Android, notification de progression obligatoire côté OS), `DownloadManager` avec un `Cache` dédié (ex. `SimpleCache` sur `context.getExternalFilesDir`).
+2. Nouvelle table Room (ex. `downloaded_media`) : `streamId`, `type` (VOD/episode), `profileId` (si le téléchargement doit être par profil — à trancher, cohérent avec le pattern favoris/reprise de lecture existant), chemin fichier local, statut (en cours/terminé/échoué), taille, date. Migration Room explicite.
+3. UI : bouton téléchargement sur les écrans détails VOD (`VodDetailsScreen.kt`) et détails/épisode Séries (`SeriesDetailsScreen.kt`), avec indicateur de progression et état (télécharger/en cours/téléchargé/supprimer).
+4. Nouvel écran "Téléchargements" (liste des médias téléchargés, accès à la lecture hors-ligne, suppression) — accessible depuis la Home ou les Paramètres (à définir).
+5. Adapte `VodPlayerScreen`/`SeriesPlayerScreen` pour détecter si le média demandé est téléchargé localement et lire depuis le fichier local plutôt que streamer (media3 gère ça nativement via son `Cache`/`DownloadManager` si bien branché — la lecture "hors-ligne" et "en ligne" partagent le même `MediaItem` avec media3 si le cache est correctement configuré).
+6. Gestion de l'espace disque : affichage de l'espace utilisé, suppression manuelle, pas de purge automatique sauf demande explicite.
+7. Gestion des erreurs réseau pendant le téléchargement (pause/reprise), respect de `AGENTS.md` sur la gestion d'erreurs.
+
+Tests : DAO téléchargements, ViewModel écran téléchargements (statuts, suppression), non testable unitairement pour la partie ExoPlayer/media3 `DownloadManager` — recette manuelle obligatoire (démarrage, pause réseau coupé, reprise, lecture hors-ligne réelle avec Wi-Fi désactivé).
+
+---
+
+## 16. Catégorie masquée = médias invisibles partout (Home, titres associés, recherche)
+
+Sonnet 5, effort moyen.
+
+Le masquage de catégorie ([feature #1](#1-gestion-des-catégories-masquer--réordonner-par-profil)) filtre aujourd'hui les écrans de grille (Live TV/VOD/Séries) et probablement une partie de la Home, mais **pas** la section "Titres associés" ([feature #8](#8-recherche-par-genre-filmsséries)) ni la recherche. Étend le filtrage des catégories masquées à ces deux endroits, et vérifie la couverture complète sur la Home.
+
+Contexte existant :
+- `CategoryPreferenceRepository`/`CategoryPreferenceDao` (voir feature #1) exposent déjà le masquage par profil, déjà consommé par `GetLiveCategoriesUseCase`, `GetVodCategoriesUseCase`, `GetSeriesCategoriesUseCase`, et `HomeViewModel.kt` (à vérifier précisément quelles sections Home l'appliquent déjà — les sections "derniers ajouts" (feature #2) et "Top 10" (feature #9) ont été ajoutées après/en parallèle de la feature #1, vérifier qu'elles filtrent bien par catégories masquées).
+- `RelatedTitlesSelector.kt` (feature #8) est un objet **pur** sans accès DB : il reçoit une liste de `Candidate` déjà construite en amont. Le filtrage des catégories masquées doit donc se faire **avant** l'appel à `RelatedTitlesSelector.select` — au niveau de `GetRelatedMoviesUseCase`/`GetRelatedSeriesUseCase` ou du repository (`VodRepository.getRelatedMovies`/`SeriesRepository.getRelatedSeries`), pas dans le sélecteur lui-même.
+- Recherche : `SearchScreen.kt`/le ViewModel associé (localiser le fichier, probablement `SearchViewModel.kt`) — vérifie si la requête de recherche actuelle (FTS4, mentionnée en feature #8) filtre déjà par catégorie masquée ou non.
+
+À faire :
+1. Vérifie précisément (grep/lecture) quelles requêtes Home actuelles (sections derniers ajouts, Top 10, TV en direct) appliquent déjà le filtrage catégories masquées du profil actif, et complète celles qui ne le font pas.
+2. `GetRelatedMoviesUseCase`/`GetRelatedSeriesUseCase` (ou repository sous-jacent) : récupère les catégories masquées du profil actif (via `CategoryPreferenceRepository`), exclut les candidats appartenant à une catégorie masquée **avant** de les passer à `RelatedTitlesSelector.select`.
+3. ViewModel de recherche : applique le même filtrage (catégories masquées du profil actif) sur les résultats VOD/Séries (et Live TV si categorisé) avant affichage — que ce soit en filtrant la requête SQL ou en filtrant la liste de résultats côté Kotlin.
+4. Attention au profil actif : récupère-le de la même façon que le reste du code (voir comment `HomeViewModel`/`VodViewModel` accèdent au profil courant) pour rester cohérent.
+
+Tests : titres associés n'incluent pas de candidat d'une catégorie masquée, recherche n'affiche pas de résultat d'une catégorie masquée, non-régression Home sur les sections déjà couvertes par la feature #1.
+
+---
+
+## 17. Recherche : bouton "voir tout" violet et aligné à droite
+
+Haiku 4.5, effort faible.
+
+Dans l'écran de recherche, le bouton "voir tout" de chaque section de résultats doit être stylé différemment du reste de l'app : **violet**, et aligné **à droite** (au lieu d'à gauche, collé au titre de section).
+
+Contexte existant :
+- `SearchSectionHeader` (`SearchScreen.kt:214-252`) : `Row` avec titre puis `Spacer(16.dp)` puis le bouton "voir tout" juste à sa droite (donc actuellement aligné à gauche avec le titre, pas à droite de la Row) — couleurs actuelles : repos = blanc sur `Surface3`, focus = noir sur `AccentLavande` (commentaire l.234-235 : "Même contraste que la Home").
+- `AccentLavande` est déjà défini quelque part dans le thème (grep pour sa définition, probablement `presentation/theme/Color.kt` ou équivalent) — c'est déjà une teinte violette/lavande, à réutiliser comme couleur de fond du bouton **au repos** (pas seulement au focus comme actuellement), pour le distinguer visuellement du "voir tout" utilisé ailleurs (Home, VOD, Séries, Live TV — `HomeScreen.kt`, `VodScreen.kt`, `SeriesScreen.kt`, `LiveTvComponents.kt` qui ont leur propre style à ne PAS modifier, seule la recherche change).
+
+À faire :
+1. Dans `SearchSectionHeader` (`SearchScreen.kt:220-251`), change le `Row` en `Modifier.fillMaxWidth()` avec `horizontalArrangement = Arrangement.SpaceBetween` (titre à gauche, bouton à droite) au lieu du `Spacer(16.dp)` actuel qui colle le bouton au titre.
+2. Change les couleurs du `Button` (l.236-239) : fond violet (`AccentLavande` ou variante) au repos, garder une distinction visuelle claire au focus (ex. inverser en noir sur lavande plus clair, ou lavande plus saturé — à ajuster visuellement).
+3. Vérifie que ce changement ne touche QUE `SearchSectionHeader` dans `SearchScreen.kt` — ne pas propager aux autres écrans qui ont leur propre composant "voir tout" avec un style différent.
+4. Recette visuelle manuelle (TV + mobile) pour confirmer le contraste et la lisibilité en focus D-pad.
+
+Tests : visuel uniquement, pas de logique métier — vérifier la non-régression du clic/navigation existante.
+
+---
+
 ## Notes transverses
 
 - Toutes ces features touchent potentiellement Room (migrations) : respecter la convention du projet — pas de `fallbackToDestructiveMigration()`, migration explicite ajoutée à `ALL_MIGRATIONS` (`di/AppModule.kt`), voir `AGENTS.md`.
