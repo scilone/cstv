@@ -28,3 +28,25 @@ fun computeNextEpisode(
         ?: return null
     return episodes[nextSeason]?.minByOrNull { it.episodeNum }
 }
+
+/**
+ * Calcule l'épisode précédent [current] : symétrique de [computeNextEpisode].
+ *
+ * 1. Même saison : l'épisode `episodeNum - 1`, s'il existe.
+ * 2. Sinon, la saison précédente présente la plus proche (la plus grande
+ *    parmi celles inférieures, robuste à un trou de numérotation) → son
+ *    épisode de plus grand `episodeNum`.
+ * 3. Sinon `null` : premier épisode de la série, rien avant.
+ */
+fun computePreviousEpisode(
+    episodes: Map<Int, List<SeriesEpisode>>,
+    current: SeriesEpisode
+): SeriesEpisode? {
+    episodes[current.seasonNum]
+        ?.firstOrNull { it.episodeNum == current.episodeNum - 1 }
+        ?.let { return it }
+
+    val previousSeason = episodes.keys.filter { it < current.seasonNum }.maxOrNull()
+        ?: return null
+    return episodes[previousSeason]?.maxByOrNull { it.episodeNum }
+}

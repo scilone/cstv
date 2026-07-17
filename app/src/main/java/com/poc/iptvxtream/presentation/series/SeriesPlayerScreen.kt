@@ -10,6 +10,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -20,6 +21,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -29,6 +31,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.*
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -52,6 +55,7 @@ import com.poc.iptvxtream.presentation.theme.Surface3
 import com.poc.iptvxtream.domain.model.Credentials
 import com.poc.iptvxtream.domain.model.SeriesEpisode
 import com.poc.iptvxtream.domain.model.computeNextEpisode
+import com.poc.iptvxtream.domain.model.computePreviousEpisode
 import kotlinx.coroutines.delay
 
 private fun Context.findActivity(): Activity? {
@@ -115,6 +119,19 @@ fun SeriesPlayerScreen(
     // fin de série ou quand la map n'est pas disponible (reprise depuis
     // l'accueil) → ni autoplay ni bouton.
     val nextEpisode = computeNextEpisode(seriesEpisodes, currentEpisode)
+
+    // Épisode précédent (même saison, ou dernier épisode de la saison
+    // précédente) ; null en tout début de série → pas de bouton.
+    val previousEpisode = computePreviousEpisode(seriesEpisodes, currentEpisode)
+
+    // Feedback visuel transitoire du double-tap avance/recul rapide (10s).
+    var seekNotification by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(seekNotification) {
+        if (seekNotification != null) {
+            delay(1000)
+            seekNotification = null
+        }
+    }
 
     // Préférence de pistes mémorisée pour CETTE série (Phase 29, commune à tous
     // les épisodes). Prioritaire sur le fallback global.
@@ -431,7 +448,20 @@ fun SeriesPlayerScreen(
                 } else false
             }
             .focusable()
-            .clickable { showControls = !showControls }
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onTap = { showControls = !showControls },
+                    onDoubleTap = { offset ->
+                        if (offset.x < size.width / 2) {
+                            skipBackward()
+                            seekNotification = "◀◀ 10s"
+                        } else {
+                            skipForward()
+                            seekNotification = "10s ▶▶"
+                        }
+                    }
+                )
+            }
     ) {
         if (isPlayerVisible) {
             AndroidView(
@@ -462,6 +492,23 @@ fun SeriesPlayerScreen(
                 contentAlignment = Alignment.Center
             ) {
                 CircularProgressIndicator(color = MaterialTheme.colorScheme.primary, modifier = Modifier.size(54.dp))
+            }
+        }
+
+        // Double-tap Seek Notification Overlay
+        seekNotification?.let { msg ->
+            Box(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .background(Color(0x99000000), shape = RoundedCornerShape(8.dp))
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+            ) {
+                Text(
+                    text = msg,
+                    color = Color.White,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold
+                )
             }
         }
 
@@ -665,61 +712,42 @@ fun SeriesPlayerScreen(
                         )
                     }
 
-                    // Control Buttons
+                    // Control Buttons : épisode précédent (gauche, si dispo) —
+                    // play/pause (centre, toujours aligné même si un des deux
+                    // boutons d'épisode est absent) — épisode suivant (droite,
+                    // si dispo). L'avance/recul rapide se fait par double-tap
+                    // sur la vidéo (voir pointerInput plus haut), plus par
+                    // bouton dédié (overflow sur petits écrans).
                     Row(
-                        horizontalArrangement = Arrangement.SpaceEvenly,
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        IconButton(onClick = { skipBackward() }) {
-                            Text("◀◀ 10s", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                        }
-
-                        IconButton(
-                            onClick = { togglePlayPause() },
-                            modifier = Modifier.size(54.dp)
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .background(Color(0x33FFFFFF), shape = RoundedCornerShape(27.dp)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                if (isPlaying) {
-                                    // Pause icon absent from core Material icons, drawn manually
-                                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(width = 8.dp, height = 26.dp)
-                                                .background(Color.White, RoundedCornerShape(2.dp))
-                                        )
-                                        Box(
-                                            modifier = Modifier
-                                                .size(width = 8.dp, height = 26.dp)
-                                                .background(Color.White, RoundedCornerShape(2.dp))
+                        Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+                            if (previousEpisode != null) {
+                                IconButton(
+                                    onClick = { goToEpisode(previousEpisode, false) },
+                                    modifier = Modifier.size(54.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .background(Color(0x33FFFFFF), shape = RoundedCornerShape(27.dp)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.SkipPrevious,
+                                            contentDescription = "Épisode précédent",
+                                            tint = Color.White,
+                                            modifier = Modifier.size(30.dp)
                                         )
                                     }
-                                } else {
-                                    Icon(
-                                        imageVector = Icons.Default.PlayArrow,
-                                        contentDescription = "Play",
-                                        tint = Color.White,
-                                        modifier = Modifier.size(32.dp)
-                                    )
                                 }
                             }
                         }
 
-                        IconButton(onClick = { skipForward() }) {
-                            Text("10s ▶▶", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                        }
-
-                        // Bouton « épisode suivant » (Phase 59) : visible seulement
-                        // s'il existe un épisode suivant (même saison ou saison
-                        // suivante). Déclenche la même transition que l'autoplay.
-                        if (nextEpisode != null) {
+                        Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
                             IconButton(
-                                onClick = { goToEpisode(nextEpisode, false) },
+                                onClick = { togglePlayPause() },
                                 modifier = Modifier.size(54.dp)
                             ) {
                                 Box(
@@ -728,12 +756,54 @@ fun SeriesPlayerScreen(
                                         .background(Color(0x33FFFFFF), shape = RoundedCornerShape(27.dp)),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Default.SkipNext,
-                                        contentDescription = "Épisode suivant",
-                                        tint = Color.White,
-                                        modifier = Modifier.size(30.dp)
-                                    )
+                                    if (isPlaying) {
+                                        // Pause icon absent from core Material icons, drawn manually
+                                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(width = 8.dp, height = 26.dp)
+                                                    .background(Color.White, RoundedCornerShape(2.dp))
+                                            )
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(width = 8.dp, height = 26.dp)
+                                                    .background(Color.White, RoundedCornerShape(2.dp))
+                                            )
+                                        }
+                                    } else {
+                                        Icon(
+                                            imageVector = Icons.Default.PlayArrow,
+                                            contentDescription = "Play",
+                                            tint = Color.White,
+                                            modifier = Modifier.size(32.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterEnd) {
+                            // Bouton « épisode suivant » (Phase 59) : visible seulement
+                            // s'il existe un épisode suivant (même saison ou saison
+                            // suivante). Déclenche la même transition que l'autoplay.
+                            if (nextEpisode != null) {
+                                IconButton(
+                                    onClick = { goToEpisode(nextEpisode, false) },
+                                    modifier = Modifier.size(54.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .background(Color(0x33FFFFFF), shape = RoundedCornerShape(27.dp)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.SkipNext,
+                                            contentDescription = "Épisode suivant",
+                                            tint = Color.White,
+                                            modifier = Modifier.size(30.dp)
+                                        )
+                                    }
                                 }
                             }
                         }

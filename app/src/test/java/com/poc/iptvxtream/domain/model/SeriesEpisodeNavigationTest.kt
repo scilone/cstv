@@ -85,4 +85,61 @@ class SeriesEpisodeNavigationTest {
         assertEquals(1, next?.episodeNum)
         assertEquals(2, next?.seasonNum)
     }
+
+    @Test
+    fun test_previousInSameSeason() {
+        val prev = computePreviousEpisode(episodes, ep(1, 2))
+        assertEquals(1, prev?.episodeNum)
+        assertEquals(1, prev?.seasonNum)
+    }
+
+    @Test
+    fun test_firstEpisodeOfSeason_movesToPreviousSeasonLastEpisode() {
+        val prev = computePreviousEpisode(episodes, ep(2, 1))
+        assertEquals(3, prev?.episodeNum)
+        assertEquals(1, prev?.seasonNum)
+    }
+
+    @Test
+    fun test_firstEpisodeOfFirstSeason_returnsNull() {
+        assertNull(computePreviousEpisode(episodes, ep(1, 1)))
+    }
+
+    @Test
+    fun test_previous_emptyMap_returnsNull() {
+        assertNull(computePreviousEpisode(emptyMap(), ep(1, 1)))
+    }
+
+    @Test
+    fun test_previousSeasonPickedByHighestEpisodeNum_notFirstInList() {
+        val unordered = mapOf(
+            1 to listOf(ep(1, 3), ep(1, 1), ep(1, 2)),
+            2 to listOf(ep(2, 1))
+        )
+        val prev = computePreviousEpisode(unordered, ep(2, 1))
+        assertEquals(3, prev?.episodeNum)
+        assertEquals(1, prev?.seasonNum)
+    }
+
+    @Test
+    fun test_previous_gapInSeasonNumbers_jumpsToLargestLowerSeason() {
+        val gapped = mapOf(
+            1 to listOf(ep(1, 1), ep(1, 2)),
+            3 to listOf(ep(3, 1))
+        )
+        val prev = computePreviousEpisode(gapped, ep(3, 1))
+        assertEquals(2, prev?.episodeNum)
+        assertEquals(1, prev?.seasonNum)
+    }
+
+    @Test
+    fun test_previous_missingEpisodeNumberInSameSeason_fallsBackToPreviousSeason() {
+        val nonContiguous = mapOf(
+            1 to listOf(ep(1, 1)),
+            2 to listOf(ep(2, 1), ep(2, 5))
+        )
+        val prev = computePreviousEpisode(nonContiguous, ep(2, 5))
+        assertEquals(1, prev?.episodeNum)
+        assertEquals(1, prev?.seasonNum)
+    }
 }
