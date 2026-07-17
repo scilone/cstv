@@ -363,6 +363,9 @@ class VodRepositoryImpl @Inject constructor(
         val genres = com.poc.iptvxtream.domain.model.GenreParser.parseGenres(genre)
         if (genres.isEmpty()) return emptyList()
 
+        // Catégorie du film courant (pondération de proximité dans le tri).
+        val currentCategoryId = vodDao.getStreamById(currentStreamId)?.categoryId
+
         // Préfiltre SQL : union des candidats matchant au moins un genre (LIKE),
         // dédupliqués par streamId, le film courant exclu.
         val candidateEntities = LinkedHashMap<Int, VodStreamEntity>()
@@ -378,11 +381,12 @@ class VodRepositoryImpl @Inject constructor(
                 item = e,
                 genres = com.poc.iptvxtream.domain.model.GenreParser.parseGenres(e.genre),
                 rating = e.rating?.trim()?.toDoubleOrNull() ?: 0.0,
-                added = e.added?.trim()?.toLongOrNull() ?: 0L
+                added = e.added?.trim()?.toLongOrNull() ?: 0L,
+                categoryId = e.categoryId
             )
         }
 
-        return com.poc.iptvxtream.domain.model.RelatedTitlesSelector.select(genres, candidates, limit)
+        return com.poc.iptvxtream.domain.model.RelatedTitlesSelector.select(genres, currentCategoryId, candidates, limit)
             .map { VodStream(it.streamId, it.name, it.streamIcon, it.rating, it.added, it.categoryId) }
     }
 

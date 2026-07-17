@@ -302,6 +302,9 @@ class SeriesRepositoryImpl @Inject constructor(
         val genres = GenreParser.parseGenres(genre)
         if (genres.isEmpty()) return emptyList()
 
+        // Catégorie de la série courante (pondération de proximité dans le tri).
+        val currentCategoryId = seriesDao.getStreamById(currentSeriesId)?.categoryId
+
         // Préfiltre SQL : union des candidats matchant au moins un genre (LIKE),
         // dédupliqués par seriesId, la série courante exclue.
         val candidateEntities = LinkedHashMap<Int, com.poc.iptvxtream.data.local.entity.SeriesStreamEntity>()
@@ -317,11 +320,12 @@ class SeriesRepositoryImpl @Inject constructor(
                 item = e,
                 genres = GenreParser.parseGenres(e.genre),
                 rating = e.rating?.trim()?.toDoubleOrNull() ?: 0.0,
-                added = e.added?.trim()?.toLongOrNull() ?: 0L
+                added = e.added?.trim()?.toLongOrNull() ?: 0L,
+                categoryId = e.categoryId
             )
         }
 
-        return RelatedTitlesSelector.select(genres, candidates, limit)
+        return RelatedTitlesSelector.select(genres, currentCategoryId, candidates, limit)
             .map { SeriesStream(it.seriesId, it.name, it.cover, it.rating, it.added, it.categoryId) }
     }
 
