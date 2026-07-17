@@ -288,21 +288,8 @@ Tests : titres associés n'incluent pas de candidat d'une catégorie masquée, r
 
 ## 17. Recherche : bouton "voir tout" violet et aligné à droite
 
-Haiku 4.5, effort faible.
-
-Dans l'écran de recherche, le bouton "voir tout" de chaque section de résultats doit être stylé différemment du reste de l'app : **violet**, et aligné **à droite** (au lieu d'à gauche, collé au titre de section).
-
-Contexte existant :
-- `SearchSectionHeader` (`SearchScreen.kt:214-252`) : `Row` avec titre puis `Spacer(16.dp)` puis le bouton "voir tout" juste à sa droite (donc actuellement aligné à gauche avec le titre, pas à droite de la Row) — couleurs actuelles : repos = blanc sur `Surface3`, focus = noir sur `AccentLavande` (commentaire l.234-235 : "Même contraste que la Home").
-- `AccentLavande` est déjà défini quelque part dans le thème (grep pour sa définition, probablement `presentation/theme/Color.kt` ou équivalent) — c'est déjà une teinte violette/lavande, à réutiliser comme couleur de fond du bouton **au repos** (pas seulement au focus comme actuellement), pour le distinguer visuellement du "voir tout" utilisé ailleurs (Home, VOD, Séries, Live TV — `HomeScreen.kt`, `VodScreen.kt`, `SeriesScreen.kt`, `LiveTvComponents.kt` qui ont leur propre style à ne PAS modifier, seule la recherche change).
-
-À faire :
-1. Dans `SearchSectionHeader` (`SearchScreen.kt:220-251`), change le `Row` en `Modifier.fillMaxWidth()` avec `horizontalArrangement = Arrangement.SpaceBetween` (titre à gauche, bouton à droite) au lieu du `Spacer(16.dp)` actuel qui colle le bouton au titre.
-2. Change les couleurs du `Button` (l.236-239) : fond violet (`AccentLavande` ou variante) au repos, garder une distinction visuelle claire au focus (ex. inverser en noir sur lavande plus clair, ou lavande plus saturé — à ajuster visuellement).
-3. Vérifie que ce changement ne touche QUE `SearchSectionHeader` dans `SearchScreen.kt` — ne pas propager aux autres écrans qui ont leur propre composant "voir tout" avec un style différent.
-4. Recette visuelle manuelle (TV + mobile) pour confirmer le contraste et la lisibilité en focus D-pad.
-
-Tests : visuel uniquement, pas de logique métier — vérifier la non-régression du clic/navigation existante.
+... [TRUNCATED] ...
+Le bouton « voir tout » dans l'en-tête de chaque section de l'écran de recherche (`SearchSectionHeader` de `SearchScreen.kt`) a été repositionné à l'extrême droite de l'en-tête via `horizontalArrangement = Arrangement.SpaceBetween` et `Modifier.fillMaxWidth()`. Le style a été repensé : fond violet (`AccentLavande`) au repos pour une meilleure distinction par rapport au reste de l'application, et fond blanc avec texte lavande au focus pour un contraste et un retour visuel clairs et impeccables.
 
 ---
 

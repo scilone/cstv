@@ -219,7 +219,8 @@ private fun SearchSectionHeader(
 ) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp, start = 4.dp)
+        horizontalArrangement = Arrangement.SpaceBetween,
+        modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp, start = 4.dp, end = 4.dp)
     ) {
         Text(
             text = title,
@@ -227,15 +228,13 @@ private fun SearchSectionHeader(
             fontWeight = FontWeight.Bold,
             color = Color.White
         )
-        Spacer(modifier = Modifier.width(16.dp))
         var isFocused by remember { mutableStateOf(false) }
         Button(
             onClick = onSeeAll,
-            // Même contraste que la Home : repos = blanc sur #1E1E24,
-            // focus = noir sur Purple80 #D0BCFF.
+            // Bouton Violet au repos (AccentLavande), distinction claire au focus (fond blanc, texte lavande)
             colors = ButtonDefaults.buttonColors(
-                containerColor = if (isFocused) AccentLavande else Surface3,
-                contentColor = if (isFocused) Color.Black else Color.White
+                containerColor = if (isFocused) Color.White else AccentLavande,
+                contentColor = if (isFocused) AccentLavande else Color.White
             ),
             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
             modifier = Modifier
