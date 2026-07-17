@@ -10,15 +10,22 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.FastForward
+import androidx.compose.material.icons.filled.FastRewind
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Subtitles
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -26,8 +33,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.*
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -41,12 +50,19 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.Tracks
+import androidx.media3.common.VideoSize
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.compose.material.icons.filled.AspectRatio
 import androidx.compose.material.icons.filled.PictureInPictureAlt
+import coil.compose.AsyncImage
 import com.poc.iptvxtream.data.local.storage.ResizeMode
 import androidx.media3.ui.PlayerView
 import com.poc.iptvxtream.presentation.player.applySubtitleStyle
+import com.poc.iptvxtream.presentation.player.PlayerTopButton
+import com.poc.iptvxtream.presentation.player.TransportButton
+import com.poc.iptvxtream.presentation.player.PlayPauseButton
+import com.poc.iptvxtream.presentation.player.PlayerBottomAction
+import com.poc.iptvxtream.presentation.player.ResolutionBadge
 import com.poc.iptvxtream.presentation.theme.Surface1
 import com.poc.iptvxtream.presentation.theme.Surface3
 import com.poc.iptvxtream.domain.model.Credentials
@@ -168,6 +184,8 @@ fun VodPlayerScreen(
     var currentPosition by remember { mutableStateOf(initialPositionMs) }
     var duration by remember { mutableStateOf(0L) }
     var showControls by remember { mutableStateOf(true) }
+    var videoWidth by remember { mutableStateOf(0) }
+    var videoHeight by remember { mutableStateOf(0) }
 
     // Dynamic Tracks States (Audio & Subtitles)
     var availableAudioTracks by remember { mutableStateOf(emptyList<TrackInfo>()) }
@@ -337,8 +355,13 @@ fun VodPlayerScreen(
             override fun onTracksChanged(tracks: Tracks) {
                 updateTracksState(tracks)
             }
+
+            override fun onVideoSizeChanged(videoSize: VideoSize) {
+                videoWidth = videoSize.width
+                videoHeight = videoSize.height
+            }
         }
-        
+
         exoPlayer.addListener(listener)
 
         // Force initial update of tracks
@@ -536,212 +559,205 @@ fun VodPlayerScreen(
             }
         }
 
-        // Custom Media Controls Overlay
+        // Custom Media Controls Overlay (refonte Phase 60)
         if (showControls && playbackError == null && !isInPipMode) {
-            // Top Panel: Title and Exit/Settings Buttons
+            val hasMultipleAudio = availableAudioTracks.size > 1
+            val hasSubtitles = availableSubtitleTracks.isNotEmpty()
+
+            // Dégradés haut/bas pour lisibilité des contrôles sur la vidéo.
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Color(0x99000000))
-                    .padding(16.dp)
+                    .height(120.dp)
                     .align(Alignment.TopCenter)
+                    .background(Brush.verticalGradient(listOf(Color(0xB3000000), Color.Transparent)))
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(220.dp)
+                    .align(Alignment.BottomCenter)
+                    .background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xCC000000))))
+            )
+
+            // Barre supérieure : retour (gauche) — PIP + format (droite)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .align(Alignment.TopCenter)
+                    .padding(16.dp)
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(modifier = Modifier.weight(1f).padding(end = 16.dp)) {
-                        Text(
-                            text = details.name,
-                            color = Color.White,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 16.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Text(
-                            text = details.genre,
-                            color = MaterialTheme.colorScheme.primary,
-                            fontSize = 12.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        // Display Track Selector button if there are alternative audios or any subtitles
-                        val hasMultipleAudio = availableAudioTracks.size > 1
-                        val hasSubtitles = availableSubtitleTracks.isNotEmpty()
-                        
-                        if (hasMultipleAudio || hasSubtitles) {
-                            IconButton(
-                                onClick = { showTrackDialog = true },
-                                modifier = Modifier.background(Color(0x40FFFFFF), shape = RoundedCornerShape(12.dp))
-                            ) {
-                                Icon(Icons.Default.Settings, contentDescription = "Pistes Audio & Sous-titres", tint = Color.White)
-                            }
-                            Spacer(modifier = Modifier.width(10.dp))
-                        }
-
-                        IconButton(
+                PlayerTopButton(
+                    icon = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "Retour",
+                    onClick = handleClose
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    if (!isTv) {
+                        PlayerTopButton(
+                            icon = Icons.Default.PictureInPictureAlt,
+                            contentDescription = "Picture-in-Picture",
                             onClick = {
-                                val nextMode = when (currentResizeMode) {
-                                    ResizeMode.FIT -> ResizeMode.FILL
-                                    ResizeMode.FILL -> ResizeMode.ZOOM
-                                    ResizeMode.ZOOM -> ResizeMode.FIT
-                                }
-                                currentResizeMode = nextMode
-                                viewModel.setResizeMode(nextMode)
-                                resizeModeNotification = "Format : ${when(nextMode) {
-                                    ResizeMode.FIT -> "Ajuster"
-                                    ResizeMode.FILL -> "Étirer"
-                                    ResizeMode.ZOOM -> "Zoom"
-                                }}"
-                            },
-                            modifier = Modifier.background(Color(0x40FFFFFF), shape = RoundedCornerShape(12.dp))
-                        ) {
-                            Icon(Icons.Default.AspectRatio, contentDescription = "Format de l'image", tint = Color.White)
-                        }
-                        Spacer(modifier = Modifier.width(10.dp))
-
-                        if (!isTv) {
-                            IconButton(
-                                onClick = {
-                                    val act = componentActivity ?: return@IconButton
-                                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                                        val builder = android.app.PictureInPictureParams.Builder()
-                                        val videoSize = exoPlayer.videoSize
-                                        if (videoSize.width > 0 && videoSize.height > 0) {
-                                            try {
-                                                val ratio = videoSize.width.toFloat() / videoSize.height.toFloat()
-                                                if (ratio in 0.4184f..2.39f) {
-                                                    builder.setAspectRatio(android.util.Rational(videoSize.width, videoSize.height))
-                                                } else {
-                                                    builder.setAspectRatio(android.util.Rational(16, 9))
-                                                }
-                                            } catch (e: Exception) {
+                                val act = componentActivity ?: return@PlayerTopButton
+                                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                                    val builder = android.app.PictureInPictureParams.Builder()
+                                    val vs = exoPlayer.videoSize
+                                    if (vs.width > 0 && vs.height > 0) {
+                                        try {
+                                            val ratio = vs.width.toFloat() / vs.height.toFloat()
+                                            if (ratio in 0.4184f..2.39f) {
+                                                builder.setAspectRatio(android.util.Rational(vs.width, vs.height))
+                                            } else {
                                                 builder.setAspectRatio(android.util.Rational(16, 9))
                                             }
-                                        } else {
+                                        } catch (e: Exception) {
                                             builder.setAspectRatio(android.util.Rational(16, 9))
                                         }
-                                        act.enterPictureInPictureMode(builder.build())
-                                    } else if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
-                                        @Suppress("DEPRECATION")
-                                        act.enterPictureInPictureMode()
+                                    } else {
+                                        builder.setAspectRatio(android.util.Rational(16, 9))
                                     }
-                                },
-                                modifier = Modifier.background(Color(0x40FFFFFF), shape = RoundedCornerShape(12.dp))
-                            ) {
-                                Icon(Icons.Default.PictureInPictureAlt, contentDescription = "Picture-in-Picture", tint = Color.White)
+                                    act.enterPictureInPictureMode(builder.build())
+                                } else if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+                                    @Suppress("DEPRECATION")
+                                    act.enterPictureInPictureMode()
+                                }
                             }
-                            Spacer(modifier = Modifier.width(10.dp))
-                        }
-
-                        IconButton(
-                            onClick = handleClose,
-                            modifier = Modifier.background(Color(0x40FFFFFF), shape = RoundedCornerShape(12.dp))
-                        ) {
-                            Icon(Icons.Default.Close, contentDescription = "Fermer", tint = Color.White)
-                        }
+                        )
                     }
+                    PlayerTopButton(
+                        icon = Icons.Default.AspectRatio,
+                        contentDescription = "Format de l'image",
+                        onClick = {
+                            val nextMode = when (currentResizeMode) {
+                                ResizeMode.FIT -> ResizeMode.FILL
+                                ResizeMode.FILL -> ResizeMode.ZOOM
+                                ResizeMode.ZOOM -> ResizeMode.FIT
+                            }
+                            currentResizeMode = nextMode
+                            viewModel.setResizeMode(nextMode)
+                            resizeModeNotification = "Format : ${when (nextMode) {
+                                ResizeMode.FIT -> "Ajuster"
+                                ResizeMode.FILL -> "Étirer"
+                                ResizeMode.ZOOM -> "Zoom"
+                            }}"
+                        }
+                    )
                 }
             }
 
-            // Bottom Panel: Timeline and Play/Skip Buttons
-            Box(
+            // Transport central : reculer / play-pause / avancer (10s)
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(36.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.align(Alignment.Center)
+            ) {
+                TransportButton(Icons.Default.FastRewind, "Reculer 10s", onClick = { skipBackward() })
+                PlayPauseButton(isPlaying = isPlaying, onClick = { togglePlayPause() })
+                TransportButton(Icons.Default.FastForward, "Avancer 10s", onClick = { skipForward() })
+            }
+
+            // Bloc inférieur : affiche + titre + résolution + progression + actions
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Color(0x99000000))
-                    .padding(24.dp)
                     .align(Alignment.BottomCenter)
+                    .padding(horizontal = 20.dp, vertical = 18.dp)
             ) {
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    // Timeline Slider
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(
-                            text = formatTime(currentPosition),
-                            color = Color.White,
-                            fontSize = 12.sp
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (!details.coverBig.isNullOrBlank()) {
+                        AsyncImage(
+                            model = details.coverBig,
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .size(width = 64.dp, height = 92.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Surface3)
                         )
-
-                        Slider(
-                            value = currentPosition.toFloat(),
-                            onValueChange = { 
-                                exoPlayer.seekTo(it.toLong())
-                                currentPosition = it.toLong()
-                            },
-                            valueRange = 0f..duration.toFloat().coerceAtLeast(1f),
-                            colors = SliderDefaults.colors(
-                                thumbColor = MaterialTheme.colorScheme.primary,
-                                activeTrackColor = MaterialTheme.colorScheme.primary,
-                                inactiveTrackColor = Color.DarkGray
-                            ),
-                            modifier = Modifier.weight(1f)
-                        )
-
-                        Text(
-                            text = formatTime(duration),
-                            color = Color.White,
-                            fontSize = 12.sp
-                        )
+                        Spacer(modifier = Modifier.width(14.dp))
                     }
 
-                    // Control Buttons
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(24.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        IconButton(onClick = { skipBackward() }) {
-                            Text("◀◀ 10s", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = details.name,
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 18.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f, fill = false)
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            ResolutionBadge(width = videoWidth, height = videoHeight)
+                        }
+                        if (details.genre.isNotBlank()) {
+                            Text(
+                                text = details.genre,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontSize = 13.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
                         }
 
-                        IconButton(
-                            onClick = { togglePlayPause() },
-                            modifier = Modifier.size(54.dp)
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        // Barre de progression
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            modifier = Modifier.fillMaxWidth()
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .background(Color(0x33FFFFFF), shape = RoundedCornerShape(27.dp)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                if (isPlaying) {
-                                    // Pause icon absent from core Material icons, drawn manually
-                                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(width = 8.dp, height = 26.dp)
-                                                .background(Color.White, RoundedCornerShape(2.dp))
-                                        )
-                                        Box(
-                                            modifier = Modifier
-                                                .size(width = 8.dp, height = 26.dp)
-                                                .background(Color.White, RoundedCornerShape(2.dp))
-                                        )
-                                    }
-                                } else {
-                                    Icon(
-                                        imageVector = Icons.Default.PlayArrow,
-                                        contentDescription = "Play",
-                                        tint = Color.White,
-                                        modifier = Modifier.size(32.dp)
-                                    )
-                                }
-                            }
+                            Text(text = formatTime(currentPosition), color = Color.White, fontSize = 12.sp)
+                            Slider(
+                                value = currentPosition.toFloat(),
+                                onValueChange = {
+                                    exoPlayer.seekTo(it.toLong())
+                                    currentPosition = it.toLong()
+                                },
+                                valueRange = 0f..duration.toFloat().coerceAtLeast(1f),
+                                colors = SliderDefaults.colors(
+                                    thumbColor = MaterialTheme.colorScheme.primary,
+                                    activeTrackColor = MaterialTheme.colorScheme.primary,
+                                    inactiveTrackColor = Color(0x55FFFFFF)
+                                ),
+                                modifier = Modifier.weight(1f)
+                            )
+                            Text(text = formatTime(duration), color = Color.White, fontSize = 12.sp)
                         }
 
-                        IconButton(onClick = { skipForward() }) {
-                            Text("10s ▶▶", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        // Barre d'actions (scroll horizontal : jamais tronquée)
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.horizontalScroll(rememberScrollState())
+                        ) {
+                            PlayerBottomAction(
+                                icon = Icons.Default.Replay,
+                                label = "Recommencer",
+                                onClick = {
+                                    exoPlayer.seekTo(0)
+                                    currentPosition = 0
+                                    showControls = true
+                                }
+                            )
+                            if (hasMultipleAudio) {
+                                PlayerBottomAction(
+                                    icon = Icons.AutoMirrored.Filled.VolumeUp,
+                                    label = "Audio",
+                                    onClick = { showTrackDialog = true }
+                                )
+                            }
+                            if (hasSubtitles) {
+                                PlayerBottomAction(
+                                    icon = Icons.Default.Subtitles,
+                                    label = "Sous-titres",
+                                    onClick = { showTrackDialog = true }
+                                )
+                            }
                         }
                     }
                 }

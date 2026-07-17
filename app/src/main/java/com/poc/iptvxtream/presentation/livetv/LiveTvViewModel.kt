@@ -9,6 +9,8 @@ import com.poc.iptvxtream.domain.model.LiveStream
 import com.poc.iptvxtream.domain.usecase.GetLiveCategoriesUseCase
 import com.poc.iptvxtream.domain.usecase.GetLiveCategoryCountsUseCase
 import com.poc.iptvxtream.domain.usecase.GetLiveEpgUseCase
+import com.poc.iptvxtream.domain.usecase.GetLiveEpgNowNextUseCase
+import com.poc.iptvxtream.domain.model.LiveEpgNowNext
 import com.poc.iptvxtream.domain.usecase.GetLiveStreamsUseCase
 import com.poc.iptvxtream.domain.usecase.GetRecentlyWatchedUseCase
 import com.poc.iptvxtream.domain.usecase.SaveRecentlyWatchedUseCase
@@ -30,6 +32,7 @@ class LiveTvViewModel @Inject constructor(
     private val getRecentlyWatchedUseCase: GetRecentlyWatchedUseCase,
     private val saveRecentlyWatchedUseCase: SaveRecentlyWatchedUseCase,
     private val getLiveEpgUseCase: GetLiveEpgUseCase,
+    private val getLiveEpgNowNextUseCase: GetLiveEpgNowNextUseCase,
     private val credentialsManager: CredentialsManager,
     private val categoryPreferenceRepository: com.poc.iptvxtream.domain.repository.CategoryPreferenceRepository,
     private val settingsManager: SettingsManager
@@ -41,6 +44,24 @@ class LiveTvViewModel @Inject constructor(
     fun getResizeMode(): ResizeMode = settingsManager.getResizeMode()
     fun setResizeMode(mode: ResizeMode) {
         settingsManager.setResizeMode(mode)
+    }
+
+    // EPG « en cours + suivant » pour le player Live TV (Phase 60, informatif).
+    // Rechargé à chaque changement de chaîne dans le player ; null tant que non
+    // chargé ou si l'EPG est indisponible.
+    private val _playerEpg = MutableStateFlow<LiveEpgNowNext?>(null)
+    val playerEpg: StateFlow<LiveEpgNowNext?> = _playerEpg.asStateFlow()
+
+    fun loadPlayerEpg(streamId: Int) {
+        _playerEpg.value = null
+        viewModelScope.launch {
+            try {
+                _playerEpg.value = getLiveEpgNowNextUseCase(streamId)
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                _playerEpg.value = null
+            }
+        }
     }
 
     private val scrollPositions = mutableMapOf<String, Pair<Int, Int>>()

@@ -13,12 +13,14 @@ import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Tv
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -31,6 +33,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.*
 import androidx.compose.ui.layout.ContentScale
@@ -57,6 +60,8 @@ import android.view.WindowManager
 
 import androidx.compose.material.icons.filled.AspectRatio
 import androidx.compose.material.icons.filled.PictureInPictureAlt
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.media3.common.VideoSize
 import com.poc.iptvxtream.data.local.storage.ResizeMode
 import com.poc.iptvxtream.presentation.livetv.LiveTvViewModel
 
@@ -146,6 +151,24 @@ fun PlayerScreen(
     var playbackError by remember { mutableStateOf<String?>(null) }
     var showOverlay by remember { mutableStateOf(true) }
     var streamExtension by remember { mutableStateOf("m3u8") } // Default to m3u8
+    var videoWidth by remember { mutableStateOf(0) }
+    var videoHeight by remember { mutableStateOf(0) }
+
+    // EPG « en cours + suivant » informatif (Phase 60) : rechargé à chaque
+    // changement de chaîne. Aucune interaction (pas de timeshift, hors specs).
+    val playerEpg by viewModel.playerEpg.collectAsStateWithLifecycle()
+    LaunchedEffect(currentStream.streamId) {
+        viewModel.loadPlayerEpg(currentStream.streamId)
+    }
+    // Horloge (secondes) rafraîchie chaque seconde pour animer la jauge EPG et
+    // l'heure courante affichée, sans dépendre d'un recompose externe.
+    var nowSec by remember { mutableStateOf(System.currentTimeMillis() / 1000L) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            nowSec = System.currentTimeMillis() / 1000L
+            delay(1000)
+        }
+    }
 
     var playerViewRef by remember { mutableStateOf<PlayerView?>(null) }
     val componentActivity = remember(context) { context.findActivity() as? androidx.activity.ComponentActivity }
@@ -224,6 +247,11 @@ fun PlayerScreen(
                     isBuffering = false
                     playbackError = "Impossible de charger le flux vidéo (${error.localizedMessage})"
                 }
+            }
+
+            override fun onVideoSizeChanged(videoSize: VideoSize) {
+                videoWidth = videoSize.width
+                videoHeight = videoSize.height
             }
         }
         exoPlayer.addListener(listener)
@@ -428,164 +456,211 @@ fun PlayerScreen(
             }
         }
 
-        // Custom Overlay UI (Auto-hides)
+        // Custom Overlay UI (Auto-hides) — refonte Phase 60. Pas de transport
+        // central sur le live (flux non seekable) : la jauge reflète l'EPG et
+        // n'est pas interactive.
         if (showOverlay && playbackError == null && !isInPipMode) {
-            // Top Bar: Close Button
+            val epgCurrent = playerEpg?.current
+            val epgNext = playerEpg?.next
+            val epgFraction = epgCurrent?.let {
+                val total = it.endTimestamp - it.startTimestamp
+                if (total <= 0) 0f else ((nowSec - it.startTimestamp).toFloat() / total.toFloat()).coerceIn(0f, 1f)
+            } ?: 0f
+            val hmFormat = remember { java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()) }
+            val hmsFormat = remember { java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()) }
+
+            // Dégradés haut/bas.
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Color(0x80000000))
-                    .padding(16.dp)
+                    .height(120.dp)
                     .align(Alignment.TopCenter)
+                    .background(Brush.verticalGradient(listOf(Color(0xB3000000), Color.Transparent)))
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(200.dp)
+                    .align(Alignment.BottomCenter)
+                    .background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xCC000000))))
+            )
+
+            // Barre supérieure : retour (gauche) — PIP + format (droite)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .align(Alignment.TopCenter)
+                    .padding(16.dp)
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(40.dp)
-                                .clip(CardDefaults.shape)
-                                .background(Surface3),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            if (!currentStream.streamIcon.isNullOrBlank()) {
-                                AsyncImage(
-                                    model = currentStream.streamIcon,
-                                    contentDescription = null,
-                                    modifier = Modifier.fillMaxSize()
-                                )
-                            } else {
-                                Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Color.White)
-                            }
-                        }
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column {
-                            Text(
-                                text = "CH ${currentStream.num} - ${currentStream.name}",
-                                color = Color.White,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 16.sp
-                            )
-                            Text(
-                                text = "Flux : ${streamExtension.uppercase()}",
-                                color = MaterialTheme.colorScheme.primary,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Light
-                            )
-                        }
-                    }
-
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        if (streamsList.isNotEmpty()) {
-                            IconButton(
-                                onClick = { showChannelList = !showChannelList },
-                                modifier = Modifier.background(Color(0x40FFFFFF), shape = CardDefaults.shape)
-                            ) {
-                                Icon(Icons.Default.Menu, contentDescription = "Liste des chaînes", tint = Color.White)
-                            }
-                        }
-
-                        IconButton(
+                PlayerTopButton(
+                    icon = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "Retour",
+                    onClick = handleClose
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    if (!isTv) {
+                        PlayerTopButton(
+                            icon = Icons.Default.PictureInPictureAlt,
+                            contentDescription = "Picture-in-Picture",
                             onClick = {
-                                val nextMode = when (currentResizeMode) {
-                                    ResizeMode.FIT -> ResizeMode.FILL
-                                    ResizeMode.FILL -> ResizeMode.ZOOM
-                                    ResizeMode.ZOOM -> ResizeMode.FIT
-                                }
-                                currentResizeMode = nextMode
-                                viewModel.setResizeMode(nextMode)
-                                resizeModeNotification = "Format : ${when(nextMode) {
-                                    ResizeMode.FIT -> "Ajuster"
-                                    ResizeMode.FILL -> "Étirer"
-                                    ResizeMode.ZOOM -> "Zoom"
-                                }}"
-                            },
-                            modifier = Modifier.background(Color(0x40FFFFFF), shape = CardDefaults.shape)
-                        ) {
-                            Icon(Icons.Default.AspectRatio, contentDescription = "Format de l'image", tint = Color.White)
-                        }
-
-                        if (!isTv) {
-                            IconButton(
-                                onClick = {
-                                    val act = componentActivity ?: return@IconButton
-                                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                                        val builder = android.app.PictureInPictureParams.Builder()
-                                        val videoSize = exoPlayer.videoSize
-                                        if (videoSize.width > 0 && videoSize.height > 0) {
-                                            try {
-                                                val ratio = videoSize.width.toFloat() / videoSize.height.toFloat()
-                                                if (ratio in 0.4184f..2.39f) {
-                                                    builder.setAspectRatio(android.util.Rational(videoSize.width, videoSize.height))
-                                                } else {
-                                                    builder.setAspectRatio(android.util.Rational(16, 9))
-                                                }
-                                            } catch (e: Exception) {
+                                val act = componentActivity ?: return@PlayerTopButton
+                                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                                    val builder = android.app.PictureInPictureParams.Builder()
+                                    val vs = exoPlayer.videoSize
+                                    if (vs.width > 0 && vs.height > 0) {
+                                        try {
+                                            val ratio = vs.width.toFloat() / vs.height.toFloat()
+                                            if (ratio in 0.4184f..2.39f) {
+                                                builder.setAspectRatio(android.util.Rational(vs.width, vs.height))
+                                            } else {
                                                 builder.setAspectRatio(android.util.Rational(16, 9))
                                             }
-                                        } else {
+                                        } catch (e: Exception) {
                                             builder.setAspectRatio(android.util.Rational(16, 9))
                                         }
-                                        act.enterPictureInPictureMode(builder.build())
-                                    } else if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
-                                        @Suppress("DEPRECATION")
-                                        act.enterPictureInPictureMode()
+                                    } else {
+                                        builder.setAspectRatio(android.util.Rational(16, 9))
                                     }
-                                },
-                                modifier = Modifier.background(Color(0x40FFFFFF), shape = CardDefaults.shape)
-                            ) {
-                                Icon(Icons.Default.PictureInPictureAlt, contentDescription = "Picture-in-Picture", tint = Color.White)
+                                    act.enterPictureInPictureMode(builder.build())
+                                } else if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+                                    @Suppress("DEPRECATION")
+                                    act.enterPictureInPictureMode()
+                                }
                             }
-                        }
-
-                        IconButton(
-                            onClick = handleClose,
-                            modifier = Modifier.background(Color(0x40FFFFFF), shape = CardDefaults.shape)
-                        ) {
-                            Icon(Icons.Default.Close, contentDescription = "Fermer", tint = Color.White)
-                        }
+                        )
                     }
+                    PlayerTopButton(
+                        icon = Icons.Default.AspectRatio,
+                        contentDescription = "Format de l'image",
+                        onClick = {
+                            val nextMode = when (currentResizeMode) {
+                                ResizeMode.FIT -> ResizeMode.FILL
+                                ResizeMode.FILL -> ResizeMode.ZOOM
+                                ResizeMode.ZOOM -> ResizeMode.FIT
+                            }
+                            currentResizeMode = nextMode
+                            viewModel.setResizeMode(nextMode)
+                            resizeModeNotification = "Format : ${when (nextMode) {
+                                ResizeMode.FIT -> "Ajuster"
+                                ResizeMode.FILL -> "Étirer"
+                                ResizeMode.ZOOM -> "Zoom"
+                            }}"
+                        }
+                    )
                 }
             }
 
-            // Bottom Panel: Info Prompt help on TV / Mobile
-            if (!isTv) {
-                // Mobile zapping prompt help
-                Box(
-                    modifier = Modifier
-                        .padding(24.dp)
-                        .align(Alignment.BottomCenter)
-                ) {
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = Color(0x99000000))
+            // Bloc inférieur : logo + chaîne + résolution + EPG (informatif) + Chaînes
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .align(Alignment.BottomCenter)
+                    .padding(horizontal = 20.dp, vertical = 18.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(width = 78.dp, height = 56.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Surface3),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            text = "Glissez vers le haut / bas pour zapper",
-                            color = Color.LightGray,
-                            fontSize = 12.sp,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                        )
+                        if (!currentStream.streamIcon.isNullOrBlank()) {
+                            AsyncImage(
+                                model = currentStream.streamIcon,
+                                contentDescription = null,
+                                contentScale = ContentScale.Fit,
+                                modifier = Modifier.fillMaxSize().padding(4.dp)
+                            )
+                        } else {
+                            Icon(Icons.Default.Tv, contentDescription = null, tint = Color.Gray)
+                        }
                     }
-                }
-            } else {
-                // TV zapping prompt help
-                Box(
-                    modifier = Modifier
-                        .padding(24.dp)
-                        .align(Alignment.BottomCenter)
-                ) {
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = Color(0x99000000))
-                    ) {
-                        Text(
-                            text = "Utilisez ▲ / ▼ de la télécommande pour zapper",
-                            color = Color.LightGray,
-                            fontSize = 12.sp,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                        )
+                    Spacer(modifier = Modifier.width(14.dp))
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = currentStream.name,
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 18.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f, fill = false)
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            ResolutionBadge(width = videoWidth, height = videoHeight)
+                        }
+
+                        // EPG en cours + suivant (informatif, aucune interaction)
+                        if (epgCurrent != null) {
+                            Text(
+                                text = "${epgCurrent.formattedTimeRange()}  ${epgCurrent.title}",
+                                color = Color.White,
+                                fontSize = 13.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        if (epgNext != null) {
+                            Text(
+                                text = "Suivant : ${epgNext.formattedTimeRange()} ${epgNext.title}",
+                                color = Color(0xB3FFFFFF),
+                                fontSize = 12.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+
+                        // Jauge de progression EPG (lecture seule)
+                        if (epgCurrent != null) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(
+                                    text = hmsFormat.format(java.util.Date(nowSec * 1000L)),
+                                    color = Color.White,
+                                    fontSize = 12.sp
+                                )
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(4.dp)
+                                        .clip(RoundedCornerShape(2.dp))
+                                        .background(Color(0x55FFFFFF))
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxHeight()
+                                            .fillMaxWidth(epgFraction)
+                                            .clip(RoundedCornerShape(2.dp))
+                                            .background(MaterialTheme.colorScheme.primary)
+                                    )
+                                }
+                                Text(
+                                    text = hmFormat.format(java.util.Date(epgCurrent.endTimestamp * 1000L)),
+                                    color = Color.White,
+                                    fontSize = 12.sp
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        // Barre d'actions : « Chaînes » (ouvre le tiroir de zapping)
+                        if (streamsList.isNotEmpty()) {
+                            PlayerBottomAction(
+                                icon = Icons.Default.Tv,
+                                label = "Chaînes",
+                                onClick = { showChannelList = true }
+                            )
+                        }
                     }
                 }
             }

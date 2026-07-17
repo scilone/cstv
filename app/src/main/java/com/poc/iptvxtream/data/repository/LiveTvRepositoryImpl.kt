@@ -12,6 +12,7 @@ import com.poc.iptvxtream.data.remote.api.XtreamRequestGate
 import com.poc.iptvxtream.domain.model.InvalidCredentialsException
 import com.poc.iptvxtream.domain.model.LiveCategory
 import com.poc.iptvxtream.domain.model.LiveEpgProgram
+import com.poc.iptvxtream.domain.model.LiveEpgNowNext
 import com.poc.iptvxtream.domain.model.LiveStream
 import com.poc.iptvxtream.domain.repository.LiveTvRepository
 import javax.inject.Inject
@@ -247,6 +248,42 @@ class LiveTvRepositoryImpl @Inject constructor(
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
             null
+        }
+    }
+
+    override suspend fun getLiveEpgNowNext(streamId: Int, forceRefresh: Boolean): LiveEpgNowNext {
+        val creds = credentialsManager.getCredentials() ?: return LiveEpgNowNext(null, null)
+        return try {
+            val response = requestGate.acquire { apiService.getShortEpg(creds.username, creds.password, streamId) }
+            val listings = response.epgListings ?: return LiveEpgNowNext(null, null)
+            if (listings.isEmpty()) return LiveEpgNowNext(null, null)
+
+            val nowSec = System.currentTimeMillis() / 1000L
+
+            // Programmes triés par heure de début, pour identifier « en cours »
+            // (now ∈ [start, end]) puis le premier qui commence après lui.
+            val programs = listings
+                .map { dto ->
+                    LiveEpgProgram(
+                        title = decodeBase64OrReturnRaw(dto.title).ifBlank { "Aucun titre" },
+                        description = decodeBase64OrReturnRaw(dto.description),
+                        startTimestamp = parseJsonTimestamp(dto.startTimestamp),
+                        endTimestamp = parseJsonTimestamp(dto.endTimestamp)
+                    )
+                }
+                .sortedBy { it.startTimestamp }
+
+            val current = programs.find { nowSec in it.startTimestamp..it.endTimestamp }
+            val next = when {
+                current != null -> programs.firstOrNull { it.startTimestamp > current.endTimestamp - 1 && it != current }
+                    ?: programs.firstOrNull { it.startTimestamp >= nowSec }
+                else -> programs.firstOrNull { it.startTimestamp >= nowSec }
+            }
+
+            LiveEpgNowNext(current = current, next = next)
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            LiveEpgNowNext(null, null)
         }
     }
 
