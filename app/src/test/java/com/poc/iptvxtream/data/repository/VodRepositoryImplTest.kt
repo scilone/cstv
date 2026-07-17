@@ -412,4 +412,53 @@ class VodRepositoryImplTest {
         assertEquals(150, result)
         verify(vodDao, times(3)).getStreamsNeedingEnrichment(any())
     }
+
+    // --- getRelatedMovies : catégories masquées exclues AVANT le classement ---
+    private fun relatedEntity(id: Int, genre: String, categoryId: String, rating: String = "5.0", added: String = "100") =
+        VodStreamEntity(
+            streamId = id, name = "Movie $id", streamIcon = null, rating = rating, added = added,
+            categoryId = categoryId, cachedAt = 0L, genre = genre
+        )
+
+    @Test
+    fun test_getRelatedMovies_excludesHiddenCategory_beforeRanking() = runTest {
+        whenever(vodDao.getStreamById(1)).thenReturn(relatedEntity(1, "Action", "cat_current"))
+        whenever(vodDao.getStreamsByGenre("%Action%")).thenReturn(
+            listOf(
+                relatedEntity(2, "Action", "cat_hidden", rating = "9.9"),
+                relatedEntity(3, "Action", "cat_visible", rating = "1.0")
+            )
+        )
+
+        val result = repository.getRelatedMovies(1, "Action", limit = 10, excludedCategoryIds = setOf("cat_hidden"))
+
+        assertEquals(1, result.size)
+        assertEquals(3, result[0].streamId)
+    }
+
+    @Test
+    fun test_getRelatedMovies_hiddenCandidatesDontDisplaceVisibleOnesBeyondLimit() = runTest {
+        // 3 candidats masqués mieux classés (note max) + 1 visible moins bien classé, limit=2.
+        // Filtrer APRÈS le classement (bug corrigé) aurait tronqué avant d'atteindre le visible.
+        whenever(vodDao.getStreamById(1)).thenReturn(relatedEntity(1, "Action", "cat_current"))
+        val hidden = (10..12).map { relatedEntity(it, "Action", "cat_hidden", rating = "9.9") }
+        val visible = relatedEntity(20, "Action", "cat_visible", rating = "1.0")
+        whenever(vodDao.getStreamsByGenre("%Action%")).thenReturn(hidden + listOf(visible))
+
+        val result = repository.getRelatedMovies(1, "Action", limit = 2, excludedCategoryIds = setOf("cat_hidden"))
+
+        assertEquals(1, result.size)
+        assertEquals(20, result[0].streamId)
+    }
+
+    @Test
+    fun test_getRelatedMovies_noExcludedCategories_defaultsToAllCandidates() = runTest {
+        whenever(vodDao.getStreamById(1)).thenReturn(relatedEntity(1, "Action", "cat_current"))
+        whenever(vodDao.getStreamsByGenre("%Action%")).thenReturn(listOf(relatedEntity(2, "Action", "cat_other")))
+
+        val result = repository.getRelatedMovies(1, "Action")
+
+        assertEquals(1, result.size)
+        assertEquals(2, result[0].streamId)
+    }
 }

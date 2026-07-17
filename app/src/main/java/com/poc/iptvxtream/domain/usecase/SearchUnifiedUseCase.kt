@@ -30,6 +30,7 @@ class SearchUnifiedUseCase @Inject constructor(
                 .filterValues { it.hidden }
                 .keys
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             emptySet()
         }
     }

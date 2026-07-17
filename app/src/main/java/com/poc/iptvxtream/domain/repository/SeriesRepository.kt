@@ -36,6 +36,16 @@ interface SeriesRepository {
      * (parsé depuis [genre]), triées par nombre de genres communs décroissant
      * puis par score (note + date d'ajout). Vide si aucun genre exploitable ou
      * aucun candidat en cache. Limité à [limit] résultats.
+     *
+     * [excludedCategoryIds] (catégories masquées du profil actif) est appliqué
+     * **avant** le classement, pas en post-filtrage : sinon un sur-fetch fixe
+     * suivi d'un filtre a posteriori peut retourner moins de [limit] résultats
+     * alors que des candidats visibles existent au-delà du sur-fetch.
      */
-    suspend fun getRelatedSeries(currentSeriesId: Int, genre: String?, limit: Int = 10): List<SeriesStream>
+    suspend fun getRelatedSeries(
+        currentSeriesId: Int,
+        genre: String?,
+        limit: Int = 10,
+        excludedCategoryIds: Set<String> = emptySet()
+    ): List<SeriesStream>
 }

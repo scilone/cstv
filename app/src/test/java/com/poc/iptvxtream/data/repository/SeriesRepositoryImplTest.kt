@@ -365,4 +365,40 @@ class SeriesRepositoryImplTest {
         assertEquals(52, result)
         verify(seriesDao, times(2)).getStreamsNeedingEnrichment(any())
     }
+
+    // --- getRelatedSeries : catégories masquées exclues AVANT le classement ---
+    private fun relatedEntity(id: Int, genre: String, categoryId: String, rating: String = "5.0", added: String = "100") =
+        SeriesStreamEntity(
+            seriesId = id, name = "Série $id", cover = null, rating = rating, added = added,
+            categoryId = categoryId, cachedAt = 0L, genre = genre
+        )
+
+    @Test
+    fun test_getRelatedSeries_excludesHiddenCategory_beforeRanking() = runTest {
+        whenever(seriesDao.getStreamById(1)).thenReturn(relatedEntity(1, "Comedy", "cat_current"))
+        whenever(seriesDao.getStreamsByGenre("%Comedy%")).thenReturn(
+            listOf(
+                relatedEntity(2, "Comedy", "cat_hidden", rating = "9.9"),
+                relatedEntity(3, "Comedy", "cat_visible", rating = "1.0")
+            )
+        )
+
+        val result = repository.getRelatedSeries(1, "Comedy", limit = 10, excludedCategoryIds = setOf("cat_hidden"))
+
+        assertEquals(1, result.size)
+        assertEquals(3, result[0].seriesId)
+    }
+
+    @Test
+    fun test_getRelatedSeries_hiddenCandidatesDontDisplaceVisibleOnesBeyondLimit() = runTest {
+        whenever(seriesDao.getStreamById(1)).thenReturn(relatedEntity(1, "Comedy", "cat_current"))
+        val hidden = (10..12).map { relatedEntity(it, "Comedy", "cat_hidden", rating = "9.9") }
+        val visible = relatedEntity(20, "Comedy", "cat_visible", rating = "1.0")
+        whenever(seriesDao.getStreamsByGenre("%Comedy%")).thenReturn(hidden + listOf(visible))
+
+        val result = repository.getRelatedSeries(1, "Comedy", limit = 2, excludedCategoryIds = setOf("cat_hidden"))
+
+        assertEquals(1, result.size)
+        assertEquals(20, result[0].seriesId)
+    }
 }

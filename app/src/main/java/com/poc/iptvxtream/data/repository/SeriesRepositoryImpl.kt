@@ -298,7 +298,12 @@ class SeriesRepositoryImpl @Inject constructor(
         return seriesDao.getCategoryCounts().associate { it.categoryId to it.count }
     }
 
-    override suspend fun getRelatedSeries(currentSeriesId: Int, genre: String?, limit: Int): List<SeriesStream> {
+    override suspend fun getRelatedSeries(
+        currentSeriesId: Int,
+        genre: String?,
+        limit: Int,
+        excludedCategoryIds: Set<String>
+    ): List<SeriesStream> {
         val genres = GenreParser.parseGenres(genre)
         if (genres.isEmpty()) return emptyList()
 
@@ -306,11 +311,13 @@ class SeriesRepositoryImpl @Inject constructor(
         val currentCategoryId = seriesDao.getStreamById(currentSeriesId)?.categoryId
 
         // Préfiltre SQL : union des candidats matchant au moins un genre (LIKE),
-        // dédupliqués par seriesId, la série courante exclue.
+        // dédupliqués par seriesId, la série courante et les catégories masquées
+        // exclues (avant le classement, pour que le top `limit` retourné soit
+        // toujours composé de candidats visibles).
         val candidateEntities = LinkedHashMap<Int, com.poc.iptvxtream.data.local.entity.SeriesStreamEntity>()
         for (g in genres) {
             seriesDao.getStreamsByGenre("%$g%").forEach { e ->
-                if (e.seriesId != currentSeriesId) candidateEntities[e.seriesId] = e
+                if (e.seriesId != currentSeriesId && e.categoryId !in excludedCategoryIds) candidateEntities[e.seriesId] = e
             }
         }
         if (candidateEntities.isEmpty()) return emptyList()

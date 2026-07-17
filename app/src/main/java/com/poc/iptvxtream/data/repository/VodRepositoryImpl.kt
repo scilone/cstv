@@ -359,7 +359,12 @@ class VodRepositoryImpl @Inject constructor(
         return vodDao.getCategoryCounts().associate { it.categoryId to it.count }
     }
 
-    override suspend fun getRelatedMovies(currentStreamId: Int, genre: String?, limit: Int): List<VodStream> {
+    override suspend fun getRelatedMovies(
+        currentStreamId: Int,
+        genre: String?,
+        limit: Int,
+        excludedCategoryIds: Set<String>
+    ): List<VodStream> {
         val genres = com.poc.iptvxtream.domain.model.GenreParser.parseGenres(genre)
         if (genres.isEmpty()) return emptyList()
 
@@ -367,11 +372,13 @@ class VodRepositoryImpl @Inject constructor(
         val currentCategoryId = vodDao.getStreamById(currentStreamId)?.categoryId
 
         // Préfiltre SQL : union des candidats matchant au moins un genre (LIKE),
-        // dédupliqués par streamId, le film courant exclu.
+        // dédupliqués par streamId, le film courant et les catégories masquées
+        // exclus (avant le classement, pour que le top `limit` retourné soit
+        // toujours composé de candidats visibles).
         val candidateEntities = LinkedHashMap<Int, VodStreamEntity>()
         for (g in genres) {
             vodDao.getStreamsByGenre("%$g%").forEach { e ->
-                if (e.streamId != currentStreamId) candidateEntities[e.streamId] = e
+                if (e.streamId != currentStreamId && e.categoryId !in excludedCategoryIds) candidateEntities[e.streamId] = e
             }
         }
         if (candidateEntities.isEmpty()) return emptyList()

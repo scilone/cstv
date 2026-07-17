@@ -17,11 +17,9 @@ class GetRelatedSeriesUseCase @Inject constructor(
                 .filterValues { it.hidden }
                 .keys
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             emptySet<String>()
         }
-        val allRelated = repository.getRelatedSeries(currentSeriesId, genre, limit = 50)
-        return allRelated
-            .filter { it.categoryId !in hiddenCategories }
-            .take(limit)
+        return repository.getRelatedSeries(currentSeriesId, genre, limit, hiddenCategories)
     }
 }

@@ -47,36 +47,52 @@ class CategoryFilteringUseCasesTest {
         searchUnifiedUseCase = SearchUnifiedUseCase(favoritesRepository, categoryPreferenceRepository)
     }
 
+    // Le filtrage des catégories masquées se fait désormais AVANT le classement,
+    // à l'intérieur du repository (voir VodRepositoryImpl.getRelatedMovies) : le
+    // use case se contente de résoudre les catégories masquées et de les
+    // transmettre, il ne post-filtre plus le résultat déjà classé/limité (un
+    // post-filtrage après un sur-fetch fixe pouvait retourner moins de `limit`
+    // résultats alors que des candidats visibles existaient au-delà du sur-fetch).
     @Test
-    fun test_getRelatedMoviesUseCase_filtersHiddenCategories() = runTest {
-        val movies = listOf(
-            VodStream(1, "Movie A", null, null, null, "cat_visible"),
-            VodStream(2, "Movie B", null, null, null, "cat_hidden")
-        )
-        whenever(vodRepository.getRelatedMovies(any(), anyOrNull(), any())).thenReturn(movies)
+    fun test_getRelatedMoviesUseCase_passesHiddenCategoriesToRepository() = runTest {
+        val movies = listOf(VodStream(1, "Movie A", null, null, null, "cat_visible"))
+        whenever(vodRepository.getRelatedMovies(eq(1), eq("Action"), eq(10), eq(setOf("cat_hidden")))).thenReturn(movies)
         whenever(categoryPreferenceRepository.getPreferences(CategoryType.VOD)).thenReturn(
             mapOf("cat_hidden" to CategoryPreference(categoryId = "cat_hidden", hidden = true, sortOrder = 0))
         )
 
         val result = getRelatedMoviesUseCase(1, "Action")
+
         assertEquals(1, result.size)
         assertEquals(1, result[0].streamId)
+        verify(vodRepository).getRelatedMovies(1, "Action", 10, setOf("cat_hidden"))
     }
 
     @Test
-    fun test_getRelatedSeriesUseCase_filtersHiddenCategories() = runTest {
-        val series = listOf(
-            SeriesStream(1, "Series A", null, null, null, "cat_visible"),
-            SeriesStream(2, "Series B", null, null, null, "cat_hidden")
-        )
-        whenever(seriesRepository.getRelatedSeries(any(), anyOrNull(), any())).thenReturn(series)
+    fun test_getRelatedMoviesUseCase_categoryPreferenceThrows_passesEmptySet() = runTest {
+        val movies = listOf(VodStream(1, "Movie A", null, null, null, "cat_visible"))
+        whenever(vodRepository.getRelatedMovies(eq(1), eq("Action"), eq(10), eq(emptySet()))).thenReturn(movies)
+        whenever(categoryPreferenceRepository.getPreferences(CategoryType.VOD)).thenThrow(RuntimeException("DB error"))
+
+        val result = getRelatedMoviesUseCase(1, "Action")
+
+        assertEquals(1, result.size)
+        verify(vodRepository).getRelatedMovies(1, "Action", 10, emptySet())
+    }
+
+    @Test
+    fun test_getRelatedSeriesUseCase_passesHiddenCategoriesToRepository() = runTest {
+        val series = listOf(SeriesStream(1, "Series A", null, null, null, "cat_visible"))
+        whenever(seriesRepository.getRelatedSeries(eq(1), eq("Comedy"), eq(10), eq(setOf("cat_hidden")))).thenReturn(series)
         whenever(categoryPreferenceRepository.getPreferences(CategoryType.SERIES)).thenReturn(
             mapOf("cat_hidden" to CategoryPreference(categoryId = "cat_hidden", hidden = true, sortOrder = 0))
         )
 
         val result = getRelatedSeriesUseCase(1, "Comedy")
+
         assertEquals(1, result.size)
         assertEquals(1, result[0].seriesId)
+        verify(seriesRepository).getRelatedSeries(1, "Comedy", 10, setOf("cat_hidden"))
     }
 
     @Test
