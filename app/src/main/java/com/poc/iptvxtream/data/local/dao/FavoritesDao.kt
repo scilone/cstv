@@ -61,4 +61,22 @@ interface FavoritesDao {
         """
     )
     suspend fun searchSeriesStreams(matchQuery: String): List<SeriesStreamEntity>
+
+    // --- Filtre par genre (Phase 60) : le genre est enrichi en arrière-plan
+    // (voir Vod/SeriesRepositoryImpl) et stocké en string libre du type
+    // "Action, Thriller". On récupère les strings distinctes brutes pour
+    // parsing côté domaine (GenreParser), et on préfiltre en SQL par LIKE avant
+    // la vérification exacte token-à-token en Kotlin (le LIKE seul sur-matche,
+    // ex: "War" dans "Warrior"). ---
+    @Query("SELECT DISTINCT genre FROM vod_streams WHERE genre IS NOT NULL AND genre != '' AND genre != 'Inconnu'")
+    suspend fun getDistinctVodGenres(): List<String>
+
+    @Query("SELECT DISTINCT genre FROM series_streams WHERE genre IS NOT NULL AND genre != '' AND genre != 'Inconnu'")
+    suspend fun getDistinctSeriesGenres(): List<String>
+
+    @Query("SELECT * FROM vod_streams WHERE genre LIKE :pattern ORDER BY name ASC")
+    suspend fun getVodStreamsByGenre(pattern: String): List<VodStreamEntity>
+
+    @Query("SELECT * FROM series_streams WHERE genre LIKE :pattern ORDER BY name ASC")
+    suspend fun getSeriesStreamsByGenre(pattern: String): List<SeriesStreamEntity>
 }

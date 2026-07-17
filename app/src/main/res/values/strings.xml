@@ -25,6 +25,8 @@
     <string name="search_movies">Films VOD</string>
     <string name="search_series">Séries</string>
     <string name="search_see_all">Voir tout (%1$d)</string>
+    <string name="search_filter_genre">Filtrer par genre</string>
+    <string name="search_initial_prompt_genre">Saisissez un mot-clé ou choisissez un genre pour lancer la recherche locale.</string>
     <string name="profile_manage_title">Gérer les profils</string>
     <string name="profile_manage_subtitle">Chaque profil a ses propres favoris, historique et reprises de lecture. Le catalogue reste commun.</string>
     <string name="profile_manage_done">Terminé</string>

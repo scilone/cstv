@@ -138,6 +138,8 @@ Tests : visuel seulement, pas de logique métier à tester au-delà de la non-r�
 
 ## 8. Recherche par genre (films/séries)
 
+✅ **TERMINÉE** — Opus 4.8, effort élevé. Choix (a) : le mécanisme d'enrichissement background existant (`VodRepositoryImpl`/`SeriesRepositoryImpl`) stockait déjà `genre` (colonnes présentes + indexées dans les FTS4 `vod_streams_fts`/`series_streams_fts` depuis la Phase 40) — aucune migration Room requise (DB reste v13). Ajout : objet pur testable `GenreParser` (`domain/model/GenreParser.kt`, split virgule + trim + exclusion placeholders « Inconnu »/« N/A », match token-à-token insensible à la casse, agrégation distincte triée). Requêtes DAO (`FavoritesDao`) : `getDistinctVodGenres`/`getDistinctSeriesGenres` (liste des genres) et `getVodStreamsByGenre`/`getSeriesStreamsByGenre` (préfiltre SQL `LIKE`). `FavoritesRepository.searchUnified(query, genre)` filtre VOD+Séries par genre exact après préfiltre `LIKE` (le `LIKE` seul sur-matche, ex. « War » dans « Warrior »), écarte les chaînes live (sans genre) ; `getAvailableGenres()` agrège VOD+Séries. `GetAvailableGenresUseCase`, état `availableGenres`/`selectedGenre` + `onGenreSelected`/`refreshGenres` dans `FavoritesViewModel` (la recherche se déclenche sur texte OU genre). UI : rangée de `FilterChip` « Filtrer par genre » dans `SearchScreen` (sélection simple, toggle, focus D-pad via `focusGroup`). Tests : `GenreParserTest` (14 cas de parsing/match/dédup) + 3 tests filtre genre dans `FavoritesRepositoryImplTest`.
+
 **Modèle recommandé : Opus 4.8, effort élevé** — extension du mécanisme d'enrichissement background existant + migration Room + UI filtre, ambiguïté architecturale (a) vs (b) à trancher intelligemment.
 
 Ajoute une recherche/filtre par genre pour VOD et Séries.

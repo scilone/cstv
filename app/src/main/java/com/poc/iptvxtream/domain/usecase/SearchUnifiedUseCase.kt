@@ -7,7 +7,7 @@ import javax.inject.Inject
 class SearchUnifiedUseCase @Inject constructor(
     private val repository: FavoritesRepository
 ) {
-    suspend operator fun invoke(query: String): SearchResult {
-        return repository.searchUnified(query)
+    suspend operator fun invoke(query: String, genre: String? = null): SearchResult {
+        return repository.searchUnified(query, genre)
     }
 }

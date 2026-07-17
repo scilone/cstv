@@ -61,8 +61,14 @@ fun SearchScreen(
     // Vue "Voir tout" : on ne montre qu'un type de média en grille verticale.
     var expandedType by remember { mutableStateOf<SearchExpandedType?>(null) }
 
-    // Toute nouvelle saisie recasse la vue développée pour revenir aux rangées.
-    LaunchedEffect(state.searchQuery) { expandedType = null }
+    // Recharge les genres à l'ouverture (la liste se complète au fil de
+    // l'enrichissement en arrière-plan des détails d'items).
+    LaunchedEffect(Unit) { viewModel.refreshGenres() }
+
+    // Toute nouvelle saisie ou changement de genre recasse la vue développée.
+    LaunchedEffect(state.searchQuery, state.selectedGenre) { expandedType = null }
+
+    val hasCriteria = state.searchQuery.trim().isNotBlank() || state.selectedGenre != null
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -100,9 +106,23 @@ fun SearchScreen(
                 )
             }
 
-            if (state.searchQuery.trim().isBlank()) {
+            // Filtre par genre (VOD + Séries). Masqué tant qu'aucun genre n'a
+            // encore été enrichi/mis en cache.
+            if (state.availableGenres.isNotEmpty()) {
+                SearchGenreFilterRow(
+                    genres = state.availableGenres,
+                    selected = state.selectedGenre,
+                    onSelect = { viewModel.onGenreSelected(it) },
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
+                )
+            }
+
+            if (!hasCriteria) {
                 Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    Text(stringResource(R.string.search_initial_prompt), color = Color.Gray, fontSize = 14.sp)
+                    val prompt = if (state.availableGenres.isNotEmpty())
+                        stringResource(R.string.search_initial_prompt_genre)
+                    else stringResource(R.string.search_initial_prompt)
+                    Text(prompt, color = Color.Gray, fontSize = 14.sp)
                 }
             } else if (state.isSearching) {
                 Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
@@ -110,7 +130,8 @@ fun SearchScreen(
                 }
             } else if (state.searchResult.isEmpty) {
                 Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    Text(stringResource(R.string.search_no_results, state.searchQuery), color = Color.Gray, fontSize = 14.sp)
+                    val label = state.searchQuery.trim().ifBlank { state.selectedGenre ?: "" }
+                    Text(stringResource(R.string.search_no_results, label), color = Color.Gray, fontSize = 14.sp)
                 }
             } else if (expandedType != null) {
                 // --- Vue développée : un seul type, grille verticale ---
@@ -206,6 +227,45 @@ fun SearchScreen(
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SearchGenreFilterRow(
+    genres: List<String>,
+    selected: String?,
+    onSelect: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(modifier = modifier) {
+        Text(
+            text = stringResource(R.string.search_filter_genre),
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.Gray,
+            modifier = Modifier.padding(bottom = 8.dp, start = 4.dp)
+        )
+        LazyRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.fillMaxWidth().focusGroup()
+        ) {
+            items(genres) { genre ->
+                val isSelected = genre == selected
+                FilterChip(
+                    selected = isSelected,
+                    onClick = { onSelect(genre) },
+                    label = { Text(genre, fontSize = 12.sp) },
+                    shape = RoundedCornerShape(10.dp),
+                    colors = FilterChipDefaults.filterChipColors(
+                        containerColor = Surface3,
+                        labelColor = Color.White,
+                        selectedContainerColor = AccentLavande,
+                        selectedLabelColor = Color.Black
+                    ),
+                    border = null
+                )
             }
         }
     }

@@ -2,6 +2,8 @@ package com.poc.iptvxtream.data.repository
 
 import com.poc.iptvxtream.data.local.dao.FavoritesDao
 import com.poc.iptvxtream.data.local.entity.FavoriteEntity
+import com.poc.iptvxtream.data.local.entity.SeriesStreamEntity
+import com.poc.iptvxtream.data.local.entity.VodStreamEntity
 import com.poc.iptvxtream.data.local.storage.ProfileManager
 import com.poc.iptvxtream.domain.model.*
 import com.poc.iptvxtream.domain.repository.FavoritesRepository
@@ -46,25 +48,52 @@ class FavoritesRepositoryImpl @Inject constructor(
         favoritesDao.removeFavorite(id, type, profileManager.currentProfileId())
     }
 
-    override suspend fun searchUnified(query: String): SearchResult {
-        val matchQuery = buildFtsMatchQuery(query)
-        if (matchQuery.isBlank()) return SearchResult()
+    override suspend fun searchUnified(query: String, genre: String?): SearchResult {
+        val hasText = query.trim().isNotBlank()
+        val hasGenre = !genre.isNullOrBlank()
+        if (!hasText && !hasGenre) return SearchResult()
 
-        val liveEntities = favoritesDao.searchLiveStreams(matchQuery)
-        val vodEntities = favoritesDao.searchVodStreams(matchQuery)
-        val seriesEntities = favoritesDao.searchSeriesStreams(matchQuery)
+        // 1. Candidats selon le critère texte. Avec un genre seul (sans texte),
+        //    préfiltre SQL par LIKE ; les chaînes live n'ont pas de genre.
+        val liveEntities: List<com.poc.iptvxtream.data.local.entity.LiveStreamEntity>
+        val vodEntities: List<VodStreamEntity>
+        val seriesEntities: List<SeriesStreamEntity>
+
+        if (hasText) {
+            val matchQuery = buildFtsMatchQuery(query)
+            if (matchQuery.isBlank()) return SearchResult()
+            liveEntities = favoritesDao.searchLiveStreams(matchQuery)
+            vodEntities = favoritesDao.searchVodStreams(matchQuery)
+            seriesEntities = favoritesDao.searchSeriesStreams(matchQuery)
+        } else {
+            val pattern = "%" + genre!!.trim() + "%"
+            liveEntities = emptyList()
+            vodEntities = favoritesDao.getVodStreamsByGenre(pattern)
+            seriesEntities = favoritesDao.getSeriesStreamsByGenre(pattern)
+        }
+
+        // 2. Filtre genre exact (token-à-token, insensible à la casse). Quand un
+        //    genre est sélectionné, les chaînes live (sans genre) sont écartées.
+        val filteredLive = if (hasGenre) emptyList() else liveEntities
+        val filteredVod = if (hasGenre) vodEntities.filter { GenreParser.matches(it.genre, genre!!) } else vodEntities
+        val filteredSeries = if (hasGenre) seriesEntities.filter { GenreParser.matches(it.genre, genre!!) } else seriesEntities
 
         return SearchResult(
-            liveResults = liveEntities.map { 
+            liveResults = filteredLive.map {
                 LiveStream(it.streamId, it.name, it.streamIcon, it.epgChannelId, it.num, it.categoryId)
             },
-            vodResults = vodEntities.map { 
+            vodResults = filteredVod.map {
                 VodStream(it.streamId, it.name, it.streamIcon, it.rating, it.added, it.categoryId)
             },
-            seriesResults = seriesEntities.map {
+            seriesResults = filteredSeries.map {
                 SeriesStream(it.seriesId, it.name, it.cover, it.rating, it.added, it.categoryId)
             }
         )
+    }
+
+    override suspend fun getAvailableGenres(): List<String> {
+        val raw = favoritesDao.getDistinctVodGenres() + favoritesDao.getDistinctSeriesGenres()
+        return GenreParser.distinctGenres(raw)
     }
 
     // Transforme la saisie libre en requête FTS4 : chaque mot devient un
