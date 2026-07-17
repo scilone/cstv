@@ -1,20 +1,27 @@
 package com.poc.iptvxtream.presentation.home
 
+import com.poc.iptvxtream.R
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.*
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -24,8 +31,8 @@ import com.poc.iptvxtream.domain.model.SeriesStream
 import com.poc.iptvxtream.domain.model.VodStream
 import com.poc.iptvxtream.presentation.home.components.HomeSeriesShowCard
 import com.poc.iptvxtream.presentation.home.components.HomeVodMovieCard
+import com.poc.iptvxtream.presentation.theme.Surface1
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RecentlyAddedScreen(
     viewModel: RecentlyAddedViewModel,
@@ -33,7 +40,8 @@ fun RecentlyAddedScreen(
     isSeries: Boolean,
     onBack: () -> Unit,
     onSelectMovieDetail: (VodStream) -> Unit,
-    onSelectSeriesDetail: (SeriesStream) -> Unit
+    onSelectSeriesDetail: (SeriesStream) -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
 
@@ -41,51 +49,44 @@ fun RecentlyAddedScreen(
         viewModel.loadRecentlyAdded(isSeries)
     }
 
-    Scaffold(
-        containerColor = Color.Transparent,
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = if (isSeries) "100 Dernières Séries Ajoutées" else "100 Derniers Films Ajoutés",
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 18.sp
-                    )
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Retour",
-                            tint = Color.White
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color(0xFF0F0F13),
-                    titleContentColor = Color.White
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(Surface1)
+            .padding(16.dp)
+    ) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            // Header cohérent avec les autres écrans (SearchScreen, détails VOD/Séries) :
+            // pas de Scaffold/TopAppBar Material3 dans le reste de l'app.
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
+            ) {
+                IconButton(
+                    onClick = onBack,
+                    modifier = Modifier.background(Color(0x33FFFFFF), shape = RoundedCornerShape(12.dp))
+                ) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.common_back), tint = Color.White)
+                }
+                Spacer(modifier = Modifier.width(16.dp))
+                Text(
+                    text = if (isSeries) stringResource(R.string.recently_added_title_series) else stringResource(R.string.recently_added_title_movies),
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp
                 )
-            )
-        }
-    ) { paddingValues ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color(0xFF0F0F13))
-                .padding(paddingValues)
-                .padding(horizontal = 16.dp)
-        ) {
+            }
+
             when {
                 state.isLoading -> {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
                     }
                 }
                 state.error != null -> {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                         Text(
-                            text = state.error ?: "Une erreur est survenue.",
+                            text = state.error ?: stringResource(R.string.recently_added_error_fallback),
                             color = Color.Red,
                             fontSize = 14.sp,
                             textAlign = TextAlign.Center
@@ -93,13 +94,13 @@ fun RecentlyAddedScreen(
                     }
                 }
                 isSeries && state.seriesStreams.isEmpty() -> {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text(text = "Aucune série récemment ajoutée.", color = Color.Gray)
+                    Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                        Text(text = stringResource(R.string.recently_added_empty_series), color = Color.Gray)
                     }
                 }
                 !isSeries && state.vodStreams.isEmpty() -> {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text(text = "Aucun film récemment ajouté.", color = Color.Gray)
+                    Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                        Text(text = stringResource(R.string.recently_added_empty_movies), color = Color.Gray)
                     }
                 }
                 else -> {
@@ -108,7 +109,8 @@ fun RecentlyAddedScreen(
                         horizontalArrangement = Arrangement.spacedBy(16.dp),
                         verticalArrangement = Arrangement.spacedBy(16.dp),
                         modifier = Modifier
-                            .fillMaxSize()
+                            .weight(1f)
+                            .fillMaxWidth()
                             .focusGroup()
                     ) {
                         if (isSeries) {

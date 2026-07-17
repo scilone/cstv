@@ -26,6 +26,11 @@
     <string name="search_series">Séries</string>
     <string name="search_see_all">Voir tout (%1$d)</string>
     <string name="details_related_titles">Titres associés</string>
+    <string name="recently_added_title_movies">100 derniers films ajoutés</string>
+    <string name="recently_added_title_series">100 dernières séries ajoutées</string>
+    <string name="recently_added_empty_movies">Aucun film récemment ajouté.</string>
+    <string name="recently_added_empty_series">Aucune série récemment ajoutée.</string>
+    <string name="recently_added_error_fallback">Impossible de charger les derniers ajouts.</string>
     <string name="profile_manage_title">Gérer les profils</string>
     <string name="profile_manage_subtitle">Chaque profil a ses propres favoris, historique et reprises de lecture. Le catalogue reste commun.</string>
     <string name="profile_manage_done">Terminé</string>

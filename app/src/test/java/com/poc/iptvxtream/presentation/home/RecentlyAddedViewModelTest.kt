@@ -1,5 +1,6 @@
 package com.poc.iptvxtream.presentation.home
 
+import com.poc.iptvxtream.domain.model.CategoryPreference
 import com.poc.iptvxtream.domain.model.SeriesStream
 import com.poc.iptvxtream.domain.model.VodStream
 import com.poc.iptvxtream.domain.repository.CategoryPreferenceRepository
@@ -87,5 +88,86 @@ class RecentlyAddedViewModelTest {
         assertEquals(2, state.seriesStreams[0].seriesId) // Newest first
         assertEquals(1, state.seriesStreams[1].seriesId)
         assertTrue(state.vodStreams.isEmpty())
+    }
+
+    @Test
+    fun test_loadRecentlyAdded_movies_excludesHiddenCategory() = runTest {
+        val movies = listOf(
+            VodStream(streamId = 1, name = "Movie A", streamIcon = null, rating = null, added = "300", categoryId = "cat1"),
+            VodStream(streamId = 2, name = "Movie B", streamIcon = null, rating = null, added = "200", categoryId = "cat2")
+        )
+        whenever(vodRepository.getVodStreams("all", false)).thenReturn(movies)
+        whenever(categoryPreferenceRepository.getPreferences(CategoryType.VOD))
+            .thenReturn(mapOf("cat1" to CategoryPreference("cat1", hidden = true, sortOrder = null)))
+
+        viewModel.loadRecentlyAdded(false)
+        testScheduler.advanceUntilIdle()
+
+        val state = viewModel.state.value
+        assertEquals(1, state.vodStreams.size)
+        assertEquals(2, state.vodStreams[0].streamId)
+    }
+
+    @Test
+    fun test_loadRecentlyAdded_series_excludesHiddenCategory() = runTest {
+        val series = listOf(
+            SeriesStream(seriesId = 1, name = "Series A", cover = null, rating = null, added = "1000", categoryId = "cat1"),
+            SeriesStream(seriesId = 2, name = "Series B", cover = null, rating = null, added = "500", categoryId = "cat2")
+        )
+        whenever(seriesRepository.getSeriesStreams("all", false)).thenReturn(series)
+        whenever(categoryPreferenceRepository.getPreferences(CategoryType.SERIES))
+            .thenReturn(mapOf("cat2" to CategoryPreference("cat2", hidden = true, sortOrder = null)))
+
+        viewModel.loadRecentlyAdded(true)
+        testScheduler.advanceUntilIdle()
+
+        val state = viewModel.state.value
+        assertEquals(1, state.seriesStreams.size)
+        assertEquals(1, state.seriesStreams[0].seriesId)
+    }
+
+    @Test
+    fun test_loadRecentlyAdded_movies_capsAt100() = runTest {
+        val movies = (1..150).map {
+            VodStream(streamId = it, name = "Movie $it", streamIcon = null, rating = null, added = it.toString(), categoryId = "cat1")
+        }
+        whenever(vodRepository.getVodStreams("all", false)).thenReturn(movies)
+        whenever(categoryPreferenceRepository.getPreferences(CategoryType.VOD)).thenReturn(emptyMap())
+
+        viewModel.loadRecentlyAdded(false)
+        testScheduler.advanceUntilIdle()
+
+        val state = viewModel.state.value
+        assertEquals(100, state.vodStreams.size)
+        assertEquals(150, state.vodStreams.first().streamId) // le plus récent (added max)
+    }
+
+    @Test
+    fun test_loadRecentlyAdded_repositoryThrows_setsErrorState() = runTest {
+        whenever(vodRepository.getVodStreams("all", false)).thenThrow(RuntimeException("Panel injoignable"))
+
+        viewModel.loadRecentlyAdded(false)
+        testScheduler.advanceUntilIdle()
+
+        val state = viewModel.state.value
+        assertFalse(state.isLoading)
+        assertEquals("Panel injoignable", state.error)
+        assertTrue(state.vodStreams.isEmpty())
+    }
+
+    @Test
+    fun test_loadRecentlyAdded_categoryPreferenceThrows_fallsBackToNoFiltering() = runTest {
+        val movies = listOf(
+            VodStream(streamId = 1, name = "Movie A", streamIcon = null, rating = null, added = "100", categoryId = "cat1")
+        )
+        whenever(vodRepository.getVodStreams("all", false)).thenReturn(movies)
+        whenever(categoryPreferenceRepository.getPreferences(CategoryType.VOD)).thenThrow(RuntimeException("DB error"))
+
+        viewModel.loadRecentlyAdded(false)
+        testScheduler.advanceUntilIdle()
+
+        val state = viewModel.state.value
+        assertFalse(state.isLoading)
+        assertEquals(1, state.vodStreams.size)
     }
 }
