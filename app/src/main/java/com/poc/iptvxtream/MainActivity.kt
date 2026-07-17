@@ -546,6 +546,7 @@ class MainActivity : ComponentActivity() {
                                     seriesId = activeSeriesDetails?.seriesId ?: 0,
                                     seriesName = activeSeriesDetails?.name ?: "Série",
                                     seriesCover = activeSeriesDetails?.cover,
+                                    seriesEpisodes = activeSeriesDetails?.episodes ?: emptyMap(),
                                     credentials = creds,
                                     isTv = isTv,
                                     viewModel = seriesViewModel,

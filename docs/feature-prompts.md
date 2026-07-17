@@ -49,7 +49,7 @@ Tests : `HomeViewModelTest` (tri par added, fallback live TV), non-régression s
 
 ## 3. Lecture auto de l'épisode suivant + bouton "épisode suivant"
 
-**Modèle recommandé : Opus 4.8, effort élevé** — propagation de state à travers navigation + détection fin de lecture ExoPlayer, logique d'enchaînement sensible aux edge cases (fin saison/série).
+✅ **TERMINÉE** — Opus 4.8. `SeriesDetails.episodes` propagée jusqu'à `SeriesPlayerScreen` (nouveau param `seriesEpisodes`, câblé dans NavGraph + MainActivity). Épisode courant géré en state interne (`currentEpisode`) : enchaînement sans repasser par la navigation. Fonction pure testable `computeNextEpisode` (`domain/model/SeriesEpisodeNavigation.kt`) : même saison `episodeNum+1`, sinon 1er épisode de la plus petite saison supérieure, sinon null. Autoplay sur `STATE_ENDED` (efface la position de reprise) + bouton `SkipNext` visible uniquement si un épisode suivant existe. 7 tests unitaires sur la logique de sélection (même saison / changement de saison / fin de série / map vide / trous de numérotation).
 
 Sur `SeriesPlayerScreen`, enchaîne automatiquement sur l'épisode suivant à la fin de la lecture, et ajoute un bouton explicite pour y aller manuellement.
 

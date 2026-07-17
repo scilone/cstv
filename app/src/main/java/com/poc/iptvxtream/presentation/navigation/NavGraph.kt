@@ -507,6 +507,7 @@ fun AppNavGraph(
                     seriesId = activeSeriesDetails?.seriesId ?: 0,
                     seriesName = activeSeriesDetails?.name ?: "Série",
                     seriesCover = activeSeriesDetails?.cover,
+                    seriesEpisodes = activeSeriesDetails?.episodes ?: emptyMap(),
                     credentials = creds,
                     isTv = false,
                     viewModel = seriesViewModel,

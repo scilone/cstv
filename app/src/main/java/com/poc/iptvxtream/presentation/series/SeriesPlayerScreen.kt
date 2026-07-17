@@ -19,6 +19,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -48,6 +49,7 @@ import com.poc.iptvxtream.presentation.theme.Surface1
 import com.poc.iptvxtream.presentation.theme.Surface3
 import com.poc.iptvxtream.domain.model.Credentials
 import com.poc.iptvxtream.domain.model.SeriesEpisode
+import com.poc.iptvxtream.domain.model.computeNextEpisode
 import kotlinx.coroutines.delay
 
 private fun Context.findActivity(): Activity? {
@@ -77,6 +79,7 @@ fun SeriesPlayerScreen(
     seriesId: Int,
     seriesName: String,
     seriesCover: String?,
+    seriesEpisodes: Map<Int, List<SeriesEpisode>>,
     credentials: Credentials,
     isTv: Boolean,
     viewModel: SeriesViewModel,
@@ -89,6 +92,18 @@ fun SeriesPlayerScreen(
     }
 
     var isPlayerVisible by remember { mutableStateOf(true) }
+
+    // Épisode actuellement lu (Phase 59) : initialisé sur celui reçu en
+    // navigation, puis remplacé en interne à chaque enchaînement (auto en fin
+    // de lecture ou via le bouton « épisode suivant ») sans repasser par la
+    // navigation. Toute la logique du player (URL, sauvegarde de position,
+    // titre) s'appuie sur cette valeur plutôt que sur le paramètre initial.
+    var currentEpisode by remember { mutableStateOf(episode) }
+
+    // Épisode suivant selon la carte des saisons/épisodes de la série ; null en
+    // fin de série ou quand la map n'est pas disponible (reprise depuis
+    // l'accueil) → ni autoplay ni bouton.
+    val nextEpisode = computeNextEpisode(seriesEpisodes, currentEpisode)
 
     // Préférence de pistes mémorisée pour CETTE série (Phase 29, commune à tous
     // les épisodes). Prioritaire sur le fallback global.
@@ -137,12 +152,13 @@ fun SeriesPlayerScreen(
         }
     }
 
-    // Prepare & Play Episode
-    LaunchedEffect(episode) {
+    // Prepare & Play Episode. Clé = currentEpisode : rejoué à chaque
+    // enchaînement (Phase 59), pas seulement à l'ouverture initiale.
+    LaunchedEffect(currentEpisode) {
         isBuffering = true
         playbackError = null
 
-        val url = episode.getPlayUrl(
+        val url = currentEpisode.getPlayUrl(
             baseUrl = credentials.baseUrl,
             username = credentials.username,
             password = credentials.password
@@ -151,12 +167,12 @@ fun SeriesPlayerScreen(
         val mediaItem = MediaItem.fromUri(android.net.Uri.parse(url))
         exoPlayer.setMediaItem(mediaItem)
         exoPlayer.prepare()
-        
+
         // Seek to saved position if requested
-        if (episode.resumePositionMs > 0) {
-            exoPlayer.seekTo(episode.resumePositionMs)
+        if (currentEpisode.resumePositionMs > 0) {
+            exoPlayer.seekTo(currentEpisode.resumePositionMs)
         }
-        
+
         exoPlayer.playWhenReady = true
     }
 
@@ -247,15 +263,39 @@ fun SeriesPlayerScreen(
         exoPlayer.trackSelectionParameters = updatedParams.build()
     }
 
+    // Enchaînement vers un autre épisode sans quitter le player (Phase 59).
+    // finishedCurrent = true : l'épisode courant est allé au bout (STATE_ENDED)
+    // → on efface sa position de reprise. Sinon (clic « épisode suivant ») on
+    // sauvegarde la position courante si elle est significative. Réinitialise
+    // ensuite l'état de lecture et bascule sur le nouvel épisode (déclenche le
+    // rechargement via LaunchedEffect(currentEpisode)).
+    val goToEpisode: (SeriesEpisode, Boolean) -> Unit = { next, finishedCurrent ->
+        val pos = exoPlayer.currentPosition
+        val dur = exoPlayer.duration
+        if (finishedCurrent || pos <= 0 || dur <= 0 || pos >= dur - 15000L) {
+            viewModel.clearPosition(currentEpisode.id)
+        } else {
+            viewModel.savePosition(currentEpisode, pos, dur, seriesName, seriesCover)
+        }
+        playbackError = null
+        isBuffering = true
+        currentPosition = next.resumePositionMs
+        duration = 0L
+        availableAudioTracks = emptyList()
+        availableSubtitleTracks = emptyList()
+        showControls = true
+        currentEpisode = next
+    }
+
     // Save playback position loop (Runs every 1 second)
     LaunchedEffect(exoPlayer) {
         while (true) {
             if (exoPlayer.isPlaying) {
                 currentPosition = exoPlayer.currentPosition
                 duration = exoPlayer.duration.coerceAtLeast(0L)
-                
+
                 if (currentPosition > 0 && duration > 0) {
-                    viewModel.savePosition(episode, currentPosition, duration, seriesName, seriesCover)
+                    viewModel.savePosition(currentEpisode, currentPosition, duration, seriesName, seriesCover)
                 }
             }
             delay(1000)
@@ -272,8 +312,15 @@ fun SeriesPlayerScreen(
                 }
                 
                 if (playbackState == Player.STATE_ENDED) {
-                    viewModel.clearPosition(episode.id)
-                    handleClose()
+                    // Fin d'épisode : enchaîner sur le suivant s'il existe
+                    // (Phase 59), sinon comportement historique (fermeture).
+                    val next = computeNextEpisode(seriesEpisodes, currentEpisode)
+                    if (next != null) {
+                        goToEpisode(next, true)
+                    } else {
+                        viewModel.clearPosition(currentEpisode.id)
+                        handleClose()
+                    }
                 }
             }
 
@@ -301,9 +348,9 @@ fun SeriesPlayerScreen(
             val lastDur = exoPlayer.duration
             if (lastPos > 0 && lastDur > 0) {
                 if (lastPos >= (lastDur - 15000L)) {
-                    viewModel.clearPosition(episode.id)
+                    viewModel.clearPosition(currentEpisode.id)
                 } else {
-                    viewModel.savePosition(episode, lastPos, lastDur, seriesName, seriesCover)
+                    viewModel.savePosition(currentEpisode, lastPos, lastDur, seriesName, seriesCover)
                 }
             }
             exoPlayer.removeListener(listener)
@@ -478,7 +525,7 @@ fun SeriesPlayerScreen(
                 ) {
                     Column(modifier = Modifier.weight(1f).padding(end = 16.dp)) {
                         Text(
-                            text = episode.title,
+                            text = currentEpisode.title,
                             color = Color.White,
                             fontWeight = FontWeight.Bold,
                             fontSize = 16.sp,
@@ -486,7 +533,7 @@ fun SeriesPlayerScreen(
                             overflow = TextOverflow.Ellipsis
                         )
                         Text(
-                            text = "Épisode ${episode.episodeNum}",
+                            text = "Épisode ${currentEpisode.episodeNum}",
                             color = MaterialTheme.colorScheme.primary,
                             fontSize = 12.sp,
                             maxLines = 1,
@@ -612,6 +659,30 @@ fun SeriesPlayerScreen(
 
                         IconButton(onClick = { skipForward() }) {
                             Text("10s ▶▶", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+
+                        // Bouton « épisode suivant » (Phase 59) : visible seulement
+                        // s'il existe un épisode suivant (même saison ou saison
+                        // suivante). Déclenche la même transition que l'autoplay.
+                        if (nextEpisode != null) {
+                            IconButton(
+                                onClick = { goToEpisode(nextEpisode, false) },
+                                modifier = Modifier.size(54.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(Color(0x33FFFFFF), shape = RoundedCornerShape(27.dp)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.SkipNext,
+                                        contentDescription = "Épisode suivant",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(30.dp)
+                                    )
+                                }
+                            }
                         }
                     }
                 }
