@@ -667,8 +667,9 @@ fun SeriesPlayerScreen(
 
                     // Control Buttons
                     Row(
-                        horizontalArrangement = Arrangement.spacedBy(24.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
                     ) {
                         IconButton(onClick = { skipBackward() }) {
                             Text("◀◀ 10s", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
