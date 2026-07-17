@@ -147,6 +147,7 @@ fun PlayerScreen(
     var showOverlay by remember { mutableStateOf(true) }
     var streamExtension by remember { mutableStateOf("m3u8") } // Default to m3u8
 
+    var playerViewRef by remember { mutableStateOf<PlayerView?>(null) }
     val componentActivity = remember(context) { context.findActivity() as? androidx.activity.ComponentActivity }
     var isInPipMode by remember {
         mutableStateOf(
@@ -172,6 +173,13 @@ fun PlayerScreen(
     LaunchedEffect(isInPipMode) {
         if (isInPipMode) {
             showChannelList = false
+        }
+        // Le SurfaceView interne au PlayerView ne se relayout pas tout seul
+        // au redimensionnement de la fenêtre PIP (bug connu ExoPlayer/Media3) :
+        // un cycle invisible/visible force un vrai passage de layout.
+        playerViewRef?.let { view ->
+            view.visibility = android.view.View.INVISIBLE
+            view.post { view.visibility = android.view.View.VISIBLE }
         }
     }
 
@@ -320,6 +328,7 @@ fun PlayerScreen(
                             ViewGroup.LayoutParams.MATCH_PARENT,
                             ViewGroup.LayoutParams.MATCH_PARENT
                         )
+                        playerViewRef = this
                     }
                 },
                 update = { view ->

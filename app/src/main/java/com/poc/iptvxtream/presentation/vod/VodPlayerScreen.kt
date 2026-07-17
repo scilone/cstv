@@ -101,6 +101,7 @@ fun VodPlayerScreen(
         }
     }
 
+    var playerViewRef by remember { mutableStateOf<PlayerView?>(null) }
     val componentActivity = remember(context) { context.findActivity() as? androidx.activity.ComponentActivity }
     var isInPipMode by remember {
         mutableStateOf(
@@ -120,6 +121,16 @@ fun VodPlayerScreen(
         componentActivity.addOnPictureInPictureModeChangedListener(listener)
         onDispose {
             componentActivity.removeOnPictureInPictureModeChangedListener(listener)
+        }
+    }
+
+    LaunchedEffect(isInPipMode) {
+        // Le SurfaceView interne au PlayerView ne se relayout pas tout seul
+        // au redimensionnement de la fenêtre PIP (bug connu ExoPlayer/Media3) :
+        // un cycle invisible/visible force un vrai passage de layout.
+        playerViewRef?.let { view ->
+            view.visibility = android.view.View.INVISIBLE
+            view.post { view.visibility = android.view.View.VISIBLE }
         }
     }
 
@@ -425,6 +436,7 @@ fun VodPlayerScreen(
                             ViewGroup.LayoutParams.MATCH_PARENT
                         )
                         subtitleView?.applySubtitleStyle(viewModel.getSubtitleStyle())
+                        playerViewRef = this
                     }
                 },
                 update = { view ->
