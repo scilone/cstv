@@ -381,6 +381,7 @@ class MainActivity : ComponentActivity() {
                                     streamsList = activeStreamsList,
                                     credentials = creds,
                                     isTv = isTv,
+                                    viewModel = liveTvViewModel,
                                     onClose = {
                                         navigateBack()
                                     },

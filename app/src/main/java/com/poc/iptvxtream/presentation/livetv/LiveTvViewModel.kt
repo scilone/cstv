@@ -12,6 +12,8 @@ import com.poc.iptvxtream.domain.usecase.GetLiveEpgUseCase
 import com.poc.iptvxtream.domain.usecase.GetLiveStreamsUseCase
 import com.poc.iptvxtream.domain.usecase.GetRecentlyWatchedUseCase
 import com.poc.iptvxtream.domain.usecase.SaveRecentlyWatchedUseCase
+import com.poc.iptvxtream.data.local.storage.SettingsManager
+import com.poc.iptvxtream.data.local.storage.ResizeMode
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -29,11 +31,17 @@ class LiveTvViewModel @Inject constructor(
     private val saveRecentlyWatchedUseCase: SaveRecentlyWatchedUseCase,
     private val getLiveEpgUseCase: GetLiveEpgUseCase,
     private val credentialsManager: CredentialsManager,
-    private val categoryPreferenceRepository: com.poc.iptvxtream.domain.repository.CategoryPreferenceRepository
+    private val categoryPreferenceRepository: com.poc.iptvxtream.domain.repository.CategoryPreferenceRepository,
+    private val settingsManager: SettingsManager
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(LiveTvState())
     val state: StateFlow<LiveTvState> = _state.asStateFlow()
+
+    fun getResizeMode(): ResizeMode = settingsManager.getResizeMode()
+    fun setResizeMode(mode: ResizeMode) {
+        settingsManager.setResizeMode(mode)
+    }
 
     private val scrollPositions = mutableMapOf<String, Pair<Int, Int>>()
 

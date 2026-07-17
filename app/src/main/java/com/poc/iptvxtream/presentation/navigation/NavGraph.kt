@@ -469,6 +469,7 @@ fun AppNavGraph(
                     streamsList = activeStreamsList,
                     credentials = creds,
                     isTv = false,
+                    viewModel = liveTvViewModel,
                     onClose = {
                         navController.popBackStack()
                     },

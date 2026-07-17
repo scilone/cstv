@@ -42,6 +42,9 @@ import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.Tracks
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.compose.material.icons.filled.AspectRatio
+import androidx.media3.ui.AspectRatioFrameLayout
+import com.poc.iptvxtream.data.local.storage.ResizeMode
 import androidx.media3.ui.PlayerView
 import com.poc.iptvxtream.presentation.player.applySubtitleStyle
 import com.poc.iptvxtream.presentation.theme.Surface1
@@ -88,6 +91,15 @@ fun VodPlayerScreen(
     }
 
     var isPlayerVisible by remember { mutableStateOf(true) }
+    var currentResizeMode by remember { mutableStateOf(viewModel.getResizeMode()) }
+    var resizeModeNotification by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(resizeModeNotification) {
+        if (resizeModeNotification != null) {
+            delay(2000)
+            resizeModeNotification = null
+        }
+    }
 
     // Préférence de pistes mémorisée pour CE film (Phase 29). Préchargée une
     // fois ; prioritaire sur le fallback global "dernière langue utilisée".
@@ -393,6 +405,9 @@ fun VodPlayerScreen(
                         subtitleView?.applySubtitleStyle(viewModel.getSubtitleStyle())
                     }
                 },
+                update = { view ->
+                    view.resizeMode = currentResizeMode.value
+                },
                 modifier = Modifier.fillMaxSize()
             )
         } else {
@@ -410,6 +425,23 @@ fun VodPlayerScreen(
                     Spacer(modifier = Modifier.height(12.dp))
                     Text("Chargement du flux...", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                 }
+            }
+        }
+
+        // Aspect Ratio Change Notification Overlay
+        resizeModeNotification?.let { msg ->
+            Box(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .background(Color(0x99000000), shape = RoundedCornerShape(8.dp))
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+            ) {
+                Text(
+                    text = msg,
+                    color = Color.White,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold
+                )
             }
         }
 
@@ -517,6 +549,27 @@ fun VodPlayerScreen(
                             }
                             Spacer(modifier = Modifier.width(10.dp))
                         }
+
+                        IconButton(
+                            onClick = {
+                                val nextMode = when (currentResizeMode) {
+                                    ResizeMode.FIT -> ResizeMode.FILL
+                                    ResizeMode.FILL -> ResizeMode.ZOOM
+                                    ResizeMode.ZOOM -> ResizeMode.FIT
+                                }
+                                currentResizeMode = nextMode
+                                viewModel.setResizeMode(nextMode)
+                                resizeModeNotification = "Format : ${when(nextMode) {
+                                    ResizeMode.FIT -> "Ajuster"
+                                    ResizeMode.FILL -> "Étirer"
+                                    ResizeMode.ZOOM -> "Zoom"
+                                }}"
+                            },
+                            modifier = Modifier.background(Color(0x40FFFFFF), shape = RoundedCornerShape(12.dp))
+                        ) {
+                            Icon(Icons.Default.AspectRatio, contentDescription = "Format de l'image", tint = Color.White)
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
 
                         IconButton(
                             onClick = handleClose,

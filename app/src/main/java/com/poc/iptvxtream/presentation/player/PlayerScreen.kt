@@ -55,6 +55,11 @@ import android.content.Context
 import android.content.ContextWrapper
 import android.view.WindowManager
 
+import androidx.compose.material.icons.filled.AspectRatio
+import androidx.media3.ui.AspectRatioFrameLayout
+import com.poc.iptvxtream.data.local.storage.ResizeMode
+import com.poc.iptvxtream.presentation.livetv.LiveTvViewModel
+
 private fun Context.findActivity(): Activity? {
     var currentContext = this
     while (currentContext is ContextWrapper) {
@@ -72,6 +77,7 @@ fun PlayerScreen(
     streamsList: List<LiveStream>,
     credentials: Credentials,
     isTv: Boolean,
+    viewModel: LiveTvViewModel,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
     onStreamChanged: (LiveStream) -> Unit = {}
@@ -84,6 +90,15 @@ fun PlayerScreen(
 
     var isPlayerVisible by remember { mutableStateOf(true) }
     var showChannelList by remember { mutableStateOf(false) }
+    var currentResizeMode by remember { mutableStateOf(viewModel.getResizeMode()) }
+    var resizeModeNotification by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(resizeModeNotification) {
+        if (resizeModeNotification != null) {
+            delay(2000)
+            resizeModeNotification = null
+        }
+    }
 
     val handleClose = {
         isPlayerVisible = false
@@ -278,6 +293,9 @@ fun PlayerScreen(
                         )
                     }
                 },
+                update = { view ->
+                    view.resizeMode = currentResizeMode.value
+                },
                 modifier = Modifier.fillMaxSize()
             )
         } else {
@@ -295,6 +313,23 @@ fun PlayerScreen(
                     Spacer(modifier = Modifier.height(12.dp))
                     Text("Chargement du flux...", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                 }
+            }
+        }
+
+        // Aspect Ratio Change Notification Overlay
+        resizeModeNotification?.let { msg ->
+            Box(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .background(Color(0x99000000), shape = RoundedCornerShape(8.dp))
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+            ) {
+                Text(
+                    text = msg,
+                    color = Color.White,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold
+                )
             }
         }
 
@@ -405,7 +440,7 @@ fun PlayerScreen(
                         }
                     }
 
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                         if (streamsList.isNotEmpty()) {
                             IconButton(
                                 onClick = { showChannelList = !showChannelList },
@@ -413,6 +448,26 @@ fun PlayerScreen(
                             ) {
                                 Icon(Icons.Default.Menu, contentDescription = "Liste des chaînes", tint = Color.White)
                             }
+                        }
+
+                        IconButton(
+                            onClick = {
+                                val nextMode = when (currentResizeMode) {
+                                    ResizeMode.FIT -> ResizeMode.FILL
+                                    ResizeMode.FILL -> ResizeMode.ZOOM
+                                    ResizeMode.ZOOM -> ResizeMode.FIT
+                                }
+                                currentResizeMode = nextMode
+                                viewModel.setResizeMode(nextMode)
+                                resizeModeNotification = "Format : ${when(nextMode) {
+                                    ResizeMode.FIT -> "Ajuster"
+                                    ResizeMode.FILL -> "Étirer"
+                                    ResizeMode.ZOOM -> "Zoom"
+                                }}"
+                            },
+                            modifier = Modifier.background(Color(0x40FFFFFF), shape = CardDefaults.shape)
+                        ) {
+                            Icon(Icons.Default.AspectRatio, contentDescription = "Format de l'image", tint = Color.White)
                         }
 
                         IconButton(

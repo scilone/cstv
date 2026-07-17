@@ -22,6 +22,7 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 import com.poc.iptvxtream.data.local.storage.SettingsManager
+import com.poc.iptvxtream.data.local.storage.ResizeMode
 
 @HiltViewModel
 class SeriesViewModel @Inject constructor(
@@ -94,6 +95,11 @@ class SeriesViewModel @Inject constructor(
     }
 
     fun getSubtitleStyle() = settingsManager.getSubtitleStyle()
+
+    fun getResizeMode() = settingsManager.getResizeMode()
+    fun setResizeMode(mode: ResizeMode) {
+        settingsManager.setResizeMode(mode)
+    }
 
     fun loadCategories(forceRefresh: Boolean = false) {
         viewModelScope.launch {

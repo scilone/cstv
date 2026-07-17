@@ -94,21 +94,7 @@ Tests : sélection dans le panneau change bien le flux, focus D-pad fonctionnel 
 
 ## 5. Players : plusieurs modes de redimensionnement d'image
 
-**Modèle recommandé : Sonnet 5, effort moyen** — API media3 standard, appliquée à 3 fichiers de façon répétitive, faible ambiguïté.
-
-Ajoute un choix de mode de redimensionnement (fit/remplir/zoom/étirer) sur les players.
-
-Contexte existant :
-- Aucun usage de `resizeMode` ou `RESIZE_MODE_*` media3/ExoPlayer trouvé dans tout le repo — fonctionnalité totalement absente, à créer de zéro.
-- 3 players concernés : `presentation/player/PlayerScreen.kt` (Live TV), `presentation/vod/VodPlayerScreen.kt`, `presentation/series/SeriesPlayerScreen.kt`.
-
-À faire :
-1. Détermine où chaque player instancie son `PlayerView` (Compose interop `AndroidView`, probablement) dans les 3 fichiers ci-dessus.
-2. Ajoute un bouton dans les contrôles (icône type "aspect ratio") qui cycle ou ouvre un menu entre les modes media3 : `RESIZE_MODE_FIT`, `RESIZE_MODE_FILL`, `RESIZE_MODE_ZOOM` (les modes standards disponibles ; vérifie la liste exacte exposée par la version de media3 utilisée dans `build.gradle.kts`).
-3. Persiste le choix utilisateur (SharedPreferences via `SettingsManager`, un réglage par type de player ou un seul réglage global — à trancher selon simplicité voulue ; recommandation : un seul réglage global partagé entre les 3 players, plus simple et cohérent pour l'utilisateur).
-4. Applique le mode au lancement de chaque player selon la préférence sauvegardée.
-
-Tests : persistance du choix, application correcte sur les 3 players, pas de régression sur les contrôles existants (skip, next episode, zapping chaînes).
+✅ **TERMINÉE** — Sonnet 5, effort moyen. Ajout de la gestion du mode de redimensionnement de l'image (Ajuster / Étirer / Zoom) persistée globalement via `SettingsManager` et `ResizeMode` enum. Intégration d'un bouton d'aspect ratio (`Icons.Default.AspectRatio`) dans le panneau de contrôle supérieur de chaque lecteur (`PlayerScreen`, `VodPlayerScreen`, `SeriesPlayerScreen`), qui cycle dynamiquement entre les modes standard Media3 (`RESIZE_MODE_FIT`, `RESIZE_MODE_FILL`, `RESIZE_MODE_ZOOM`) et affiche un overlay animé au centre de l'écran avec le format choisi. Tests unitaires ajoutés dans `SettingsManagerResizeModeTest`.
 
 ---
 

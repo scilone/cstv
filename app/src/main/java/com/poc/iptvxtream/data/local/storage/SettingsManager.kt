@@ -16,6 +16,12 @@ enum class SyncFrequency {
     MONTHLY
 }
 
+enum class ResizeMode(val value: Int) {
+    FIT(0),  // AspectRatioFrameLayout.RESIZE_MODE_FIT
+    FILL(3), // AspectRatioFrameLayout.RESIZE_MODE_FILL
+    ZOOM(4)  // AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+}
+
 @Singleton
 class SettingsManager @Inject constructor(context: Context) {
 
@@ -33,6 +39,7 @@ class SettingsManager @Inject constructor(context: Context) {
         private const val KEY_LIVE_ALL_SYNCED_AT = "live_all_streams_synced_at"
         private const val KEY_VOD_ALL_SYNCED_AT = "vod_all_streams_synced_at"
         private const val KEY_SERIES_ALL_SYNCED_AT = "series_all_streams_synced_at"
+        private const val KEY_RESIZE_MODE = "player_resize_mode"
     }
 
     // --- Horodatage du dernier fetch complet ("Tout") par type de média ---
@@ -107,6 +114,19 @@ class SettingsManager @Inject constructor(context: Context) {
             .putString(KEY_SUBTITLE_COLOR, style.textColor.name)
             .putString(KEY_SUBTITLE_BACKGROUND, style.background.name)
             .apply()
+    }
+
+    fun getResizeMode(): ResizeMode {
+        val name = sharedPreferences.getString(KEY_RESIZE_MODE, ResizeMode.FIT.name)
+        return try {
+            ResizeMode.valueOf(name ?: ResizeMode.FIT.name)
+        } catch (e: Exception) {
+            ResizeMode.FIT
+        }
+    }
+
+    fun setResizeMode(mode: ResizeMode) {
+        sharedPreferences.edit().putString(KEY_RESIZE_MODE, mode.name).apply()
     }
 
     private inline fun <reified T : Enum<T>> enumOrDefault(name: String?, default: T): T {

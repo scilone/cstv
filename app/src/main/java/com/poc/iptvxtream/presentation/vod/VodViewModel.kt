@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.poc.iptvxtream.data.local.storage.CredentialsManager
 import com.poc.iptvxtream.domain.model.Credentials
 import com.poc.iptvxtream.data.local.storage.SettingsManager
+import com.poc.iptvxtream.data.local.storage.ResizeMode
 import com.poc.iptvxtream.domain.model.VodCategory
 import com.poc.iptvxtream.domain.model.VodDetails
 import com.poc.iptvxtream.domain.model.VodStream
@@ -94,6 +95,11 @@ class VodViewModel @Inject constructor(
     }
 
     fun getSubtitleStyle() = settingsManager.getSubtitleStyle()
+
+    fun getResizeMode() = settingsManager.getResizeMode()
+    fun setResizeMode(mode: ResizeMode) {
+        settingsManager.setResizeMode(mode)
+    }
 
     fun loadCategories(forceRefresh: Boolean = false) {
         viewModelScope.launch {
