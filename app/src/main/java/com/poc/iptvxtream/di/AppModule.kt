@@ -303,4 +303,19 @@ object AppModule {
     ): FavoritesRepository {
         return FavoritesRepositoryImpl(favoritesDao, profileManager)
     }
+
+    @Provides
+    @Singleton
+    fun provideDownloadDao(database: AppDatabase): com.poc.iptvxtream.data.local.dao.DownloadDao {
+        return database.downloadDao()
+    }
+
+    @Provides
+    @Singleton
+    fun provideDownloadRepository(
+        @ApplicationContext context: Context,
+        downloadDao: com.poc.iptvxtream.data.local.dao.DownloadDao
+    ): com.poc.iptvxtream.domain.repository.DownloadRepository {
+        return com.poc.iptvxtream.data.repository.DownloadRepositoryImpl(context, downloadDao)
+    }
 }

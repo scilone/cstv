@@ -56,6 +56,9 @@ import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.Tracks
 import androidx.media3.common.VideoSize
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import com.poc.iptvxtream.data.download.OfflineDownloadUtil
+import com.poc.iptvxtream.domain.model.DownloadedItem
 import androidx.compose.material.icons.filled.AspectRatio
 import androidx.compose.material.icons.filled.PictureInPictureAlt
 import coil.compose.AsyncImage
@@ -112,7 +115,14 @@ fun SeriesPlayerScreen(
 ) {
     val context = LocalContext.current
     val exoPlayer = remember {
-        ExoPlayer.Builder(context).build()
+        // Source de données adossée au cache de téléchargement : un épisode
+        // téléchargé (feature #15) est lu hors-ligne de façon transparente.
+        val mediaSourceFactory = DefaultMediaSourceFactory(
+            OfflineDownloadUtil.getReadOnlyCacheDataSourceFactory(context)
+        )
+        ExoPlayer.Builder(context)
+            .setMediaSourceFactory(mediaSourceFactory)
+            .build()
     }
 
     var isPlayerVisible by remember { mutableStateOf(true) }
@@ -245,7 +255,10 @@ fun SeriesPlayerScreen(
             password = credentials.password
         )
 
-        val mediaItem = MediaItem.fromUri(android.net.Uri.parse(url))
+        val mediaItem = MediaItem.Builder()
+            .setUri(android.net.Uri.parse(url))
+            .setCustomCacheKey(DownloadedItem.episodeContentId(currentEpisode.id))
+            .build()
         exoPlayer.setMediaItem(mediaItem)
         exoPlayer.prepare()
 

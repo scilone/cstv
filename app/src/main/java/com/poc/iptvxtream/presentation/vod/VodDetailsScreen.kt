@@ -64,7 +64,10 @@ fun VodDetailsScreen(
     modifier: Modifier = Modifier,
     onSearchQueryTriggered: (String) -> Unit = {},
     relatedStreams: List<VodStream> = emptyList(),
-    onSelectRelated: (VodStream) -> Unit = {}
+    onSelectRelated: (VodStream) -> Unit = {},
+    downloadItem: com.poc.iptvxtream.domain.model.DownloadedItem? = null,
+    onDownload: () -> Unit = {},
+    onRemoveDownload: () -> Unit = {}
 ) {
     Box(
         modifier = modifier
@@ -125,6 +128,13 @@ fun VodDetailsScreen(
                     onSearchQueryTriggered = onSearchQueryTriggered
                 )
             }
+
+            Spacer(modifier = Modifier.height(16.dp))
+            com.poc.iptvxtream.presentation.components.DownloadActionButton(
+                item = downloadItem,
+                onDownload = onDownload,
+                onRemove = onRemoveDownload
+            )
 
             if (relatedStreams.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(28.dp))

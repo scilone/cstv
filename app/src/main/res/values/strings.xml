@@ -31,6 +31,28 @@
     <string name="recently_added_empty_movies">Aucun film récemment ajouté.</string>
     <string name="recently_added_empty_series">Aucune série récemment ajoutée.</string>
     <string name="recently_added_error_fallback">Impossible de charger les derniers ajouts.</string>
+
+    <!-- Téléchargements hors-ligne (feature #15) -->
+    <string name="download_channel_name">Téléchargements</string>
+    <string name="download_channel_description">Progression des téléchargements hors-ligne</string>
+    <string name="downloads_title">Téléchargements</string>
+    <string name="downloads_settings_card_title">Téléchargements hors-ligne</string>
+    <string name="downloads_settings_card_subtitle">Consultez et gérez les films et épisodes téléchargés pour la lecture hors-ligne.</string>
+    <string name="downloads_settings_card_button">Voir mes téléchargements</string>
+    <string name="downloads_empty">Aucun téléchargement. Utilisez le bouton de téléchargement sur un film ou un épisode.</string>
+    <string name="downloads_used_space">Espace utilisé : %1$s</string>
+    <string name="download_action_download">Télécharger</string>
+    <string name="download_action_downloading">Téléchargement… %1$d%%</string>
+    <string name="download_action_queued">En attente…</string>
+    <string name="download_action_downloaded">Téléchargé</string>
+    <string name="download_action_failed">Échec — réessayer</string>
+    <string name="download_action_paused">En pause</string>
+    <string name="download_remove">Supprimer</string>
+    <string name="download_status_completed">Téléchargé</string>
+    <string name="download_status_downloading">%1$d%%</string>
+    <string name="download_status_queued">En attente</string>
+    <string name="download_status_failed">Échec</string>
+    <string name="download_status_paused">En pause</string>
     <string name="profile_manage_title">Gérer les profils</string>
     <string name="profile_manage_subtitle">Chaque profil a ses propres favoris, historique et reprises de lecture. Le catalogue reste commun.</string>
     <string name="profile_manage_done">Terminé</string>

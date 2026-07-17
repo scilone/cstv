@@ -240,7 +240,16 @@ Tests : filtrage note ≥ 8 (limite exacte à 8.0 incluse), tri par added, absen
 
 ## 15. Téléchargement hors-ligne des films et épisodes de séries
 
-Opus 4.8, effort élevé.
+✅ **TERMINÉE** — Opus 4.8, effort élevé. Décisions produit validées avec l'utilisateur : téléchargements **globaux** (partagés sur l'appareil, pas de `profileId` — cohérent avec le catalogue/cache Room partagé) ; écran accessible **depuis les Paramètres** (carte « Téléchargements hors-ligne », comme « Gestion des catégories »). Livré :
+- **media3 offline** (aucune nouvelle dépendance — `DownloadManager`/`DownloadService`/`Cache` sont dans `media3-exoplayer`/`media3-datasource`/`media3-database` déjà présents). Les flux VOD/Séries sont des fichiers progressifs (`/movie/…`, `/series/…`) → téléchargement progressif.
+- `OfflineDownloadUtil` (`data/download/`) : détenteur statique process-wide du `Cache` (SimpleCache app-privé `getExternalFilesDir/iptv_downloads`, `NoOpCacheEvictor` = pas de purge auto), `DownloadManager` (1 téléchargement parallèle — limite connexions Xtream), `DatabaseProvider`, et `CacheDataSource.Factory` **lecture seule** pour le player.
+- `IptvDownloadService` (foreground service media3, notification de progression obligatoire) déclaré au manifest (`foregroundServiceType="dataSync"`, permissions `FOREGROUND_SERVICE`/`_DATA_SYNC`/`WAKE_LOCK`/`POST_NOTIFICATIONS`).
+- Table Room `downloaded_media` (migration 13→14, **source de vérité unique de l'UI**) + `DownloadDao` ; `DownloadRepositoryImpl` synchronise l'état media3 → Room (listener + poll de progression 1s adaptatif, pas de progression poussée par media3).
+- Lecture hors-ligne **transparente** : `VodPlayerScreen`/`SeriesPlayerScreen` construisent l'ExoPlayer avec la `CacheDataSource.Factory` et un `customCacheKey` stable (`movie_<id>`/`episode_<id>`) indépendant de l'URL (identifiants) → le fichier téléchargé est servi depuis le cache. Depuis l'écran Téléchargements, la lecture reconstruit des `VodDetails`/`SeriesEpisode` minimaux sans fetch réseau.
+- UI : bouton `DownloadActionButton` en bas des détails VOD, icône de téléchargement par épisode (`EpisodeDownloadControl`, anneau de progression), écran `DownloadsScreen` (liste, statut/%, espace utilisé, suppression). Câblé mobile (`NavGraph`) + TV (`MainActivity`).
+- `DownloadRequestFactory` (objet pur) extrait la construction des requêtes (contentId stable, format titre « Série — SxEy »). Tests : `DownloadRequestFactoryTest` (contentId, URL, métadonnées, non-collision film/épisode). Le cœur media3 (`DownloadManager`) n'est pas testable unitairement → recette manuelle requise.
+
+**Limites connues (recette manuelle)** : pas de `Scheduler` (reprise après mort du process = manuelle, POC) ; sur Android 13+ la permission runtime `POST_NOTIFICATIONS` n'est pas encore demandée (le service tourne, la notif peut ne pas s'afficher tant que non accordée) — à ajouter si besoin. Recette obligatoire : démarrage, pause réseau/reprise, lecture hors-ligne réelle Wi-Fi coupé.
 
 Ajoute la possibilité de télécharger un film ou un épisode de série pour le regarder hors-ligne.
 

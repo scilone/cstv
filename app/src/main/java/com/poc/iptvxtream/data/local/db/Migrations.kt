@@ -212,4 +212,37 @@ val MIGRATION_12_13 = object : Migration(12, 13) {
     }
 }
 
-val ALL_MIGRATIONS = arrayOf(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13)
+/**
+ * MIGRATION_13_14 (Phase 61 - téléchargement hors-ligne, feature #15) :
+ * crée la table `downloaded_media` (métadonnées + statut/progression des
+ * médias téléchargés). Téléchargements globaux : pas de `profileId`. Aucune
+ * donnée existante à transformer.
+ */
+val MIGRATION_13_14 = object : Migration(13, 14) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS downloaded_media (
+                contentId TEXT NOT NULL,
+                type TEXT NOT NULL,
+                streamId INTEGER NOT NULL,
+                seriesId INTEGER,
+                seasonNum INTEGER,
+                episodeNum INTEGER,
+                title TEXT NOT NULL,
+                subtitle TEXT,
+                coverUrl TEXT,
+                containerExtension TEXT NOT NULL,
+                status TEXT NOT NULL,
+                percent INTEGER NOT NULL,
+                bytesDownloaded INTEGER NOT NULL,
+                totalBytes INTEGER NOT NULL,
+                createdAt INTEGER NOT NULL,
+                PRIMARY KEY(contentId)
+            )
+            """.trimIndent()
+        )
+    }
+}
+
+val ALL_MIGRATIONS = arrayOf(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14)

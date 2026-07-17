@@ -17,6 +17,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Warning
@@ -65,7 +68,10 @@ fun SeriesDetailsScreen(
     modifier: Modifier = Modifier,
     onSearchQueryTriggered: (String) -> Unit = {},
     relatedSeries: List<SeriesStream> = emptyList(),
-    onSelectRelated: (SeriesStream) -> Unit = {}
+    onSelectRelated: (SeriesStream) -> Unit = {},
+    episodeDownloads: Map<Int, com.poc.iptvxtream.domain.model.DownloadedItem> = emptyMap(),
+    onDownloadEpisode: (SeriesEpisode) -> Unit = {},
+    onRemoveEpisodeDownload: (Int) -> Unit = {}
 ) {
     var selectedSeasonNumber by remember { mutableStateOf(details.seasons.firstOrNull()?.seasonNumber ?: 1) }
     val currentEpisodes = remember(selectedSeasonNumber, details.episodes) {
@@ -122,7 +128,10 @@ fun SeriesDetailsScreen(
                     onEpisodeClick = onEpisodeSelected,
                     onSearchQueryTriggered = onSearchQueryTriggered,
                     relatedSeries = relatedSeries,
-                    onSelectRelated = onSelectRelated
+                    onSelectRelated = onSelectRelated,
+                    episodeDownloads = episodeDownloads,
+                    onDownloadEpisode = onDownloadEpisode,
+                    onRemoveEpisodeDownload = onRemoveEpisodeDownload
                 )
             } else {
                 MobileLayout(
@@ -135,7 +144,10 @@ fun SeriesDetailsScreen(
                     onEpisodeClick = onEpisodeSelected,
                     onSearchQueryTriggered = onSearchQueryTriggered,
                     relatedSeries = relatedSeries,
-                    onSelectRelated = onSelectRelated
+                    onSelectRelated = onSelectRelated,
+                    episodeDownloads = episodeDownloads,
+                    onDownloadEpisode = onDownloadEpisode,
+                    onRemoveEpisodeDownload = onRemoveEpisodeDownload
                 )
             }
         }
@@ -154,7 +166,10 @@ private fun TvLayout(
     onEpisodeClick: (SeriesEpisode) -> Unit,
     onSearchQueryTriggered: (String) -> Unit,
     relatedSeries: List<SeriesStream> = emptyList(),
-    onSelectRelated: (SeriesStream) -> Unit = {}
+    onSelectRelated: (SeriesStream) -> Unit = {},
+    episodeDownloads: Map<Int, com.poc.iptvxtream.domain.model.DownloadedItem> = emptyMap(),
+    onDownloadEpisode: (SeriesEpisode) -> Unit = {},
+    onRemoveEpisodeDownload: (Int) -> Unit = {}
 ) {
     val allEpisodes = details.episodes.values.flatten()
     val incompleteEpisodes = allEpisodes.filter { ep ->
@@ -370,7 +385,13 @@ private fun TvLayout(
                 }
             } else {
                 items(episodes) { episode ->
-                    EpisodeCardItem(episode = episode, onClick = { onEpisodeClick(episode) })
+                    EpisodeCardItem(
+                        episode = episode,
+                        onClick = { onEpisodeClick(episode) },
+                        download = episodeDownloads[episode.id],
+                        onDownload = { onDownloadEpisode(episode) },
+                        onRemoveDownload = { onRemoveEpisodeDownload(episode.id) }
+                    )
                 }
             }
 
@@ -401,7 +422,10 @@ private fun MobileLayout(
     onEpisodeClick: (SeriesEpisode) -> Unit,
     onSearchQueryTriggered: (String) -> Unit,
     relatedSeries: List<SeriesStream> = emptyList(),
-    onSelectRelated: (SeriesStream) -> Unit = {}
+    onSelectRelated: (SeriesStream) -> Unit = {},
+    episodeDownloads: Map<Int, com.poc.iptvxtream.domain.model.DownloadedItem> = emptyMap(),
+    onDownloadEpisode: (SeriesEpisode) -> Unit = {},
+    onRemoveEpisodeDownload: (Int) -> Unit = {}
 ) {
     val allEpisodes = details.episodes.values.flatten()
     val incompleteEpisodes = allEpisodes.filter { ep ->
@@ -592,7 +616,13 @@ private fun MobileLayout(
                 modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp)
             ) {
                 episodes.forEach { episode ->
-                    EpisodeCardItem(episode = episode, onClick = { onEpisodeClick(episode) })
+                    EpisodeCardItem(
+                        episode = episode,
+                        onClick = { onEpisodeClick(episode) },
+                        download = episodeDownloads[episode.id],
+                        onDownload = { onDownloadEpisode(episode) },
+                        onRemoveDownload = { onRemoveEpisodeDownload(episode.id) }
+                    )
                 }
             }
         }
@@ -675,9 +705,44 @@ private fun CreditNameChip(
 }
 
 @Composable
+private fun EpisodeDownloadControl(
+    download: com.poc.iptvxtream.domain.model.DownloadedItem?,
+    onDownload: () -> Unit,
+    onRemoveDownload: () -> Unit
+) {
+    val status = download?.status
+    when (status) {
+        null -> IconButton(onClick = onDownload, modifier = Modifier.size(32.dp)) {
+            Icon(Icons.Default.Download, contentDescription = "Télécharger", tint = Color.LightGray, modifier = Modifier.size(20.dp))
+        }
+        com.poc.iptvxtream.domain.model.DownloadStatus.COMPLETED -> IconButton(onClick = onRemoveDownload, modifier = Modifier.size(32.dp)) {
+            Icon(Icons.Default.CheckCircle, contentDescription = "Supprimer le téléchargement", tint = Color(0xFF4CAF50), modifier = Modifier.size(20.dp))
+        }
+        com.poc.iptvxtream.domain.model.DownloadStatus.FAILED -> IconButton(onClick = onDownload, modifier = Modifier.size(32.dp)) {
+            Icon(Icons.Default.ErrorOutline, contentDescription = "Réessayer", tint = Color(0xFFCF6679), modifier = Modifier.size(20.dp))
+        }
+        else -> IconButton(onClick = onRemoveDownload, modifier = Modifier.size(32.dp)) {
+            // En cours / en attente / pause : anneau de progression, tap = annuler.
+            Box(contentAlignment = Alignment.Center, modifier = Modifier.size(20.dp)) {
+                CircularProgressIndicator(
+                    progress = { (download.percent / 100f).coerceIn(0f, 1f) },
+                    modifier = Modifier.size(20.dp),
+                    strokeWidth = 2.dp,
+                    color = MaterialTheme.colorScheme.primary,
+                    trackColor = Color.DarkGray
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun EpisodeCardItem(
     episode: SeriesEpisode,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    download: com.poc.iptvxtream.domain.model.DownloadedItem? = null,
+    onDownload: () -> Unit = {},
+    onRemoveDownload: () -> Unit = {}
 ) {
     var isFocused by remember { mutableStateOf(false) }
     val hasProgress = episode.resumePositionMs > 0 && episode.durationMs > 0
@@ -748,7 +813,12 @@ private fun EpisodeCardItem(
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(episode.duration, color = Color.Gray, fontSize = 12.sp)
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    EpisodeDownloadControl(
+                        download = download,
+                        onDownload = onDownload,
+                        onRemoveDownload = onRemoveDownload
+                    )
                     Icon(Icons.Default.PlayArrow, contentDescription = "Play", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
                 }
             }

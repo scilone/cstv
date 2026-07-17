@@ -95,7 +95,8 @@ enum class AppScreen {
     CATEGORY_MANAGEMENT,
     PROFILE_SELECTION,
     PROFILE_MANAGEMENT,
-    RECENTLY_ADDED
+    RECENTLY_ADDED,
+    DOWNLOADS
 }
 
 enum class MobileTab(val route: String, val title: String, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
@@ -185,6 +186,11 @@ class MainActivity : ComponentActivity() {
 
                 // Get global reactive favorites list
                 val favsState by favoritesViewModel.state.collectAsStateWithLifecycle()
+
+                // Téléchargements hors-ligne (feature #15) : ViewModel partagé,
+                // état réactif consommé par les détails + l'écran Téléchargements.
+                val downloadsViewModel: com.poc.iptvxtream.presentation.downloads.DownloadsViewModel = hiltViewModel()
+                val downloadsState by downloadsViewModel.state.collectAsStateWithLifecycle()
 
                 // --- Sélection de profil (Phase 27) ---
                 // Gate unique couvrant TV et mobile : après login/auto-login, on
@@ -465,6 +471,13 @@ class MainActivity : ComponentActivity() {
                                         onSelectRelated = { stream ->
                                             activeVodMovie = stream
                                             navigateTo(AppScreen.VOD_DETAILS)
+                                        },
+                                        downloadItem = downloadsState.downloads.firstOrNull {
+                                            it.contentId == com.poc.iptvxtream.domain.model.DownloadedItem.movieContentId(details.streamId)
+                                        },
+                                        onDownload = { downloadsViewModel.downloadMovie(details) },
+                                        onRemoveDownload = {
+                                            downloadsViewModel.remove(com.poc.iptvxtream.domain.model.DownloadedItem.movieContentId(details.streamId))
                                         }
                                     )
                                 } ?: Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -549,6 +562,15 @@ class MainActivity : ComponentActivity() {
                                         onSelectRelated = { stream ->
                                             activeSeriesShow = stream
                                             navigateTo(AppScreen.SERIES_DETAILS)
+                                        },
+                                        episodeDownloads = downloadsState.downloads
+                                            .filter { it.type == com.poc.iptvxtream.domain.model.DownloadedItem.TYPE_EPISODE }
+                                            .associateBy { it.streamId },
+                                        onDownloadEpisode = { episode ->
+                                            downloadsViewModel.downloadEpisode(episode, details.seriesId, details.name, details.cover)
+                                        },
+                                        onRemoveEpisodeDownload = { episodeId ->
+                                            downloadsViewModel.remove(com.poc.iptvxtream.domain.model.DownloadedItem.episodeContentId(episodeId))
                                         }
                                     )
                                 } ?: Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -636,6 +658,9 @@ class MainActivity : ComponentActivity() {
                                 },
                                 onManageCategories = {
                                     navigateTo(AppScreen.CATEGORY_MANAGEMENT)
+                                },
+                                onManageDownloads = {
+                                    navigateTo(AppScreen.DOWNLOADS)
                                 }
                             )
                         }
@@ -693,6 +718,24 @@ class MainActivity : ComponentActivity() {
                                     activeSeriesShow = stream
                                     navigateTo(AppScreen.SERIES_DETAILS)
                                 }
+                            )
+                        }
+                        AppScreen.DOWNLOADS -> {
+                            com.poc.iptvxtream.presentation.downloads.DownloadsScreen(
+                                viewModel = downloadsViewModel,
+                                isTv = isTv,
+                                onPlayMovie = { item ->
+                                    activeVodDetails = buildOfflineVodDetails(item)
+                                    resumePositionMs = 0L
+                                    navigateTo(AppScreen.VOD_PLAYER)
+                                },
+                                onPlayEpisode = { item ->
+                                    val episode = buildOfflineEpisode(item)
+                                    activeSeriesDetails = buildOfflineSeriesDetails(item, episode)
+                                    activeEpisode = episode
+                                    navigateTo(AppScreen.SERIES_PLAYER)
+                                },
+                                onBack = { navigateBack() }
                             )
                         }
                     }
@@ -802,3 +845,47 @@ class MainActivity : ComponentActivity() {
         return uiModeManager.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION
     }
 }
+
+// --- Lecture hors-ligne (feature #15) : reconstruit des modèles de lecture
+// minimaux depuis un DownloadedItem, sans fetch réseau des détails (l'app peut
+// être hors-ligne). L'URL est reconstruite par le player depuis les identifiants
+// stockés ; le cache de téléchargement sert le fichier local. ---
+internal fun buildOfflineVodDetails(item: com.poc.iptvxtream.domain.model.DownloadedItem): VodDetails =
+    VodDetails(
+        streamId = item.streamId,
+        name = item.title,
+        director = "Inconnu",
+        actors = "Inconnu",
+        releaseDate = "Inconnu",
+        genre = "",
+        plot = "",
+        rating = "0.0",
+        coverBig = item.coverUrl,
+        containerExtension = item.containerExtension
+    )
+
+internal fun buildOfflineEpisode(item: com.poc.iptvxtream.domain.model.DownloadedItem): SeriesEpisode =
+    SeriesEpisode(
+        id = item.streamId,
+        episodeNum = item.episodeNum ?: 1,
+        title = item.subtitle ?: item.title,
+        containerExtension = item.containerExtension,
+        plot = "",
+        duration = "",
+        releaseDate = "",
+        movieImage = item.coverUrl,
+        seasonNum = item.seasonNum ?: 1
+    )
+
+internal fun buildOfflineSeriesDetails(
+    item: com.poc.iptvxtream.domain.model.DownloadedItem,
+    episode: SeriesEpisode
+): SeriesDetails =
+    SeriesDetails(
+        seriesId = item.seriesId ?: 0,
+        name = item.title,
+        cover = item.coverUrl,
+        rating = null,
+        seasons = emptyList(),
+        episodes = mapOf((item.seasonNum ?: 1) to listOf(episode))
+    )

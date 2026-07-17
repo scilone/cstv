@@ -86,6 +86,10 @@ fun AppNavGraph(
     activeEpisode: SeriesEpisode?,
     onActiveEpisodeChanged: (SeriesEpisode?) -> Unit
 ) {
+    // Téléchargements hors-ligne (feature #15) : ViewModel partagé côté mobile.
+    val downloadsViewModel: com.poc.iptvxtream.presentation.downloads.DownloadsViewModel = hiltViewModel()
+    val downloadsState by downloadsViewModel.state.collectAsStateWithLifecycle()
+
     NavHost(
         navController = navController,
         startDestination = if (loggedInUser == null) "login" else "home",
@@ -323,7 +327,28 @@ fun AppNavGraph(
                 },
                 onManageCategories = {
                     navController.navigate("category_management")
+                },
+                onManageDownloads = {
+                    navController.navigate("downloads")
                 }
+            )
+        }
+        composable("downloads") {
+            com.poc.iptvxtream.presentation.downloads.DownloadsScreen(
+                viewModel = downloadsViewModel,
+                isTv = false,
+                onPlayMovie = { item ->
+                    onActiveVodDetailsChanged(com.poc.iptvxtream.buildOfflineVodDetails(item))
+                    onResumePositionMsChanged(0L)
+                    navController.navigate("vod_player")
+                },
+                onPlayEpisode = { item ->
+                    val episode = com.poc.iptvxtream.buildOfflineEpisode(item)
+                    onActiveSeriesDetailsChanged(com.poc.iptvxtream.buildOfflineSeriesDetails(item, episode))
+                    onActiveEpisodeChanged(episode)
+                    navController.navigate("series_player")
+                },
+                onBack = { navController.popBackStack() }
             )
         }
         composable("category_management") {
@@ -416,6 +441,13 @@ fun AppNavGraph(
                         onSelectRelated = { stream ->
                             onActiveVodMovieChanged(stream)
                             navController.navigate("vod_details")
+                        },
+                        downloadItem = downloadsState.downloads.firstOrNull {
+                            it.contentId == com.poc.iptvxtream.domain.model.DownloadedItem.movieContentId(details.streamId)
+                        },
+                        onDownload = { downloadsViewModel.downloadMovie(details) },
+                        onRemoveDownload = {
+                            downloadsViewModel.remove(com.poc.iptvxtream.domain.model.DownloadedItem.movieContentId(details.streamId))
                         }
                     )
                 } ?: Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -470,6 +502,15 @@ fun AppNavGraph(
                         onSelectRelated = { stream ->
                             onActiveSeriesShowChanged(stream)
                             navController.navigate("series_details")
+                        },
+                        episodeDownloads = downloadsState.downloads
+                            .filter { it.type == com.poc.iptvxtream.domain.model.DownloadedItem.TYPE_EPISODE }
+                            .associateBy { it.streamId },
+                        onDownloadEpisode = { episode ->
+                            downloadsViewModel.downloadEpisode(episode, details.seriesId, details.name, details.cover)
+                        },
+                        onRemoveEpisodeDownload = { episodeId ->
+                            downloadsViewModel.remove(com.poc.iptvxtream.domain.model.DownloadedItem.episodeContentId(episodeId))
                         }
                     )
                 } ?: Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {

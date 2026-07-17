@@ -1,5 +1,7 @@
 package com.poc.iptvxtream.presentation.settings
 
+import androidx.compose.ui.res.stringResource
+import com.poc.iptvxtream.R
 import com.poc.iptvxtream.data.local.storage.SyncFrequency
 import com.poc.iptvxtream.presentation.theme.BricolageGrotesque
 import com.poc.iptvxtream.presentation.theme.HankenGrotesk
@@ -44,6 +46,7 @@ fun SettingsScreen(
     onBack: () -> Unit,
     onLogout: () -> Unit,
     onManageCategories: () -> Unit,
+    onManageDownloads: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -58,6 +61,7 @@ fun SettingsScreen(
             TvSettingsLayout(
                 state = state,
                 onManageCategories = onManageCategories,
+                onManageDownloads = onManageDownloads,
                 onSyncFrequencyChanged = { viewModel.updateSyncFrequency(it) },
                 onForceSyncNow = { viewModel.forceSyncNow() },
                 onSubtitleSizeChanged = { viewModel.updateSubtitleSize(it) },
@@ -70,6 +74,7 @@ fun SettingsScreen(
             MobileSettingsLayout(
                 state = state,
                 onManageCategories = onManageCategories,
+                onManageDownloads = onManageDownloads,
                 onSyncFrequencyChanged = { viewModel.updateSyncFrequency(it) },
                 onForceSyncNow = { viewModel.forceSyncNow() },
                 onSubtitleSizeChanged = { viewModel.updateSubtitleSize(it) },
@@ -87,6 +92,7 @@ fun SettingsScreen(
 private fun TvSettingsLayout(
     state: SettingsState,
     onManageCategories: () -> Unit,
+    onManageDownloads: () -> Unit,
     onSyncFrequencyChanged: (SyncFrequency) -> Unit,
     onForceSyncNow: () -> Unit,
     onSubtitleSizeChanged: (SubtitleTextSize) -> Unit,
@@ -142,6 +148,9 @@ private fun TvSettingsLayout(
 
         // Gestion des catégories (Phase 58)
         TvManageCategoriesCard(onManageCategories = onManageCategories)
+
+        // Téléchargements hors-ligne (feature #15)
+        TvManageDownloadsCard(onManageDownloads = onManageDownloads)
 
         TvSyncFrequencyCard(
             currentFrequency = state.syncFrequency,
@@ -211,6 +220,38 @@ private fun TvManageCategoriesCard(onManageCategories: () -> Unit) {
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
+private fun TvManageDownloadsCard(onManageDownloads: () -> Unit) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = Surface3),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            TvText(
+                text = stringResource(R.string.downloads_settings_card_title).uppercase(),
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.Bold,
+                style = TvTheme.typography.titleMedium
+            )
+            TvText(
+                text = stringResource(R.string.downloads_settings_card_subtitle),
+                color = Color.Gray,
+                style = TvTheme.typography.bodySmall
+            )
+            TvButton(
+                onClick = onManageDownloads,
+                modifier = Modifier.fillMaxWidth().height(40.dp)
+            ) {
+                TvText(stringResource(R.string.downloads_settings_card_button).uppercase(), style = TvTheme.typography.labelMedium)
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
 private fun TvSortingOptionButton(
     label: String,
     isSelected: Boolean,
@@ -256,6 +297,7 @@ private fun TvSortingOptionButton(
 private fun MobileSettingsLayout(
     state: SettingsState,
     onManageCategories: () -> Unit,
+    onManageDownloads: () -> Unit,
     onSyncFrequencyChanged: (SyncFrequency) -> Unit,
     onForceSyncNow: () -> Unit,
     onSubtitleSizeChanged: (SubtitleTextSize) -> Unit,
@@ -304,6 +346,9 @@ private fun MobileSettingsLayout(
 
         // Gestion des catégories (Phase 58)
         MobileManageCategoriesCard(onManageCategories = onManageCategories)
+
+        // Téléchargements hors-ligne (feature #15)
+        MobileManageDownloadsCard(onManageDownloads = onManageDownloads)
 
         // Background Sync Frequency
         MobileSyncFrequencyCard(
@@ -380,6 +425,42 @@ private fun MobileManageCategoriesCard(onManageCategories: () -> Unit) {
                 modifier = Modifier.fillMaxWidth().height(40.dp)
             ) {
                 Text("Gérer les catégories", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            }
+        }
+    }
+}
+
+@Composable
+private fun MobileManageDownloadsCard(onManageDownloads: () -> Unit) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = Surface3),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Column {
+                Text(
+                    text = stringResource(R.string.downloads_settings_card_title),
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp
+                )
+                Text(
+                    text = stringResource(R.string.downloads_settings_card_subtitle),
+                    color = Color.Gray,
+                    fontSize = 12.sp
+                )
+            }
+
+            Button(
+                onClick = onManageDownloads,
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                shape = RoundedCornerShape(8.dp),
+                modifier = Modifier.fillMaxWidth().height(40.dp)
+            ) {
+                Text(stringResource(R.string.downloads_settings_card_button), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
             }
         }
     }
