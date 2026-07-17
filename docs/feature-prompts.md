@@ -188,6 +188,76 @@ Tests : `TopRatedSelector` avec jeux de données couvrant chaque palier de fallb
 
 ---
 
+## 10. Live TV player : dropdown pour changer de catégorie dans le panneau de zapping
+
+**Modèle recommandé : Sonnet 5, effort moyen** — réutilise entièrement l'infra existante (ViewModel déjà injecté, use case déjà là), juste de la UI + du câblage d'état.
+
+Dans le panneau latéral de zapping du `PlayerScreen` (feature #4), ajoute un dropdown pour changer de catégorie et ainsi zapper sur des chaînes hors de la catégorie/liste initiale.
+
+Contexte existant :
+- `PlayerScreen` reçoit `streamsList: List<LiveStream>` figée (`presentation/player/PlayerScreen.kt:77`), remplie une fois par `MainActivity`/`NavGraph` selon la catégorie ou le favori/résultat de recherche sélectionné avant d'entrer dans le player (`activeStreamsList` dans `MainActivity.kt:170`). Le panneau de zapping (feature #4) affiche uniquement cette liste (`PlayerScreen.kt:596`, `itemsIndexed(streamsList)`) — impossible d'en sortir sans fermer le player.
+- `PlayerScreen` reçoit déjà `viewModel: LiveTvViewModel` (ajouté par la feature #5, resize mode) — ce ViewModel expose déjà tout ce qu'il faut : `state.categories: List<LiveCategory>` (avec l'entrée synthétique `"all"` = "Tout", voir `LiveTvViewModel.kt:121-137`), `loadStreams(categoryId: String, forceRefresh: Boolean = false)` qui peuple `state.streams`, et `selectCategory(category: LiveCategory)` (`LiveTvViewModel.kt:146-149`).
+- Attention : `selectCategory`/`loadStreams` écrivent dans `LiveTvState` (l'état de l'écran grille Live TV en arrière-plan), pas dans un état local au player — vérifie si c'est acceptable de réutiliser tel quel (ça resynchroniserait la grille Live TV avec la nouvelle catégorie au retour du player, ce qui est probablement le comportement désiré) ou s'il faut une méthode dédiée qui ne pollue pas `LiveTvState` pour ne pas surprendre l'utilisateur en revenant à l'écran Live TV. À trancher selon ce qui semble le plus cohérent après avoir regardé `LiveTvScreen.kt`.
+
+Décision : le dropdown remplace la liste de chaînes affichée dans le panneau par celles de la catégorie choisie (pas un ajout à la suite) — comportement identique à un changement de catégorie sur l'écran Live TV normal.
+
+À faire :
+1. Ajoute un dropdown (menu déroulant, ex. `ExposedDropdownMenuBox` ou équivalent cohérent avec le reste de l'app) en haut du panneau de zapping existant, listant `viewModel.state.value.categories` (ou en observant le `StateFlow` proprement en `Composable`).
+2. À la sélection d'une catégorie, déclenche le chargement des chaînes de cette catégorie via le ViewModel (`loadStreams`/`selectCategory`, ou nouvelle méthode dédiée si tu juges que réutiliser l'état de la grille Live TV est trompeur — voir point d'attention ci-dessus) et remplace la liste affichée dans le panneau par le résultat.
+3. La sélection d'une chaîne dans cette nouvelle liste doit fonctionner exactement comme aujourd'hui (changement immédiat du flux en cours, `currentStreamIndex`/`streamsList` mis à jour en conséquence — attention, `streamsList` est un paramètre reçu de l'extérieur, il faudra probablement le dupliquer en state interne modifiable une fois qu'on quitte la liste initiale).
+4. Conserve le focus D-pad/clavier fonctionnel sur le dropdown et sur la nouvelle liste (même pattern que le reste du panneau, feature #4).
+5. Vérifie le comportement au retour du player vers l'écran Live TV : la grille doit-elle refléter la nouvelle catégorie sélectionnée dans le player, ou rester sur la catégorie d'origine ? Documente le choix fait dans le commit.
+
+Tests : sélection d'une catégorie dans le dropdown charge les bonnes chaînes, sélection d'une chaîne dans la nouvelle liste change bien le flux, non-régression sur le zapping/panneau existant (feature #4) quand on ne touche pas au dropdown.
+
+---
+
+## 11. Bug : certaines pistes audio/sous-titres non sélectionnables dans le player
+
+**Modèle recommandé : Sonnet 5, effort moyen** — bug ExoPlayer/Media3 précis à diagnostiquer (probablement absence de vérification du support réel de la piste), fix ciblé mais dupliqué dans 2 fichiers quasi identiques.
+
+Dans le dialogue de sélection audio/sous-titres du player (VOD et Séries), certains choix affichés dans la liste ne réagissent pas au clic : la sélection ne change pas.
+
+Contexte existant :
+- Le dialogue est dupliqué à l'identique dans `presentation/series/SeriesPlayerScreen.kt:869` (`TrackSelectionDialog`, private) et `presentation/vod/VodPlayerScreen.kt:737` (idem).
+- Construction de la liste des pistes : `updateTracksState` (`SeriesPlayerScreen.kt:208-248`, `VodPlayerScreen.kt:175` et suivantes) parcourt **tous** les indices de chaque `Tracks.Group` (`C.TRACK_TYPE_AUDIO`/`C.TRACK_TYPE_TEXT`) et construit un `TrackInfo` pour chacun, sans jamais vérifier si Media3/ExoPlayer considère la piste comme réellement lisible sur l'appareil (`group.isTrackSupported(tIndex)`, ou `group.getTrackSupport(tIndex) == C.FORMAT_HANDLED`). Une piste listée par Media3 dans un groupe peut être présente mais non supportée par les renderers du device (codec/format non géré) — Media3 la remonte quand même dans `Tracks.Group` mais refuse silencieusement l'override de sélection dessus.
+- Le clic déclenche bien `onAudioTrackSelected`/`onSubtitleTrackSelected` → `exoPlayer.trackSelectionParameters = ...setOverrideForType(TrackSelectionOverride(track.mediaTrackGroup, track.trackIndex))...` (ex. `SeriesPlayerScreen.kt:820-834`) : l'appel ne plante pas, mais si la piste n'est pas supportée, ExoPlayer ignore l'override et la sélection réelle (et donc `group.isTrackSelected(tIndex)` au prochain `onTracksChanged`) ne change jamais → symptôme exact décrit : clic sans effet visible.
+
+Décision : les pistes non supportées doivent rester visibles dans la liste (pour que l'utilisateur comprenne qu'elles existent) mais visuellement désactivées (grisées) et non cliquables, plutôt que masquées silencieusement — évite la confusion "je ne trouve pas ma piste" tout en supprimant le clic mort.
+
+À faire :
+1. Dans `updateTracksState` (les deux fichiers), calcule un flag `isSupported` par piste via `group.isTrackSupported(tIndex)` (ou l'équivalent correct de l'API Media3 utilisée dans le repo — vérifie la version de `media3` dans `gradle/libs.versions.toml`/`build.gradle.kts` pour l'API exacte disponible) et ajoute ce champ à `TrackInfo` (`data class TrackInfo`, dupliquée dans les 2 fichiers).
+2. Dans `TrackSelectionDialog` (les 2 copies), désactive le `clickable`/`onClick` du `RadioButton` pour les pistes `!isSupported`, applique un style grisé (ex. `Color.Gray`, alpha réduit) et ajoute un indice visuel discret (ex. petite icône ou texte "non supporté" à côté du label) plutôt que de juste les rendre muettes.
+3. Vérifie qu'aucune piste non supportée n'est jamais sélectionnée automatiquement par `applyPreferredLanguages` (préférence audio/sous-titres mémorisée) — si la langue préférée correspond à une piste non supportée, ne l'applique pas silencieusement (fallback sur la piste par défaut d'ExoPlayer).
+4. Envisage d'extraire `TrackInfo`, `updateTracksState` et `TrackSelectionDialog` dans un fichier commun partagé (`presentation/player/` par exemple) puisqu'ils sont dupliqués mot pour mot entre VOD et Séries — à faire seulement si le fix seul rend la duplication trop pénible à maintenir en synchro, pas une obligation de cette tâche.
+
+Tests : construction de `TrackInfo.isSupported` à partir d'un `Tracks.Group` mocké avec pistes supportées/non supportées mélangées, non-sélection automatique d'une piste préférée non supportée, non-régression sur la sélection des pistes supportées existantes.
+
+---
+
+## 12. Mode Picture-in-Picture (PIP) à la demande dans le player
+
+**Modèle recommandé : Sonnet 5, effort moyen** — API Android bien documentée (`PictureInPictureParams`), mais à câbler correctement sur 3 écrans player + cycle de vie de l'Activity, quelques pièges classiques (rotation, contrôles qui doivent disparaître en mode PIP).
+
+Ajoute un bouton dans les contrôles de chaque player (Live TV, VOD, Séries) qui bascule l'app en mode PIP à la demande — pas de déclenchement automatique en quittant l'app (`onUserLeaveHint`).
+
+Contexte existant :
+- Aucun support PIP dans le repo actuellement : aucune trace de `PictureInPictureParams`, `enterPictureInPictureMode`, `onUserLeaveHint`, ni d'attribut `android:supportsPictureInPicture` dans `AndroidManifest.xml`.
+- `MainActivity` (`AndroidManifest.xml:23-27`) déclare déjà `android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize"` — il manque `screenLayout` n'est pas suffisant seul pour PIP sans re-création : il faudra ajouter `smallestScreenSize` (déjà présent) et vérifier que `screenSize` (déjà présent) suffit ; teste en conditions réelles plutôt que de supposer.
+- Les 3 écrans player (`PlayerScreen.kt`, `VodPlayerScreen.kt`, `SeriesPlayerScreen.kt`) ont chacun leur propre `Context.findActivity()` (utilitaire dupliqué en tête de fichier) et leur propre rangée de contrôles (boutons `IconButton` en haut/bas de l'overlay) — le nouveau bouton PIP doit suivre le même pattern visuel que les boutons existants (ex. le bouton `AspectRatio` ajouté par la feature #5).
+- Décision produit déjà actée par l'utilisateur : PIP **sur demande uniquement** via bouton dédié, jamais automatique au `onUserLeaveHint`/passage en arrière-plan.
+
+À faire :
+1. `AndroidManifest.xml` : ajoute `android:supportsPictureInPicture="true"` et `android:resizeableActivity="true"` sur la déclaration de `MainActivity` (ligne 23-27), vérifie/ajuste `android:configChanges` pour couvrir les changements déclenchés par le mode PIP sans recréer l'Activity (teste concrètement sur device/émulateur).
+2. Ajoute un bouton (icône, ex. `Icons.Default.PictureInPictureAlt` si disponible dans le set d'icônes du projet, sinon vérifie l'alternative la plus proche déjà utilisée ailleurs) dans les contrôles de chacun des 3 players, qui appelle `activity.enterPictureInPictureMode(PictureInPictureParams.Builder()...build())` (via le `findActivity()` déjà présent dans chaque fichier) avec un ratio d'aspect cohérent avec la vidéo en cours si récupérable depuis ExoPlayer (`exoPlayer.videoSize`), sinon un ratio par défaut 16:9.
+3. Masque les contrôles custom (overlay Compose : boutons, titre, slider, tiroir de chaînes, etc.) quand l'Activity est en mode PIP (`Activity.isInPictureInPictureMode`, à observer via un `Configuration`/callback approprié en Compose — vérifie le pattern recommandé pour Compose + PIP, probablement un `DisposableEffect` avec un listener sur l'Activity) : en PIP, seule la vidéo doit rester visible, ExoPlayer continue de jouer.
+4. Vérifie qu'en sortant du mode PIP (retour à la taille normale), les contrôles custom réapparaissent normalement et que l'état de lecture (position, piste sélectionnée, etc.) n'est pas perturbé.
+5. Sur Android TV (`isTv == true`), le mode PIP n'a généralement pas de sens (pas de multi-fenêtrage utilisateur standard sur la plupart des launchers TV) — masque le bouton PIP si `isTv`, à moins que tu constates que ça fonctionne correctement en test sur l'émulateur TV du projet.
+
+Tests : essentiellement recette manuelle sur device/émulateur (voir notes transverses) — le mode PIP n'est pas testable unitairement. Vérifie au minimum : le bouton bascule bien en PIP sur les 3 players mobile, les contrôles disparaissent en PIP, la lecture continue sans coupure, le retour au mode normal restaure l'UI, le bouton est absent sur TV.
+
+---
+
 ## Notes transverses
 
 - Toutes ces features touchent potentiellement Room (migrations) : respecter la convention du projet — pas de `fallbackToDestructiveMigration()`, migration explicite ajoutée à `ALL_MIGRATIONS` (`di/AppModule.kt`), voir `AGENTS.md`.
