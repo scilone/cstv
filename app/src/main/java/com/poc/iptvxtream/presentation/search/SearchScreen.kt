@@ -231,10 +231,13 @@ private fun SearchSectionHeader(
         var isFocused by remember { mutableStateOf(false) }
         Button(
             onClick = onSeeAll,
-            // Bouton Violet au repos (AccentLavande), distinction claire au focus (fond blanc, texte lavande)
+            // Même style que le bouton "voir tout" de la Home (HomeScreen.kt,
+            // HomeSectionRow) : repos = fond neutre + texte blanc, focus = fond
+            // lavande + texte noir. Aligné pour cohérence visuelle (l'aspect
+            // distinctif de la feature #17 a été abandonné sur retour utilisateur).
             colors = ButtonDefaults.buttonColors(
-                containerColor = if (isFocused) Color.White else AccentLavande,
-                contentColor = if (isFocused) AccentLavande else Color.White
+                containerColor = if (isFocused) AccentLavande else Surface3,
+                contentColor = if (isFocused) Color.Black else Color.White
             ),
             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
             modifier = Modifier

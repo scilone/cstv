@@ -290,7 +290,7 @@ Tests : titres associés n'incluent pas de candidat d'une catégorie masquée, r
 
 ## 17. Recherche : bouton "voir tout" violet et aligné à droite
 
-✅ **TERMINÉE** — Haiku 4.5, effort faible. Le bouton « voir tout » dans l'en-tête de chaque section de l'écran de recherche (`SearchSectionHeader` de `SearchScreen.kt`) a été repositionné à l'extrême droite de l'en-tête via `horizontalArrangement = Arrangement.SpaceBetween` et `Modifier.fillMaxWidth()`. Le style a été repensé : fond violet (`AccentLavande`) au repos pour une meilleure distinction par rapport au reste de l'application, et fond blanc avec texte lavande au focus pour un contraste et un retour visuel clairs et impeccables.
+✅ **TERMINÉE** — Haiku 4.5, effort faible. **Annulée en partie** (retour utilisateur, session Opus 4.8) : le bouton « voir tout » de la recherche reste aligné à droite (`Arrangement.SpaceBetween`), mais son style violet distinctif a été abandonné — jugé « pas du tout similaire visuellement » au bouton « voir tout » de la Home. Couleurs alignées sur `HomeSectionRow` (`HomeScreen.kt`) : repos = fond `Surface3` + texte blanc, focus = fond `AccentLavande` + texte noir (au lieu de violet au repos / blanc au focus).
 
 Dans l'écran de recherche, le bouton "voir tout" de chaque section de résultats doit être stylé différemment du reste de l'app : **violet**, et aligné **à droite** (au lieu d'à gauche, collé au titre de section).
 
