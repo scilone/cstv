@@ -176,24 +176,7 @@ Tests : parsing de la string genre (cas avec espaces, casse variable, un seul ge
 
 ## 11. Bug : certaines pistes audio/sous-titres non sélectionnables dans le player
 
-**Modèle recommandé : Sonnet 5, effort moyen** — bug ExoPlayer/Media3 précis à diagnostiquer (probablement absence de vérification du support réel de la piste), fix ciblé mais dupliqué dans 2 fichiers quasi identiques.
-
-Dans le dialogue de sélection audio/sous-titres du player (VOD et Séries), certains choix affichés dans la liste ne réagissent pas au clic : la sélection ne change pas.
-
-Contexte existant :
-- Le dialogue est dupliqué à l'identique dans `presentation/series/SeriesPlayerScreen.kt:869` (`TrackSelectionDialog`, private) et `presentation/vod/VodPlayerScreen.kt:737` (idem).
-- Construction de la liste des pistes : `updateTracksState` (`SeriesPlayerScreen.kt:208-248`, `VodPlayerScreen.kt:175` et suivantes) parcourt **tous** les indices de chaque `Tracks.Group` (`C.TRACK_TYPE_AUDIO`/`C.TRACK_TYPE_TEXT`) et construit un `TrackInfo` pour chacun, sans jamais vérifier si Media3/ExoPlayer considère la piste comme réellement lisible sur l'appareil (`group.isTrackSupported(tIndex)`, ou `group.getTrackSupport(tIndex) == C.FORMAT_HANDLED`). Une piste listée par Media3 dans un groupe peut être présente mais non supportée par les renderers du device (codec/format non géré) — Media3 la remonte quand même dans `Tracks.Group` mais refuse silencieusement l'override de sélection dessus.
-- Le clic déclenche bien `onAudioTrackSelected`/`onSubtitleTrackSelected` → `exoPlayer.trackSelectionParameters = ...setOverrideForType(TrackSelectionOverride(track.mediaTrackGroup, track.trackIndex))...` (ex. `SeriesPlayerScreen.kt:820-834`) : l'appel ne plante pas, mais si la piste n'est pas supportée, ExoPlayer ignore l'override et la sélection réelle (et donc `group.isTrackSelected(tIndex)` au prochain `onTracksChanged`) ne change jamais → symptôme exact décrit : clic sans effet visible.
-
-Décision : les pistes non supportées doivent rester visibles dans la liste (pour que l'utilisateur comprenne qu'elles existent) mais visuellement désactivées (grisées) et non cliquables, plutôt que masquées silencieusement — évite la confusion "je ne trouve pas ma piste" tout en supprimant le clic mort.
-
-À faire :
-1. Dans `updateTracksState` (les deux fichiers), calcule un flag `isSupported` par piste via `group.isTrackSupported(tIndex)` (ou l'équivalent correct de l'API Media3 utilisée dans le repo — vérifie la version de `media3` dans `gradle/libs.versions.toml`/`build.gradle.kts` pour l'API exacte disponible) et ajoute ce champ à `TrackInfo` (`data class TrackInfo`, dupliquée dans les 2 fichiers).
-2. Dans `TrackSelectionDialog` (les 2 copies), désactive le `clickable`/`onClick` du `RadioButton` pour les pistes `!isSupported`, applique un style grisé (ex. `Color.Gray`, alpha réduit) et ajoute un indice visuel discret (ex. petite icône ou texte "non supporté" à côté du label) plutôt que de juste les rendre muettes.
-3. Vérifie qu'aucune piste non supportée n'est jamais sélectionnée automatiquement par `applyPreferredLanguages` (préférence audio/sous-titres mémorisée) — si la langue préférée correspond à une piste non supportée, ne l'applique pas silencieusement (fallback sur la piste par défaut d'ExoPlayer).
-4. Envisage d'extraire `TrackInfo`, `updateTracksState` et `TrackSelectionDialog` dans un fichier commun partagé (`presentation/player/` par exemple) puisqu'ils sont dupliqués mot pour mot entre VOD et Séries — à faire seulement si le fix seul rend la duplication trop pénible à maintenir en synchro, pas une obligation de cette tâche.
-
-Tests : construction de `TrackInfo.isSupported` à partir d'un `Tracks.Group` mocké avec pistes supportées/non supportées mélangées, non-sélection automatique d'une piste préférée non supportée, non-régression sur la sélection des pistes supportées existantes.
+✅ **TERMINÉE** — Sonnet 5, effort moyen. Résolution du bug de sélection des pistes audio et sous-titres non supportées par l'appareil. Ajout d'un attribut `isSupported: Boolean` dans `TrackInfo`. Utilisation de `group.isTrackSupported(tIndex)` dans `updateTracksState` afin de détecter le support réel de chaque piste. Dans `TrackSelectionDialog`, désactivation du clic (`clickable`) et du bouton d'option (`RadioButton.enabled = false`) pour les pistes non supportées, application d'un style grisé (`Color.Gray` et alpha réduit à `0.5f`), et ajout de la mention `(non supporté)` sur l'interface. Empêchement de l'auto-sélection de pistes non supportées par `applyPreferredLanguages`. Ajout de tests unitaires complets dans `TrackSelectionTest.kt`.
 
 ---
 

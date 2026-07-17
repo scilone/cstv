@@ -86,7 +86,8 @@ data class TrackInfo(
     val language: String?,
     val label: String?,
     val isSelected: Boolean,
-    val mediaTrackGroup: androidx.media3.common.TrackGroup
+    val mediaTrackGroup: androidx.media3.common.TrackGroup,
+    val isSupported: Boolean = true
 )
 
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
@@ -241,7 +242,8 @@ fun VodPlayerScreen(
                             language = format.language,
                             label = label,
                             isSelected = group.isTrackSelected(tIndex),
-                            mediaTrackGroup = group.mediaTrackGroup
+                            mediaTrackGroup = group.mediaTrackGroup,
+                            isSupported = group.isTrackSupported(tIndex)
                         )
                     )
                 }
@@ -256,7 +258,8 @@ fun VodPlayerScreen(
                             language = format.language,
                             label = label,
                             isSelected = group.isTrackSelected(tIndex),
-                            mediaTrackGroup = group.mediaTrackGroup
+                            mediaTrackGroup = group.mediaTrackGroup,
+                            isSupported = group.isTrackSupported(tIndex)
                         )
                     )
                 }
@@ -277,7 +280,7 @@ fun VodPlayerScreen(
 
         // Apply preferred audio
         if (!prefAudio.isNullOrBlank()) {
-            val matchingAudio = audios.find { it.language?.equals(prefAudio, ignoreCase = true) == true }
+            val matchingAudio = audios.find { it.language?.equals(prefAudio, ignoreCase = true) == true && it.isSupported }
             if (matchingAudio != null && !matchingAudio.isSelected) {
                 updatedParams = updatedParams.setOverrideForType(
                     TrackSelectionOverride(
@@ -295,7 +298,7 @@ fun VodPlayerScreen(
                     .clearOverridesOfType(C.TRACK_TYPE_TEXT)
                     .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
             } else {
-                val matchingSub = subs.find { it.language?.equals(prefSub, ignoreCase = true) == true }
+                val matchingSub = subs.find { it.language?.equals(prefSub, ignoreCase = true) == true && it.isSupported }
                 if (matchingSub != null) {
                     updatedParams = updatedParams
                         .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
@@ -852,32 +855,34 @@ private fun TrackSelectionDialog(
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     availableAudioTracks.forEach { track ->
                         val isSelected = track.isSelected
+                        val isSupported = track.isSupported
                         var isFocused by remember { mutableStateOf(false) }
 
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(8.dp))
-                                .onFocusChanged { isFocused = it.isFocused }
+                                .onFocusChanged { if (isSupported) isFocused = it.isFocused }
                                 .border(
                                     width = 1.dp,
                                     color = if (isFocused) MaterialTheme.colorScheme.primary else Color.DarkGray,
                                     shape = RoundedCornerShape(8.dp)
                                 )
                                 .background(if (isFocused) Color(0xFF2C2C35) else if (isSelected) Color(0x33FFB300) else Surface1)
-                                .clickable { onAudioTrackSelected(track) }
+                                .then(if (isSupported) Modifier.clickable { onAudioTrackSelected(track) } else Modifier)
                                 .padding(12.dp)
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 RadioButton(
                                     selected = isSelected,
-                                    onClick = { onAudioTrackSelected(track) },
+                                    onClick = { if (isSupported) onAudioTrackSelected(track) },
+                                    enabled = isSupported,
                                     colors = RadioButtonDefaults.colors(selectedColor = MaterialTheme.colorScheme.primary)
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = "${track.label} (${track.language?.uppercase() ?: "Inconnu"})",
-                                    color = Color.White,
+                                    text = "${track.label} (${track.language?.uppercase() ?: "Inconnu"})" + if (isSupported) "" else " (non supporté)",
+                                    color = if (isSupported) Color.White else Color.Gray.copy(alpha = 0.5f),
                                     fontSize = 14.sp,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                                 )
@@ -926,32 +931,34 @@ private fun TrackSelectionDialog(
 
                     availableSubtitleTracks.forEach { track ->
                         val isSelected = track.isSelected
+                        val isSupported = track.isSupported
                         var isFocused by remember { mutableStateOf(false) }
 
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(8.dp))
-                                .onFocusChanged { isFocused = it.isFocused }
+                                .onFocusChanged { if (isSupported) isFocused = it.isFocused }
                                 .border(
                                     width = 1.dp,
                                     color = if (isFocused) MaterialTheme.colorScheme.primary else Color.DarkGray,
                                     shape = RoundedCornerShape(8.dp)
                                 )
                                 .background(if (isFocused) Color(0xFF2C2C35) else if (isSelected) Color(0x33FFB300) else Surface1)
-                                .clickable { onSubtitleTrackSelected(track) }
+                                .then(if (isSupported) Modifier.clickable { onSubtitleTrackSelected(track) } else Modifier)
                                 .padding(12.dp)
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 RadioButton(
                                     selected = isSelected,
-                                    onClick = { onSubtitleTrackSelected(track) },
+                                    onClick = { if (isSupported) onSubtitleTrackSelected(track) },
+                                    enabled = isSupported,
                                     colors = RadioButtonDefaults.colors(selectedColor = MaterialTheme.colorScheme.primary)
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = "${track.label} (${track.language?.uppercase() ?: "Inconnu"})",
-                                    color = Color.White,
+                                    text = "${track.label} (${track.language?.uppercase() ?: "Inconnu"})" + if (isSupported) "" else " (non supporté)",
+                                    color = if (isSupported) Color.White else Color.Gray.copy(alpha = 0.5f),
                                     fontSize = 14.sp,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                                 )
