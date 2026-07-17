@@ -72,6 +72,12 @@ interface VodDao {
     @Query("SELECT * FROM vod_streams WHERE actors IS NULL OR director IS NULL OR genre IS NULL LIMIT :limit")
     suspend fun getStreamsNeedingEnrichment(limit: Int): List<VodStreamEntity>
 
+    // Préfiltre SQL des « titres associés » (Phase 60) : candidats dont le genre
+    // brut contient le motif LIKE. Le match exact token-à-token (évite le
+    // sur-match "War" dans "Warrior") est fait ensuite côté domaine.
+    @Query("SELECT * FROM vod_streams WHERE genre LIKE :pattern")
+    suspend fun getStreamsByGenre(pattern: String): List<VodStreamEntity>
+
     // --- Playback Positions (Resume) ---
     @Query("SELECT * FROM playback_positions WHERE profileId = :profileId ORDER BY lastAccessedAt DESC")
     suspend fun getAllPlaybackPositions(profileId: Int): List<PlaybackPositionEntity>

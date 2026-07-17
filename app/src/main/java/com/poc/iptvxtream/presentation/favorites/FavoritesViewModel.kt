@@ -22,9 +22,7 @@ data class FavoritesUiState(
     val searchResult: SearchResult = SearchResult(),
     val searchQuery: String = "",
     val isSearching: Boolean = false,
-    val isLoadingFavorites: Boolean = true,
-    val availableGenres: List<String> = emptyList(),
-    val selectedGenre: String? = null
+    val isLoadingFavorites: Boolean = true
 )
 
 @HiltViewModel
@@ -33,8 +31,7 @@ class FavoritesViewModel @Inject constructor(
     private val addFavoriteUseCase: AddFavoriteUseCase,
     private val removeFavoriteUseCase: RemoveFavoriteUseCase,
     private val isFavoriteUseCase: IsFavoriteUseCase,
-    private val searchUnifiedUseCase: SearchUnifiedUseCase,
-    private val getAvailableGenresUseCase: GetAvailableGenresUseCase
+    private val searchUnifiedUseCase: SearchUnifiedUseCase
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(FavoritesUiState())
@@ -51,23 +48,6 @@ class FavoritesViewModel @Inject constructor(
         viewModelScope.launch {
             observeFavoritesUseCase().collect { favs ->
                 _state.update { it.copy(favorites = favs, isLoadingFavorites = false) }
-            }
-        }
-        refreshGenres()
-    }
-
-    /**
-     * Recharge la liste des genres disponibles depuis le cache local. Appelée à
-     * l'init et à l'ouverture de l'écran de recherche : la liste se complète au
-     * fil de l'enrichissement en arrière-plan des détails d'items.
-     */
-    fun refreshGenres() {
-        viewModelScope.launch {
-            val genres = getAvailableGenresUseCase()
-            _state.update { current ->
-                // Si le genre sélectionné a disparu du catalogue, on le désélectionne.
-                val selection = current.selectedGenre?.takeIf { sel -> genres.any { it.equals(sel, ignoreCase = true) } }
-                current.copy(availableGenres = genres, selectedGenre = selection)
             }
         }
     }
@@ -91,27 +71,19 @@ class FavoritesViewModel @Inject constructor(
 
     fun onSearchQueryChanged(query: String) {
         _state.update { it.copy(searchQuery = query) }
-        performSearch()
+        performSearch(query)
     }
 
-    /** Sélectionne un genre (ou le désélectionne si déjà actif) puis relance la recherche. */
-    fun onGenreSelected(genre: String) {
-        _state.update { it.copy(selectedGenre = if (it.selectedGenre == genre) null else genre) }
-        performSearch()
-    }
-
-    private fun performSearch() {
+    private fun performSearch(query: String) {
         searchJob?.cancel()
-        val query = _state.value.searchQuery
-        val genre = _state.value.selectedGenre
-        if (query.trim().isBlank() && genre == null) {
+        if (query.trim().isBlank()) {
             _state.update { it.copy(searchResult = SearchResult(), isSearching = false) }
             return
         }
         searchJob = viewModelScope.launch {
             _state.update { it.copy(isSearching = true) }
             delay(SEARCH_DEBOUNCE_MILLIS)
-            val result = searchUnifiedUseCase(query, genre)
+            val result = searchUnifiedUseCase(query)
             _state.update { it.copy(searchResult = result, isSearching = false) }
         }
     }

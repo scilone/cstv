@@ -40,7 +40,10 @@ import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.MaterialTheme as TvTheme
 import androidx.tv.material3.Text as TvText
 import coil.compose.AsyncImage
+import androidx.compose.ui.res.stringResource
+import com.poc.iptvxtream.R
 import com.poc.iptvxtream.domain.model.SeriesDetails
+import com.poc.iptvxtream.domain.model.SeriesStream
 import com.poc.iptvxtream.presentation.theme.AccentLavande
 import com.poc.iptvxtream.presentation.theme.BricolageGrotesque
 import com.poc.iptvxtream.presentation.theme.HankenGrotesk
@@ -60,7 +63,9 @@ fun SeriesDetailsScreen(
     onEpisodeSelected: (SeriesEpisode) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
-    onSearchQueryTriggered: (String) -> Unit = {}
+    onSearchQueryTriggered: (String) -> Unit = {},
+    relatedSeries: List<SeriesStream> = emptyList(),
+    onSelectRelated: (SeriesStream) -> Unit = {}
 ) {
     var selectedSeasonNumber by remember { mutableStateOf(details.seasons.firstOrNull()?.seasonNumber ?: 1) }
     val currentEpisodes = remember(selectedSeasonNumber, details.episodes) {
@@ -115,7 +120,9 @@ fun SeriesDetailsScreen(
                     episodes = currentEpisodes,
                     onSeasonSelected = { selectedSeasonNumber = it },
                     onEpisodeClick = onEpisodeSelected,
-                    onSearchQueryTriggered = onSearchQueryTriggered
+                    onSearchQueryTriggered = onSearchQueryTriggered,
+                    relatedSeries = relatedSeries,
+                    onSelectRelated = onSelectRelated
                 )
             } else {
                 MobileLayout(
@@ -126,7 +133,9 @@ fun SeriesDetailsScreen(
                     episodes = currentEpisodes,
                     onSeasonSelected = { selectedSeasonNumber = it },
                     onEpisodeClick = onEpisodeSelected,
-                    onSearchQueryTriggered = onSearchQueryTriggered
+                    onSearchQueryTriggered = onSearchQueryTriggered,
+                    relatedSeries = relatedSeries,
+                    onSelectRelated = onSelectRelated
                 )
             }
         }
@@ -143,7 +152,9 @@ private fun TvLayout(
     episodes: List<SeriesEpisode>,
     onSeasonSelected: (Int) -> Unit,
     onEpisodeClick: (SeriesEpisode) -> Unit,
-    onSearchQueryTriggered: (String) -> Unit
+    onSearchQueryTriggered: (String) -> Unit,
+    relatedSeries: List<SeriesStream> = emptyList(),
+    onSelectRelated: (SeriesStream) -> Unit = {}
 ) {
     val allEpisodes = details.episodes.values.flatten()
     val incompleteEpisodes = allEpisodes.filter { ep ->
@@ -362,6 +373,19 @@ private fun TvLayout(
                     EpisodeCardItem(episode = episode, onClick = { onEpisodeClick(episode) })
                 }
             }
+
+            if (relatedSeries.isNotEmpty()) {
+                item {
+                    Spacer(modifier = Modifier.height(28.dp))
+                    com.poc.iptvxtream.presentation.components.RelatedTitlesRow(
+                        title = stringResource(R.string.details_related_titles),
+                        items = relatedSeries,
+                        poster = { it.cover },
+                        label = { it.name },
+                        onClick = onSelectRelated
+                    )
+                }
+            }
         }
     }
 }
@@ -375,7 +399,9 @@ private fun MobileLayout(
     episodes: List<SeriesEpisode>,
     onSeasonSelected: (Int) -> Unit,
     onEpisodeClick: (SeriesEpisode) -> Unit,
-    onSearchQueryTriggered: (String) -> Unit
+    onSearchQueryTriggered: (String) -> Unit,
+    relatedSeries: List<SeriesStream> = emptyList(),
+    onSelectRelated: (SeriesStream) -> Unit = {}
 ) {
     val allEpisodes = details.episodes.values.flatten()
     val incompleteEpisodes = allEpisodes.filter { ep ->
@@ -569,6 +595,18 @@ private fun MobileLayout(
                     EpisodeCardItem(episode = episode, onClick = { onEpisodeClick(episode) })
                 }
             }
+        }
+
+        if (relatedSeries.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(28.dp))
+            com.poc.iptvxtream.presentation.components.RelatedTitlesRow(
+                title = stringResource(R.string.details_related_titles),
+                items = relatedSeries,
+                poster = { it.cover },
+                label = { it.name },
+                onClick = onSelectRelated
+            )
+            Spacer(modifier = Modifier.height(24.dp))
         }
     }
 }

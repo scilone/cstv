@@ -298,6 +298,33 @@ class SeriesRepositoryImpl @Inject constructor(
         return seriesDao.getCategoryCounts().associate { it.categoryId to it.count }
     }
 
+    override suspend fun getRelatedSeries(currentSeriesId: Int, genre: String?, limit: Int): List<SeriesStream> {
+        val genres = GenreParser.parseGenres(genre)
+        if (genres.isEmpty()) return emptyList()
+
+        // Préfiltre SQL : union des candidats matchant au moins un genre (LIKE),
+        // dédupliqués par seriesId, la série courante exclue.
+        val candidateEntities = LinkedHashMap<Int, com.poc.iptvxtream.data.local.entity.SeriesStreamEntity>()
+        for (g in genres) {
+            seriesDao.getStreamsByGenre("%$g%").forEach { e ->
+                if (e.seriesId != currentSeriesId) candidateEntities[e.seriesId] = e
+            }
+        }
+        if (candidateEntities.isEmpty()) return emptyList()
+
+        val candidates = candidateEntities.values.map { e ->
+            RelatedTitlesSelector.Candidate(
+                item = e,
+                genres = GenreParser.parseGenres(e.genre),
+                rating = e.rating?.trim()?.toDoubleOrNull() ?: 0.0,
+                added = e.added?.trim()?.toLongOrNull() ?: 0L
+            )
+        }
+
+        return RelatedTitlesSelector.select(genres, candidates, limit)
+            .map { SeriesStream(it.seriesId, it.name, it.cover, it.rating, it.added, it.categoryId) }
+    }
+
     override suspend fun getSeriesDetails(seriesId: Int): SeriesDetails {
         val creds = credentialsManager.getCredentials()
             ?: throw InvalidCredentialsException("Utilisateur non connecté.")

@@ -452,6 +452,11 @@ class MainActivity : ComponentActivity() {
                                         onSearchQueryTriggered = { query ->
                                             favoritesViewModel.onSearchQueryChanged(query)
                                             navigateTo(AppScreen.SEARCH)
+                                        },
+                                        relatedStreams = state.relatedStreams,
+                                        onSelectRelated = { stream ->
+                                            activeVodMovie = stream
+                                            navigateTo(AppScreen.VOD_DETAILS)
                                         }
                                     )
                                 } ?: Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -531,6 +536,11 @@ class MainActivity : ComponentActivity() {
                                         onSearchQueryTriggered = { query ->
                                             favoritesViewModel.onSearchQueryChanged(query)
                                             navigateTo(AppScreen.SEARCH)
+                                        },
+                                        relatedSeries = state.relatedSeries,
+                                        onSelectRelated = { stream ->
+                                            activeSeriesShow = stream
+                                            navigateTo(AppScreen.SERIES_DETAILS)
                                         }
                                     )
                                 } ?: Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {

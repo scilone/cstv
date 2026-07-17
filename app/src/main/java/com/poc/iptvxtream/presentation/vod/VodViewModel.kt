@@ -12,6 +12,7 @@ import com.poc.iptvxtream.domain.model.VodStream
 import com.poc.iptvxtream.domain.usecase.GetVodCategoriesUseCase
 import com.poc.iptvxtream.domain.usecase.GetVodCategoryCountsUseCase
 import com.poc.iptvxtream.domain.usecase.GetVodDetailsUseCase
+import com.poc.iptvxtream.domain.usecase.GetRelatedMoviesUseCase
 import com.poc.iptvxtream.domain.usecase.GetVodStreamsUseCase
 import com.poc.iptvxtream.domain.usecase.SavePlaybackPositionUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -28,6 +29,7 @@ class VodViewModel @Inject constructor(
     private val getVodCategoryCountsUseCase: GetVodCategoryCountsUseCase,
     private val getVodStreamsUseCase: GetVodStreamsUseCase,
     private val getVodDetailsUseCase: GetVodDetailsUseCase,
+    private val getRelatedMoviesUseCase: GetRelatedMoviesUseCase,
     private val savePlaybackPositionUseCase: SavePlaybackPositionUseCase,
     private val credentialsManager: CredentialsManager,
     private val settingsManager: SettingsManager,
@@ -160,7 +162,7 @@ class VodViewModel @Inject constructor(
     }
 
     fun selectStream(stream: VodStream?) {
-        _state.update { it.copy(selectedStream = stream, selectedVodDetails = null) }
+        _state.update { it.copy(selectedStream = stream, selectedVodDetails = null, relatedStreams = emptyList()) }
         if (stream != null) {
             loadVodDetails(stream.streamId)
         }
@@ -172,9 +174,25 @@ class VodViewModel @Inject constructor(
             try {
                 val details = getVodDetailsUseCase(streamId)
                 _state.update { it.copy(selectedVodDetails = details, isLoadingDetails = false) }
+                loadRelatedMovies(details.streamId, details.genre)
             } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException) throw e
                 _state.update { it.copy(isLoadingDetails = false, error = e.message ?: "Impossible de charger les détails du film.") }
+            }
+        }
+    }
+
+    // Suggestions "Titres associés" : échec/vide silencieux, jamais bloquant
+    // (dépend de l'enrichissement genre progressif du cache local).
+    private fun loadRelatedMovies(streamId: Int, genre: String?) {
+        viewModelScope.launch {
+            try {
+                val related = getRelatedMoviesUseCase(streamId, genre)
+                _state.update {
+                    if (it.selectedVodDetails?.streamId == streamId) it.copy(relatedStreams = related) else it
+                }
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
             }
         }
     }

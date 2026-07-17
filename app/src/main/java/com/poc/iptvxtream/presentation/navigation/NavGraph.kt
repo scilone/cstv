@@ -404,6 +404,11 @@ fun AppNavGraph(
                         onSearchQueryTriggered = { query ->
                             favoritesViewModel.onSearchQueryChanged(query)
                             navController.navigate("search")
+                        },
+                        relatedStreams = state.relatedStreams,
+                        onSelectRelated = { stream ->
+                            onActiveVodMovieChanged(stream)
+                            navController.navigate("vod_details")
                         }
                     )
                 } ?: Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -453,6 +458,11 @@ fun AppNavGraph(
                         onSearchQueryTriggered = { query ->
                             favoritesViewModel.onSearchQueryChanged(query)
                             navController.navigate("search")
+                        },
+                        relatedSeries = state.relatedSeries,
+                        onSelectRelated = { stream ->
+                            onActiveSeriesShowChanged(stream)
+                            navController.navigate("series_details")
                         }
                     )
                 } ?: Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {

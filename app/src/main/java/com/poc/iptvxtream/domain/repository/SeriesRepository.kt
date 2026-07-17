@@ -30,4 +30,12 @@ interface SeriesRepository {
 
     /** Nombre de séries par categoryId, basé sur le cache local (sélecteur de catégorie). */
     suspend fun getCategoryCounts(): Map<String, Int>
+
+    /**
+     * Séries « associées » à [currentSeriesId] : partageant au moins un genre
+     * (parsé depuis [genre]), triées par nombre de genres communs décroissant
+     * puis par score (note + date d'ajout). Vide si aucun genre exploitable ou
+     * aucun candidat en cache. Limité à [limit] résultats.
+     */
+    suspend fun getRelatedSeries(currentSeriesId: Int, genre: String?, limit: Int = 10): List<SeriesStream>
 }

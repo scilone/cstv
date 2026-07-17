@@ -138,9 +138,14 @@ Tests : visuel seulement, pas de logique métier à tester au-delà de la non-r�
 
 ## 8. Recherche par genre (films/séries)
 
-✅ **TERMINÉE** — Opus 4.8, effort élevé. Choix (a) : le mécanisme d'enrichissement background existant (`VodRepositoryImpl`/`SeriesRepositoryImpl`) stockait déjà `genre` (colonnes présentes + indexées dans les FTS4 `vod_streams_fts`/`series_streams_fts` depuis la Phase 40) — aucune migration Room requise (DB reste v13). Ajout : objet pur testable `GenreParser` (`domain/model/GenreParser.kt`, split virgule + trim + exclusion placeholders « Inconnu »/« N/A », match token-à-token insensible à la casse, agrégation distincte triée). Requêtes DAO (`FavoritesDao`) : `getDistinctVodGenres`/`getDistinctSeriesGenres` (liste des genres) et `getVodStreamsByGenre`/`getSeriesStreamsByGenre` (préfiltre SQL `LIKE`). `FavoritesRepository.searchUnified(query, genre)` filtre VOD+Séries par genre exact après préfiltre `LIKE` (le `LIKE` seul sur-matche, ex. « War » dans « Warrior »), écarte les chaînes live (sans genre) ; `getAvailableGenres()` agrège VOD+Séries. `GetAvailableGenresUseCase`, état `availableGenres`/`selectedGenre` + `onGenreSelected`/`refreshGenres` dans `FavoritesViewModel` (la recherche se déclenche sur texte OU genre). UI : rangée de `FilterChip` « Filtrer par genre » dans `SearchScreen` (sélection simple, toggle, focus D-pad via `focusGroup`). Tests : `GenreParserTest` (14 cas de parsing/match/dédup) + 3 tests filtre genre dans `FavoritesRepositoryImplTest`.
-
-**Modèle recommandé : Opus 4.8, effort élevé** — extension du mécanisme d'enrichissement background existant + migration Room + UI filtre, ambiguïté architecturale (a) vs (b) à trancher intelligemment.
+✅ **TERMINÉE** — Opus 4.8, effort élevé. **Révision** (après retour utilisateur) : le filtre par genre dans la recherche (chips) a été **abandonné** au profit d'une section « Titres associés » en bas des détails VOD/Séries. Le genre était déjà enrichi en arrière-plan et stocké (colonnes présentes + FTS4 depuis la Phase 40) — aucune migration Room (DB reste v13). Livré :
+- `GenreParser` (`domain/model/`, objet pur) : split **virgule ET slash** (`Action/Aventure`), trim, exclusion placeholders (« Inconnu »/« N/A » reconnu en entier avant split), `matches` token-à-token insensible à la casse, `sharedGenreCount`.
+- `RelatedTitlesSelector` (`domain/model/`, objet pur générique) : tri par **nombre de genres communs décroissant** (3 puis 2 puis 1), départage par score `0.7*note + 0.3*fraîcheur d'ajout` (année de sortie non stockée en base → écartée) ; exclut les candidats sans genre commun ; limité à 10.
+- DAO `VodDao`/`SeriesDao`.`getStreamsByGenre(pattern)` (préfiltre SQL `LIKE`, le match exact évite le sur-match « War »⊂« Warrior »).
+- `VodRepository.getRelatedMovies` / `SeriesRepository.getRelatedSeries` (union des candidats par genre, dédup, exclusion de l'item courant) + `GetRelatedMoviesUseCase`/`GetRelatedSeriesUseCase`.
+- État `relatedStreams`/`relatedSeries` chargé après les détails (échec silencieux) dans `VodViewModel`/`SeriesViewModel`.
+- UI : composant partagé `RelatedTitlesRow` (`presentation/components/`) branché en bas des détails VOD et Séries (TV + mobile), clic → détails du titre associé (via `activeVodMovie`/`activeSeriesShow` dans `NavGraph` mobile et `MainActivity` TV).
+- Tests : `GenreParserTest` (split slash, placeholders, `sharedGenreCount`) + `RelatedTitlesSelectorTest` (ordre par genres communs, départage note/ajout, limite, cas vides).
 
 Ajoute une recherche/filtre par genre pour VOD et Séries.
 

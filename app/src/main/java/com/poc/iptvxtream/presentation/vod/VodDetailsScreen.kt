@@ -46,7 +46,10 @@ import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.MaterialTheme as TvTheme
 import androidx.tv.material3.Text as TvText
 import coil.compose.AsyncImage
+import androidx.compose.ui.res.stringResource
+import com.poc.iptvxtream.R
 import com.poc.iptvxtream.domain.model.VodDetails
+import com.poc.iptvxtream.domain.model.VodStream
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
@@ -59,7 +62,9 @@ fun VodDetailsScreen(
     onResumePlayback: (Long) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
-    onSearchQueryTriggered: (String) -> Unit = {}
+    onSearchQueryTriggered: (String) -> Unit = {},
+    relatedStreams: List<VodStream> = emptyList(),
+    onSelectRelated: (VodStream) -> Unit = {}
 ) {
     Box(
         modifier = modifier
@@ -118,6 +123,17 @@ fun VodDetailsScreen(
                     onPlayFromBeginning = onPlayFromBeginning,
                     onResumePlayback = onResumePlayback,
                     onSearchQueryTriggered = onSearchQueryTriggered
+                )
+            }
+
+            if (relatedStreams.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(28.dp))
+                com.poc.iptvxtream.presentation.components.RelatedTitlesRow(
+                    title = stringResource(R.string.details_related_titles),
+                    items = relatedStreams,
+                    poster = { it.streamIcon },
+                    label = { it.name },
+                    onClick = onSelectRelated
                 )
             }
         }

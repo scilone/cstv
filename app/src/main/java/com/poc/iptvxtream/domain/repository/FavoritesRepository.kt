@@ -11,8 +11,5 @@ interface FavoritesRepository {
     suspend fun isFavorite(id: Int, type: String): Boolean
     suspend fun addFavorite(favorite: FavoriteItem)
     suspend fun removeFavorite(id: Int, type: String)
-    suspend fun searchUnified(query: String, genre: String? = null): SearchResult
-
-    /** Liste des genres distincts (VOD + Séries) présents dans le cache local. */
-    suspend fun getAvailableGenres(): List<String>
+    suspend fun searchUnified(query: String): SearchResult
 }

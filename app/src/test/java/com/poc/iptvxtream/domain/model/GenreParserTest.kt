@@ -30,8 +30,22 @@ class GenreParserTest {
     }
 
     @Test
+    fun parseGenres_splitsOnSlash() {
+        assertEquals(listOf("Action", "Aventure"), GenreParser.parseGenres("Action/Aventure"))
+    }
+
+    @Test
+    fun parseGenres_splitsOnMixedCommaAndSlash() {
+        assertEquals(
+            listOf("Action", "Aventure", "Comédie"),
+            GenreParser.parseGenres("Action/Aventure, Comédie")
+        )
+    }
+
+    @Test
     fun parseGenres_placeholders_areExcluded() {
         assertTrue(GenreParser.parseGenres("Inconnu").isEmpty())
+        // "N/A" reconnu comme placeholder complet malgré le slash séparateur.
         assertTrue(GenreParser.parseGenres("N/A").isEmpty())
         // Mélange placeholder + vrai genre : seul le vrai genre survit.
         assertEquals(listOf("Action"), GenreParser.parseGenres("Inconnu, Action"))
@@ -67,21 +81,25 @@ class GenreParserTest {
         assertFalse(GenreParser.matches("Action", "  "))
     }
 
-    // --- distinctGenres ---
+    // --- sharedGenreCount ---
     @Test
-    fun distinctGenres_flattensDeduplicatesCaseInsensitive_andSorts() {
-        val raw = listOf("Action, Thriller", "action", "Comédie", null, "Inconnu")
-        assertEquals(listOf("Action", "Comédie", "Thriller"), GenreParser.distinctGenres(raw))
+    fun sharedGenreCount_countsCommonGenresCaseInsensitive() {
+        assertEquals(2, GenreParser.sharedGenreCount("Action, Thriller, Drame", "action, THRILLER"))
     }
 
     @Test
-    fun distinctGenres_keepsFirstCasingSeen() {
-        val raw = listOf("ACTION", "action")
-        assertEquals(listOf("ACTION"), GenreParser.distinctGenres(raw))
+    fun sharedGenreCount_slashSeparatedGenres() {
+        assertEquals(1, GenreParser.sharedGenreCount("Action/Aventure", "Aventure, Comédie"))
     }
 
     @Test
-    fun distinctGenres_empty_returnsEmpty() {
-        assertTrue(GenreParser.distinctGenres(emptyList()).isEmpty())
+    fun sharedGenreCount_noOverlap_isZero() {
+        assertEquals(0, GenreParser.sharedGenreCount("Action", "Romance, Drame"))
+    }
+
+    @Test
+    fun sharedGenreCount_nullOrPlaceholder_isZero() {
+        assertEquals(0, GenreParser.sharedGenreCount(null, "Action"))
+        assertEquals(0, GenreParser.sharedGenreCount("Inconnu", "Action"))
     }
 }

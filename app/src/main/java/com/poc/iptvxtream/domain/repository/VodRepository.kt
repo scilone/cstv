@@ -50,4 +50,12 @@ interface VodRepository {
      * @return le nombre de films traités.
      */
     suspend fun enrichPendingMovies(maxBatches: Int = 3): Int
+
+    /**
+     * Films « associés » à [currentStreamId] : partageant au moins un genre
+     * (parsé depuis [genre]), triés par nombre de genres communs décroissant
+     * puis par score (note + date d'ajout). Vide si aucun genre exploitable ou
+     * aucun candidat en cache. Limité à [limit] résultats.
+     */
+    suspend fun getRelatedMovies(currentStreamId: Int, genre: String?, limit: Int = 10): List<VodStream>
 }

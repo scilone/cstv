@@ -11,6 +11,7 @@ import com.poc.iptvxtream.domain.model.SeriesStream
 import com.poc.iptvxtream.domain.usecase.GetSeriesCategoriesUseCase
 import com.poc.iptvxtream.domain.usecase.GetSeriesCategoryCountsUseCase
 import com.poc.iptvxtream.domain.usecase.GetSeriesDetailsUseCase
+import com.poc.iptvxtream.domain.usecase.GetRelatedSeriesUseCase
 import com.poc.iptvxtream.domain.usecase.GetSeriesStreamsUseCase
 import com.poc.iptvxtream.domain.usecase.SavePlaybackPositionUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -30,6 +31,7 @@ class SeriesViewModel @Inject constructor(
     private val getSeriesCategoryCountsUseCase: GetSeriesCategoryCountsUseCase,
     private val getSeriesStreamsUseCase: GetSeriesStreamsUseCase,
     private val getSeriesDetailsUseCase: GetSeriesDetailsUseCase,
+    private val getRelatedSeriesUseCase: GetRelatedSeriesUseCase,
     private val savePlaybackPositionUseCase: SavePlaybackPositionUseCase,
     private val credentialsManager: CredentialsManager,
     private val settingsManager: SettingsManager,
@@ -160,7 +162,7 @@ class SeriesViewModel @Inject constructor(
     }
 
     fun selectStream(stream: SeriesStream?) {
-        _state.update { it.copy(selectedStream = stream, selectedSeriesDetails = null) }
+        _state.update { it.copy(selectedStream = stream, selectedSeriesDetails = null, relatedSeries = emptyList()) }
         if (stream != null) {
             loadSeriesDetails(stream.seriesId)
         }
@@ -172,9 +174,25 @@ class SeriesViewModel @Inject constructor(
             try {
                 val details = getSeriesDetailsUseCase(seriesId)
                 _state.update { it.copy(selectedSeriesDetails = details, isLoadingDetails = false) }
+                loadRelatedSeries(details.seriesId, details.genre)
             } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException) throw e
                 _state.update { it.copy(isLoadingDetails = false, error = e.message ?: "Impossible de charger les détails de la série.") }
+            }
+        }
+    }
+
+    // Suggestions "Titres associés" : échec/vide silencieux, jamais bloquant
+    // (dépend de l'enrichissement genre progressif du cache local).
+    private fun loadRelatedSeries(seriesId: Int, genre: String?) {
+        viewModelScope.launch {
+            try {
+                val related = getRelatedSeriesUseCase(seriesId, genre)
+                _state.update {
+                    if (it.selectedSeriesDetails?.seriesId == seriesId) it.copy(relatedSeries = related) else it
+                }
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
             }
         }
     }

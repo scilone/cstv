@@ -65,4 +65,8 @@ interface SeriesDao {
 
     @Query("SELECT * FROM series_streams WHERE actors IS NULL OR director IS NULL OR genre IS NULL LIMIT :limit")
     suspend fun getStreamsNeedingEnrichment(limit: Int): List<SeriesStreamEntity>
+
+    // Préfiltre SQL des « titres associés » (Phase 60) : voir VodDao.getStreamsByGenre.
+    @Query("SELECT * FROM series_streams WHERE genre LIKE :pattern")
+    suspend fun getStreamsByGenre(pattern: String): List<SeriesStreamEntity>
 }

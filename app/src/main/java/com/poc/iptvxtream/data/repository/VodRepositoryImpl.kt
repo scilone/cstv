@@ -359,6 +359,33 @@ class VodRepositoryImpl @Inject constructor(
         return vodDao.getCategoryCounts().associate { it.categoryId to it.count }
     }
 
+    override suspend fun getRelatedMovies(currentStreamId: Int, genre: String?, limit: Int): List<VodStream> {
+        val genres = com.poc.iptvxtream.domain.model.GenreParser.parseGenres(genre)
+        if (genres.isEmpty()) return emptyList()
+
+        // Préfiltre SQL : union des candidats matchant au moins un genre (LIKE),
+        // dédupliqués par streamId, le film courant exclu.
+        val candidateEntities = LinkedHashMap<Int, VodStreamEntity>()
+        for (g in genres) {
+            vodDao.getStreamsByGenre("%$g%").forEach { e ->
+                if (e.streamId != currentStreamId) candidateEntities[e.streamId] = e
+            }
+        }
+        if (candidateEntities.isEmpty()) return emptyList()
+
+        val candidates = candidateEntities.values.map { e ->
+            com.poc.iptvxtream.domain.model.RelatedTitlesSelector.Candidate(
+                item = e,
+                genres = com.poc.iptvxtream.domain.model.GenreParser.parseGenres(e.genre),
+                rating = e.rating?.trim()?.toDoubleOrNull() ?: 0.0,
+                added = e.added?.trim()?.toLongOrNull() ?: 0L
+            )
+        }
+
+        return com.poc.iptvxtream.domain.model.RelatedTitlesSelector.select(genres, candidates, limit)
+            .map { VodStream(it.streamId, it.name, it.streamIcon, it.rating, it.added, it.categoryId) }
+    }
+
     override suspend fun getVodDetails(streamId: Int): VodDetails {
         val creds = credentialsManager.getCredentials()
             ?: throw InvalidCredentialsException("Utilisateur non connecté.")
