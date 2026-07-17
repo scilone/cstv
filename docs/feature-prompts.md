@@ -269,22 +269,7 @@ Tests : DAO téléchargements, ViewModel écran téléchargements (statuts, supp
 
 ## 16. Catégorie masquée = médias invisibles partout (Home, titres associés, recherche)
 
-Sonnet 5, effort moyen.
-
-Le masquage de catégorie ([feature #1](#1-gestion-des-catégories-masquer--réordonner-par-profil)) filtre aujourd'hui les écrans de grille (Live TV/VOD/Séries) et probablement une partie de la Home, mais **pas** la section "Titres associés" ([feature #8](#8-recherche-par-genre-filmsséries)) ni la recherche. Étend le filtrage des catégories masquées à ces deux endroits, et vérifie la couverture complète sur la Home.
-
-Contexte existant :
-- `CategoryPreferenceRepository`/`CategoryPreferenceDao` (voir feature #1) exposent déjà le masquage par profil, déjà consommé par `GetLiveCategoriesUseCase`, `GetVodCategoriesUseCase`, `GetSeriesCategoriesUseCase`, et `HomeViewModel.kt` (à vérifier précisément quelles sections Home l'appliquent déjà — les sections "derniers ajouts" (feature #2) et "Top 10" (feature #9) ont été ajoutées après/en parallèle de la feature #1, vérifier qu'elles filtrent bien par catégories masquées).
-- `RelatedTitlesSelector.kt` (feature #8) est un objet **pur** sans accès DB : il reçoit une liste de `Candidate` déjà construite en amont. Le filtrage des catégories masquées doit donc se faire **avant** l'appel à `RelatedTitlesSelector.select` — au niveau de `GetRelatedMoviesUseCase`/`GetRelatedSeriesUseCase` ou du repository (`VodRepository.getRelatedMovies`/`SeriesRepository.getRelatedSeries`), pas dans le sélecteur lui-même.
-- Recherche : `SearchScreen.kt`/le ViewModel associé (localiser le fichier, probablement `SearchViewModel.kt`) — vérifie si la requête de recherche actuelle (FTS4, mentionnée en feature #8) filtre déjà par catégorie masquée ou non.
-
-À faire :
-1. Vérifie précisément (grep/lecture) quelles requêtes Home actuelles (sections derniers ajouts, Top 10, TV en direct) appliquent déjà le filtrage catégories masquées du profil actif, et complète celles qui ne le font pas.
-2. `GetRelatedMoviesUseCase`/`GetRelatedSeriesUseCase` (ou repository sous-jacent) : récupère les catégories masquées du profil actif (via `CategoryPreferenceRepository`), exclut les candidats appartenant à une catégorie masquée **avant** de les passer à `RelatedTitlesSelector.select`.
-3. ViewModel de recherche : applique le même filtrage (catégories masquées du profil actif) sur les résultats VOD/Séries (et Live TV si categorisé) avant affichage — que ce soit en filtrant la requête SQL ou en filtrant la liste de résultats côté Kotlin.
-4. Attention au profil actif : récupère-le de la même façon que le reste du code (voir comment `HomeViewModel`/`VodViewModel` accèdent au profil courant) pour rester cohérent.
-
-Tests : titres associés n'incluent pas de candidat d'une catégorie masquée, recherche n'affiche pas de résultat d'une catégorie masquée, non-régression Home sur les sections déjà couvertes par la feature #1.
+✅ **TERMINÉE** — Sonnet 5, effort moyen. Le filtrage par catégories masquées a été propagé de manière robuste à la section "Titres associés" et à l'écran de "Recherche". Pour les titres associés, le filtrage est appliqué au niveau de `GetRelatedMoviesUseCase.kt` et `GetRelatedSeriesUseCase.kt` en interrogeant la table `category_preferences` avant d'évaluer et de renvoyer les recommandations. Pour la recherche unifiée, le filtrage est réalisé au niveau de `SearchUnifiedUseCase.kt`, éliminant réactivement les chaînes en direct, films et séries appartenant à des catégories masquées du profil courant. La page d'accueil (Home) a été vérifiée comme déjà entièrement couverte par ce filtrage. Ajout de tests d'intégration unitaires exhaustifs dans `CategoryFilteringUseCasesTest.kt`.
 
 ---
 
