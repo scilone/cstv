@@ -90,9 +90,12 @@ fun SearchScreen(
                     placeholder = { Text(stringResource(R.string.search_placeholder), color = Color.Gray, fontSize = 14.sp) },
                     leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
                     singleLine = true,
+                    shape = RoundedCornerShape(28.dp),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = MaterialTheme.colorScheme.primary,
-                        unfocusedBorderColor = Color.DarkGray,
+                        unfocusedBorderColor = Color.Transparent,
+                        focusedContainerColor = Surface2,
+                        unfocusedContainerColor = Surface2,
                         focusedTextColor = Color.White,
                         unfocusedTextColor = Color.White
                     ),
@@ -135,6 +138,7 @@ fun SearchScreen(
                                 SearchSectionHeader(
                                     title = stringResource(R.string.search_channels),
                                     count = state.searchResult.liveResults.size,
+                                    isTv = isTv,
                                     onSeeAll = { expandedType = SearchExpandedType.LIVE }
                                 )
                                 LazyRow(
@@ -161,6 +165,7 @@ fun SearchScreen(
                                 SearchSectionHeader(
                                     title = stringResource(R.string.search_movies),
                                     count = state.searchResult.vodResults.size,
+                                    isTv = isTv,
                                     onSeeAll = { expandedType = SearchExpandedType.VOD }
                                 )
                                 LazyRow(
@@ -187,6 +192,7 @@ fun SearchScreen(
                                 SearchSectionHeader(
                                     title = stringResource(R.string.search_series),
                                     count = state.searchResult.seriesResults.size,
+                                    isTv = isTv,
                                     onSeeAll = { expandedType = SearchExpandedType.SERIES }
                                 )
                                 LazyRow(
@@ -215,39 +221,64 @@ fun SearchScreen(
 private fun SearchSectionHeader(
     title: String,
     count: Int,
+    isTv: Boolean,
     onSeeAll: () -> Unit
 ) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween,
         modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp, start = 4.dp, end = 4.dp)
     ) {
+        // Titre + nombre d'occurrences en gris juste à côté (façon maquette).
         Text(
             text = title,
+            fontFamily = BricolageGrotesque,
             fontSize = 18.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color.White
+            fontWeight = FontWeight.SemiBold,
+            letterSpacing = (-0.01).sp,
+            color = Color(0xFFF4F4F7)
         )
-        var isFocused by remember { mutableStateOf(false) }
-        Button(
-            onClick = onSeeAll,
-            // Même style que le bouton "voir tout" de la Home (HomeScreen.kt,
-            // HomeSectionRow) : repos = fond neutre + texte blanc, focus = fond
-            // lavande + texte noir. Aligné pour cohérence visuelle (l'aspect
-            // distinctif de la feature #17 a été abandonné sur retour utilisateur).
-            colors = ButtonDefaults.buttonColors(
-                containerColor = if (isFocused) AccentLavande else Surface3,
-                contentColor = if (isFocused) Color.Black else Color.White
-            ),
-            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-            modifier = Modifier
-                .height(28.dp)
-                .onFocusChanged { isFocused = it.isFocused }
-        ) {
+        Spacer(modifier = Modifier.width(6.dp))
+        Text(
+            text = "($count)",
+            fontFamily = HankenGrotesk,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Medium,
+            color = Color.Gray
+        )
+        Spacer(modifier = Modifier.weight(1f))
+        // "Voir tout" : même traitement que la Home (HomeScreen.kt, HomeSectionRow).
+        if (isTv) {
+            // TV : bouton focusable au D-pad (contraste WCAG AA dans les deux états).
+            var isFocused by remember { mutableStateOf(false) }
+            Button(
+                onClick = onSeeAll,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (isFocused) AccentLavande else Surface3,
+                    contentColor = if (isFocused) Color.Black else Color.White
+                ),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                modifier = Modifier
+                    .height(28.dp)
+                    .onFocusChanged { isFocused = it.isFocused }
+            ) {
+                Text(
+                    text = stringResource(R.string.home_see_all),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        } else {
+            // Mobile : lien texte discret en accent, façon maquette.
             Text(
-                text = stringResource(R.string.search_see_all, count),
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold
+                text = stringResource(R.string.home_see_all),
+                fontSize = 12.5.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = AccentLavande,
+                fontFamily = HankenGrotesk,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(6.dp))
+                    .clickable { onSeeAll() }
+                    .padding(horizontal = 4.dp, vertical = 2.dp)
             )
         }
     }
