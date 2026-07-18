@@ -308,7 +308,7 @@ class VodRepositoryImpl @Inject constructor(
         val existingById = (if (categoryId == "all") vodDao.getAllStreams() else vodDao.getStreamsByCategory(categoryId))
             .associateBy { it.streamId }
 
-        val entities = remoteStreams.mapNotNull { dto ->
+        val entities = remoteStreams.mapIndexedNotNull { index, dto ->
             val id = dto.streamId
             val name = dto.name
             // In "all" mode there's no known category to fall back to; a stream without
@@ -327,7 +327,8 @@ class VodRepositoryImpl @Inject constructor(
                     cachedAt = currentTime,
                     actors = existing?.actors,
                     director = existing?.director,
-                    genre = existing?.genre
+                    genre = existing?.genre,
+                    orderIndex = index
                 )
             } else null
         }

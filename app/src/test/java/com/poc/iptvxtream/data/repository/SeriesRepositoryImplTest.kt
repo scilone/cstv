@@ -146,6 +146,29 @@ class SeriesRepositoryImplTest {
     }
 
     @Test
+    fun test_getSeriesStreams_preservesRawServerOrderIndex() = runTest {
+        whenever(seriesDao.getStreamsByCategory(any())).thenReturn(emptyList())
+
+        val remoteStreams = listOf(
+            SeriesStreamDto(101, "First Series", "cover1.jpg", "8.0", "123", "5"),
+            SeriesStreamDto(102, "Second Series", "cover2.jpg", "7.5", "124", "5"),
+            SeriesStreamDto(103, "Third Series", "cover3.jpg", "9.0", "125", "5")
+        )
+        whenever(apiService.getSeriesStreams("username", "password", "5")).thenReturn(remoteStreams)
+
+        repository.getSeriesStreams("5", forceRefresh = true)
+
+        val entitiesCaptor = argumentCaptor<List<SeriesStreamEntity>>()
+        verify(seriesDao).insertStreamsWithFts(entitiesCaptor.capture())
+
+        val inserted = entitiesCaptor.firstValue
+        assertEquals(3, inserted.size)
+        assertEquals(0, inserted[0].orderIndex)
+        assertEquals(1, inserted[1].orderIndex)
+        assertEquals(2, inserted[2].orderIndex)
+    }
+
+    @Test
     fun test_getSeriesDetails_defensivelyHandlesStringIdsAndNullEpisodes() = runTest {
         val seasonsDto = listOf(
             SeriesSeasonDto("2008", "Season 1", 7, 1, "s1_cover.jpg")

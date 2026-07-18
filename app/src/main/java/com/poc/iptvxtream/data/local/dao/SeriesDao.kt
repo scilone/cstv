@@ -22,14 +22,14 @@ interface SeriesDao {
     suspend fun clearCategories()
 
     // --- Streams ---
-    @Query("SELECT * FROM series_streams ORDER BY name ASC")
+    @Query("SELECT * FROM series_streams ORDER BY orderIndex ASC")
     suspend fun getAllStreams(): List<SeriesStreamEntity>
 
     // Compteurs du sélecteur de catégorie (basés sur le cache local).
     @Query("SELECT categoryId, COUNT(*) AS count FROM series_streams GROUP BY categoryId")
     suspend fun getCategoryCounts(): List<CategoryCount>
 
-    @Query("SELECT * FROM series_streams WHERE categoryId = :categoryId ORDER BY name ASC")
+    @Query("SELECT * FROM series_streams WHERE categoryId = :categoryId ORDER BY orderIndex ASC")
     suspend fun getStreamsByCategory(categoryId: String): List<SeriesStreamEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)

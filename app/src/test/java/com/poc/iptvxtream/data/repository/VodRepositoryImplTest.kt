@@ -140,6 +140,29 @@ class VodRepositoryImplTest {
         assertEquals("Inception", result[0].name)
     }
 
+    @Test
+    fun test_getVodStreams_preservesRawServerOrderIndex() = runTest {
+        whenever(vodDao.getStreamsByCategory(any())).thenReturn(emptyList())
+
+        val remoteStreams = listOf(
+            VodStreamDto(101, "First Film", "cover1.jpg", "8.0", "123", "5"),
+            VodStreamDto(102, "Second Film", "cover2.jpg", "7.5", "124", "5"),
+            VodStreamDto(103, "Third Film", "cover3.jpg", "9.0", "125", "5")
+        )
+        whenever(apiService.getVodStreams("username", "password", "5")).thenReturn(remoteStreams)
+
+        repository.getVodStreams("5", forceRefresh = true)
+
+        val entitiesCaptor = argumentCaptor<List<VodStreamEntity>>()
+        verify(vodDao).insertStreamsWithFts(entitiesCaptor.capture())
+
+        val inserted = entitiesCaptor.firstValue
+        assertEquals(3, inserted.size)
+        assertEquals(0, inserted[0].orderIndex)
+        assertEquals(1, inserted[1].orderIndex)
+        assertEquals(2, inserted[2].orderIndex)
+    }
+
     // --- 4. DETAILED VOD INFO & RESUME PERSISTENCE TESTS ---
     @Test
     fun test_getVodDetails_returnsFullDetailsWithSavedPlaybackPosition() = runTest {

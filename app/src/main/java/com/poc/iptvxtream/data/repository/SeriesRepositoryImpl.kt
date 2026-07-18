@@ -247,7 +247,7 @@ class SeriesRepositoryImpl @Inject constructor(
         val existingById = (if (categoryId == "all") seriesDao.getAllStreams() else seriesDao.getStreamsByCategory(categoryId))
             .associateBy { it.seriesId }
 
-        val entities = remoteStreams.mapNotNull { dto ->
+        val entities = remoteStreams.mapIndexedNotNull { index, dto ->
             val id = dto.seriesId
             val name = dto.name
             // In "all" mode there's no known category to fall back to; a stream without
@@ -266,7 +266,8 @@ class SeriesRepositoryImpl @Inject constructor(
                     cachedAt = currentTime,
                     actors = existing?.actors,
                     director = existing?.director,
-                    genre = existing?.genre
+                    genre = existing?.genre,
+                    orderIndex = index
                 )
             } else null
         }

@@ -245,4 +245,16 @@ val MIGRATION_13_14 = object : Migration(13, 14) {
     }
 }
 
-val ALL_MIGRATIONS = arrayOf(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14)
+/**
+ * MIGRATION_14_15 (Tri par ordre brut de l'API pour les films et séries) :
+ * Ajoute la colonne `orderIndex` aux tables `vod_streams` et `series_streams`
+ * afin de préserver l'ordre d'origine renvoyé par le serveur.
+ */
+val MIGRATION_14_15 = object : Migration(14, 15) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE vod_streams ADD COLUMN orderIndex INTEGER NOT NULL DEFAULT 0")
+        db.execSQL("ALTER TABLE series_streams ADD COLUMN orderIndex INTEGER NOT NULL DEFAULT 0")
+    }
+}
+
+val ALL_MIGRATIONS = arrayOf(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15)
