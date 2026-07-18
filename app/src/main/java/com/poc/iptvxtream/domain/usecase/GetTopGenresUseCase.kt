@@ -3,13 +3,15 @@ package com.poc.iptvxtream.domain.usecase
 import com.poc.iptvxtream.domain.model.GenreParser
 import com.poc.iptvxtream.domain.repository.SeriesRepository
 import com.poc.iptvxtream.domain.repository.VodRepository
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 class GetTopGenresUseCase @Inject constructor(
     private val vodRepository: VodRepository,
     private val seriesRepository: SeriesRepository
 ) {
-    suspend operator fun invoke(): List<String> {
+    suspend operator fun invoke(): List<String> = withContext(Dispatchers.Default) {
         val vodStreams = try {
             vodRepository.getVodStreams("all", forceRefresh = false)
         } catch (e: Exception) {
@@ -39,7 +41,7 @@ class GetTopGenresUseCase @Inject constructor(
             .take(20)
             .map { it.key }
 
-        return topNormalized.map { norm ->
+        topNormalized.map { norm ->
             val casingMap = normalizedToOriginalCasingCounts[norm]
             casingMap?.maxByOrNull { it.value }?.key ?: norm
         }

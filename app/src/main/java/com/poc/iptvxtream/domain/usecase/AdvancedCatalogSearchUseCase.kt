@@ -8,6 +8,8 @@ import com.poc.iptvxtream.domain.model.SearchResult
 import com.poc.iptvxtream.domain.repository.CategoryPreferenceRepository
 import com.poc.iptvxtream.domain.repository.SeriesRepository
 import com.poc.iptvxtream.domain.repository.VodRepository
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 class AdvancedCatalogSearchUseCase @Inject constructor(
@@ -15,10 +17,13 @@ class AdvancedCatalogSearchUseCase @Inject constructor(
     private val seriesRepository: SeriesRepository,
     private val categoryPreferenceRepository: CategoryPreferenceRepository
 ) {
+    // Le filtrage parcourt tout le catalogue (potentiellement plusieurs milliers
+    // d'items) avec des regex GenreParser par item, et il est rappelé à chaque
+    // changement de filtre. On l'exécute hors du thread Main pour éviter le jank.
     suspend operator fun invoke(
         query: String?,
         filter: AdvancedSearchFilter
-    ): SearchResult {
+    ): SearchResult = withContext(Dispatchers.Default) {
         val showVod = filter.mediaType == null || filter.mediaType == SearchMediaType.FILM
         val showSeries = filter.mediaType == null || filter.mediaType == SearchMediaType.SERIE
 
@@ -102,7 +107,7 @@ class AdvancedCatalogSearchUseCase @Inject constructor(
             }
         }
 
-        return SearchResult(
+        SearchResult(
             liveResults = emptyList(),
             vodResults = vodFiltered,
             seriesResults = seriesFiltered
