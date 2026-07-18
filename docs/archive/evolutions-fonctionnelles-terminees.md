@@ -1,10 +1,12 @@
-# Prompts de features — backlog idées 2026-07-16
+# Archives des Évolutions Fonctionnelles Terminées
 
-Chaque bloc est un prompt autonome, prêt à être donné tel quel dans une session dédiée. Ancré dans l'état actuel du code (vérifié le 2026-07-16) : fichiers, entités, champs API réellement présents. Décisions déjà tranchées avec l'utilisateur incluses pour éviter les allers-retours.
+Ce document rassemble l'historique de toutes les évolutions fonctionnelles, fonctionnalités et phases de la feuille de route fonctionnelle déjà implémentées et validées.
 
 ---
 
-## 1. Gestion des catégories (masquer / réordonner) par profil
+## 📅 Historique des 17 Fonctionnalités du Backlog d'Idées (Feature Prompts)
+
+### 1. Gestion des catégories (masquer / réordonner) par profil
 
 ✅ **TERMINÉE** — Fable 5. Table Room `category_preferences` (clé composite `categoryId, type, profileId`, migration 12→13), repository `CategoryPreferenceRepository` (avec flux `changes` pour recharger les grilles/Home au retour des Paramètres), filtrage+ordre appliqués dans les 3 use cases de catégories et sur la Home, écran « Gestion des catégories » dans les Paramètres (onglets TV/Films/Séries, toggle masquer, réordonnancement par boutons haut/bas compatibles D-pad), suppression de `CategorySorting.ALPHABETICAL`, nettoyage des préférences à la suppression d'un profil.
 
@@ -28,7 +30,7 @@ Tests : migration Room, DAO (masquage + tri par profil), ViewModel de gestion de
 
 ---
 
-## 2. Home : sections par derniers ajouts + renommage
+### 2. Home : sections par derniers ajouts + renommage
 
 ✅ **TERMINÉE** — Sonnet 5, effort moyen. Logique de chargement par "derniers ajouts" (tri par `added` décroissant, limite à 20 items) implémentée pour les sections Films et Séries. Renommage des sections en "TV en direct", "Films", et "Séries" dans `strings.xml`.
 
@@ -47,7 +49,7 @@ Tests : `HomeViewModelTest` (tri par added, fallback live TV), non-régression s
 
 ---
 
-## 3. Lecture auto de l'épisode suivant + bouton "épisode suivant"
+### 3. Lecture auto de l'épisode suivant + bouton "épisode suivant"
 
 ✅ **TERMINÉE** — Opus 4.8, corrections Sonnet 5. `SeriesDetails.episodes` propagée jusqu'à `SeriesPlayerScreen` (nouveau param `seriesEpisodes`, câblé dans NavGraph + MainActivity). Épisode courant géré en state interne (`currentEpisode`) : enchaînement sans repasser par la navigation. Fonctions pures testables `computeNextEpisode`/`computePreviousEpisode` (`domain/model/SeriesEpisodeNavigation.kt`) : même saison ±1, sinon saison suivante/précédente adjacente présente, sinon null. Autoplay sur `STATE_ENDED` (efface la position de reprise). Contrôles du player : bouton « épisode précédent » (gauche), play/pause (centre, toujours aligné), « épisode suivant » (droite), chacun visible seulement si applicable. Boutons avance/recul rapide texte retirés (ils débordaient de l'écran sur mobile, cassés visuellement) — remplacés par un double-tap sur la moitié gauche/droite de la vidéo (recul/avance 10s), avec feedback visuel transitoire. 14 tests unitaires sur la logique de sélection prev/next (même saison / changement de saison / fin ou début de série / map vide / trous de numérotation / ordre non trié).
 
@@ -62,7 +64,7 @@ Décision : à la fin de la dernière saison, s'il existe une saison suivante da
 À faire :
 1. Fais remonter `SeriesDetails` (ou au minimum la liste ordonnée saison/épisode + le numéro de saison courant) jusqu'à `SeriesPlayerScreen`, via la navigation existante (`NavGraph.kt` pour la route series player).
 2. Calcule l'épisode suivant : même saison, `episodeNum + 1` si présent dans la map ; sinon saison suivante (numéro de saison + 1 dans la map), épisode 1 ; sinon rien.
-3. Détecte la fin de lecture (écoute déjà probablement présente sur l'état du player ExoPlayer/media3, ex. `Player.STATE_ENDED` — vérifie comment la position est trackée actuellement dans ce fichier) et déclenche automatiquement la lecture de l'épisode suivant s'il existe (recharge le player avec la nouvelle URL/stream, réinitialise position).
+3. Détecte la fin de lecture (écoute déjà probablement présente sur l'état du player ExoPlayer/media3, ex. `Player.STATE_ENDED` — vérifie comment la position is trackée actuellement dans ce fichier) et déclenche automatiquement la lecture de l'épisode suivant s'il existe (recharge le player avec la nouvelle URL/stream, réinitialise position).
 4. Ajoute un bouton "épisode suivant" dans les contrôles du player (visible seulement si un épisode suivant existe), qui déclenche la même transition manuellement.
 5. Gère le cas où il n'y a pas d'épisode suivant : ni autoplay ni bouton visible.
 
@@ -70,7 +72,7 @@ Tests : logique de calcul du prochain épisode (même saison / changement de sai
 
 ---
 
-## 4. Live TV : accès rapide aux autres chaînes pendant la lecture
+### 4. Live TV : accès rapide aux autres chaînes pendant la lecture
 
 ✅ **TERMINÉE** — Sonnet 5, effort moyen. Ajout d'un panneau latéral (drawer) semi-transparent affichant la liste des chaînes (`streamsList`) avec logos et numéros. Intégration d'un bouton menu à côté du bouton de fermeture. Auto-défilement vers la chaîne active, gestion intelligente du focus et navigation clavier/D-pad sur TV, ainsi que fermeture par clic extérieur ou touche retour/back.
 
@@ -92,15 +94,15 @@ Tests : sélection dans le panneau change bien le flux, focus D-pad fonctionnel 
 
 ---
 
-## 5. Players : plusieurs modes de redimensionnement d'image
+### 5. Players : plusieurs modes de redimensionnement d'image
 
 ✅ **TERMINÉE** — Sonnet 5, effort moyen. Ajout de la gestion du mode de redimensionnement de l'image (Ajuster / Étirer / Zoom) persistée globalement via `SettingsManager` et `ResizeMode` enum. Intégration d'un bouton d'aspect ratio (`Icons.Default.AspectRatio`) dans le panneau de contrôle supérieur de chaque lecteur (`PlayerScreen`, `VodPlayerScreen`, `SeriesPlayerScreen`), qui cycle dynamiquement entre les modes standard Media3 (`RESIZE_MODE_FIT`, `RESIZE_MODE_FILL`, `RESIZE_MODE_ZOOM`) et affiche un overlay animé au centre de l'écran avec le format choisi. Tests unitaires ajoutés dans `SettingsManagerResizeModeTest`.
 
 ---
 
-## 6. Description film/série : troncature + "voir plus"
+### 6. Description film/série : troncature + "voir plus"
 
-✅ **TERMINÉE** — Haiku 4.5, effort faible. Composant `ExpandableText` créé + appliqué à 5 emplacements (VOD TV/Mobile + Séries TV/Mobile + episode plot).
+✅ **TERMINÉE** — Human 4.5 / Haiku 4.5, effort faible. Composant `ExpandableText` créé + appliqué à 5 emplacements (VOD TV/Mobile + Séries TV/Mobile + episode plot).
 
 Limite la taille affichée du synopsis (plot) et ajoute un "voir plus" / "voir moins".
 
@@ -119,9 +121,9 @@ Tests : troncature correcte, bouton apparaît seulement si overflow réel, bascu
 
 ---
 
-## 7. Icône "relire depuis le début"
+### 7. Icône "relire depuis le début"
 
-✅ **TERMINÉE** — Haiku 4.5, effort faible. Icons.Default.Replay appliqué en remplacement de PlayArrow sur VodDetailsScreen (TV et mobile).
+✅ **TERMINÉE** — Haiku 4.5, effort faible. `Icons.Default.Replay` appliqué en remplacement de `PlayArrow` sur `VodDetailsScreen` (TV et mobile).
 
 Remplace l'icône actuelle (triangle play) par une flèche en boucle pour l'action "relire depuis le début".
 
@@ -136,7 +138,7 @@ Tests : visuel seulement, pas de logique métier à tester au-delà de la non-r�
 
 ---
 
-## 8. Recherche par genre (films/séries)
+### 8. Recherche par genre (films/séries)
 
 ✅ **TERMINÉE** — Opus 4.8, effort élevé. **Révision** (après retour utilisateur) : le filtre par genre dans la recherche (chips) a été **abandonné** au profit d'une section « Titres associés » en bas des détails VOD/Séries. Le genre était déjà enrichi en arrière-plan et stocké (colonnes présentes + FTS4 depuis la Phase 40) — aucune migration Room (DB reste v13). Livré :
 - `GenreParser` (`domain/model/`, objet pur) : split **virgule ET slash** (`Action/Aventure`), trim, exclusion placeholders (« Inconnu »/« N/A » reconnu en entier avant split), `matches` token-à-token insensible à la casse, `sharedGenreCount`.
@@ -169,31 +171,31 @@ Tests : parsing de la string genre (cas avec espaces, casse variable, un seul ge
 
 ---
 
-## 9. Top 10 Films/Séries sur la Home (derniers ajouts, note décroissante avec palier)
+### 9. Top 10 Films/Séries sur la Home (derniers ajouts, note décroissante avec palier)
 
 ✅ **TERMINÉE** — Sonnet 5, effort moyen. Implémentation du sélecteur algorithmique multi-palier générique et purement testé `TopRatedSelector`. Ce sélecteur extrait, filtre et trie défensivement les flux par note (rating > 8.0, puis > 7.0, > 6.0, > 5.0, > 0.0, puis sans filtre) tout en respectant l'ordre décroissant d'ajout (`added`). Ajout des propriétés `topVodStreams` et `topSeriesStreams` dans `HomeState` et `HomeViewModel` (alimentées en filtrant les catégories masquées du profil actif). Ajout des sections horizontales correspondantes "Top 10 Films" et "Top 10 Séries" sur la page d'accueil avec des clés d'état de défilement indépendantes (`"home_top_vod"`, `"home_top_series"`). Ajout de tests unitaires exhaustifs dans `TopRatedSelectorTest`.
 
 ---
 
-## 10. Live TV player : dropdown pour changer de catégorie dans le panneau de zapping
+### 10. Live TV player : dropdown pour changer de catégorie dans le panneau de zapping
 
 ✅ **TERMINÉE** — Sonnet 5, effort moyen. Ajout d'un sélecteur de catégorie sous forme de menu déroulant (`DropdownMenu`) au-dessus de la liste du panneau de zapping latéral. Le sélecteur permet de choisir la liste de zapping initiale ou n'importe quelle catégorie chargée réactivement depuis le `LiveTvViewModel`. La sélection d'une nouvelle catégorie charge immédiatement ses chaînes associées en arrière-plan sans perturber la lecture courante. Cliquer sur une chaîne de la nouvelle liste bascule immédiatement le flux principal, met à jour l'index courant et synchronise la liste de zapping principale (`activeStreamsList`) afin que le zapping standard (haut/bas) s'effectue au sein de cette nouvelle catégorie. Le comportement est entièrement synchronisé et répercuté sur la grille Live TV principale au retour du lecteur.
 
 ---
 
-## 11. Bug : certaines pistes audio/sous-titres non sélectionnables dans le player
+### 11. Bug : certaines pistes audio/sous-titres non sélectionnables dans le player
 
 ✅ **TERMINÉE** — Sonnet 5, effort moyen. Résolution du bug de sélection des pistes audio et sous-titres non supportées par l'appareil. Ajout d'un attribut `isSupported: Boolean` dans `TrackInfo`. Utilisation de `group.isTrackSupported(tIndex)` dans `updateTracksState` afin de détecter le support réel de chaque piste. Dans `TrackSelectionDialog`, désactivation du clic (`clickable`) et du bouton d'option (`RadioButton.enabled = false`) pour les pistes non supportées, application d'un style grisé (`Color.Gray` et alpha réduit à `0.5f`), et ajout de la mention `(non supporté)` sur l'interface. Empêchement de l'auto-sélection de pistes non supportées par `applyPreferredLanguages`. Ajout de tests unitaires complets dans `TrackSelectionTest.kt`.
 
 ---
 
-## 12. Mode Picture-in-Picture (PIP) à la demande dans le player
+### 12. Mode Picture-in-Picture (PIP) à la demande dans le player
 
 ✅ **TERMINÉE** — Sonnet 5, effort moyen. Support Picture-in-Picture déclaré dans le manifest (`supportsPictureInPicture="true"`, `resizeableActivity="true"`). Ajout d'un bouton PIP (`Icons.Default.PictureInPictureAlt`) sur les 3 lecteurs mobiles (`isTv == false`). Le bouton bascule l'application en mode PIP à la demande avec un ratio dynamique extrait de la taille vidéo active d'ExoPlayer. Les contrôles custom (overlays, tiroir, etc.) sont automatiquement masqués en mode PIP grâce à l'observation réactive du changement de mode (`OnPictureInPictureModeChangedListener`) via un `DisposableEffect` sécurisé qui évite le name shadowing.
 
 ---
 
-## 13. Home : "voir tout" Films/Séries → 100 derniers médias ajoutés
+### 13. Home : "voir tout" Films/Séries → 100 derniers médias ajoutés
 
 ✅ **TERMINÉE** — Sonnet 5, effort faible-moyen. **Corrections Opus 4.8** après revue : l'écran utilisait `Scaffold`/`TopAppBar` Material3, seul écran de l'app à s'écarter du header custom (`Row` + `IconButton`+`ArrowBack`, voir `SearchScreen`/`VodDetailsScreen`) — remplacé par le pattern standard. Textes en dur (titre, états vides, erreur) déplacés dans `strings.xml`. Tests complétés : filtrage des catégories masquées (manquant), cap à 100 résultats, cas d'erreur repository, résilience si `CategoryPreferenceRepository` échoue.
 
@@ -217,7 +219,7 @@ Tests : requête "100 derniers" (tri, limite, respect des catégories masquées)
 
 ---
 
-## 14. Home : Top 10 sans "voir tout", note ≥ 8 uniquement (sans palier de repli)
+### 14. Home : Top 10 sans "voir tout", note ≥ 8 uniquement (sans palier de repli)
 
 ✅ **TERMINÉE** — Sonnet 5, effort faible. Simplification du sélecteur `TopRatedSelector.selectTop10` pour filtrer strictement les notes `rating >= 8.0`, trier par date d'ajout décroissante (`added`), et limiter à un maximum de 10 résultats, éliminant totalement l'ancien mécanisme de repli multi-palier. Sur l'écran d'accueil (`HomeScreen.kt`), retrait du bouton "voir tout" des en-têtes des deux sections "Top 10" (en passant `onSeeAll = null`). Adaptation complète des tests unitaires existants dans `TopRatedSelectorTest.kt` pour refléter la nouvelle logique de filtrage strict et de tri de la note `≥ 8.0` incluse.
 
@@ -225,7 +227,7 @@ Sur la Home, les sections "Top 10 Films"/"Top 10 Séries" ([feature #9](#9-top-1
 
 Contexte existant :
 - `TopRatedSelector.kt:21-45` (`selectTop10`) : système à 5 paliers (`rating > 8.0`, sinon `> 7.0`, `> 6.0`, `> 5.0`, `> 0.0`, sinon tout) qui complète jusqu'à 10 items en descendant les seuils si le palier supérieur n'en fournit pas assez.
-- `HomeScreen.kt:421-489` : sections "Top 10 Films"/"Top 10 Séries" avec `onSeeAll = onNavigateToVod`/`onNavigateToSeries` (via `SectionHeader`, `HomeScreen.kt:427,475`).
+- `HomeScreen.kt:421-489` : sections "Top 10 Films"/"Top 10 Séries" with `onSeeAll = onNavigateToVod`/`onNavigateToSeries` (via `SectionHeader`, `HomeScreen.kt:427,475`).
 
 Décision : note **≥ 8** strictement (pas de repli sur les paliers inférieurs) — si moins de 10 items qualifient, afficher moins de 10 (voire masquer la section si vide, cohérent avec `state.topVodStreams.isNotEmpty()` déjà en place `HomeScreen.kt:422,470`).
 
@@ -238,14 +240,14 @@ Tests : filtrage note ≥ 8 (limite exacte à 8.0 incluse), tri par added, absen
 
 ---
 
-## 15. Téléchargement hors-ligne des films et épisodes de séries
+### 15. Téléchargement hors-ligne des films et épisodes de séries
 
 ✅ **TERMINÉE** — Opus 4.8, effort élevé. Décisions produit validées avec l'utilisateur : téléchargements **globaux** (partagés sur l'appareil, pas de `profileId` — cohérent avec le catalogue/cache Room partagé) ; écran accessible **depuis les Paramètres** (carte « Téléchargements hors-ligne », comme « Gestion des catégories »). Livré :
 - **media3 offline** (aucune nouvelle dépendance — `DownloadManager`/`DownloadService`/`Cache` sont dans `media3-exoplayer`/`media3-datasource`/`media3-database` déjà présents). Les flux VOD/Séries sont des fichiers progressifs (`/movie/…`, `/series/…`) → téléchargement progressif.
 - `OfflineDownloadUtil` (`data/download/`) : détenteur statique process-wide du `Cache` (SimpleCache app-privé `getExternalFilesDir/iptv_downloads`, `NoOpCacheEvictor` = pas de purge auto), `DownloadManager` (1 téléchargement parallèle — limite connexions Xtream), `DatabaseProvider`, et `CacheDataSource.Factory` **lecture seule** pour le player.
 - `IptvDownloadService` (foreground service media3, notification de progression obligatoire) déclaré au manifest (`foregroundServiceType="dataSync"`, permissions `FOREGROUND_SERVICE`/`_DATA_SYNC`/`WAKE_LOCK`/`POST_NOTIFICATIONS`).
 - Table Room `downloaded_media` (migration 13→14, **source de vérité unique de l'UI**) + `DownloadDao` ; `DownloadRepositoryImpl` synchronise l'état media3 → Room (listener + poll de progression 1s adaptatif, pas de progression poussée par media3).
-- Lecture hors-ligne **transparente** : `VodPlayerScreen`/`SeriesPlayerScreen` construisent l'ExoPlayer avec la `CacheDataSource.Factory` et un `customCacheKey` stable (`movie_<id>`/`episode_<id>`) indépendant de l'URL (identifiants) → le fichier téléchargé est servi depuis le cache. Depuis l'écran Téléchargements, la lecture reconstruit des `VodDetails`/`SeriesEpisode` minimaux sans fetch réseau.
+- Lecture hors-ligne **transparente** : `VodPlayerScreen`/`SeriesPlayerScreen` construisent l'ExoPlayer with la `CacheDataSource.Factory` et un `customCacheKey` stable (`movie_<id>`/`episode_<id>`) indépendant de l'URL (identifiants) → le fichier téléchargé est servi depuis le cache. Depuis l'écran Téléchargements, la lecture reconstruit des `VodDetails`/`SeriesEpisode` minimaux sans fetch réseau.
 - UI : bouton `DownloadActionButton` en bas des détails VOD, icône de téléchargement par épisode (`EpisodeDownloadControl`, anneau de progression), écran `DownloadsScreen` (liste, statut/%, espace utilisé, suppression). Câblé mobile (`NavGraph`) + TV (`MainActivity`).
 - `DownloadRequestFactory` (objet pur) extrait la construction des requêtes (contentId stable, format titre « Série — SxEy »). Tests : `DownloadRequestFactoryTest` (contentId, URL, métadonnées, non-collision film/épisode). Le cœur media3 (`DownloadManager`) n'est pas testable unitairement → recette manuelle requise.
 
@@ -276,7 +278,7 @@ Tests : DAO téléchargements, ViewModel écran téléchargements (statuts, supp
 
 ---
 
-## 16. Catégorie masquée = médias invisibles partout (Home, titres associés, recherche)
+### 16. Catégorie masquée = médias invisibles partout (Home, titres associés, recherche)
 
 ✅ **TERMINÉE** — Sonnet 5, effort moyen. **Correction Opus 4.8** après revue : l'implémentation initiale des titres associés post-filtrait le résultat déjà classé/limité par `RelatedTitlesSelector.select` (sur-fetch fixe `limit = 50` puis `.filter { }.take(10)` dans le use case) — violait la consigne explicite ci-dessous (« avant l'appel à `RelatedTitlesSelector.select` ») et pouvait retourner moins de 10 résultats si plus de 40 candidats masqués se classaient dans le top 50, alors que des candidats visibles existaient au-delà. Corrigé : `VodRepository.getRelatedMovies`/`SeriesRepository.getRelatedSeries` acceptent désormais `excludedCategoryIds: Set<String>`, appliqué au niveau du préfiltre SQL des candidats (`VodRepositoryImpl`/`SeriesRepositoryImpl`), **avant** la construction des `Candidate` et l'appel à `RelatedTitlesSelector.select` — le classement ne porte plus jamais sur des candidats masqués. Les use cases (`GetRelatedMoviesUseCase`/`GetRelatedSeriesUseCase`) résolvent juste les catégories masquées et les transmettent, sans plus post-filtrer. Ajout de `CancellationException` non avalée dans les 3 use cases touchés (convention du projet, manquante dans l'implémentation initiale). Pour la recherche unifiée (`SearchUnifiedUseCase.kt`), le post-filtrage était correct tel quel (pas de troncature par un sélecteur en amont) — inchangé. Home déjà entièrement couverte, vérifié. Tests : `CategoryFilteringUseCasesTest.kt` réécrits pour vérifier la transmission des catégories masquées au repository, + tests repository dédiés (`VodRepositoryImplTest`/`SeriesRepositoryImplTest`) prouvant qu'un candidat visible au-delà du volume de candidats masqués mieux classés n'est plus jamais tronqué.
 
@@ -297,7 +299,7 @@ Tests : titres associés n'incluent pas de candidat d'une catégorie masquée, r
 
 ---
 
-## 17. Recherche : bouton "voir tout" violet et aligné à droite
+### 17. Recherche : bouton "voir tout" violet et aligné à droite
 
 ✅ **TERMINÉE** — Haiku 4.5, effort faible. **Annulée en partie** (retour utilisateur, session Opus 4.8) : le bouton « voir tout » de la recherche reste aligné à droite (`Arrangement.SpaceBetween`), mais son style violet distinctif a été abandonné — jugé « pas du tout similaire visuellement » au bouton « voir tout » de la Home. Couleurs alignées sur `HomeSectionRow` (`HomeScreen.kt`) : repos = fond `Surface3` + texte blanc, focus = fond `AccentLavande` + texte noir (au lieu de violet au repos / blanc au focus).
 
@@ -317,8 +319,280 @@ Tests : visuel uniquement, pas de logique métier — vérifier la non-régressi
 
 ---
 
-## Notes transverses
+## 🛠️ Historique des Phases de la Feuille de Route Fonctionnelle (Phases 18 à 57)
 
-- Toutes ces features touchent potentiellement Room (migrations) : respecter la convention du projet — pas de `fallbackToDestructiveMigration()`, migration explicite ajoutée à `ALL_MIGRATIONS` (`di/AppModule.kt`), voir `AGENTS.md`.
-- Recette manuelle sur device/émulateur recommandée pour tout ce qui touche à ExoPlayer/media3 (players) — ces flux ne sont pas facilement testables unitairement.
-- Convention de fin de tâche du projet (voir `AGENTS.md`) : commit + tag SemVer (minor pour une nouvelle feature, pas patch) + push après chaque feature terminée.
+### Phase 18 : Lancement fluide de l'application (Suppress login screen if remembered)
+
+✅ **TERMINÉE** (Livrée)
+Au démarrage de l'app, si la case "se souvenir de moi" a été cochée lors d'une connexion précédente ET qu'une connexion a déjà été établie avec succès (identifiants valides stockés), ne pas afficher l'écran de connexion : aller directement à l'écran d'accueil (Home).
+
+---
+
+### Phase 19 : Correction du bug de recherche par acteur/réalisateur
+
+✅ **TERMINÉE** (Livrée)
+La recherche par acteur/réalisateur doit matcher sur l'ensemble du catalogue déjà en cache, indépendamment des fiches détail visitées ou non par l'utilisateur.
+
+---
+
+### Phase 20 : Préservation de la position de défilement dans les listes (Films/Séries/TV)
+
+✅ **TERMINÉE** (Livrée)
+Quand l'utilisateur visite une fiche détail film/série/chaîne puis fait un retour arrière, il doit retrouver exactement sa position de défilement vertical et horizontal dans la liste/grille d'où il vient.
+
+---
+
+### Phase 22 : Rafraîchissement automatique de la DB locale en arrière-plan
+
+✅ **TERMINÉE** (Livrée)
+Mise en place d'un système de rafraîchissement périodique et automatique de la base de données locale via WorkManager, avec gestion de la fréquence (quotidien, hebdomadaire, mensuel) dans les Paramètres.
+
+---
+
+### Phase 23 : Icônes TV/Films/Séries de la barre de navigation mobile
+
+✅ **TERMINÉE** (Livrée)
+Amélioration esthétique et uniformisation du style des icônes des onglets de navigation mobile.
+
+---
+
+### Phase 24 : Accessibilité sur les boutons "Voir tout" de la Home
+
+✅ **TERMINÉE** (Livrée)
+Correction du contraste des boutons "Voir tout" (chips/liens) sur la page d'accueil pour être conforme aux standards WCAG AA.
+
+---
+
+### Phase 25 : Correction de chevauchement visuel dans les lecteurs vidéos (Orientation Portrait)
+
+✅ **TERMINÉE** (Livrée)
+Ajustement de l'overlay de contrôle supérieur dans les lecteurs vidéos en orientation portrait pour éviter que le titre et les boutons ne se chevauchent.
+
+---
+
+### Phase 26 : Personnalisation de l'apparence des sous-titres depuis les Paramètres
+
+✅ **TERMINÉE** (Livrée)
+Option de configuration (taille, couleur, fond) de l'affichage des sous-titres Media3 depuis l'écran Paramètres de l'application.
+
+---
+
+### Phase 27 : Profils multiples locaux (Netflix-style) sur un même compte Xtream
+
+✅ **TERMINÉE** (Livrée)
+Séparation par profils locaux des Favoris, Historiques de visionnage et Positions de reprise de lecture, tout en conservant un catalogue et cache Room unifié. Écrans de sélection et de gestion de profils complets.
+
+---
+
+### Phase 28 : Accessibilité et ergonomie de l'écran de connexion
+
+✅ **TERMINÉE** (Livrée)
+1. Correction des problèmes de contraste sur les champs textuels de l'écran de connexion.
+2. Fusion des champs host et port en un seul champ "adresse du serveur", avec traitement robuste des formats d'URL saisis.
+
+---
+
+### Phase 29 : Mémorisation de la langue audio et des sous-titres par film/série et par profil
+
+✅ **TERMINÉE** (Livrée)
+Persistance automatique des choix de pistes audio et de sous-titres effectués lors de la lecture, scopés individuellement par média (film ou série complète) et par profil utilisateur actif.
+
+---
+
+### Phase 30 : Regroupement de "Continuer à regarder" par série sur la Home
+
+✅ **TERMINÉE** (Livrée)
+Regroupement intelligent des positions de reprise de lecture par série sur la page d'accueil, n'affichant que l'épisode le plus récent de chaque série.
+
+---
+
+### Phase 31 : Uniformisation de la couleur du texte des boutons violets
+
+✅ **TERMINÉE** (Livrée)
+Correction systématique de la couleur de texte pour qu'elle soit blanche sur tous les boutons à fond violet (couleur primaire).
+
+---
+
+### Phase 32 : Affichage de l'horaire et de la progression du programme EPG en direct
+
+✅ **TERMINÉE** (Livrée)
+Ajout des heures de début et de fin ainsi qu'une jauge d'avancement temporelle en temps réel sur les tuiles et cartes affichant un programme TV EPG.
+
+---
+
+### Phase 33 : Uniformisation de la taille des tuiles Live TV sans EPG
+
+✅ **TERMINÉE** (Livrée)
+Maintien d'une taille de tuile constante dans les grilles et listes Live TV, même lorsqu'aucun programme EPG n'est disponible, pour éviter de briser la grille Compose.
+
+---
+
+### Phase 34 : Cadrage du logo des chaînes TV favorites dans les cartes 2:3 de la Home
+
+✅ **TERMINÉE** (Livrée)
+Changement du mode d'affichage (`ContentScale.Fit` avec fond neutre) pour les logos de chaînes carrées afin qu'ils ne soient pas rognés dans les cartes au format portrait 2:3 des favoris de la Home.
+
+---
+
+### Phase 35 : Section Favoris sous "Récemment regardées" dans l'onglet "Tout" du Live TV
+
+✅ **TERMINÉE** (Livrée)
+Intégration d'un carrousel horizontal des chaînes favorites sur l'écran Live TV en mode filtre "Tout", aligné avec les autres catégories.
+
+---
+
+### Phase 36 : Désactivation du logging HTTP verbeux en production
+
+✅ **TERMINÉE** (Livrée)
+Sûreté renforcée : configuration de l'HttpLoggingInterceptor pour désactiver l'impression des corps de réponse et des credentials en mode Release.
+
+---
+
+### Phase 37 : Debounce et annulation de la recherche globale
+
+✅ **TERMINÉE** (Livrée)
+Optimisation des performances SQL : application d'un debounce de 300 ms et annulation systématique des requêtes en cours lors de chaque nouvelle frappe.
+
+---
+
+### Phase 38 : Activation de la minification R8 sur le build Release
+
+✅ **TERMINÉE** (Livrée)
+Mise en place de R8 (`isMinifyEnabled = true` et `isShrinkResources = true`) avec l'écriture de règles d'obfuscation et de préservation de réflexion ProGuard (`proguard-rules.pro`).
+
+---
+
+### Phase 39 : Synchronisation de versionCode et versionName avec les tags git
+
+✅ **TERMINÉE** (Livrée)
+Calcul et injection automatisée du `versionCode` et `versionName` au build-time à partir des tags SemVer git.
+
+---
+
+### Phase 40 : Recherche globale ultra-rapide via table FTS4 Room
+
+✅ **TERMINÉE** (Livrée)
+Amélioration radicale de performance : migration de la recherche globale SQL `LIKE` vers un index plein texte SQLite `@Fts4` (Room FTS4).
+
+---
+
+### Phase 41 : Réactivité de la base de données via flows asynchrones réactifs
+
+✅ **TERMINÉE** (Livrée)
+Bascule des DAOs des listes ponctuelles vers des `Flow` asynchrones réactifs sur les favoris, l'historique et les positions de reprise, permettant la synchronisation immédiate entre tous les écrans sans rechargement manuel.
+
+---
+
+### Phase 42 : Centralisation du polling EPG de la Home dans le ViewModel
+
+✅ **TERMINÉE** (Livrée)
+Optimisation réseau : remplacement des dizaines de boucles actives individuelles des cartes TV par un unique ticker partagé au niveau du HomeViewModel (rafraîchissement global des programmes en batch).
+
+---
+
+### Phase 43 : Migration de kapt vers KSP (Hilt + Room)
+
+✅ **TERMINÉE** (Livrée)
+Migration de la chaîne de compilation depuis `kotlin-kapt` vers Google KSP, accélérant grandement les builds.
+
+---
+
+### Phase 44 : Durcissements de l'application (lifecycle, cancellation, targetSdk 35)
+
+✅ **TERMINÉE** (Livrée)
+1. Remplacement de `collectAsState()` par `collectAsStateWithLifecycle()` pour arrêter la consommation CPU en arrière-plan.
+2. Préservation de l'annulation structurée des coroutines (re-throw des `CancellationException` attrapées par des try-catch génériques).
+3. Passage au SDK 35 (compileSdk/targetSdk).
+
+---
+
+### Phase 45 : Dette structurelle et découpage du code
+
+✅ **TERMINÉE** (Livrée)
+1. Externalisation d'environ 80 chaînes de caractères brutes vers `strings.xml`.
+2. Découpage du fichier monolithique `MainActivity` et extraction de sa logique de navigation dans `NavGraph.kt`.
+3. Sécurisation du trafic HTTP en clair via un `network_security_config.xml` ciblé.
+
+---
+
+### Phase 46 : Fondation du design system (Thème, couleurs et polices)
+
+✅ **TERMINÉE** (Livrée)
+Mise en place des polices d'écriture Bricolage Grotesque et Hanken Grotesk, création de la structure `Color.kt`, `Type.kt` et `Theme.kt` et raccordement global au thème centralisé de l'application mobile.
+
+---
+
+### Phase 47 : Chrome global mobile (Dégradés de fond + Barre de navigation)
+
+✅ **TERMINÉE** (Livrée)
+Intégration du fond dégradé radial violet sombre vers noir iso-maquette, et refonte stylistique complète de la `NavigationBar` mobile.
+
+---
+
+### Phase 48 : Refonte de l'écran d'accueil (Home) et composant Hero
+
+✅ **TERMINÉE** (Livrée)
+Application du style "cinéma" sur la Home, avec l'apparition du composant hero "Reprendre" dynamique affichant de grands visuels du dernier média regardé.
+
+---
+
+### Phase 49 : Refonte de l'écran TV en Direct (Live TV)
+
+✅ **TERMINÉE** (Livrée)
+Mise aux normes visuelles de l'écran Live TV, avec remplacement du sélecteur par une feuille modale (bottom sheet) élégante contenant compteurs de médias et champ de recherche.
+
+---
+
+### Phase 50 : Refonte des écrans de catalogues Films (VOD) et Séries
+
+✅ **TERMINÉE** (Livrée)
+Refonte complète des deux écrans de catalogue : grilles 2:3, uniformisation de la bottom sheet de catégorie partagée, et maintien du défilement.
+
+---
+
+### Phase 51 : Refonte des fiches détails Film et Série
+
+✅ **TERMINÉE** (Livrée)
+Changement visuel majeur des écrans de détails avec grand backdrop, métadonnées, liste de saisons pour les séries, et boutons d'actions au thème.
+
+---
+
+### Phase 52 : Refonte de l'écran de Recherche et de la grille "Voir Tout"
+
+✅ **TERMINÉE** (Livrée)
+Restylage complet du champ de recherche unifiée, groupement par types de résultats avec compteurs associés, et grille verticale d'affiches uniformisée.
+
+---
+
+### Phase 53 : Refonte des écrans Profils, Paramètres et Connexion
+
+✅ **TERMINÉE** (Livrée)
+Reskin complet de l'interface de sélection/gestion de profils locaux, de l'écran de connexion et de l'écran des Paramètres au style de la refonte IPTV.
+
+---
+
+### Phase 54 : Couleur d'accent réglable et thèmes alternatifs persistants
+
+✅ **TERMINÉE** (Livrée)
+Possibilité de choisir et appliquer dynamiquement la couleur d'accent (Lavande, Bleu, Sarcelle, Ambre) à travers toute l'application depuis les Paramètres.
+
+---
+
+### Phase 55 : Corrections esthétiques et peaufinages de la refonte UI/UX
+
+✅ **TERMINÉE** (Livrée)
+Harmonisation des icônes, boutons "Voir tout" discrets, affichage du temps restant de visionnage, déplacement du titre des médias en superposition d'image.
+
+---
+
+### Phase 56 : Ajustements et retours sur l'onglet TV et l'affichage catalogue
+
+✅ **TERMINÉE** (Livrée)
+Correction des couleurs de titres, affichage des horaires sur vignettes TV de la Home, suppression du bouton Refresh obsolète, élargissement et centrage du sélecteur de catégorie, grille TV en défilement vertical à 2 colonnes par ligne.
+
+---
+
+### Phase 57 : Retours et ajustements sur les onglets Films/Séries et fiches détails
+
+✅ **TERMINÉE** (Livrée)
+Bouton "Voir tout" sur les sections favoris, passage en grille à 3 colonnes pour les catégories de films/séries filtrées, affichage exclusif de l'année sur les fiches détails, et suppression définitive du texte d'en-tête "Détail..." de la flèche de retour.

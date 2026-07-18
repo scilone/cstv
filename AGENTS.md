@@ -2,16 +2,25 @@
 
 Ce fichier contient les règles permanentes à suivre à chaque session de travail sur ce projet. Lis-le en entier avant toute modification de code.
 
-## Documents de référence
+## Documents de référence et Organisation du Backlog
 
 - `prompt-app-iptv-xtream.md` : cahier des charges fonctionnel complet (fonctionnalités, endpoints Xtream Codes, écrans, gestion d'erreurs).
-- `feuille-de-route-phases.md` : ordre de développement par phases. Ne développe jamais une fonctionnalité hors de la phase en cours sans confirmation explicite de l'utilisateur.
+- `docs/evolutions-fonctionnelles.md` : Backlog fonctionnel actif. Contient uniquement les fonctionnalités et évolutions fonctionnelles ouvertes ou à implémenter.
+- `docs/evolutions-techniques.md` : Backlog technique actif. Contient uniquement la dette technique, les refactorings et les chantiers d'architecture/sécurité ouverts.
+- `docs/archive/` : Dossier d'archivage historique.
+  - `docs/archive/evolutions-fonctionnelles-terminees.md` : Miroir d'archivage pour toutes les évolutions et phases fonctionnelles validées.
+  - `docs/archive/evolutions-techniques-terminees.md` : Miroir d'archivage pour tous les correctifs et audits techniques réalisés.
 - `docs/design-reference/` : source de vérité visuelle pour la refonte UI/UX
-  (Phases 46-54, voir feuille-de-route-phases.md). Contient le HTML/CSS brut
-  exporté de la maquette Claude Design (couleurs, radius, typographie exacts)
-  et, quand disponibles, des captures d'écran de référence par écran. À
-  consulter systématiquement en amont de chaque phase 46-54 plutôt que de
-  deviner les valeurs de design.
+  (Phases 46-54). Contient le HTML/CSS brut exporté de la maquette Claude Design (couleurs, radius, typographie exacts) et, quand disponibles, des captures d'écran de référence par écran. À consulter systématiquement en amont de chaque phase plutôt que de deviner les valeurs de design.
+
+### 🔄 Flux de Travail et Archivage Systématique (Workflow)
+Pour maintenir les sessions d'IA ultra-rapides et éviter la surcharge cognitive et de contexte :
+1. **Ne lisez pas les archives** : Ne chargez jamais inutilement les fichiers du dossier `docs/archive/` dans les sessions d'IA de développement.
+2. **Archivage après complétion** : Dès qu'une évolution fonctionnelle ou technique est livrée, validée et taggée :
+   - Prenez sa description/prompt de son fichier actif (`docs/evolutions-fonctionnelles.md` ou `docs/evolutions-techniques.md`).
+   - Déplacez-la (couper-coller) vers le fichier d'archive correspondant sous `docs/archive/`, en la marquant comme `✅ TERMINÉE`.
+   - Laissez les fichiers actifs extrêmement courts et ciblés sur le travail immédiat.
+3. **Modèle & Effort requis** : Chaque évolution inscrite dans le backlog actif doit obligatoirement spécifier le **modèle d'IA recommandé** (`Haiku 4.5`, `Sonnet 5` ou `Opus 4.8`) et l'**effort associé** (`S` pour <1h, `M` pour 1-3h, `L` pour une journée ou plus).
 
 ## Périmètre strict du projet
 
@@ -134,7 +143,7 @@ Toute fonctionnalité réseau doit gérer explicitement : identifiants invalides
 2. Écris les tests unitaires/fonctionnels de la feature livrée (voir section "Stratégie de tests"), puis exécute `./gradlew testDebugUnitTest` et corrige tout échec, y compris sur les tests des phases précédentes (non-régression).
 3. Vérifie que tu n'as pas dépassé le périmètre de la phase demandée.
 4. Signale dans ta réponse tout point du cahier des charges resté ambigu ou non traité.
-5. Ne modifie pas les fichiers `prompt-app-iptv-xtream.md` ou `feuille-de-route-phases.md` sauf demande explicite.
+5. Ne modifie pas le fichier `prompt-app-iptv-xtream.md` sans demande explicite. Pour les évolutions fonctionnelles et techniques, respecte scrupuleusement le workflow d'archivage systématique vers `docs/archive/` dès qu'une tâche est livrée et validée.
 6. Exécute `./gradlew assembleDebug` et donne-moi le chemin de l'APK généré.
 7. Effectue systématiquement un commit Git, crée un tag Git associé (ex: v1.x.y respectant SemVer) et pousse-les (y compris les tags avec `git push origin --tags` ou de manière ciblée) vers le dépôt distant après chaque fonctionnalité ou phase terminée.
 
