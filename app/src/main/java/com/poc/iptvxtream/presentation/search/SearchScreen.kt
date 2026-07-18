@@ -19,6 +19,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -91,7 +92,15 @@ fun SearchScreen(
                 OutlinedTextField(
                     value = state.searchQuery,
                     onValueChange = { viewModel.onSearchQueryChanged(it) },
-                    placeholder = { Text(stringResource(R.string.search_placeholder), color = Color.Gray, fontSize = 13.sp) },
+                    placeholder = {
+                        Text(
+                            stringResource(R.string.search_placeholder),
+                            color = Color.Gray,
+                            fontSize = 13.sp,
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                        )
+                    },
                     leadingIcon = {
                         Icon(
                             Icons.Default.Search,
@@ -225,7 +234,6 @@ fun SearchScreen(
                                             name = stream.name,
                                             cover = stream.streamIcon,
                                             isLive = false,
-                                            year = stream.releaseYear,
                                             rating = stream.rating,
                                             onClick = { onSelectMovie(stream) }
                                         )
@@ -254,7 +262,6 @@ fun SearchScreen(
                                             name = stream.name,
                                             cover = stream.cover,
                                             isLive = false,
-                                            year = stream.releaseYear,
                                             rating = stream.rating,
                                             onClick = { onSelectSeries(stream) }
                                         )
@@ -404,7 +411,6 @@ private fun SearchExpandedGrid(
                         name = stream.name,
                         cover = stream.streamIcon,
                         isLive = false,
-                        year = stream.releaseYear,
                         rating = stream.rating,
                         onClick = { onSelectMovie(stream) }
                     )
@@ -414,7 +420,6 @@ private fun SearchExpandedGrid(
                         name = stream.name,
                         cover = stream.cover,
                         isLive = false,
-                        year = stream.releaseYear,
                         rating = stream.rating,
                         onClick = { onSelectSeries(stream) }
                     )
@@ -429,15 +434,17 @@ private fun SearchGridCard(
     name: String,
     cover: String?,
     isLive: Boolean,
-    year: Int? = null,
     rating: String? = null,
     onClick: () -> Unit
 ) {
     var isFocused by remember { mutableStateOf(false) }
 
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxWidth()
+            .then(
+                if (isLive) Modifier.aspectRatio(16f / 9f) else Modifier.aspectRatio(2f / 3f)
+            )
             .onFocusChanged { isFocused = it.isFocused }
             .border(
                 width = 2.dp,
@@ -446,35 +453,26 @@ private fun SearchGridCard(
             )
             .clip(RoundedCornerShape(12.dp))
             .clickable { onClick() }
-            .background(Surface3)
+            .background(Surface1),
+        contentAlignment = Alignment.Center
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .then(
-                    if (isLive) Modifier.aspectRatio(16f / 9f) else Modifier.aspectRatio(2f / 3f)
-                )
-                .background(Surface1),
-            contentAlignment = Alignment.Center
-        ) {
-            if (!cover.isNullOrBlank()) {
-                AsyncImage(
-                    model = cover,
-                    contentDescription = name,
-                    contentScale = if (isLive) ContentScale.Fit else ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
-                )
-            } else {
-                Icon(
-                    imageVector = Icons.Default.PlayArrow,
-                    contentDescription = null,
-                    tint = Color.DarkGray,
-                    modifier = Modifier.size(32.dp)
-                )
-            }
+        if (!cover.isNullOrBlank()) {
+            AsyncImage(
+                model = cover,
+                contentDescription = name,
+                contentScale = if (isLive) ContentScale.Fit else ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+        } else {
+            Icon(
+                imageVector = Icons.Default.PlayArrow,
+                contentDescription = null,
+                tint = Color.DarkGray,
+                modifier = Modifier.size(32.dp)
+            )
         }
         if (!isLive) {
-            SearchCardMeta(year = year, rating = rating, modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp))
+            SearchCardRatingBadge(rating = rating, modifier = Modifier.align(Alignment.TopEnd))
         }
     }
 }
@@ -484,15 +482,17 @@ private fun SearchCardItem(
     name: String,
     cover: String?,
     isLive: Boolean,
-    year: Int? = null,
     rating: String? = null,
     onClick: () -> Unit
 ) {
     var isFocused by remember { mutableStateOf(false) }
 
-    Column(
+    Box(
         modifier = Modifier
             .width(if (isLive) 120.dp else 110.dp)
+            .then(
+                if (isLive) Modifier.height(80.dp) else Modifier.aspectRatio(2f / 3f)
+            )
             .onFocusChanged { isFocused = it.isFocused }
             .border(
                 width = 2.dp,
@@ -501,79 +501,51 @@ private fun SearchCardItem(
             )
             .clip(RoundedCornerShape(12.dp))
             .clickable { onClick() }
-            .background(Surface3)
+            .background(Surface1),
+        contentAlignment = Alignment.Center
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .then(
-                    if (isLive) Modifier.height(80.dp) else Modifier.aspectRatio(2f / 3f)
-                )
-                .background(Surface1),
-            contentAlignment = Alignment.Center
-        ) {
-            if (!cover.isNullOrBlank()) {
-                AsyncImage(
-                    model = cover,
-                    contentDescription = name,
-                    contentScale = if (isLive) ContentScale.Fit else ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
-                )
-            } else {
-                Icon(
-                    imageVector = Icons.Default.PlayArrow,
-                    contentDescription = null,
-                    tint = Color.DarkGray,
-                    modifier = Modifier.size(32.dp)
-                )
-            }
+        if (!cover.isNullOrBlank()) {
+            AsyncImage(
+                model = cover,
+                contentDescription = name,
+                contentScale = if (isLive) ContentScale.Fit else ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+        } else {
+            Icon(
+                imageVector = Icons.Default.PlayArrow,
+                contentDescription = null,
+                tint = Color.DarkGray,
+                modifier = Modifier.size(32.dp)
+            )
         }
         if (!isLive) {
-            SearchCardMeta(year = year, rating = rating, modifier = Modifier.padding(horizontal = 6.dp, vertical = 5.dp))
+            SearchCardRatingBadge(rating = rating, modifier = Modifier.align(Alignment.TopEnd))
         }
     }
 }
 
 /**
- * Méta ligne "année · ★ note" affichée sous le titre des cartes Films/Séries
- * (docs/design-reference/screenshots/advanced-search-result.png). Masque
- * proprement chaque partie absente ; ne rend rien si les deux sont absentes.
+ * Badge de note en overlay coin supérieur droit de la vignette, iso reste de
+ * l'app (HomeCards.HomeVodMovieCard/HomeSeriesShowCard, VodScreen grille
+ * catégorie) : pas de ligne méta sous l'image, juste ce badge sur le poster.
  */
 @Composable
-private fun SearchCardMeta(
-    year: Int?,
-    rating: String?,
-    modifier: Modifier = Modifier
-) {
-    val ratingValue = rating?.trim()?.toDoubleOrNull()?.takeIf { it > 0 }
-    if (year == null && ratingValue == null) return
+private fun SearchCardRatingBadge(rating: String?, modifier: Modifier = Modifier) {
+    val cleanRating = rating?.trim()
+    if (cleanRating.isNullOrBlank() || cleanRating == "0" || cleanRating == "0.0") return
 
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = modifier) {
-        if (year != null) {
-            Text(
-                text = year.toString(),
-                fontFamily = HankenGrotesk,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Medium,
-                color = Color(0xFF9A9AA8)
-            )
-        }
-        if (year != null && ratingValue != null) {
-            Text(
-                text = " · ",
-                fontFamily = HankenGrotesk,
-                fontSize = 11.sp,
-                color = Color(0xFF9A9AA8)
-            )
-        }
-        if (ratingValue != null) {
-            Text(
-                text = "★ ${String.format(java.util.Locale.US, "%.1f", ratingValue)}",
-                fontFamily = HankenGrotesk,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Medium,
-                color = Color(0xFFE5A13A)
-            )
+    Box(
+        modifier = modifier
+            .padding(6.dp)
+            .clip(RoundedCornerShape(4.dp))
+            .background(Color(0xCC000000))
+            .padding(horizontal = 4.dp, vertical = 2.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Default.Star, contentDescription = null, tint = Color.Yellow, modifier = Modifier.size(10.dp))
+            Spacer(modifier = Modifier.width(2.dp))
+            Text(cleanRating, color = Color.White, fontSize = 8.sp, fontWeight = FontWeight.Bold)
         }
     }
 }

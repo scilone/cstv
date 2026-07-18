@@ -19,7 +19,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
@@ -112,6 +114,10 @@ fun AdvancedSearchSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                // Le contenu (catégorie/genres dépliés) peut dépasser la hauteur
+                // d'écran sur petits mobiles : sans scroll interne, le bouton
+                // "Voir les résultats" tombait hors-écran et devenait inatteignable.
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp)
                 .padding(bottom = 20.dp)
                 .focusGroup()
