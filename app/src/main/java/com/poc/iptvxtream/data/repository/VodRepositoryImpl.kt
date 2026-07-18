@@ -366,6 +366,12 @@ class VodRepositoryImpl @Inject constructor(
         return vodDao.getCategoryCounts().associate { it.categoryId to it.count }
     }
 
+    override suspend fun getReleaseYearBounds(): Pair<Int, Int>? {
+        val min = vodDao.getMinReleaseYear() ?: return null
+        val max = vodDao.getMaxReleaseYear() ?: return null
+        return min to max
+    }
+
     override suspend fun getRelatedMovies(
         currentStreamId: Int,
         genre: String?,

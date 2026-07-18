@@ -30,7 +30,16 @@ data class FavoritesUiState(
     val isFilterSheetOpen: Boolean = false,
     val availableGenres: List<String> = emptyList(),
     val availableCategories: List<CategoryWithCount> = emptyList(),
-    val filteredResultCount: Int = 0
+    val filteredResultCount: Int = 0,
+    // Bornes dynamiques (min/max réels du catalogue) affichées par le slider
+    // année tant qu'aucun filtre année explicite n'est choisi (yearRange
+    // null). Valeur de repli le temps du chargement initial (voir
+    // GetCatalogYearRangeUseCase).
+    val catalogYearRange: IntRange = 1980..2025,
+    // Passe à true dès que l'utilisateur clique "Voir les résultats" (même
+    // sans filtre ni texte saisi) : affiche alors tout le catalogue au lieu
+    // de l'invite initiale "Saisissez un mot-clé...".
+    val hasBrowsedAll: Boolean = false
 )
 
 @HiltViewModel
@@ -42,7 +51,8 @@ class FavoritesViewModel @Inject constructor(
     private val searchUnifiedUseCase: SearchUnifiedUseCase,
     private val getTopGenresUseCase: GetTopGenresUseCase,
     private val getCategoriesForTypeUseCase: GetCategoriesForTypeUseCase,
-    private val advancedCatalogSearchUseCase: AdvancedCatalogSearchUseCase
+    private val advancedCatalogSearchUseCase: AdvancedCatalogSearchUseCase,
+    private val getCatalogYearRangeUseCase: GetCatalogYearRangeUseCase
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(FavoritesUiState())
@@ -69,6 +79,15 @@ class FavoritesViewModel @Inject constructor(
                 emptyList()
             }
             _state.update { it.copy(availableGenres = topGenres) }
+        }
+        viewModelScope.launch {
+            val yearRange = try {
+                getCatalogYearRangeUseCase()
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                _state.value.catalogYearRange
+            }
+            _state.update { it.copy(catalogYearRange = yearRange) }
         }
     }
 
@@ -138,7 +157,13 @@ class FavoritesViewModel @Inject constructor(
 
     fun setYearRange(range: IntRange?) {
         _state.update { current ->
-            current.copy(advancedFilter = current.advancedFilter.copy(yearRange = range))
+            // Une sélection qui couvre tout le catalogue équivaut à "pas de
+            // filtre" : normalisée à null pour rester cohérente avec isEmpty
+            // et éviter un chip "actif" qui ne filtre en réalité rien.
+            val normalized = range?.takeUnless {
+                it.first <= current.catalogYearRange.first && it.last >= current.catalogYearRange.last
+            }
+            current.copy(advancedFilter = current.advancedFilter.copy(yearRange = normalized))
         }
         triggerRealtimeCount()
     }
@@ -166,8 +191,8 @@ class FavoritesViewModel @Inject constructor(
     }
 
     fun applyFilter() {
-        _state.update { it.copy(isFilterSheetOpen = false) }
-        performSearch(_state.value.searchQuery)
+        _state.update { it.copy(isFilterSheetOpen = false, hasBrowsedAll = true) }
+        performSearch(_state.value.searchQuery, force = true)
     }
 
     fun removeMediaTypeFilter() {
@@ -199,10 +224,7 @@ class FavoritesViewModel @Inject constructor(
 
     fun removeYearRangeFilter() {
         _state.update { current ->
-            val newFilter = current.advancedFilter.copy(
-                yearRange = AdvancedSearchFilter.DEFAULT_MIN_YEAR..AdvancedSearchFilter.DEFAULT_MAX_YEAR
-            )
-            current.copy(advancedFilter = newFilter)
+            current.copy(advancedFilter = current.advancedFilter.copy(yearRange = null))
         }
         triggerRealtimeCount()
         performSearch(_state.value.searchQuery)
@@ -235,10 +257,16 @@ class FavoritesViewModel @Inject constructor(
         }
     }
 
-    private fun performSearch(query: String) {
+    /**
+     * [force] = true court-circuite le repli "aucune query + aucun filtre =
+     * résultat vide" : utilisé par [applyFilter] (clic explicite "Voir les
+     * résultats"), où l'absence de filtre doit renvoyer tout le catalogue
+     * Films+Séries plutôt que rien.
+     */
+    private fun performSearch(query: String, force: Boolean = false) {
         searchJob?.cancel()
         val filter = _state.value.advancedFilter
-        if (query.trim().isBlank() && filter.isEmpty) {
+        if (!force && query.trim().isBlank() && filter.isEmpty) {
             _state.update { it.copy(searchResult = SearchResult(), isSearching = false) }
             return
         }

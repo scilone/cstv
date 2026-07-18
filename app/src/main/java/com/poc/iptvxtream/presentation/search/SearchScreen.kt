@@ -160,7 +160,7 @@ fun SearchScreen(
 
             // Filtres seuls autorisés : on n'affiche l'invite initiale que si aucun
             // texte n'est saisi ET aucun filtre avancé n'est actif.
-            if (state.searchQuery.trim().isBlank() && !state.advancedFilter.isActive) {
+            if (state.searchQuery.trim().isBlank() && !state.advancedFilter.isActive && !state.hasBrowsedAll) {
                 Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                     Text(stringResource(R.string.search_initial_prompt), color = Color.Gray, fontSize = 14.sp)
                 }
@@ -280,6 +280,7 @@ fun SearchScreen(
                 availableGenres = state.availableGenres,
                 availableCategories = state.availableCategories,
                 resultCount = state.filteredResultCount,
+                catalogYearRange = state.catalogYearRange,
                 isTv = isTv,
                 onMediaTypeSelected = { viewModel.setMediaType(it) },
                 onCategorySelected = { viewModel.setCategory(it) },
@@ -585,14 +586,13 @@ private fun ActiveFilterChipsRow(
             item { ActiveFilterChip(label = label, isTv = isTv, onRemove = onRemoveCategory) }
         }
         filter.minRating?.let { rating ->
-            item { ActiveFilterChip(label = "Note $rating+", isTv = isTv, onRemove = onRemoveMinRating) }
+            val label = if (rating >= 10) "Note 10" else "Note $rating+"
+            item { ActiveFilterChip(label = label, isTv = isTv, onRemove = onRemoveMinRating) }
         }
+        // yearRange non-null signifie déjà "resserré" : le VM normalise à null
+        // toute sélection qui couvre tout le catalogue (voir setYearRange).
         filter.yearRange?.let { range ->
-            val isFullRange = range.first <= com.poc.iptvxtream.domain.model.AdvancedSearchFilter.DEFAULT_MIN_YEAR &&
-                range.last >= com.poc.iptvxtream.domain.model.AdvancedSearchFilter.DEFAULT_MAX_YEAR
-            if (!isFullRange) {
-                item { ActiveFilterChip(label = "${range.first}–${range.last}", isTv = isTv, onRemove = onRemoveYearRange) }
-            }
+            item { ActiveFilterChip(label = "${range.first}–${range.last}", isTv = isTv, onRemove = onRemoveYearRange) }
         }
         items(filter.genres.toList()) { genre ->
             ActiveFilterChip(label = genre, isTv = isTv, onRemove = { onRemoveGenre(genre) })

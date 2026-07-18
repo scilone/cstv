@@ -305,6 +305,12 @@ class SeriesRepositoryImpl @Inject constructor(
         return seriesDao.getCategoryCounts().associate { it.categoryId to it.count }
     }
 
+    override suspend fun getReleaseYearBounds(): Pair<Int, Int>? {
+        val min = seriesDao.getMinReleaseYear() ?: return null
+        val max = seriesDao.getMaxReleaseYear() ?: return null
+        return min to max
+    }
+
     override suspend fun getRelatedSeries(
         currentSeriesId: Int,
         genre: String?,

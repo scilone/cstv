@@ -78,6 +78,15 @@ interface VodDao {
     @Query("SELECT * FROM vod_streams WHERE genre LIKE :pattern")
     suspend fun getStreamsByGenre(pattern: String): List<VodStreamEntity>
 
+    // Bornes dynamiques du filtre "année de sortie" (Recherche avancée) :
+    // releaseYear = 0 est la sentinelle "vérifié mais année inconnue" (voir
+    // ReleaseYearParser), exclue ici comme dans le mapping domain (0 -> null).
+    @Query("SELECT MIN(releaseYear) FROM vod_streams WHERE releaseYear IS NOT NULL AND releaseYear > 0")
+    suspend fun getMinReleaseYear(): Int?
+
+    @Query("SELECT MAX(releaseYear) FROM vod_streams WHERE releaseYear IS NOT NULL AND releaseYear > 0")
+    suspend fun getMaxReleaseYear(): Int?
+
     // --- Playback Positions (Resume) ---
     @Query("SELECT * FROM playback_positions WHERE profileId = :profileId ORDER BY lastAccessedAt DESC")
     suspend fun getAllPlaybackPositions(profileId: Int): List<PlaybackPositionEntity>

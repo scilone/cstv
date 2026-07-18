@@ -32,6 +32,13 @@ interface SeriesRepository {
     suspend fun getCategoryCounts(): Map<String, Int>
 
     /**
+     * Bornes (année min, année max) des séries dont l'année de sortie est
+     * connue en cache, ou `null` si aucune série enrichie n'en a une.
+     * Alimente le filtre "année de sortie" de la Recherche avancée.
+     */
+    suspend fun getReleaseYearBounds(): Pair<Int, Int>?
+
+    /**
      * Séries « associées » à [currentSeriesId] : partageant au moins un genre
      * (parsé depuis [genre]), triées par nombre de genres communs décroissant
      * puis par score (note + date d'ajout). Vide si aucun genre exploitable ou

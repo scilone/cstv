@@ -36,6 +36,14 @@ interface VodRepository {
     suspend fun getCategoryCounts(): Map<String, Int>
 
     /**
+     * Bornes (année min, année max) des films dont l'année de sortie est
+     * connue en cache, ou `null` si aucun film enrichi n'en a une (catalogue
+     * pas encore synchronisé/enrichi). Alimente le filtre "année de sortie"
+     * de la Recherche avancée.
+     */
+    suspend fun getReleaseYearBounds(): Pair<Int, Int>?
+
+    /**
      * Enrichit (acteurs/réalisateur/genre) les films qui en manquent encore,
      * par lots successifs jusqu'à [maxBatches] ou jusqu'à ce que le catalogue
      * soit à jour. Contrairement au trickle paresseux déclenché par une simple

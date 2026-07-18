@@ -42,6 +42,9 @@ class FavoritesViewModelTest {
     @Mock
     private lateinit var advancedCatalogSearchUseCase: AdvancedCatalogSearchUseCase
 
+    @Mock
+    private lateinit var getCatalogYearRangeUseCase: GetCatalogYearRangeUseCase
+
     private val testDispatcher = StandardTestDispatcher()
     private lateinit var viewModel: FavoritesViewModel
 
@@ -53,6 +56,7 @@ class FavoritesViewModelTest {
         whenever(observeFavoritesUseCase()).thenReturn(flowOf(emptyList()))
         whenever(getTopGenresUseCase()).thenReturn(listOf("Action", "Comedy"))
         whenever(getCategoriesForTypeUseCase(anyOrNull())).thenReturn(listOf(CategoryWithCount("all", "Toutes les catégories", 10)))
+        whenever(getCatalogYearRangeUseCase()).thenReturn(1990..2024)
         whenever(advancedCatalogSearchUseCase(anyOrNull(), any())).thenReturn(
             SearchResult(
                 vodResults = listOf(VodStream(1, "Movie A", null, null, null, "cat1")),
@@ -68,7 +72,8 @@ class FavoritesViewModelTest {
             searchUnifiedUseCase,
             getTopGenresUseCase,
             getCategoriesForTypeUseCase,
-            advancedCatalogSearchUseCase
+            advancedCatalogSearchUseCase,
+            getCatalogYearRangeUseCase
         )
         runCurrent()
     }
@@ -85,6 +90,7 @@ class FavoritesViewModelTest {
         assertEquals(listOf("Action", "Comedy"), state.availableGenres)
         assertFalse(state.isFilterSheetOpen)
         assertEquals(0, state.filteredResultCount)
+        assertEquals(1990..2024, state.catalogYearRange)
     }
 
     @Test
@@ -140,6 +146,15 @@ class FavoritesViewModelTest {
     }
 
     @Test
+    fun test_setYearRange_fullCatalogRange_normalizesToNull() = runTest(testDispatcher) {
+        // catalogYearRange mocké à 1990..2024 (voir setUp) : une sélection qui
+        // couvre tout le catalogue équivaut à "pas de filtre".
+        viewModel.setYearRange(1990..2024)
+        assertNull(viewModel.state.value.advancedFilter.yearRange)
+        assertTrue(viewModel.state.value.advancedFilter.isEmpty)
+    }
+
+    @Test
     fun test_toggleGenre_triggersRealtimeCount() = runTest(testDispatcher) {
         viewModel.toggleGenre("Action")
         assertEquals(setOf("Action"), viewModel.state.value.advancedFilter.genres)
@@ -182,6 +197,23 @@ class FavoritesViewModelTest {
         runCurrent()
 
         verify(advancedCatalogSearchUseCase, atLeastOnce()).invoke(anyOrNull(), any())
+    }
+
+    @Test
+    fun test_applyFilter_withNoFilterAndNoQuery_browsesAllCatalog() = runTest(testDispatcher) {
+        // Aucun filtre actif, aucune query : cliquer "Voir les résultats" doit
+        // quand même renvoyer tout le catalogue (Films+Séries), pas rien.
+        assertTrue(viewModel.state.value.advancedFilter.isEmpty)
+        assertEquals("", viewModel.state.value.searchQuery)
+
+        viewModel.applyFilter()
+        advanceTimeBy(400)
+        runCurrent()
+
+        assertTrue(viewModel.state.value.hasBrowsedAll)
+        assertFalse(viewModel.state.value.searchResult.isEmpty)
+        assertEquals(1, viewModel.state.value.searchResult.vodResults.size)
+        assertEquals(1, viewModel.state.value.searchResult.seriesResults.size)
     }
 
     @Test

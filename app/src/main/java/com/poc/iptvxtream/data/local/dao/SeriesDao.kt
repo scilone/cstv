@@ -69,4 +69,12 @@ interface SeriesDao {
     // Préfiltre SQL des « titres associés » (Phase 60) : voir VodDao.getStreamsByGenre.
     @Query("SELECT * FROM series_streams WHERE genre LIKE :pattern")
     suspend fun getStreamsByGenre(pattern: String): List<SeriesStreamEntity>
+
+    // Bornes dynamiques du filtre "année de sortie" (Recherche avancée) : voir
+    // VodDao.getMinReleaseYear/getMaxReleaseYear (0 = sentinelle exclue).
+    @Query("SELECT MIN(releaseYear) FROM series_streams WHERE releaseYear IS NOT NULL AND releaseYear > 0")
+    suspend fun getMinReleaseYear(): Int?
+
+    @Query("SELECT MAX(releaseYear) FROM series_streams WHERE releaseYear IS NOT NULL AND releaseYear > 0")
+    suspend fun getMaxReleaseYear(): Int?
 }

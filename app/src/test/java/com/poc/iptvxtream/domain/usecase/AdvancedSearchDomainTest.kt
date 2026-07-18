@@ -42,7 +42,7 @@ class AdvancedSearchDomainTest {
         val filter = AdvancedSearchFilter.DEFAULT
         assertTrue(filter.isEmpty)
         assertFalse(filter.isActive)
-        assertEquals(1980..2025, filter.yearRange)
+        assertNull(filter.yearRange)
         assertNull(filter.mediaType)
         assertNull(filter.categoryId)
         assertNull(filter.minRating)
@@ -173,9 +173,10 @@ class AdvancedSearchDomainTest {
 
     @Test
     fun test_defaultRange_doesNotExcludeUnknownOrOutOfBoundsYears() = runTest {
-        // Non-régression : la plage par défaut (1980..2025) = "toutes les années".
-        // Elle NE DOIT PAS filtrer les items non enrichis (releaseYear null) ni
-        // hors bornes (1975), sinon le compteur total serait faussé.
+        // Non-régression : yearRange = null (DEFAULT) = "toutes les années",
+        // pas de filtre appliqué. Ne doit pas filtrer les items non enrichis
+        // (releaseYear null) ni les items anciens (1975), sinon le compteur
+        // total serait faussé.
         val vodList = listOf(
             VodStream(1, "Not enriched yet", null, "8.0", null, "cat1", genre = null, releaseYear = null),
             VodStream(2, "Old classic", null, "8.0", "1975", "cat1", genre = "Drama", releaseYear = 1975),
@@ -193,5 +194,26 @@ class AdvancedSearchDomainTest {
         val narrowedResult = advancedCatalogSearchUseCase("", narrowed)
         assertEquals(1, narrowedResult.vodResults.size)
         assertEquals(3, narrowedResult.vodResults[0].streamId)
+    }
+
+    @Test
+    fun test_multipleGenres_useAndLogicNotOr() = runTest {
+        // "Action" seul matche 2 films, "Comédie" seul matche 2 films, mais
+        // seul un film a LES DEUX -> la sélection combinée doit filtrer en ET.
+        val vodList = listOf(
+            VodStream(1, "Action only", null, null, null, "cat1", genre = "Action"),
+            VodStream(2, "Comedy only", null, null, null, "cat1", genre = "Comédie"),
+            VodStream(3, "Action + Comedy", null, null, null, "cat1", genre = "Action, Comédie"),
+            VodStream(4, "Neither", null, null, null, "cat1", genre = "Drame")
+        )
+        whenever(vodRepository.getVodStreams(eq("all"), eq(false))).thenReturn(vodList)
+        whenever(seriesRepository.getSeriesStreams(eq("all"), eq(false))).thenReturn(emptyList())
+        whenever(categoryPreferenceRepository.getPreferences(any())).thenReturn(emptyMap())
+
+        val filter = AdvancedSearchFilter.DEFAULT.copy(genres = setOf("Action", "Comédie"))
+        val result = advancedCatalogSearchUseCase("", filter)
+
+        assertEquals(1, result.vodResults.size)
+        assertEquals(3, result.vodResults[0].streamId)
     }
 }

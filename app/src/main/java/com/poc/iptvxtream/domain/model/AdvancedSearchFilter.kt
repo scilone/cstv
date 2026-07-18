@@ -1,5 +1,12 @@
 package com.poc.iptvxtream.domain.model
 
+/**
+ * [yearRange] = `null` signifie "pas de filtre année" (comme [categoryId] ou
+ * [minRating]), et non une plage par défaut fixe : les bornes réelles
+ * (min/max du catalogue) sont dynamiques et calculées par
+ * [com.poc.iptvxtream.domain.usecase.GetCatalogYearRangeUseCase], pas codées
+ * en dur ici.
+ */
 data class AdvancedSearchFilter(
     val mediaType: SearchMediaType?,
     val categoryId: String?,
@@ -11,7 +18,7 @@ data class AdvancedSearchFilter(
         get() = mediaType == null &&
                 categoryId == null &&
                 minRating == null &&
-                (yearRange == null || (yearRange.first == DEFAULT_MIN_YEAR && yearRange.last == DEFAULT_MAX_YEAR)) &&
+                yearRange == null &&
                 genres.isEmpty()
 
     val isActive: Boolean
@@ -29,14 +36,11 @@ data class AdvancedSearchFilter(
     }
 
     companion object {
-        const val DEFAULT_MIN_YEAR = 1980
-        const val DEFAULT_MAX_YEAR = 2025
-
         val DEFAULT = AdvancedSearchFilter(
             mediaType = null,
             categoryId = null,
             minRating = null,
-            yearRange = DEFAULT_MIN_YEAR..DEFAULT_MAX_YEAR,
+            yearRange = null,
             genres = emptySet()
         )
     }

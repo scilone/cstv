@@ -85,25 +85,21 @@ class AdvancedCatalogSearchUseCase @Inject constructor(
             }
         }
 
-        // Apply yearRange — UNIQUEMENT si l'utilisateur a resserré la plage.
-        // La plage par défaut (1980..2025) = "toutes les années" : ne doit pas
-        // exclure les items non enrichis (releaseYear null) ni hors bornes,
-        // sinon la navigation par défaut et le compteur total seraient faussés.
-        val yr = filter.yearRange
-        val yearActive = yr != null &&
-            (yr.first > AdvancedSearchFilter.DEFAULT_MIN_YEAR || yr.last < AdvancedSearchFilter.DEFAULT_MAX_YEAR)
-        if (yearActive) {
-            vodFiltered = vodFiltered.filter { it.releaseYear != null && it.releaseYear in yr!! }
-            seriesFiltered = seriesFiltered.filter { it.releaseYear != null && it.releaseYear in yr!! }
+        // Apply yearRange — null = pas de filtre (voir AdvancedSearchFilter).
+        // Les items non enrichis (releaseYear null) ne sont exclus QUE si un
+        // filtre année est explicitement actif.
+        filter.yearRange?.let { yr ->
+            vodFiltered = vodFiltered.filter { it.releaseYear != null && it.releaseYear in yr }
+            seriesFiltered = seriesFiltered.filter { it.releaseYear != null && it.releaseYear in yr }
         }
 
-        // Apply genres (OR logic)
+        // Apply genres (AND logic : l'item doit contenir TOUS les genres sélectionnés)
         if (filter.genres.isNotEmpty()) {
             vodFiltered = vodFiltered.filter { stream ->
-                filter.genres.any { selectedGenre -> GenreParser.matches(stream.genre, selectedGenre) }
+                filter.genres.all { selectedGenre -> GenreParser.matches(stream.genre, selectedGenre) }
             }
             seriesFiltered = seriesFiltered.filter { stream ->
-                filter.genres.any { selectedGenre -> GenreParser.matches(stream.genre, selectedGenre) }
+                filter.genres.all { selectedGenre -> GenreParser.matches(stream.genre, selectedGenre) }
             }
         }
 

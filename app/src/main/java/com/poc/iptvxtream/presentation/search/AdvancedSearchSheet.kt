@@ -91,6 +91,7 @@ fun AdvancedSearchSheet(
     availableGenres: List<String>,
     availableCategories: List<CategoryWithCount>,
     resultCount: Int,
+    catalogYearRange: IntRange,
     isTv: Boolean = false,
     onMediaTypeSelected: (SearchMediaType?) -> Unit,
     onCategorySelected: (String?) -> Unit,
@@ -201,14 +202,16 @@ fun AdvancedSearchSheet(
                 modifier = Modifier.fillMaxWidth().padding(bottom = 20.dp)
             ) {
                 RatingChip("Toutes", filter.minRating == null, isTv, { onMinRatingSelected(null) }, Modifier.weight(1f))
-                listOf(6, 7, 8, 9).forEach { r ->
+                listOf(7, 8, 9).forEach { r ->
                     RatingChip("$r+", filter.minRating == r, isTv, { onMinRatingSelected(r) }, Modifier.weight(1f))
                 }
+                RatingChip("10", filter.minRating == 10, isTv, { onMinRatingSelected(10) }, Modifier.weight(1f))
             }
 
             // --- Année de sortie ---
             YearRangeSection(
-                yearRange = filter.yearRange ?: (AdvancedSearchFilter.DEFAULT_MIN_YEAR..AdvancedSearchFilter.DEFAULT_MAX_YEAR),
+                yearRange = filter.yearRange ?: catalogYearRange,
+                catalogYearRange = catalogYearRange,
                 isTv = isTv,
                 onYearRangeChanged = onYearRangeChanged
             )
@@ -523,11 +526,12 @@ private fun GenreChip(
 @Composable
 private fun YearRangeSection(
     yearRange: IntRange,
+    catalogYearRange: IntRange,
     isTv: Boolean,
     onYearRangeChanged: (IntRange) -> Unit
 ) {
-    val min = AdvancedSearchFilter.DEFAULT_MIN_YEAR
-    val max = AdvancedSearchFilter.DEFAULT_MAX_YEAR
+    val min = catalogYearRange.first
+    val max = catalogYearRange.last
     val isFullRange = yearRange.first <= min && yearRange.last >= max
 
     Row(
