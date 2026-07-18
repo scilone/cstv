@@ -21,6 +21,7 @@
     <string name="search_placeholder">Rechercher des chaînes, films, séries...</string>
     <string name="search_initial_prompt">Saisissez un mot-clé pour lancer la recherche locale.</string>
     <string name="search_no_results">Aucun résultat trouvé pour « %1$s ».</string>
+    <string name="search_advanced_open">Recherche avancée</string>
     <string name="search_channels">Chaînes en direct</string>
     <string name="search_movies">Films VOD</string>
     <string name="search_series">Séries</string>

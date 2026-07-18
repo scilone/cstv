@@ -18,6 +18,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -111,9 +112,30 @@ fun SearchScreen(
                     ),
                     modifier = Modifier.weight(1f)
                 )
+
+                Spacer(modifier = Modifier.width(12.dp))
+
+                // Bouton "Recherche avancée" : ouvre la bottom sheet de filtres.
+                // État actif (fond lavande plein) quand au moins un filtre est appliqué.
+                val filterActive = state.advancedFilter.isActive
+                IconButton(
+                    onClick = { viewModel.setFilterSheetOpen(true) },
+                    modifier = Modifier.background(
+                        color = if (filterActive) AccentLavande else Color(0x33FFFFFF),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                ) {
+                    Icon(
+                        Icons.Default.Tune,
+                        contentDescription = stringResource(R.string.search_advanced_open),
+                        tint = if (filterActive) Color(0xFF17131F) else Color.White
+                    )
+                }
             }
 
-            if (state.searchQuery.trim().isBlank()) {
+            // Filtres seuls autorisés : on n'affiche l'invite initiale que si aucun
+            // texte n'est saisi ET aucun filtre avancé n'est actif.
+            if (state.searchQuery.trim().isBlank() && !state.advancedFilter.isActive) {
                 Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                     Text(stringResource(R.string.search_initial_prompt), color = Color.Gray, fontSize = 14.sp)
                 }
@@ -223,6 +245,23 @@ fun SearchScreen(
                     }
                 }
             }
+        }
+
+        if (state.isFilterSheetOpen) {
+            AdvancedSearchSheet(
+                filter = state.advancedFilter,
+                availableGenres = state.availableGenres,
+                availableCategories = state.availableCategories,
+                resultCount = state.filteredResultCount,
+                onMediaTypeSelected = { viewModel.setMediaType(it) },
+                onCategorySelected = { viewModel.setCategory(it) },
+                onMinRatingSelected = { viewModel.setMinRating(it) },
+                onYearRangeChanged = { viewModel.setYearRange(it) },
+                onGenreToggled = { viewModel.toggleGenre(it) },
+                onReset = { viewModel.resetFilter() },
+                onApply = { viewModel.applyFilter() },
+                onDismiss = { viewModel.setFilterSheetOpen(false) }
+            )
         }
     }
 }
