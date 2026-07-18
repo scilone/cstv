@@ -139,6 +139,7 @@ fun SearchScreen(
                 ActiveFilterChipsRow(
                     filter = state.advancedFilter,
                     availableCategories = state.availableCategories,
+                    isTv = isTv,
                     onRemoveMediaType = { viewModel.removeMediaTypeFilter() },
                     onRemoveCategory = { viewModel.removeCategoryFilter() },
                     onRemoveMinRating = { viewModel.removeMinRatingFilter() },
@@ -272,6 +273,7 @@ fun SearchScreen(
                 availableGenres = state.availableGenres,
                 availableCategories = state.availableCategories,
                 resultCount = state.filteredResultCount,
+                isTv = isTv,
                 onMediaTypeSelected = { viewModel.setMediaType(it) },
                 onCategorySelected = { viewModel.setCategory(it) },
                 onMinRatingSelected = { viewModel.setMinRating(it) },
@@ -584,6 +586,7 @@ private fun SearchCardMeta(
 private fun ActiveFilterChipsRow(
     filter: com.poc.iptvxtream.domain.model.AdvancedSearchFilter,
     availableCategories: List<com.poc.iptvxtream.domain.model.CategoryWithCount>,
+    isTv: Boolean,
     onRemoveMediaType: () -> Unit,
     onRemoveCategory: () -> Unit,
     onRemoveMinRating: () -> Unit,
@@ -596,46 +599,61 @@ private fun ActiveFilterChipsRow(
 
     LazyRow(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
-        modifier = modifier.fillMaxWidth()
+        modifier = modifier.fillMaxWidth().focusGroup()
     ) {
         filter.mediaType?.let { type ->
             val label = when (type) {
                 com.poc.iptvxtream.domain.model.SearchMediaType.FILM -> filmLabel
                 com.poc.iptvxtream.domain.model.SearchMediaType.SERIE -> seriesLabel
             }
-            item { ActiveFilterChip(label = label, onRemove = onRemoveMediaType) }
+            item { ActiveFilterChip(label = label, isTv = isTv, onRemove = onRemoveMediaType) }
         }
         filter.categoryId?.let { categoryId ->
             val label = availableCategories.firstOrNull { it.id == categoryId }?.name ?: categoryId
-            item { ActiveFilterChip(label = label, onRemove = onRemoveCategory) }
+            item { ActiveFilterChip(label = label, isTv = isTv, onRemove = onRemoveCategory) }
         }
         filter.minRating?.let { rating ->
-            item { ActiveFilterChip(label = "Note $rating+", onRemove = onRemoveMinRating) }
+            item { ActiveFilterChip(label = "Note $rating+", isTv = isTv, onRemove = onRemoveMinRating) }
         }
         filter.yearRange?.let { range ->
             val isFullRange = range.first <= com.poc.iptvxtream.domain.model.AdvancedSearchFilter.DEFAULT_MIN_YEAR &&
                 range.last >= com.poc.iptvxtream.domain.model.AdvancedSearchFilter.DEFAULT_MAX_YEAR
             if (!isFullRange) {
-                item { ActiveFilterChip(label = "${range.first}–${range.last}", onRemove = onRemoveYearRange) }
+                item { ActiveFilterChip(label = "${range.first}–${range.last}", isTv = isTv, onRemove = onRemoveYearRange) }
             }
         }
         items(filter.genres.toList()) { genre ->
-            ActiveFilterChip(label = genre, onRemove = { onRemoveGenre(genre) })
+            ActiveFilterChip(label = genre, isTv = isTv, onRemove = { onRemoveGenre(genre) })
         }
     }
 }
 
+/**
+ * Chip de filtre actif supprimable. Sur mobile, seule la croix est cliquable
+ * (précision au doigt). Sur TV, tout le chip est UNE seule cible de focus
+ * D-pad — un focus dédié à la croix de 16dp serait trop petit/impraticable —
+ * et la sélection (OK/Entrée) retire directement le filtre.
+ */
 @Composable
 private fun ActiveFilterChip(
     label: String,
+    isTv: Boolean,
     onRemove: () -> Unit
 ) {
+    var isFocused by remember { mutableStateOf(false) }
+    val shape = RoundedCornerShape(20.dp)
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
-            .clip(RoundedCornerShape(20.dp))
+            .onFocusChanged { isFocused = it.isFocused }
+            .clip(shape)
             .background(AccentLavande.copy(alpha = 0.16f))
-            .border(1.dp, AccentLavande.copy(alpha = 0.4f), RoundedCornerShape(20.dp))
+            .border(1.dp, AccentLavande.copy(alpha = 0.4f), shape)
+            .then(
+                if (isTv) Modifier.border(3.dp, if (isFocused) AccentLavande else Color.Transparent, shape)
+                else Modifier
+            )
+            .then(if (isTv) Modifier.clickable { onRemove() } else Modifier)
             .padding(start = 12.dp, end = 8.dp, top = 6.dp, bottom = 6.dp)
     ) {
         Text(
@@ -654,7 +672,7 @@ private fun ActiveFilterChip(
             modifier = Modifier
                 .size(16.dp)
                 .clip(RoundedCornerShape(50))
-                .clickable { onRemove() }
+                .then(if (!isTv) Modifier.clickable { onRemove() } else Modifier)
         )
     }
 }

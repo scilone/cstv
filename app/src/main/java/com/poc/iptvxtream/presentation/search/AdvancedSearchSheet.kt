@@ -3,6 +3,7 @@ package com.poc.iptvxtream.presentation.search
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,9 +21,11 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
@@ -38,6 +41,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -56,8 +60,12 @@ import com.poc.iptvxtream.presentation.theme.TextPrimary
 import com.poc.iptvxtream.presentation.theme.TextSecondary
 import kotlin.math.roundToInt
 
+// Couleur de bordure de focus D-pad, iso reste de l'app (SearchGridCard,
+// SearchCardItem) : accent lavande, contraste WCAG AA sur fond Surface3/1.
+private val FocusRingColor = AccentLavande
+
 /**
- * Bottom sheet « Recherche avancée » (mobile), iso-maquettes
+ * Bottom sheet « Recherche avancée », iso-maquettes
  * docs/design-reference/screenshots/advanced-search-{filters-open-empty,
  * filters-open-some-selected,type-none,category-closed,category-open}.png.
  *
@@ -68,6 +76,11 @@ import kotlin.math.roundToInt
  * Type de média = choix **exclusif** (Film XOR Série, ou aucun). Tant qu'aucun
  * type n'est choisi, le dropdown catégorie est désactivé (« Choisir un type
  * d'abord »).
+ *
+ * [isTv] adapte la navigation D-pad : chaque contrôle devient focusable avec
+ * un anneau de focus contrasté, et le RangeSlider (non focusable/traversable
+ * de façon fiable au D-pad, et absent de tv-material) est remplacé par des
+ * steppers +/- pour la borne min et la borne max de l'année de sortie.
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -76,6 +89,7 @@ fun AdvancedSearchSheet(
     availableGenres: List<String>,
     availableCategories: List<CategoryWithCount>,
     resultCount: Int,
+    isTv: Boolean = false,
     onMediaTypeSelected: (SearchMediaType?) -> Unit,
     onCategorySelected: (String?) -> Unit,
     onMinRatingSelected: (Int?) -> Unit,
@@ -100,6 +114,7 @@ fun AdvancedSearchSheet(
                 .fillMaxWidth()
                 .padding(horizontal = 20.dp)
                 .padding(bottom = 20.dp)
+                .focusGroup()
         ) {
             // --- En-tête ---
             Row(
@@ -115,19 +130,12 @@ fun AdvancedSearchSheet(
                     color = TextPrimary,
                     modifier = Modifier.weight(1f)
                 )
-                Text(
+                FocusableLink(
                     text = "Réinitialiser",
-                    fontFamily = HankenGrotesk,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 14.sp,
-                    color = AccentLavande,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(6.dp))
-                        .clickable {
-                            categoryExpanded = false
-                            onReset()
-                        }
-                        .padding(horizontal = 4.dp, vertical = 2.dp)
+                    onClick = {
+                        categoryExpanded = false
+                        onReset()
+                    }
                 )
             }
 
@@ -140,6 +148,7 @@ fun AdvancedSearchSheet(
                 MediaTypeChip(
                     label = "Film",
                     selected = filter.mediaType == SearchMediaType.FILM,
+                    isTv = isTv,
                     onClick = {
                         categoryExpanded = false
                         onMediaTypeSelected(
@@ -151,6 +160,7 @@ fun AdvancedSearchSheet(
                 MediaTypeChip(
                     label = "Série",
                     selected = filter.mediaType == SearchMediaType.SERIE,
+                    isTv = isTv,
                     onClick = {
                         categoryExpanded = false
                         onMediaTypeSelected(
@@ -167,6 +177,7 @@ fun AdvancedSearchSheet(
                 selectedCategoryId = filter.categoryId,
                 categories = availableCategories,
                 expanded = categoryExpanded,
+                isTv = isTv,
                 onToggleExpanded = { categoryExpanded = !categoryExpanded },
                 onSelect = { id ->
                     categoryExpanded = false
@@ -183,15 +194,16 @@ fun AdvancedSearchSheet(
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 modifier = Modifier.fillMaxWidth().padding(bottom = 20.dp)
             ) {
-                RatingChip("Toutes", filter.minRating == null, { onMinRatingSelected(null) }, Modifier.weight(1f))
+                RatingChip("Toutes", filter.minRating == null, isTv, { onMinRatingSelected(null) }, Modifier.weight(1f))
                 listOf(6, 7, 8, 9).forEach { r ->
-                    RatingChip("$r+", filter.minRating == r, { onMinRatingSelected(r) }, Modifier.weight(1f))
+                    RatingChip("$r+", filter.minRating == r, isTv, { onMinRatingSelected(r) }, Modifier.weight(1f))
                 }
             }
 
             // --- Année de sortie ---
             YearRangeSection(
                 yearRange = filter.yearRange ?: (AdvancedSearchFilter.DEFAULT_MIN_YEAR..AdvancedSearchFilter.DEFAULT_MAX_YEAR),
+                isTv = isTv,
                 onYearRangeChanged = onYearRangeChanged
             )
 
@@ -209,6 +221,7 @@ fun AdvancedSearchSheet(
                         GenreChip(
                             label = genre,
                             selected = genre in filter.genres,
+                            isTv = isTv,
                             onClick = { onGenreToggled(genre) }
                         )
                     }
@@ -216,12 +229,21 @@ fun AdvancedSearchSheet(
             }
 
             // --- Bouton résultats ---
+            var applyFocused by remember { mutableStateOf(false) }
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
                     .fillMaxWidth()
+                    .onFocusChanged { applyFocused = it.isFocused }
                     .clip(RoundedCornerShape(16.dp))
                     .background(AccentLavande)
+                    .then(
+                        if (isTv) Modifier.border(
+                            3.dp,
+                            if (applyFocused) Color.White else Color.Transparent,
+                            RoundedCornerShape(16.dp)
+                        ) else Modifier
+                    )
                     .clickable { onApply() }
                     .padding(vertical = 16.dp)
             ) {
@@ -251,22 +273,51 @@ private fun SectionLabel(text: String) {
 }
 
 @Composable
+private fun FocusableLink(text: String, onClick: () -> Unit) {
+    var isFocused by remember { mutableStateOf(false) }
+    Text(
+        text = text,
+        fontFamily = HankenGrotesk,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 14.sp,
+        color = if (isFocused) Color.White else AccentLavande,
+        modifier = Modifier
+            .onFocusChanged { isFocused = it.isFocused }
+            .clip(RoundedCornerShape(6.dp))
+            .then(
+                if (isFocused) Modifier.background(AccentLavande.copy(alpha = 0.25f)) else Modifier
+            )
+            .clickable { onClick() }
+            .padding(horizontal = 6.dp, vertical = 4.dp)
+    )
+}
+
+/** Bordure de focus D-pad commune à tous les contrôles de la sheet (TV uniquement). */
+private fun Modifier.tvFocusRing(isTv: Boolean, isFocused: Boolean, shape: RoundedCornerShape) =
+    if (isTv) this.border(3.dp, if (isFocused) FocusRingColor else Color.Transparent, shape) else this
+
+@Composable
 private fun MediaTypeChip(
     label: String,
     selected: Boolean,
+    isTv: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var isFocused by remember { mutableStateOf(false) }
+    val shape = RoundedCornerShape(12.dp)
     Box(
         contentAlignment = Alignment.Center,
         modifier = modifier
-            .clip(RoundedCornerShape(12.dp))
+            .onFocusChanged { isFocused = it.isFocused }
+            .clip(shape)
             .background(if (selected) AccentLavande else Surface3)
             .border(
                 1.dp,
                 if (selected) Color.Transparent else Color.White.copy(alpha = 0.10f),
-                RoundedCornerShape(12.dp)
+                shape
             )
+            .tvFocusRing(isTv, isFocused, shape)
             .clickable { onClick() }
             .padding(vertical = 16.dp)
     ) {
@@ -286,6 +337,7 @@ private fun CategoryDropdown(
     selectedCategoryId: String?,
     categories: List<CategoryWithCount>,
     expanded: Boolean,
+    isTv: Boolean,
     onToggleExpanded: () -> Unit,
     onSelect: (String) -> Unit
 ) {
@@ -295,20 +347,24 @@ private fun CategoryDropdown(
         else -> categories.firstOrNull { it.id == selectedCategoryId }?.name ?: "Toutes les catégories"
     }
     val isOpen = enabled && expanded
+    var triggerFocused by remember { mutableStateOf(false) }
+    val triggerShape = RoundedCornerShape(12.dp)
 
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
+                .onFocusChanged { triggerFocused = it.isFocused }
+                .clip(triggerShape)
                 .then(if (enabled) Modifier.clickable { onToggleExpanded() } else Modifier)
                 .background(Surface3)
                 .border(
                     1.dp,
                     if (isOpen) AccentLavande.copy(alpha = 0.6f) else Color.White.copy(alpha = 0.10f),
-                    RoundedCornerShape(12.dp)
+                    triggerShape
                 )
+                .tvFocusRing(isTv && enabled, triggerFocused, triggerShape)
                 .padding(horizontal = 14.dp, vertical = 14.dp)
         ) {
             Text(
@@ -329,7 +385,7 @@ private fun CategoryDropdown(
             )
         }
 
-        // Liste déroulante inline (façon maquette category-open).
+        // Liste déroulante inline (façon maquette category-open), focusable au D-pad.
         if (isOpen) {
             LazyColumn(
                 modifier = Modifier
@@ -339,13 +395,19 @@ private fun CategoryDropdown(
                     .clip(RoundedCornerShape(12.dp))
                     .background(Surface1)
                     .padding(vertical = 4.dp)
+                    .focusGroup()
             ) {
                 items(categories, key = { it.id }) { cat ->
                     val isSelected = (cat.id == "all" && selectedCategoryId == null) || cat.id == selectedCategoryId
+                    var rowFocused by remember { mutableStateOf(false) }
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier
                             .fillMaxWidth()
+                            .onFocusChanged { rowFocused = it.isFocused }
+                            .then(
+                                if (isTv && rowFocused) Modifier.background(AccentLavande.copy(alpha = 0.18f)) else Modifier
+                            )
                             .clickable { onSelect(cat.id) }
                             .padding(horizontal = 14.dp, vertical = 13.dp)
                     ) {
@@ -386,19 +448,24 @@ private fun CategoryDropdown(
 private fun RatingChip(
     label: String,
     selected: Boolean,
+    isTv: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var isFocused by remember { mutableStateOf(false) }
+    val shape = RoundedCornerShape(12.dp)
     Box(
         contentAlignment = Alignment.Center,
         modifier = modifier
-            .clip(RoundedCornerShape(12.dp))
+            .onFocusChanged { isFocused = it.isFocused }
+            .clip(shape)
             .background(if (selected) AccentLavande else Surface3)
             .border(
                 1.dp,
                 if (selected) Color.Transparent else Color.White.copy(alpha = 0.08f),
-                RoundedCornerShape(12.dp)
+                shape
             )
+            .tvFocusRing(isTv, isFocused, shape)
             .clickable { onClick() }
             .padding(vertical = 14.dp)
     ) {
@@ -417,17 +484,22 @@ private fun RatingChip(
 private fun GenreChip(
     label: String,
     selected: Boolean,
+    isTv: Boolean,
     onClick: () -> Unit
 ) {
+    var isFocused by remember { mutableStateOf(false) }
+    val shape = RoundedCornerShape(20.dp)
     Box(
         modifier = Modifier
-            .clip(RoundedCornerShape(20.dp))
+            .onFocusChanged { isFocused = it.isFocused }
+            .clip(shape)
             .background(if (selected) AccentLavande else Surface3)
             .border(
                 1.dp,
                 if (selected) Color.Transparent else Color.White.copy(alpha = 0.10f),
-                RoundedCornerShape(20.dp)
+                shape
             )
+            .tvFocusRing(isTv, isFocused, shape)
             .clickable { onClick() }
             .padding(horizontal = 16.dp, vertical = 10.dp)
     ) {
@@ -445,6 +517,7 @@ private fun GenreChip(
 @Composable
 private fun YearRangeSection(
     yearRange: IntRange,
+    isTv: Boolean,
     onYearRangeChanged: (IntRange) -> Unit
 ) {
     val min = AdvancedSearchFilter.DEFAULT_MIN_YEAR
@@ -464,42 +537,120 @@ private fun YearRangeSection(
             color = TextSecondary,
             modifier = Modifier.weight(1f)
         )
-        Text(
+        FocusableLink(
             text = if (isFullRange) "Toutes les années" else "${yearRange.first} – ${yearRange.last}",
-            fontFamily = HankenGrotesk,
-            fontWeight = FontWeight.SemiBold,
-            fontSize = 13.sp,
-            color = AccentLavande,
-            modifier = Modifier
-                .clip(RoundedCornerShape(6.dp))
-                .clickable { onYearRangeChanged(min..max) }
-                .padding(horizontal = 4.dp, vertical = 2.dp)
+            onClick = { onYearRangeChanged(min..max) }
         )
     }
 
-    var sliderValues by remember(yearRange) {
-        mutableStateOf(yearRange.first.toFloat()..yearRange.last.toFloat())
+    if (isTv) {
+        // Le RangeSlider Compose n'est pas traversable de façon fiable au D-pad
+        // et tv-material (alpha10) ne fournit pas de composant Slider : on
+        // utilise deux steppers +/- (année min, année max) à la place.
+        YearStepperRow(
+            label = "De",
+            year = yearRange.first,
+            min = min,
+            max = yearRange.last,
+            onDecrement = { onYearRangeChanged((yearRange.first - 1).coerceAtLeast(min)..yearRange.last) },
+            onIncrement = { onYearRangeChanged((yearRange.first + 1).coerceAtMost(yearRange.last)..yearRange.last) }
+        )
+        Spacer(Modifier.height(10.dp))
+        YearStepperRow(
+            label = "À",
+            year = yearRange.last,
+            min = yearRange.first,
+            max = max,
+            onDecrement = { onYearRangeChanged(yearRange.first..(yearRange.last - 1).coerceAtLeast(yearRange.first)) },
+            onIncrement = { onYearRangeChanged(yearRange.first..(yearRange.last + 1).coerceAtMost(max)) }
+        )
+    } else {
+        var sliderValues by remember(yearRange) {
+            mutableStateOf(yearRange.first.toFloat()..yearRange.last.toFloat())
+        }
+        RangeSlider(
+            value = sliderValues,
+            onValueChange = { sliderValues = it },
+            onValueChangeFinished = {
+                onYearRangeChanged(sliderValues.start.roundToInt()..sliderValues.endInclusive.roundToInt())
+            },
+            valueRange = min.toFloat()..max.toFloat(),
+            steps = (max - min - 1).coerceAtLeast(0),
+            colors = SliderDefaults.colors(
+                thumbColor = Color.White,
+                activeTrackColor = AccentLavande,
+                inactiveTrackColor = Color.White.copy(alpha = 0.12f)
+            ),
+            modifier = Modifier.fillMaxWidth()
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(min.toString(), fontFamily = HankenGrotesk, fontSize = 12.sp, color = TextSecondary)
+            Text(max.toString(), fontFamily = HankenGrotesk, fontSize = 12.sp, color = TextSecondary)
+        }
     }
-    RangeSlider(
-        value = sliderValues,
-        onValueChange = { sliderValues = it },
-        onValueChangeFinished = {
-            onYearRangeChanged(sliderValues.start.roundToInt()..sliderValues.endInclusive.roundToInt())
-        },
-        valueRange = min.toFloat()..max.toFloat(),
-        steps = (max - min - 1).coerceAtLeast(0),
-        colors = SliderDefaults.colors(
-            thumbColor = Color.White,
-            activeTrackColor = AccentLavande,
-            inactiveTrackColor = Color.White.copy(alpha = 0.12f)
-        ),
-        modifier = Modifier.fillMaxWidth()
-    )
+}
+
+@Composable
+private fun YearStepperRow(
+    label: String,
+    year: Int,
+    min: Int,
+    max: Int,
+    onDecrement: () -> Unit,
+    onIncrement: () -> Unit
+) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = Modifier.fillMaxWidth()
     ) {
-        Text(min.toString(), fontFamily = HankenGrotesk, fontSize = 12.sp, color = TextSecondary)
-        Text(max.toString(), fontFamily = HankenGrotesk, fontSize = 12.sp, color = TextSecondary)
+        Text(
+            text = label,
+            fontFamily = HankenGrotesk,
+            fontSize = 13.sp,
+            color = TextSecondary,
+            modifier = Modifier.width(24.dp)
+        )
+        StepperButton(icon = Icons.Default.Remove, enabled = year > min, onClick = onDecrement)
+        Text(
+            text = year.toString(),
+            fontFamily = HankenGrotesk,
+            fontWeight = FontWeight.Bold,
+            fontSize = 16.sp,
+            color = TextPrimary,
+            modifier = Modifier.weight(1f),
+            maxLines = 1
+        )
+        StepperButton(icon = Icons.Default.Add, enabled = year < max, onClick = onIncrement)
+    }
+}
+
+@Composable
+private fun StepperButton(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    enabled: Boolean,
+    onClick: () -> Unit
+) {
+    var isFocused by remember { mutableStateOf(false) }
+    val shape = RoundedCornerShape(10.dp)
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .size(40.dp)
+            .onFocusChanged { isFocused = it.isFocused }
+            .clip(shape)
+            .background(Surface3)
+            .border(3.dp, if (isFocused) FocusRingColor else Color.Transparent, shape)
+            .then(if (enabled) Modifier.clickable { onClick() } else Modifier)
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = if (enabled) TextPrimary else TextSecondary.copy(alpha = 0.4f),
+            modifier = Modifier.size(18.dp)
+        )
     }
 }
