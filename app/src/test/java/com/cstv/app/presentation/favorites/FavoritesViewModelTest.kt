@@ -45,6 +45,9 @@ class FavoritesViewModelTest {
     @Mock
     private lateinit var getCatalogYearRangeUseCase: GetCatalogYearRangeUseCase
 
+    @Mock
+    private lateinit var categoryPreferenceRepository: com.cstv.app.domain.repository.CategoryPreferenceRepository
+
     private val testDispatcher = StandardTestDispatcher()
     private lateinit var viewModel: FavoritesViewModel
 
@@ -57,6 +60,7 @@ class FavoritesViewModelTest {
         whenever(getTopGenresUseCase()).thenReturn(listOf("Action", "Comedy"))
         whenever(getCategoriesForTypeUseCase(anyOrNull())).thenReturn(listOf(CategoryWithCount("all", "Toutes les catégories", 10)))
         whenever(getCatalogYearRangeUseCase()).thenReturn(1990..2024)
+        whenever(categoryPreferenceRepository.changes).thenReturn(flowOf(Unit))
         whenever(advancedCatalogSearchUseCase(anyOrNull(), any())).thenReturn(
             SearchResult(
                 vodResults = listOf(VodStream(1, "Movie A", null, null, null, "cat1")),
@@ -73,7 +77,8 @@ class FavoritesViewModelTest {
             getTopGenresUseCase,
             getCategoriesForTypeUseCase,
             advancedCatalogSearchUseCase,
-            getCatalogYearRangeUseCase
+            getCatalogYearRangeUseCase,
+            categoryPreferenceRepository
         )
         runCurrent()
     }

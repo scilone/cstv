@@ -96,14 +96,61 @@ class HomeViewModel @Inject constructor(
         // continu (ajout/suppression d'un favori ailleurs dans l'app, reprise
         // de lecture) sans reload manuel ni ré-écoute du changement de profil
         // (déjà géré par le flatMapLatest des repositories sur activeProfileId).
+        // Phase 58 : Combiné avec les changements de préférences de catégories pour
+        // masquer immédiatement les replays/favoris issus de catégories masquées.
         viewModelScope.launch {
-            vodRepository.observeAllPlaybackPositions().collect { allPositions ->
-                _state.update { it.copy(resumeWatchingList = groupResumeWatching(allPositions)) }
+            kotlinx.coroutines.flow.combine(
+                vodRepository.observeAllPlaybackPositions(),
+                categoryPreferenceRepository.changes
+            ) { allPositions, _ ->
+                allPositions
+            }.collect { allPositions ->
+                val hiddenVod = hiddenCategoryIds(CategoryType.VOD)
+                val hiddenSeries = hiddenCategoryIds(CategoryType.SERIES)
+                val vodMap = try {
+                    vodRepository.getVodStreams("all", false).associate { it.streamId to it.categoryId }
+                } catch (e: Exception) {
+                    emptyMap()
+                }
+                val seriesMap = try {
+                    seriesRepository.getSeriesStreams("all", false).associate { it.seriesId to it.categoryId }
+                } catch (e: Exception) {
+                    emptyMap()
+                }
+
+                _state.update {
+                    it.copy(
+                        resumeWatchingList = groupResumeWatching(
+                            allPositions = allPositions,
+                            hiddenVodCategories = hiddenVod,
+                            hiddenSeriesCategories = hiddenSeries,
+                            vodStreamCategoryMap = vodMap,
+                            seriesStreamCategoryMap = seriesMap
+                        )
+                    )
+                }
             }
         }
         viewModelScope.launch {
-            favoritesRepository.observeFavorites().collect { favorites ->
-                _state.update { it.copy(favoritesList = favorites) }
+            kotlinx.coroutines.flow.combine(
+                favoritesRepository.observeFavorites(),
+                categoryPreferenceRepository.changes
+            ) { favorites, _ ->
+                favorites
+            }.collect { favorites ->
+                val hiddenVod = hiddenCategoryIds(CategoryType.VOD)
+                val hiddenSeries = hiddenCategoryIds(CategoryType.SERIES)
+                val hiddenLive = hiddenCategoryIds(CategoryType.LIVE)
+
+                val filteredFavorites = favorites.filter { fav ->
+                    when (fav.type) {
+                        "movie", "vod" -> fav.categoryId !in hiddenVod
+                        "series" -> fav.categoryId !in hiddenSeries
+                        "live" -> fav.categoryId !in hiddenLive
+                        else -> true
+                    }
+                }
+                _state.update { it.copy(favoritesList = filteredFavorites) }
             }
         }
         // Phase 42 : un seul ticker pour toute la rangée "TV" au lieu d'une
@@ -128,12 +175,28 @@ class HomeViewModel @Inject constructor(
     // trié par lastAccessedAt DESC (VodDao.observeAllPlaybackPositions), donc
     // le premier épisode rencontré par seriesId est bien le plus récent.
     // Les films (seriesId == null) ne sont pas regroupés.
-    private fun groupResumeWatching(allPositions: List<PlaybackPosition>): List<PlaybackPosition> {
+    // Filtré également par catégories masquées (Phase 58).
+    private fun groupResumeWatching(
+        allPositions: List<PlaybackPosition>,
+        hiddenVodCategories: Set<String>,
+        hiddenSeriesCategories: Set<String>,
+        vodStreamCategoryMap: Map<Int, String>,
+        seriesStreamCategoryMap: Map<Int, String>
+    ): List<PlaybackPosition> {
         val resumeWatchingRaw = allPositions.filter { pos ->
             pos.positionMs > 0 && pos.positionMs < (pos.durationMs - 15000L)
         }
+        val filtered = resumeWatchingRaw.filter { pos ->
+            if (pos.seriesId != null) {
+                val catId = seriesStreamCategoryMap[pos.seriesId]
+                catId == null || catId !in hiddenSeriesCategories
+            } else {
+                val catId = vodStreamCategoryMap[pos.streamId]
+                catId == null || catId !in hiddenVodCategories
+            }
+        }
         val seenSeriesIds = mutableSetOf<Int>()
-        return resumeWatchingRaw.filter { pos ->
+        return filtered.filter { pos ->
             val seriesId = pos.seriesId
             if (seriesId == null) true else seenSeriesIds.add(seriesId)
         }

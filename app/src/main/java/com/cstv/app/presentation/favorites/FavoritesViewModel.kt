@@ -52,7 +52,8 @@ class FavoritesViewModel @Inject constructor(
     private val getTopGenresUseCase: GetTopGenresUseCase,
     private val getCategoriesForTypeUseCase: GetCategoriesForTypeUseCase,
     private val advancedCatalogSearchUseCase: AdvancedCatalogSearchUseCase,
-    private val getCatalogYearRangeUseCase: GetCatalogYearRangeUseCase
+    private val getCatalogYearRangeUseCase: GetCatalogYearRangeUseCase,
+    private val categoryPreferenceRepository: com.cstv.app.domain.repository.CategoryPreferenceRepository
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(FavoritesUiState())
@@ -88,6 +89,15 @@ class FavoritesViewModel @Inject constructor(
                 _state.value.catalogYearRange
             }
             _state.update { it.copy(catalogYearRange = yearRange) }
+        }
+        viewModelScope.launch {
+            categoryPreferenceRepository.changes.collect {
+                val currentQuery = _state.value.searchQuery
+                val currentFilter = _state.value.advancedFilter
+                if (currentQuery.isNotEmpty() || currentFilter.isActive || _state.value.hasBrowsedAll) {
+                    performSearch(currentQuery)
+                }
+            }
         }
     }
 

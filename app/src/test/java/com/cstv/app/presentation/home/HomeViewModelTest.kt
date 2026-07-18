@@ -94,7 +94,7 @@ class HomeViewModelTest {
         doReturn(flowOf(favorites)).whenever(favoritesRepository).observeFavorites()
         // Phase 58 : flux de changements de préférences collecté dans init{},
         // et préférences vides par défaut (aucune catégorie masquée).
-        doReturn(kotlinx.coroutines.flow.emptyFlow<Unit>()).whenever(categoryPreferenceRepository).changes
+        doReturn(flowOf(Unit)).whenever(categoryPreferenceRepository).changes
     }
 
     private suspend fun stubEmptyCategoryPreferences() {
@@ -255,6 +255,50 @@ class HomeViewModelTest {
         // TV en direct garde la logique "première catégorie" (pas de notion d'ajout exploitable)
         assertEquals("1", state.firstLiveCategory?.categoryId)
         assertEquals(1, state.firstLiveStreams.size)
+
+        viewModel.viewModelScope.cancel()
+    }
+
+    @Test
+    fun test_resumeWatchingAndFavorites_filtersHiddenCategories() = runTest {
+        val positions = listOf(
+            PlaybackPosition(101, 1000L, 50000L, System.currentTimeMillis(), "Movie 101", "cover1", "movie", "mp4", seriesId = null),
+            PlaybackPosition(201, 1000L, 50000L, System.currentTimeMillis(), "Episode 201", "cover2", "series", "mp4", seriesId = 1001)
+        )
+        val favorites = listOf(
+            FavoriteItem(101, "movie", "Movie 101", "cover1", "hidden_vod_cat"),
+            FavoriteItem(201, "series", "Series 201", "cover2", "visible_series_cat")
+        )
+
+        stubReactiveSources(positions, favorites)
+
+        // Mock category preferences: "hidden_vod_cat" is hidden
+        whenever(categoryPreferenceRepository.getPreferences(CategoryType.VOD)).thenReturn(
+            mapOf("hidden_vod_cat" to CategoryPreference("hidden_vod_cat", hidden = true, sortOrder = null))
+        )
+        whenever(categoryPreferenceRepository.getPreferences(CategoryType.SERIES)).thenReturn(emptyMap())
+        whenever(categoryPreferenceRepository.getPreferences(CategoryType.LIVE)).thenReturn(emptyMap())
+
+        // Also mock the stream category IDs:
+        // Movie 101 is in "hidden_vod_cat"
+        whenever(vodRepository.getVodStreams("all", false)).thenReturn(
+            listOf(VodStream(101, "Movie 101", "cover1", null, null, "hidden_vod_cat"))
+        )
+        whenever(seriesRepository.getSeriesStreams("all", false)).thenReturn(
+            listOf(SeriesStream(1001, "Series 201", "cover2", null, null, "visible_series_cat"))
+        )
+
+        viewModel = createViewModel()
+
+        val state = viewModel.state.value
+
+        // Favorites: "hidden_vod_cat" is hidden, so "Movie 101" should be filtered out. Only Series 201 should remain.
+        assertEquals(1, state.favoritesList.size)
+        assertEquals(201, state.favoritesList[0].id)
+
+        // Resume Watching: Movie 101 is in "hidden_vod_cat", so it must be filtered out. Only Episode 201 should remain.
+        assertEquals(1, state.resumeWatchingList.size)
+        assertEquals(1001, state.resumeWatchingList[0].seriesId)
 
         viewModel.viewModelScope.cancel()
     }
