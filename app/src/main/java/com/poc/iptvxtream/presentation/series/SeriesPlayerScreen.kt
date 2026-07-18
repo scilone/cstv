@@ -332,10 +332,17 @@ fun SeriesPlayerScreen(
 
         var updatedParams = exoPlayer.trackSelectionParameters.buildUpon()
 
-        // Apply preferred audio
+        // Apply preferred audio — ne réapplique l'override que si AUCUNE piste
+        // de cette langue n'est déjà sélectionnée (sinon, quand plusieurs pistes
+        // partagent la même langue, ce recalcul reviendrait toujours sur la
+        // première d'entre elles et écraserait un choix manuel explicite de la
+        // 2e/3e piste, ce recalcul étant redéclenché après chaque sélection car
+        // onXxxTrackSelected appelle updateTracksState qui remet à jour la state
+        // observée par ce LaunchedEffect).
         if (!prefAudio.isNullOrBlank()) {
+            val alreadySelected = audios.any { it.language?.equals(prefAudio, ignoreCase = true) == true && it.isSelected }
             val matchingAudio = audios.find { it.language?.equals(prefAudio, ignoreCase = true) == true && it.isSupported }
-            if (matchingAudio != null && !matchingAudio.isSelected) {
+            if (matchingAudio != null && !alreadySelected) {
                 updatedParams = updatedParams.setOverrideForType(
                     TrackSelectionOverride(
                         matchingAudio.mediaTrackGroup,
@@ -345,15 +352,16 @@ fun SeriesPlayerScreen(
             }
         }
 
-        // Apply preferred subtitle
+        // Apply preferred subtitle — même précaution que pour l'audio ci-dessus.
         if (prefSub != null) {
             if (prefSub == "none" || prefSub.isBlank()) {
                 updatedParams = updatedParams
                     .clearOverridesOfType(C.TRACK_TYPE_TEXT)
                     .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
             } else {
+                val alreadySelected = subs.any { it.language?.equals(prefSub, ignoreCase = true) == true && it.isSelected }
                 val matchingSub = subs.find { it.language?.equals(prefSub, ignoreCase = true) == true && it.isSupported }
-                if (matchingSub != null) {
+                if (matchingSub != null && !alreadySelected) {
                     updatedParams = updatedParams
                         .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
                         .setOverrideForType(
