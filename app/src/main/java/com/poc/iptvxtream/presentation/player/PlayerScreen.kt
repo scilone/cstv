@@ -49,6 +49,7 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
+import io.github.anilbeesetti.nextlib.media3ext.ffdecoder.NextRenderersFactory
 import androidx.media3.ui.PlayerView
 import coil.compose.AsyncImage
 import com.poc.iptvxtream.domain.model.Credentials
@@ -94,10 +95,12 @@ fun PlayerScreen(
     val context = LocalContext.current
 
     val exoPlayer = remember {
-        // Fallback décodeur software si le décodeur matériel échoue à l'init
-        // (ex. piste audio EAC3/Dolby Digital+ annoncée supportée mais qui crash
-        // le MediaCodecAudioRenderer sur certains appareils).
-        val renderersFactory = DefaultRenderersFactory(context)
+        // Décodeurs FFmpeg (NextLib) préférés pour l'audio : lit EAC3/AC3/DTS
+        // même sur les appareils sans décodeur matériel de ces codecs (le
+        // décodeur HW peut s'annoncer supporté puis crasher le
+        // MediaCodecAudioRenderer, d'où le mode PREFER plutôt que fallback).
+        val renderersFactory = NextRenderersFactory(context)
+            .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
             .setEnableDecoderFallback(true)
         ExoPlayer.Builder(context, renderersFactory).build()
     }

@@ -10,6 +10,8 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        // NextLib : décodeurs FFmpeg prebuilt pour media3 (EAC3/AC3/DTS...).
+        maven { url = uri("https://jitpack.io") }
     }
 }
 

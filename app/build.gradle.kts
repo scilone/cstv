@@ -123,12 +123,15 @@ dependencies {
     implementation("androidx.work:work-runtime-ktx:2.9.0")
     
     // Media3 ExoPlayer (Video playing)
-    val media3Version = "1.3.1"
+    val media3Version = "1.4.0"
     implementation("androidx.media3:media3-exoplayer:$media3Version")
     implementation("androidx.media3:media3-exoplayer-hls:$media3Version")
     implementation("androidx.media3:media3-ui:$media3Version")
     implementation("androidx.media3:media3-session:$media3Version")
-    
+    // NextLib : décodeurs FFmpeg software (EAC3/AC3/DTS/TrueHD...) pour les
+    // appareils sans décodeur matériel de ces codecs. Aligné sur media3 1.4.0.
+    implementation("com.github.anilbeesetti.nextlib:nextlib-media3ext:v0.8.2")
+
     // Unit Testing
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.0")
