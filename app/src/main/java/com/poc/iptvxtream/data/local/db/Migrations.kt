@@ -257,4 +257,18 @@ val MIGRATION_14_15 = object : Migration(14, 15) {
     }
 }
 
-val ALL_MIGRATIONS = arrayOf(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15)
+/**
+ * MIGRATION_15_16 (Recherche avancée - filtre année de sortie) :
+ * Ajoute la colonne nullable `releaseYear` aux tables `vod_streams` et
+ * `series_streams`. Elle est backfillée par l'enrichissement background
+ * existant (get_vod_info / get_series_info) qui parse `releasedate` via
+ * ReleaseYearParser. Aucune valeur par défaut : `null` = pas encore enrichi.
+ */
+val MIGRATION_15_16 = object : Migration(15, 16) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE vod_streams ADD COLUMN releaseYear INTEGER")
+        db.execSQL("ALTER TABLE series_streams ADD COLUMN releaseYear INTEGER")
+    }
+}
+
+val ALL_MIGRATIONS = arrayOf(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16)

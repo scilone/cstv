@@ -15,5 +15,6 @@ data class SeriesStreamEntity(
     val actors: String? = null,
     val director: String? = null,
     val genre: String? = null,
-    val orderIndex: Int = 0
+    val orderIndex: Int = 0,
+    val releaseYear: Int? = null
 )

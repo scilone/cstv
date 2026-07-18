@@ -69,7 +69,7 @@ interface VodDao {
         streams.forEach { upsertVodFts(it.streamId, it.name, it.actors, it.director, it.genre, it.categoryId) }
     }
 
-    @Query("SELECT * FROM vod_streams WHERE actors IS NULL OR director IS NULL OR genre IS NULL LIMIT :limit")
+    @Query("SELECT * FROM vod_streams WHERE actors IS NULL OR director IS NULL OR genre IS NULL OR releaseYear IS NULL LIMIT :limit")
     suspend fun getStreamsNeedingEnrichment(limit: Int): List<VodStreamEntity>
 
     // Préfiltre SQL des « titres associés » (Phase 60) : candidats dont le genre

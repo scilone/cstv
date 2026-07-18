@@ -75,6 +75,10 @@ class SeriesRepositoryImpl @Inject constructor(
                     val director = infoDto?.director ?: "Inconnu"
                     val genre = infoDto?.genre ?: "Inconnu"
                     val actors = extractActors(infoDto?.actors, infoDto?.cast)
+                    // Sentinelle 0 = "vérifié mais année inconnue" (mappée en null en domain).
+                    val releaseYear = ReleaseYearParser.parseYear(
+                        infoDto?.releaseDate ?: infoDto?.releaseDate2
+                    ) ?: 0
 
                     val currentStream = seriesDao.getStreamById(stream.seriesId)
                     if (currentStream != null) {
@@ -82,7 +86,8 @@ class SeriesRepositoryImpl @Inject constructor(
                             currentStream.copy(
                                 actors = actors,
                                 director = director,
-                                genre = genre
+                                genre = genre,
+                                releaseYear = releaseYear
                             )
                         ))
                     }
@@ -267,7 +272,8 @@ class SeriesRepositoryImpl @Inject constructor(
                     actors = existing?.actors,
                     director = existing?.director,
                     genre = existing?.genre,
-                    orderIndex = index
+                    orderIndex = index,
+                    releaseYear = existing?.releaseYear
                 )
             } else null
         }
@@ -411,7 +417,8 @@ class SeriesRepositoryImpl @Inject constructor(
                 cachedSeries.copy(
                     actors = actors,
                     director = director,
-                    genre = genre
+                    genre = genre,
+                    releaseYear = ReleaseYearParser.parseYear(releaseDate) ?: 0
                 )
             ))
         }

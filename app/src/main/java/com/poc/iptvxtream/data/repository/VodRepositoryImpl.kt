@@ -15,6 +15,7 @@ import com.poc.iptvxtream.domain.model.InvalidCredentialsException
 import com.poc.iptvxtream.domain.model.VodCategory
 import com.poc.iptvxtream.domain.model.VodDetails
 import com.poc.iptvxtream.domain.model.VodStream
+import com.poc.iptvxtream.domain.model.ReleaseYearParser
 import com.poc.iptvxtream.domain.repository.VodRepository
 import com.google.gson.JsonElement
 import kotlinx.coroutines.*
@@ -80,6 +81,9 @@ class VodRepositoryImpl @Inject constructor(
                     val director = infoDto?.director ?: "Inconnu"
                     val actors = extractActors(infoDto?.actors, infoDto?.cast)
                     val genre = infoDto?.genre ?: "Inconnu"
+                    // Sentinelle 0 = "vérifié mais année inconnue" : évite de re-fetcher
+                    // indéfiniment les films sans date de sortie (mappée en null en domain).
+                    val releaseYear = ReleaseYearParser.parseYear(infoDto?.releaseDate) ?: 0
 
                     val currentStream = vodDao.getStreamById(stream.streamId)
                     if (currentStream != null) {
@@ -87,7 +91,8 @@ class VodRepositoryImpl @Inject constructor(
                             currentStream.copy(
                                 actors = actors,
                                 director = director,
-                                genre = genre
+                                genre = genre,
+                                releaseYear = releaseYear
                             )
                         ))
                     }
@@ -328,7 +333,8 @@ class VodRepositoryImpl @Inject constructor(
                     actors = existing?.actors,
                     director = existing?.director,
                     genre = existing?.genre,
-                    orderIndex = index
+                    orderIndex = index,
+                    releaseYear = existing?.releaseYear
                 )
             } else null
         }
@@ -428,7 +434,8 @@ class VodRepositoryImpl @Inject constructor(
                 cachedStream.copy(
                     actors = actors,
                     director = director,
-                    genre = genre
+                    genre = genre,
+                    releaseYear = ReleaseYearParser.parseYear(releaseDate) ?: 0
                 )
             ))
         }
