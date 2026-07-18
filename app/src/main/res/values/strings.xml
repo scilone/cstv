@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">IPTV Xtream POC</string>
-    <string name="placeholder_message">IPTV Xtream POC - Phase 0 Complete</string>
+    <string name="app_name">CSTV</string>
+    <string name="placeholder_message">CSTV - App Active</string>
     <string name="login_title_brand">XTREAM CODES</string>
     <string name="login_portal">PORTAIL DE CONNEXION</string>
     <string name="login_server_address">Adresse du serveur</string>

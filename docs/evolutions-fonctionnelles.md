@@ -71,7 +71,7 @@ Une fois qu'une fonctionnalité est implémentée et validée, sa description/so
 > Renomme l'app et remplace l'icône du lanceur par une tasse à café.
 > 1. `app_name` → `CSTV` dans `app/src/main/res/values/strings.xml` (et toute autre langue présente). Vérifier les usages en dur du nom dans l'UI (barre de titre, écran de connexion) et les mettre à jour via la ressource.
 > 2. Icône du lanceur : créer une icône adaptative « tasse à café » — `ic_launcher_foreground` en vector drawable (tasse à café stylisée, cohérente avec l'accent lavande `#9C86FF` du thème), background adaptatif, et régénérer/mettre à jour `mipmap-anydpi-v26/ic_launcher.xml` + `ic_launcher_round.xml`. Fournir les densités PNG de repli si le projet en a (sinon adaptive-only suffit en minSdk 21 via `mipmap-anydpi-v26` + fallback).
-> 3. Vérifier que l'icône s'affiche correctement (build + lint). Pas de changement de `applicationId` (garde `com.poc.iptvxtream` pour ne pas casser les installs existantes) — signaler si un renommage de package est réellement voulu.
+> 3. Vérifier que l'icône s'affiche correctement (build + lint). Pas de changement de `applicationId` (garde `com.cstv.app` pour ne pas casser les installs existantes) — signaler si un renommage de package est réellement voulu.
 > - **Note** : simple changement cosmétique, hors logique métier. Aucun impact base de données.
 
 ---

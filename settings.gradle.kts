@@ -15,5 +15,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "poc-iptv"
+rootProject.name = "cstv"
 include(":app")

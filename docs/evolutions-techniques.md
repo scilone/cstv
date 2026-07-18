@@ -13,7 +13,7 @@ Une fois qu'une tâche technique est réalisée et validée, sa description/son 
 **Constat.** Aucune pagination (pas de Paging 3) : `getVodStreams`/`getSeriesStreams`/`getLiveStreams` chargent la catégorie entière (voire le catalogue "Tout" complet, 10k+ entrées) en `List<T>` en mémoire, mappée dans des LazyColumn/LazyGrid. La FTS (Phase 40) a réglé la recherche, mais l'affichage initial des grosses listes reste coûteux (parsing JSON complet + insert Room + liste mémoire). Sur Android TV bas de gamme, c'est le premier plafond de perf.
 
 **Prompt.**
-> Dans l'app Android poc-iptv : introduis une pagination locale sur les listes de catalogue volumineuses, SANS toucher à la stratégie de sync réseau (l'API Xtream ne pagine pas : on continue de télécharger et cacher le catalogue entier en Room ; seule la LECTURE Room et l'UI paginent).
+> Dans l'app Android cstv : introduis une pagination locale sur les listes de catalogue volumineuses, SANS toucher à la stratégie de sync réseau (l'API Xtream ne pagine pas : on continue de télécharger et cacher le catalogue entier en Room ; seule la LECTURE Room et l'UI paginent).
 > Utilise Paging 3 (`androidx.paging:paging-runtime` + `paging-compose`, et `room-paging` pour les PagingSource générées par Room) :
 > 1. Ajoute aux DAOs concernés (VodDao, SeriesDao, LiveTvDao) des requêtes `PagingSource<Int, Entity>` par catégorie et pour le mode "Tout".
 > 2. Expose des `Flow<PagingData<Model>>` dans les repositories, câblés dans Vod/Series/LiveTv ViewModels via `cachedIn(viewModelScope)`.

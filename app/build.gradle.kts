@@ -6,11 +6,11 @@ plugins {
 }
 
 android {
-    namespace = "com.poc.iptvxtream"
+    namespace = "com.cstv.app"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.poc.iptvxtream"
+        applicationId = "com.cstv.app"
         minSdk = 21
         targetSdk = 35
         // Phase 39 : synchronisés avec le dernier tag git poussé (voir AGENTS.md,
