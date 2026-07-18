@@ -6,5 +6,7 @@ data class SeriesStream(
     val cover: String?,
     val rating: String?,
     val added: String?,
-    val categoryId: String
+    val categoryId: String,
+    val genre: String? = null,
+    val releaseYear: Int? = null
 )

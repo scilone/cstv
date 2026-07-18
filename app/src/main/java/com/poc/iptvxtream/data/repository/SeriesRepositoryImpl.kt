@@ -225,7 +225,7 @@ class SeriesRepositoryImpl @Inject constructor(
                     val localStreams = seriesDao.getAllStreams()
                     startBackgroundEnrichment()
                     return localStreams.map {
-                        SeriesStream(it.seriesId, it.name, it.cover, it.rating, it.added, it.categoryId)
+                        SeriesStream(it.seriesId, it.name, it.cover, it.rating, it.added, it.categoryId, it.genre, it.releaseYear?.takeIf { y -> y > 0 })
                     }
                 }
             } else {
@@ -235,7 +235,7 @@ class SeriesRepositoryImpl @Inject constructor(
                     if (currentTime - lastCachedAt < CACHE_EXPIRY_MILLIS) {
                         startBackgroundEnrichment()
                         return localStreams.map {
-                            SeriesStream(it.seriesId, it.name, it.cover, it.rating, it.added, it.categoryId)
+                            SeriesStream(it.seriesId, it.name, it.cover, it.rating, it.added, it.categoryId, it.genre, it.releaseYear?.takeIf { y -> y > 0 })
                         }
                     }
                 }
@@ -297,7 +297,7 @@ class SeriesRepositoryImpl @Inject constructor(
         startBackgroundEnrichment()
 
         return entities.map { 
-            SeriesStream(it.seriesId, it.name, it.cover, it.rating, it.added, it.categoryId)
+            SeriesStream(it.seriesId, it.name, it.cover, it.rating, it.added, it.categoryId, it.genre, it.releaseYear?.takeIf { y -> y > 0 })
         }
     }
 
@@ -340,7 +340,7 @@ class SeriesRepositoryImpl @Inject constructor(
         }
 
         return RelatedTitlesSelector.select(genres, currentCategoryId, candidates, limit)
-            .map { SeriesStream(it.seriesId, it.name, it.cover, it.rating, it.added, it.categoryId) }
+            .map { SeriesStream(it.seriesId, it.name, it.cover, it.rating, it.added, it.categoryId, it.genre, it.releaseYear?.takeIf { y -> y > 0 }) }
     }
 
     override suspend fun getSeriesDetails(seriesId: Int): SeriesDetails {

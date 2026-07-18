@@ -6,7 +6,9 @@ data class VodStream(
     val streamIcon: String?,
     val rating: String?,
     val added: String?,
-    val categoryId: String
+    val categoryId: String,
+    val genre: String? = null,
+    val releaseYear: Int? = null
 ) {
     /**
      * Build play URL for VOD / Movie:

@@ -286,7 +286,7 @@ class VodRepositoryImpl @Inject constructor(
                     val localStreams = vodDao.getAllStreams()
                     startBackgroundEnrichment()
                     return localStreams.map {
-                        VodStream(it.streamId, it.name, it.streamIcon, it.rating, it.added, it.categoryId)
+                        VodStream(it.streamId, it.name, it.streamIcon, it.rating, it.added, it.categoryId, it.genre, it.releaseYear?.takeIf { y -> y > 0 })
                     }
                 }
             } else {
@@ -296,7 +296,7 @@ class VodRepositoryImpl @Inject constructor(
                     if (currentTime - lastCachedAt < CACHE_EXPIRY_MILLIS) {
                         startBackgroundEnrichment()
                         return localStreams.map {
-                            VodStream(it.streamId, it.name, it.streamIcon, it.rating, it.added, it.categoryId)
+                            VodStream(it.streamId, it.name, it.streamIcon, it.rating, it.added, it.categoryId, it.genre, it.releaseYear?.takeIf { y -> y > 0 })
                         }
                     }
                 }
@@ -358,7 +358,7 @@ class VodRepositoryImpl @Inject constructor(
         startBackgroundEnrichment()
 
         return entities.map { 
-            VodStream(it.streamId, it.name, it.streamIcon, it.rating, it.added, it.categoryId)
+            VodStream(it.streamId, it.name, it.streamIcon, it.rating, it.added, it.categoryId, it.genre, it.releaseYear?.takeIf { y -> y > 0 })
         }
     }
 
@@ -401,7 +401,7 @@ class VodRepositoryImpl @Inject constructor(
         }
 
         return com.poc.iptvxtream.domain.model.RelatedTitlesSelector.select(genres, currentCategoryId, candidates, limit)
-            .map { VodStream(it.streamId, it.name, it.streamIcon, it.rating, it.added, it.categoryId) }
+            .map { VodStream(it.streamId, it.name, it.streamIcon, it.rating, it.added, it.categoryId, it.genre, it.releaseYear?.takeIf { y -> y > 0 }) }
     }
 
     override suspend fun getVodDetails(streamId: Int): VodDetails {
