@@ -21,6 +21,7 @@ Pour maintenir les sessions d'IA ultra-rapides et éviter la surcharge cognitive
    - Déplacez-la (couper-coller) vers le fichier d'archive correspondant sous `docs/archive/`, en la marquant comme `✅ TERMINÉE`.
    - Laissez les fichiers actifs extrêmement courts et ciblés sur le travail immédiat.
 3. **Modèle & Effort requis** : Chaque évolution inscrite dans le backlog actif doit obligatoirement spécifier le **modèle d'IA recommandé** (`Haiku 4.5`, `Sonnet 5` ou `Opus 4.8`) et l'**effort associé** (`S` pour <1h, `M` pour 1-3h, `L` pour une journée ou plus).
+4. **Identifiants uniques de Features et de Tâches** : Chaque fonctionnalité (ou phase d'évolution) inscrite dans le backlog actif ou d'archive doit posséder un identifiant unique et permanent (ex: `F-5` pour la 5e feature fonctionnelle, `T-2` pour la 2e feature technique). Les sous-tâches sont numérotées séquentiellement au sein de cette feature (ex: `Tâche 1`, `Tâche 2`, etc.). Cela permet au PO d'ordonner facilement un travail ciblé (ex: « fais la tâche 3 de la feature F-5 »).
 
 ## Périmètre strict du projet
 
