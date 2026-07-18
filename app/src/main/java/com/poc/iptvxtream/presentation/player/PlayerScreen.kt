@@ -47,6 +47,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import coil.compose.AsyncImage
@@ -93,7 +94,12 @@ fun PlayerScreen(
     val context = LocalContext.current
 
     val exoPlayer = remember {
-        ExoPlayer.Builder(context).build()
+        // Fallback décodeur software si le décodeur matériel échoue à l'init
+        // (ex. piste audio EAC3/Dolby Digital+ annoncée supportée mais qui crash
+        // le MediaCodecAudioRenderer sur certains appareils).
+        val renderersFactory = DefaultRenderersFactory(context)
+            .setEnableDecoderFallback(true)
+        ExoPlayer.Builder(context, renderersFactory).build()
     }
 
     var isPlayerVisible by remember { mutableStateOf(true) }

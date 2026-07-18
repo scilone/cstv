@@ -55,6 +55,7 @@ import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.Tracks
 import androidx.media3.common.VideoSize
+import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import com.poc.iptvxtream.data.download.OfflineDownloadUtil
@@ -120,7 +121,12 @@ fun SeriesPlayerScreen(
         val mediaSourceFactory = DefaultMediaSourceFactory(
             OfflineDownloadUtil.getReadOnlyCacheDataSourceFactory(context)
         )
-        ExoPlayer.Builder(context)
+        // Fallback décodeur software si le décodeur matériel échoue à l'init
+        // (ex. piste audio EAC3/Dolby Digital+ annoncée supportée mais qui crash
+        // le MediaCodecAudioRenderer sur certains appareils).
+        val renderersFactory = DefaultRenderersFactory(context)
+            .setEnableDecoderFallback(true)
+        ExoPlayer.Builder(context, renderersFactory)
             .setMediaSourceFactory(mediaSourceFactory)
             .build()
     }
