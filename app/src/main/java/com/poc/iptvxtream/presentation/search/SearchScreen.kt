@@ -16,6 +16,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Tune
@@ -133,6 +134,20 @@ fun SearchScreen(
                 }
             }
 
+            // Chips de filtres actifs supprimables (×), sous la barre de recherche.
+            if (state.advancedFilter.isActive) {
+                ActiveFilterChipsRow(
+                    filter = state.advancedFilter,
+                    availableCategories = state.availableCategories,
+                    onRemoveMediaType = { viewModel.removeMediaTypeFilter() },
+                    onRemoveCategory = { viewModel.removeCategoryFilter() },
+                    onRemoveMinRating = { viewModel.removeMinRatingFilter() },
+                    onRemoveYearRange = { viewModel.removeYearRangeFilter() },
+                    onRemoveGenre = { viewModel.removeGenreFilter(it) },
+                    modifier = Modifier.padding(bottom = 12.dp)
+                )
+            }
+
             // Filtres seuls autorisés : on n'affiche l'invite initiale que si aucun
             // texte n'est saisi ET aucun filtre avancé n'est actif.
             if (state.searchQuery.trim().isBlank() && !state.advancedFilter.isActive) {
@@ -209,6 +224,8 @@ fun SearchScreen(
                                             name = stream.name,
                                             cover = stream.streamIcon,
                                             isLive = false,
+                                            year = stream.releaseYear,
+                                            rating = stream.rating,
                                             onClick = { onSelectMovie(stream) }
                                         )
                                     }
@@ -236,6 +253,8 @@ fun SearchScreen(
                                             name = stream.name,
                                             cover = stream.cover,
                                             isLive = false,
+                                            year = stream.releaseYear,
+                                            rating = stream.rating,
                                             onClick = { onSelectSeries(stream) }
                                         )
                                     }
@@ -383,6 +402,8 @@ private fun SearchExpandedGrid(
                         name = stream.name,
                         cover = stream.streamIcon,
                         isLive = false,
+                        year = stream.releaseYear,
+                        rating = stream.rating,
                         onClick = { onSelectMovie(stream) }
                     )
                 }
@@ -391,6 +412,8 @@ private fun SearchExpandedGrid(
                         name = stream.name,
                         cover = stream.cover,
                         isLive = false,
+                        year = stream.releaseYear,
+                        rating = stream.rating,
                         onClick = { onSelectSeries(stream) }
                     )
                 }
@@ -404,6 +427,8 @@ private fun SearchGridCard(
     name: String,
     cover: String?,
     isLive: Boolean,
+    year: Int? = null,
+    rating: String? = null,
     onClick: () -> Unit
 ) {
     var isFocused by remember { mutableStateOf(false) }
@@ -446,6 +471,9 @@ private fun SearchGridCard(
                 )
             }
         }
+        if (!isLive) {
+            SearchCardMeta(year = year, rating = rating, modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp))
+        }
     }
 }
 
@@ -454,6 +482,8 @@ private fun SearchCardItem(
     name: String,
     cover: String?,
     isLive: Boolean,
+    year: Int? = null,
+    rating: String? = null,
     onClick: () -> Unit
 ) {
     var isFocused by remember { mutableStateOf(false) }
@@ -496,5 +526,135 @@ private fun SearchCardItem(
                 )
             }
         }
+        if (!isLive) {
+            SearchCardMeta(year = year, rating = rating, modifier = Modifier.padding(horizontal = 6.dp, vertical = 5.dp))
+        }
+    }
+}
+
+/**
+ * Méta ligne "année · ★ note" affichée sous le titre des cartes Films/Séries
+ * (docs/design-reference/screenshots/advanced-search-result.png). Masque
+ * proprement chaque partie absente ; ne rend rien si les deux sont absentes.
+ */
+@Composable
+private fun SearchCardMeta(
+    year: Int?,
+    rating: String?,
+    modifier: Modifier = Modifier
+) {
+    val ratingValue = rating?.trim()?.toDoubleOrNull()?.takeIf { it > 0 }
+    if (year == null && ratingValue == null) return
+
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = modifier) {
+        if (year != null) {
+            Text(
+                text = year.toString(),
+                fontFamily = HankenGrotesk,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Medium,
+                color = Color(0xFF9A9AA8)
+            )
+        }
+        if (year != null && ratingValue != null) {
+            Text(
+                text = " · ",
+                fontFamily = HankenGrotesk,
+                fontSize = 11.sp,
+                color = Color(0xFF9A9AA8)
+            )
+        }
+        if (ratingValue != null) {
+            Text(
+                text = "★ ${String.format(java.util.Locale.US, "%.1f", ratingValue)}",
+                fontFamily = HankenGrotesk,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Medium,
+                color = Color(0xFFE5A13A)
+            )
+        }
+    }
+}
+
+/**
+ * Chips de filtres actifs supprimables (×), sous la barre de recherche
+ * (docs/design-reference/screenshots/advanced-search-result.png).
+ */
+@Composable
+private fun ActiveFilterChipsRow(
+    filter: com.poc.iptvxtream.domain.model.AdvancedSearchFilter,
+    availableCategories: List<com.poc.iptvxtream.domain.model.CategoryWithCount>,
+    onRemoveMediaType: () -> Unit,
+    onRemoveCategory: () -> Unit,
+    onRemoveMinRating: () -> Unit,
+    onRemoveYearRange: () -> Unit,
+    onRemoveGenre: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val filmLabel = stringResource(R.string.search_movies)
+    val seriesLabel = stringResource(R.string.search_series)
+
+    LazyRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = modifier.fillMaxWidth()
+    ) {
+        filter.mediaType?.let { type ->
+            val label = when (type) {
+                com.poc.iptvxtream.domain.model.SearchMediaType.FILM -> filmLabel
+                com.poc.iptvxtream.domain.model.SearchMediaType.SERIE -> seriesLabel
+            }
+            item { ActiveFilterChip(label = label, onRemove = onRemoveMediaType) }
+        }
+        filter.categoryId?.let { categoryId ->
+            val label = availableCategories.firstOrNull { it.id == categoryId }?.name ?: categoryId
+            item { ActiveFilterChip(label = label, onRemove = onRemoveCategory) }
+        }
+        filter.minRating?.let { rating ->
+            item { ActiveFilterChip(label = "Note $rating+", onRemove = onRemoveMinRating) }
+        }
+        filter.yearRange?.let { range ->
+            val isFullRange = range.first <= com.poc.iptvxtream.domain.model.AdvancedSearchFilter.DEFAULT_MIN_YEAR &&
+                range.last >= com.poc.iptvxtream.domain.model.AdvancedSearchFilter.DEFAULT_MAX_YEAR
+            if (!isFullRange) {
+                item { ActiveFilterChip(label = "${range.first}–${range.last}", onRemove = onRemoveYearRange) }
+            }
+        }
+        items(filter.genres.toList()) { genre ->
+            ActiveFilterChip(label = genre, onRemove = { onRemoveGenre(genre) })
+        }
+    }
+}
+
+@Composable
+private fun ActiveFilterChip(
+    label: String,
+    onRemove: () -> Unit
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .clip(RoundedCornerShape(20.dp))
+            .background(AccentLavande.copy(alpha = 0.16f))
+            .border(1.dp, AccentLavande.copy(alpha = 0.4f), RoundedCornerShape(20.dp))
+            .padding(start = 12.dp, end = 8.dp, top = 6.dp, bottom = 6.dp)
+    ) {
+        Text(
+            text = label,
+            fontFamily = HankenGrotesk,
+            fontSize = 12.5.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = AccentLavande,
+            maxLines = 1
+        )
+        Spacer(modifier = Modifier.width(6.dp))
+        Icon(
+            imageVector = Icons.Default.Close,
+            contentDescription = stringResource(R.string.search_remove_filter),
+            tint = AccentLavande,
+            modifier = Modifier
+                .size(16.dp)
+                .clip(RoundedCornerShape(50))
+                .clickable { onRemove() }
+        )
     }
 }
