@@ -596,3 +596,15 @@ Correction des couleurs de titres, affichage des horaires sur vignettes TV de la
 
 ✅ **TERMINÉE** (Livrée)
 Bouton "Voir tout" sur les sections favoris, passage en grille à 3 colonnes pour les catégories de films/séries filtrées, affichage exclusif de l'année sur les fiches détails, et suppression définitive du texte d'en-tête "Détail..." de la flèche de retour.
+
+---
+
+### Phase 58 : Recherche Avancée (filtres Films/Séries)
+
+✅ **TERMINÉE** (Livrée) — Réalisée via les Tâches 1 à 6 de la feature :
+- **Tâche 1 (Data) :** Persistance de l'année de sortie sur `VodStreamEntity`/`SeriesStreamEntity`, migration Room MIGRATION_15_16 (v15 -> v16), parsing défensif de `releasedate` via `ReleaseYearParser`, et backfill en arrière-plan.
+- **Tâche 2 (Domain) :** Extension de `VodStream`/`SeriesStream` (genre/releaseYear), création de `AdvancedSearchFilter` et `SearchMediaType`, implémentation de `GetTopGenresUseCase` (top 20 genres), `GetCategoriesForTypeUseCase` (catégories + compteurs, entrée "Toutes les catégories"), et `AdvancedCatalogSearchUseCase` (périmètre de filtrage).
+- **Tâche 3 (Presentation) :** Câblage complet dans `FavoritesViewModel` avec debounce léger pour recalcul temps réel, gestion réactive de l'état `FavoritesUiState`, et tests de transition d'état.
+- **Tâche 4 (UI Mobile - Sheet) :** Composable `AdvancedSearchSheet` respectant scrupuleusement la charte graphique de la refonte IPTV, sélecteur exclusif, dropdown catégorie réutilisant `CatalogFilterComponents`, sliders et FlowRow de genres.
+- **Tâche 5 (UI Mobile - Écran) :** Intégration dans `SearchScreen.kt` avec bouton filtre violet, chips actifs supprimables sous la barre de recherche, méta-ligne "année · ★ note" sur les affiches, et groupement par type.
+- **Tâche 6 (TV) :** Panneau latéral de recherche avancée focusable au D-pad en `tv-material` avec steppers pour pallier le RangeSlider.
