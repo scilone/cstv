@@ -84,20 +84,30 @@ fun SearchScreen(
 
                 Spacer(modifier = Modifier.width(16.dp))
 
+                // Même style que CategorySearchField (CatalogFilterComponents.kt) :
+                // homogène avec le filtrage des catégories TV/Films/Séries.
                 OutlinedTextField(
                     value = state.searchQuery,
                     onValueChange = { viewModel.onSearchQueryChanged(it) },
-                    placeholder = { Text(stringResource(R.string.search_placeholder), color = Color.Gray, fontSize = 14.sp) },
-                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+                    placeholder = { Text(stringResource(R.string.search_placeholder), color = Color.Gray, fontSize = 13.sp) },
+                    leadingIcon = {
+                        Icon(
+                            Icons.Default.Search,
+                            contentDescription = null,
+                            tint = AccentLavande,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    },
                     singleLine = true,
-                    shape = RoundedCornerShape(28.dp),
+                    shape = RoundedCornerShape(14.dp),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = MaterialTheme.colorScheme.primary,
-                        unfocusedBorderColor = Color.Transparent,
-                        focusedContainerColor = Surface2,
-                        unfocusedContainerColor = Surface2,
+                        focusedContainerColor = Surface3,
+                        unfocusedContainerColor = Surface3,
+                        focusedBorderColor = Color.White.copy(alpha = 0.12f),
+                        unfocusedBorderColor = Color.White.copy(alpha = 0.08f),
                         focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White
+                        unfocusedTextColor = Color.White,
+                        cursorColor = AccentLavande
                     ),
                     modifier = Modifier.weight(1f)
                 )
