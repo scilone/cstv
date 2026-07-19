@@ -80,11 +80,11 @@ class SettingsManager @Inject constructor(context: Context) {
     }
 
     fun getSyncFrequency(): SyncFrequency {
-        val name = sharedPreferences.getString(KEY_SYNC_FREQUENCY, SyncFrequency.DISABLED.name)
+        val name = sharedPreferences.getString(KEY_SYNC_FREQUENCY, SyncFrequency.DAILY.name)
         return try {
-            SyncFrequency.valueOf(name ?: SyncFrequency.DISABLED.name)
+            SyncFrequency.valueOf(name ?: SyncFrequency.DAILY.name)
         } catch (e: Exception) {
-            SyncFrequency.DISABLED
+            SyncFrequency.DAILY
         }
     }
 

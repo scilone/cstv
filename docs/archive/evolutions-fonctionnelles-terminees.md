@@ -608,3 +608,14 @@ Bouton "Voir tout" sur les sections favoris, passage en grille à 3 colonnes pou
 - **Tâche 4 (UI Mobile - Sheet) :** Composable `AdvancedSearchSheet` respectant scrupuleusement la charte graphique de la refonte IPTV, sélecteur exclusif, dropdown catégorie réutilisant `CatalogFilterComponents`, sliders et FlowRow de genres.
 - **Tâche 5 (UI Mobile - Écran) :** Intégration dans `SearchScreen.kt` avec bouton filtre violet, chips actifs supprimables sous la barre de recherche, méta-ligne "année · ★ note" sur les affiches, et groupement par type.
 - **Tâche 6 (TV) :** Panneau latéral de recherche avancée focusable au D-pad en `tv-material` avec steppers pour pallier le RangeSlider.
+
+---
+
+### Phase 59 (Feature F3) : Renommer l'application en « CSTV » + icône tasse à café
+
+✅ **TERMINÉE** (Livrée)
+- **Nom de l'application :** Renommée de "IPTV Xtream POC" à **"CSTV"** dans `strings.xml`.
+- **Identifiants techniques :** Changement complet de package racine de `com.poc.iptvxtream` à **`com.cstv.app`** et du nom de projet Gradle à **`cstv`**. Refactorisation atomique de l'ensemble de l'arborescence des fichiers Kotlin (main et test) et de toutes les déclarations d'imports/packages de l'application.
+- **Icône du lanceur :** Remplacement de l'icône historique par un magnifique vector-art adaptatif représentant **une tasse de café fumante** aux couleurs d'accent Lavande (`ic_launcher_foreground.xml`).
+- **Default settings :** Passage de la valeur par défaut de mise à jour automatique en arrière-plan de `DISABLED` à **`DAILY`** (`SyncFrequency.DAILY`) pour activer nativement la tâche planifiée de rafraîchissement au premier démarrage.
+- **Stabilité :** Build complet compilé (`assembleDebug`), vérifié par le linter Android (`lintDebug`) et tests unitaires de non-régression entièrement validés.
