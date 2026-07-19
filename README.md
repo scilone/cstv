@@ -63,6 +63,24 @@ app/src/main/java/com/poc/iptvxtream/
 
 ---
 
+## 📋 Gestion du Projet & Organisation du Backlog
+
+Le développement de l'application suit un flux de travail agile strict conçu pour maintenir les sessions de développement d'IA extrêmement rapides et efficaces :
+
+* **Backlog Actif** :
+  * `docs/evolutions-fonctionnelles.md` (Préfixe **F-X**) : Nouvelles fonctionnalités de l'application.
+  * `docs/evolutions-techniques.md` (Préfixe **T-X**) : Chantiers d'architecture, refactorings, sécurité et dettes.
+  * `docs/bugs.md` (Préfixe **B-X**) : Rapports d'anomalies de comportement et régressions ouvertes.
+
+* **Dossier d'Archives** (`docs/archive/`) :
+  * `docs/archive/evolutions-fonctionnelles-terminees.md` : Toutes les fonctionnalités fonctionnelles terminées et validées.
+  * `docs/archive/evolutions-techniques-terminees.md` : Toutes les corrections, refactorings et optimisations techniques validés.
+  * `docs/archive/bugs-termines.md` : Toutes les corrections de bugs archivées et validées.
+
+* **Workflow d'IA systématique** : Dès qu'une tâche active (**F**, **T** ou **B**) est livrée et validée, sa description/son prompt est coupé-collé de son fichier actif vers le fichier d'archive correspondant afin de garder les backlogs actifs ultra-courts, ce qui évite toute surcharge cognitive et de contexte pour l'IA.
+
+---
+
 ## 💻 Instructions de Build et d'Exécution
 
 Assurez-vous d'avoir configuré le JDK 17 ou supérieur pour l'exécution des commandes.

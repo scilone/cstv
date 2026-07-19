@@ -7,21 +7,27 @@ Ce fichier contient les règles permanentes à suivre à chaque session de trava
 - `prompt-app-iptv-xtream.md` : cahier des charges fonctionnel complet (fonctionnalités, endpoints Xtream Codes, écrans, gestion d'erreurs).
 - `docs/evolutions-fonctionnelles.md` : Backlog fonctionnel actif. Contient uniquement les fonctionnalités et évolutions fonctionnelles ouvertes ou à implémenter.
 - `docs/evolutions-techniques.md` : Backlog technique actif. Contient uniquement la dette technique, les refactorings et les chantiers d'architecture/sécurité ouverts.
+- `docs/bugs.md` : Backlog de bugs actif. Contient uniquement les rapports de bugs ouverts, anomalies de comportement ou régressions constatées.
 - `docs/archive/` : Dossier d'archivage historique.
   - `docs/archive/evolutions-fonctionnelles-terminees.md` : Miroir d'archivage pour toutes les évolutions et phases fonctionnelles validées.
   - `docs/archive/evolutions-techniques-terminees.md` : Miroir d'archivage pour tous les correctifs et audits techniques réalisés.
+  - `docs/archive/bugs-termines.md` : Miroir d'archivage pour tous les bugs, anomalies et régressions corrigés et validés.
 - `docs/design-reference/` : source de vérité visuelle pour la refonte UI/UX
   (Phases 46-54). Contient le HTML/CSS brut exporté de la maquette Claude Design (couleurs, radius, typographie exacts) et, quand disponibles, des captures d'écran de référence par écran. À consulter systématiquement en amont de chaque phase plutôt que de deviner les valeurs de design.
 
 ### 🔄 Flux de Travail et Archivage Systématique (Workflow)
 Pour maintenir les sessions d'IA ultra-rapides et éviter la surcharge cognitive et de contexte :
 1. **Ne lisez pas les archives** : Ne chargez jamais inutilement les fichiers du dossier `docs/archive/` dans les sessions d'IA de développement.
-2. **Archivage après complétion** : Dès qu'une évolution fonctionnelle ou technique est livrée, validée et taggée :
-   - Prenez sa description/prompt de son fichier actif (`docs/evolutions-fonctionnelles.md` ou `docs/evolutions-techniques.md`).
-   - Déplacez-la (couper-coller) vers le fichier d'archive correspondant sous `docs/archive/`, en la marquant comme `✅ TERMINÉE`.
+2. **Archivage après complétion** : Dès qu'une évolution fonctionnelle, technique ou correction de bug est livrée, validée et taggée :
+   - Prenez sa description/prompt de son fichier actif (`docs/evolutions-fonctionnelles.md`, `docs/evolutions-techniques.md` ou `docs/bugs.md`).
+   - Déplacez-la (couper-coller) vers le fichier d'archive correspondant sous `docs/archive/`, en la marquant comme `✅ TERMINÉE` ou `✅ CORRIGÉ`.
    - Laissez les fichiers actifs extrêmement courts et ciblés sur le travail immédiat.
-3. **Modèle & Effort requis** : Chaque évolution inscrite dans le backlog actif doit obligatoirement spécifier le **modèle d'IA recommandé** (`Haiku 4.5`, `Sonnet 5` ou `Opus 4.8`) et l'**effort associé** (`S` pour <1h, `M` pour 1-3h, `L` pour une journée ou plus).
-4. **Identifiants uniques de Features et de Tâches** : Chaque fonctionnalité (ou phase d'évolution) inscrite dans le backlog actif ou d'archive doit posséder un identifiant unique et permanent (ex: `F-5` pour la 5e feature fonctionnelle, `T-2` pour la 2e feature technique). Les sous-tâches sont numérotées séquentiellement au sein de cette feature (ex: `Tâche 1`, `Tâche 2`, etc.). Cela permet au PO d'ordonner facilement un travail ciblé (ex: « fais la tâche 3 de la feature F-5 »).
+3. **Modèle & Effort requis** : Chaque évolution ou correction de bug inscrite dans le backlog actif doit obligatoirement spécifier le **modèle d'IA recommandé** (`Haiku 4.5`, `Sonnet 5` ou `Opus 4.8`) et l'**effort associé** (`S` pour <1h, `M` pour 1-3h, `L` pour une journée ou plus).
+4. **Identifiants uniques de Features, de Tâches et de Bugs** : Chaque fonctionnalité, évolution technique ou correction de bug inscrite dans le backlog actif ou d'archive doit posséder un identifiant unique et permanent :
+   - **F-X** (ex: `F-5`) pour les fonctionnalités (features fonctionnelles).
+   - **T-X** (ex: `T-2`) pour les évolutions techniques et dettes.
+   - **B-X** (ex: `B-1`) pour les corrections de bugs.
+   Les sous-tâches sont numérotées séquentiellement au sein de cette feature (ex: `Tâche 1`, `Tâche 2`, etc.). Cela permet au PO d'ordonner facilement un travail ciblé (ex: « fais la tâche 3 de la feature F-5 » ou « corrige le bug B-1 »).
 
 ## Périmètre strict du projet
 
