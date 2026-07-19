@@ -79,6 +79,10 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.7.0")
     
+    // AppCompat : requis par MediaRouteButton (bouton Cast) qui exige un thème
+    // Theme.AppCompat, alors que l'app utilise un thème Material/Compose.
+    implementation("androidx.appcompat:appcompat:1.6.1")
+
     // Compose Mobile
     implementation("androidx.activity:activity-compose:1.8.2")
     implementation(platform("androidx.compose:compose-bom:2024.02.02"))

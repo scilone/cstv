@@ -1,9 +1,11 @@
 package com.cstv.app.presentation.player.cast
 
+import android.view.ContextThemeWrapper
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.mediarouter.app.MediaRouteButton
+import com.cstv.app.R
 import com.google.android.gms.cast.framework.CastButtonFactory
 
 /**
@@ -19,8 +21,11 @@ fun CastButton(modifier: Modifier = Modifier) {
     AndroidView(
         modifier = modifier,
         factory = { ctx ->
-            MediaRouteButton(ctx).apply {
-                CastButtonFactory.setUpMediaRouteButton(ctx.applicationContext, this)
+            // MediaRouteButton exige un thème Theme.AppCompat : on enveloppe le
+            // context (thème app = Material non-AppCompat → crash sinon).
+            val themed = ContextThemeWrapper(ctx, R.style.Theme_Cast)
+            MediaRouteButton(themed).apply {
+                CastButtonFactory.setUpMediaRouteButton(themed, this)
             }
         }
     )

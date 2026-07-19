@@ -4,4 +4,9 @@
     <style name="Theme.IptvXtream" parent="android:Theme.Material.NoActionBar.Fullscreen">
         <item name="android:windowBackground">@color/black</item>
     </style>
+
+    <!-- Thème AppCompat minimal pour MediaRouteButton (bouton Cast) : l'app
+         tourne sous un thème Material/Compose non-AppCompat, or le bouton Cast
+         et son dialogue de sélection d'appareil exigent Theme.AppCompat. -->
+    <style name="Theme.Cast" parent="Theme.AppCompat.DayNight.NoActionBar" />
 </resources>
