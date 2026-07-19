@@ -27,12 +27,23 @@ class TrendingRepositoryImpl @Inject constructor(
 
     override suspend fun getTrending(): List<TrendingTitle> {
         if (apiKey.isBlank()) {
+            com.cstv.app.di.IptvLog.e("TMDB", "❌ TMDB API Key is blank! Fallback to standard hero.")
             return emptyList()
         }
 
+        val maskedKey = if (apiKey.length > 5) apiKey.take(5) + "..." else "invalid"
+        com.cstv.app.di.IptvLog.d("TMDB", "🌐 Fetching trending items from TMDB with key prefix: $maskedKey")
+
         return try {
             val response = tmdbApiService.getTrending(apiKey)
-            response.results?.mapNotNull { item ->
+            val results = response.results
+            if (results == null) {
+                com.cstv.app.di.IptvLog.w("TMDB", "⚠️ TMDB response results are null!")
+            } else {
+                com.cstv.app.di.IptvLog.d("TMDB", "✅ TMDB returned ${results.size} trending items.")
+            }
+
+            results?.mapNotNull { item ->
                 val id = when (val rawId = item.id) {
                     is Number -> rawId.toInt()
                     is String -> rawId.toIntOrNull()
@@ -56,6 +67,7 @@ class TrendingRepositoryImpl @Inject constructor(
                 )
             } ?: emptyList()
         } catch (e: Exception) {
+            com.cstv.app.di.IptvLog.e("TMDB", "❌ Exception while fetching trends from TMDB", e)
             emptyList()
         }
     }
@@ -65,14 +77,21 @@ class TrendingRepositoryImpl @Inject constructor(
         val currentTime = System.currentTimeMillis()
 
         if (currentTime - lastFetchTime >= cacheDurationMs) {
+            com.cstv.app.di.IptvLog.d("TMDB", "💾 Global trends cache expired.")
             return null // Cache expired
         }
 
-        val json = sharedPrefs.getString("trends_data_global", null) ?: return null
+        val json = sharedPrefs.getString("trends_data_global", null) ?: run {
+            com.cstv.app.di.IptvLog.d("TMDB", "💾 Global trends cache is empty.")
+            return null
+        }
         return try {
             val type = object : TypeToken<List<TrendingCatalogItem>>() {}.type
-            gson.fromJson<List<TrendingCatalogItem>>(json, type)
+            val list = gson.fromJson<List<TrendingCatalogItem>>(json, type)
+            com.cstv.app.di.IptvLog.d("TMDB", "💾 Global trends cache hit! Loaded ${list.size} matched items.")
+            list
         } catch (e: Exception) {
+            com.cstv.app.di.IptvLog.e("TMDB", "💾 Exception while parsing global trends cache", e)
             null // Fallback to re-fetch on parsing failure
         }
     }
@@ -85,8 +104,9 @@ class TrendingRepositoryImpl @Inject constructor(
                     .putString("trends_data_global", json)
                     .putLong("trends_time_global", System.currentTimeMillis())
                     .apply()
+                com.cstv.app.di.IptvLog.d("TMDB", "💾 Global matched trends successfully saved in persistent cache.")
             } catch (e: Exception) {
-                // Ignore save failures
+                com.cstv.app.di.IptvLog.e("TMDB", "💾 Failed to save matched trends to persistent cache", e)
             }
         }
     }

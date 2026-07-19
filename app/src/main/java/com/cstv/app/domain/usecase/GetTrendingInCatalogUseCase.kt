@@ -20,29 +20,41 @@ class GetTrendingInCatalogUseCase @Inject constructor(
 ) {
 
     suspend operator fun invoke(): List<TrendingCatalogItem> = withContext(Dispatchers.Default) {
+        com.cstv.app.di.IptvLog.d("TMDB", "🚀 GetTrendingInCatalogUseCase triggered.")
+
         // 1. Check persistent global device cache
         val cachedGlobal = trendingRepository.getCachedMatchedTrendsGlobal()
         val matchedList = if (cachedGlobal != null) {
+            com.cstv.app.di.IptvLog.d("TMDB", "💾 Global matched cache HIT. Loaded ${cachedGlobal.size} items.")
             cachedGlobal
         } else {
+            com.cstv.app.di.IptvLog.d("TMDB", "💾 Global matched cache MISS. Fetching raw trends and matching...")
+            
             // 2. Fetch fresh trends from API and match them if cache is expired/null
             val trendingList = trendingRepository.getTrending()
             if (trendingList.isEmpty()) {
+                com.cstv.app.di.IptvLog.w("TMDB", "🌐 TMDB API returned empty list of trends. Reverting to hero card.")
                 return@withContext emptyList()
             }
 
             // Fetch ALL local catalog items (without filtering hidden categories yet)
             val allMovies = try {
-                vodRepository.getVodStreams("all", false)
+                val list = vodRepository.getVodStreams("all", false)
+                com.cstv.app.di.IptvLog.d("TMDB", "📦 Loaded ${list.size} movies from local database cache.")
+                list
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
+                com.cstv.app.di.IptvLog.e("TMDB", "📦 Failed to load movies from local database", e)
                 emptyList()
             }
 
             val allSeries = try {
-                seriesRepository.getSeriesStreams("all", false)
+                val list = seriesRepository.getSeriesStreams("all", false)
+                com.cstv.app.di.IptvLog.d("TMDB", "📦 Loaded ${list.size} series from local database cache.")
+                list
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
+                com.cstv.app.di.IptvLog.e("TMDB", "📦 Failed to load series from local database", e)
                 emptyList()
             }
 
@@ -66,7 +78,10 @@ class GetTrendingInCatalogUseCase @Inject constructor(
                     
                     if (bestMovie != null) {
                         seenMatchedIds.add(bestMovie.streamId)
+                        com.cstv.app.di.IptvLog.d("TMDB", "🎯 Match movie: '${trending.title}' ↔ '${bestMovie.name}' (score: $bestScore)")
                         fullMatchedResult.add(TrendingCatalogItem(trendingTitle = trending, matchedMovie = bestMovie))
+                    } else {
+                        com.cstv.app.di.IptvLog.d("TMDB", "❔ No match found in catalog for trending movie: '${trending.title}'")
                     }
                 } else {
                     // Find best matching series in catalog
@@ -84,7 +99,10 @@ class GetTrendingInCatalogUseCase @Inject constructor(
                     
                     if (bestSeries != null) {
                         seenMatchedIds.add(bestSeries.seriesId)
+                        com.cstv.app.di.IptvLog.d("TMDB", "🎯 Match series: '${trending.title}' ↔ '${bestSeries.name}' (score: $bestScore)")
                         fullMatchedResult.add(TrendingCatalogItem(trendingTitle = trending, matchedSeries = bestSeries))
+                    } else {
+                        com.cstv.app.di.IptvLog.d("TMDB", "❔ No match found in catalog for trending series: '${trending.title}'")
                     }
                 }
             }
@@ -92,6 +110,8 @@ class GetTrendingInCatalogUseCase @Inject constructor(
             // Save full matched results globally before returning
             if (fullMatchedResult.isNotEmpty()) {
                 trendingRepository.saveMatchedTrendsGlobal(fullMatchedResult)
+            } else {
+                com.cstv.app.di.IptvLog.w("TMDB", "⚠️ No trends matches found in the entire local database catalog!")
             }
 
             fullMatchedResult
@@ -107,16 +127,26 @@ class GetTrendingInCatalogUseCase @Inject constructor(
 
         val filteredResult = matchedList.filter { item ->
             if (item.matchedMovie != null) {
-                item.matchedMovie.categoryId !in hiddenMovies
+                val isHidden = item.matchedMovie.categoryId in hiddenMovies
+                if (isHidden) {
+                    com.cstv.app.di.IptvLog.d("TMDB", "🚫 Movie '${item.matchedMovie.name}' filtered out because its category '${item.matchedMovie.categoryId}' is hidden.")
+                }
+                !isHidden
             } else if (item.matchedSeries != null) {
-                item.matchedSeries.categoryId !in hiddenSeries
+                val isHidden = item.matchedSeries.categoryId in hiddenSeries
+                if (isHidden) {
+                    com.cstv.app.di.IptvLog.d("TMDB", "🚫 Series '${item.matchedSeries.name}' filtered out because its category '${item.matchedSeries.categoryId}' is hidden.")
+                }
+                !isHidden
             } else {
                 true
             }
         }
 
         // 4. Cap final filtered list at 10 items
-        filteredResult.take(10)
+        val finalResult = filteredResult.take(10)
+        com.cstv.app.di.IptvLog.d("TMDB", "🏁 GetTrendingInCatalogUseCase returning ${finalResult.size} items to the UI.")
+        finalResult
     }
 
     private suspend fun getHiddenCategories(type: CategoryType): Set<String> {
