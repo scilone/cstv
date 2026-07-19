@@ -16,12 +16,16 @@ android {
         // Phase 39 : synchronisés avec le dernier tag git poussé (voir AGENTS.md,
         // section "Checklist avant de conclure une tâche"). versionCode dérivé du
         // SemVer : major*10_000 + minor*100 + patch (marge de 0-99 par segment).
-        versionCode = 14_715
-        versionName = "1.47.15"
+        versionCode = 14_716
+        versionName = "1.47.16"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
             useSupportLibrary = true
+        }
+        resourceConfigurations.addAll(setOf("fr", "en"))
+        ndk {
+            abiFilters.addAll(setOf("armeabi-v7a", "arm64-v8a"))
         }
     }
 
