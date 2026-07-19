@@ -17,6 +17,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -45,6 +46,14 @@ fun HomeTrendingCarousel(
 ) {
     val pagerState = rememberPagerState(pageCount = { trendingItems.size })
 
+    // Recale sur la première page si la liste rétrécit sous la page courante
+    // (ex. recalcul du filtre catégorie masquée) pour éviter une page vide.
+    LaunchedEffect(trendingItems.size) {
+        if (trendingItems.isNotEmpty() && pagerState.currentPage >= trendingItems.size) {
+            pagerState.scrollToPage(0)
+        }
+    }
+
     Box(
         modifier = modifier
             .height(280.dp)
@@ -54,7 +63,12 @@ fun HomeTrendingCarousel(
             state = pagerState,
             modifier = Modifier.fillMaxSize()
         ) { page ->
-            val item = trendingItems[page]
+            // trendingItems peut rétrécir entre deux recompositions (ex. filtre
+            // catégorie masquée recalculé après un premier chargement) alors que
+            // pagerState.currentPage garde un index désormais hors bornes ->
+            // IndexOutOfBoundsException à la composition si on utilise [page] sans
+            // garde-fou (crash "après un moment", hors de tout try/catch de fetch).
+            val item = trendingItems.getOrNull(page) ?: return@HorizontalPager
             val streamId = item.matchedMovie?.streamId ?: item.matchedSeries?.seriesId ?: 0
             val isMovie = item.matchedMovie != null
 
