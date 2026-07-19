@@ -13,6 +13,7 @@
     <string name="login_remember_me">Se souvenir de moi</string>
     <string name="login_button">CONNEXION</string>
     <string name="common_back">Retour</string>
+    <string name="common_clear">Effacer</string>
     <string name="favorites_title">MES FAVORIS</string>
     <string name="favorites_empty">Aucun favori enregistré.</string>
     <string name="favorites_category_live">LIVE TV</string>

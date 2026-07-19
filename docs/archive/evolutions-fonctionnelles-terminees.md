@@ -619,3 +619,17 @@ Bouton "Voir tout" sur les sections favoris, passage en grille à 3 colonnes pou
 - **Icône du lanceur :** Remplacement de l'icône historique par un magnifique vector-art adaptatif représentant **une tasse de café fumante** aux couleurs d'accent Lavande (`ic_launcher_foreground.xml`).
 - **Default settings :** Passage de la valeur par défaut de mise à jour automatique en arrière-plan de `DISABLED` à **`DAILY`** (`SyncFrequency.DAILY`) pour activer nativement la tâche planifiée de rafraîchissement au premier démarrage.
 - **Stabilité :** Build complet compilé (`assembleDebug`), vérifié par le linter Android (`lintDebug`) et tests unitaires de non-régression entièrement validés.
+
+---
+
+### Phase 60 (Feature F2) : Bouton « effacer » (croix) dans les champs de saisie
+
+✅ **TERMINÉE** (Livrée)
+- **Objectif :** Ajout d'une icône de suppression en croix (×) à droite des zones de texte non vides pour vider instantanément le texte saisi.
+- **Composants mis à jour :**
+  - Le champ de recherche unifiée globale de `SearchScreen.kt`.
+  - Le champ de recherche rapide de catégories partagé `CategorySearchField` dans `CatalogFilterComponents.kt`.
+  - Le champ de recherche de la bottom sheet de catégories de `CategoryFilterSheet` dans `CatalogFilterComponents.kt`.
+  - Les champs de texte d'adresse de serveur (`serverAddress`) et d'identifiant (`username`) de l'écran de connexion `LoginScreen.kt`.
+- **Règle TV & Accessibilité :** Les boutons de suppression sont gérés de manière accessible (`contentDescription` via `common_clear` "Effacer"). Sur Android TV, l'icône Close est rendue focusable au D-pad de manière fluide et contrastée.
+- **Stabilité :** Build complet compilé (`assembleDebug`), linter au vert (`lintDebug`) et tous les tests de non-régression validés.

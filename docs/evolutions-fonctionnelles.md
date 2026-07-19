@@ -54,17 +54,6 @@ Une fois qu'une fonctionnalité est implémentée et validée, sa description/so
 
 ---
 
-### ❌ Feature F2 : Bouton « effacer » (croix) dans les champs de saisie
-**Modèle : Sonnet 5 · Effort : S**
-
-> Ajoute une petite croix (×) à droite de chaque champ texte pour vider la saisie en un clic, visible uniquement quand le champ est non vide.
-> - Cible tous les `OutlinedTextField` de saisie : le champ de recherche de `SearchScreen`, le `CategorySearchField` partagé (`presentation/components/CatalogFilterComponents.kt`), et les champs de l'écran de connexion (`presentation/login/`).
-> - Implémentation : `trailingIcon` conditionnel (`if (value.isNotEmpty())`) avec `Icons.Default.Close`, `onClick` = `onValueChange("")`. Factoriser si un composant de champ partagé s'y prête, sinon appliquer champ par champ.
-> - Accessibilité : `contentDescription` (string ressource, ex. « Effacer »). Sur TV, rendre la croix focusable au D-pad seulement si le champ est utilisé sur TV.
-> - Tests : non prioritaires (UI pure), mais vérifier le rendu conditionnel si un test de composant existe déjà.
-
----
-
 ## 💡 Idées futures / Nouveau Backlog
 
 *Ajoutez ici vos nouvelles idées de fonctionnalités pour les prochaines sessions de développement.*

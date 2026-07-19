@@ -109,6 +109,19 @@ fun SearchScreen(
                             modifier = Modifier.size(18.dp)
                         )
                     },
+                    trailingIcon = {
+                        if (state.searchQuery.isNotEmpty()) {
+                            IconButton(
+                                onClick = { viewModel.onSearchQueryChanged("") }
+                            ) {
+                                Icon(
+                                    Icons.Default.Close,
+                                    contentDescription = stringResource(R.string.common_clear),
+                                    tint = Color.Gray
+                                )
+                            }
+                        }
+                    },
                     singleLine = true,
                     shape = RoundedCornerShape(14.dp),
                     colors = OutlinedTextFieldDefaults.colors(

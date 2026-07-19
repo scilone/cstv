@@ -12,6 +12,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Dns
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -222,6 +223,17 @@ fun LoginForm(
             label = { Text(stringResource(R.string.login_server_address)) },
             placeholder = { Text(stringResource(R.string.login_server_placeholder)) },
             leadingIcon = { Icon(Icons.Default.Dns, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+            trailingIcon = {
+                if (serverAddress.isNotEmpty()) {
+                    IconButton(onClick = { onServerAddressChange("") }) {
+                        Icon(
+                            Icons.Default.Close,
+                            contentDescription = stringResource(R.string.common_clear),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            },
             singleLine = true,
             enabled = !isLoading,
             isError = serverAddressError != null,
@@ -243,6 +255,17 @@ fun LoginForm(
             onValueChange = onUsernameChange,
             label = { Text(stringResource(R.string.login_username)) },
             leadingIcon = { Icon(Icons.Default.Person, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+            trailingIcon = {
+                if (username.isNotEmpty()) {
+                    IconButton(onClick = { onUsernameChange("") }) {
+                        Icon(
+                            Icons.Default.Close,
+                            contentDescription = stringResource(R.string.common_clear),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            },
             singleLine = true,
             enabled = !isLoading,
             colors = fieldColors,
