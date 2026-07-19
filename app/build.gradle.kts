@@ -16,8 +16,8 @@ android {
         // Phase 39 : synchronisés avec le dernier tag git poussé (voir AGENTS.md,
         // section "Checklist avant de conclure une tâche"). versionCode dérivé du
         // SemVer : major*10_000 + minor*100 + patch (marge de 0-99 par segment).
-        versionCode = 14_704
-        versionName = "1.47.4"
+        versionCode = 14_705
+        versionName = "1.47.5"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -128,6 +128,9 @@ dependencies {
     implementation("androidx.media3:media3-exoplayer-hls:$media3Version")
     implementation("androidx.media3:media3-ui:$media3Version")
     implementation("androidx.media3:media3-session:$media3Version")
+    implementation("androidx.media3:media3-cast:$media3Version")
+    implementation("com.google.android.gms:play-services-cast:21.5.0")
+    implementation("com.google.android.gms:play-services-cast-framework:21.5.0")
     // NextLib : décodeurs FFmpeg software (EAC3/AC3/DTS/TrueHD...) pour les
     // appareils sans décodeur matériel de ces codecs. Aligné sur media3 1.4.0.
     implementation("com.github.anilbeesetti.nextlib:nextlib-media3ext:v0.8.2")
