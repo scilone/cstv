@@ -150,8 +150,7 @@ Toute fonctionnalité réseau doit gérer explicitement : identifiants invalides
 3. Vérifie que tu n'as pas dépassé le périmètre de la phase demandée.
 4. Signale dans ta réponse tout point du cahier des charges resté ambigu ou non traité.
 5. Pour les évolutions fonctionnelles, techniques et corrections de bugs, respecte scrupuleusement le workflow d'archivage systématique vers `docs/archive/` dès qu'une tâche est livrée et validée.
-6. Exécute `./gradlew assembleDebug` et donne-moi le chemin de l'APK généré.
-7. Effectue systématiquement un commit Git, crée un tag Git associé (ex: v1.x.y respectant SemVer) et pousse-les (y compris les tags avec `git push origin --tags` ou de manière ciblée) vers le dépôt distant après chaque fonctionnalité ou phase terminée.
+6. Effectue systématiquement un commit Git, crée un tag Git associé (ex: v1.x.y respectant SemVer) et pousse-les (y compris les tags avec `git push origin --tags` ou de manière ciblée) vers le dépôt distant après chaque fonctionnalité ou phase terminée.
 
 ## Processus de Release et Tagging SemVer
 
