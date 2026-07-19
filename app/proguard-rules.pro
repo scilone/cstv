@@ -26,3 +26,9 @@
 # même besoin de règle explicite — sans elle, R8 casse le call adapter
 # générique en release et l'appel TMDB throw au chargement de l'Accueil.
 -keep interface com.cstv.app.data.remote.api.TmdbApiService { *; }
+
+# --- Gson & R8 TypeToken preservation ---
+-keep class * extends com.google.gson.reflect.TypeToken
+-keep class com.google.gson.reflect.TypeToken { *; }
+-keep class com.cstv.app.domain.model.TrendingCatalogItem { *; }
+-keep class com.cstv.app.domain.model.TrendingTitle { *; }

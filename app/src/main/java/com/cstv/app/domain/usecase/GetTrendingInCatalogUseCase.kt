@@ -2,6 +2,7 @@ package com.cstv.app.domain.usecase
 
 import com.cstv.app.domain.model.TrendingCatalogItem
 import com.cstv.app.domain.model.ApproximateTitleMatcher
+import com.cstv.app.domain.model.TitleNormalizer
 import com.cstv.app.domain.model.CategoryType
 import com.cstv.app.domain.repository.TrendingRepository
 import com.cstv.app.domain.repository.VodRepository
@@ -58,18 +59,26 @@ class GetTrendingInCatalogUseCase @Inject constructor(
                 emptyList()
             }
 
+            com.cstv.app.di.IptvLog.d("TMDB", "⚡ Pre-normalizing IPTV titles...")
+            // 20x Performance optimization: pre-normalize IPTV titles once before the loops
+            val normalizedMovies = allMovies.map { it to TitleNormalizer.normalize(it.name ?: "") }
+            val normalizedSeries = allSeries.map { it to TitleNormalizer.normalize(it.name ?: "") }
+            com.cstv.app.di.IptvLog.d("TMDB", "⚡ Pre-normalization complete. Running similarity algorithms...")
+
             val fullMatchedResult = mutableListOf<TrendingCatalogItem>()
             val seenMatchedIds = mutableSetOf<Int>() // Prevent matching the same movie or series twice
 
             for (trending in trendingList) {
+                val normalizedTrending = TitleNormalizer.normalize(trending.title)
+
                 if (trending.isMovie) {
                     // Find best matching movie in catalog
                     var bestMovie: com.cstv.app.domain.model.VodStream? = null
                     var bestScore = 0.0
                     
-                    for (movie in allMovies) {
+                    for ((movie, normalizedName) in normalizedMovies) {
                         if (movie.streamId in seenMatchedIds) continue
-                        val score = ApproximateTitleMatcher.computeSimilarity(trending.title, movie.name ?: "")
+                        val score = ApproximateTitleMatcher.computeSimilarityNormalized(normalizedTrending, normalizedName)
                         if (score >= 0.8 && score > bestScore) {
                             bestScore = score
                             bestMovie = movie
@@ -88,9 +97,9 @@ class GetTrendingInCatalogUseCase @Inject constructor(
                     var bestSeries: com.cstv.app.domain.model.SeriesStream? = null
                     var bestScore = 0.0
                     
-                    for (series in allSeries) {
+                    for ((series, normalizedName) in normalizedSeries) {
                         if (series.seriesId in seenMatchedIds) continue
-                        val score = ApproximateTitleMatcher.computeSimilarity(trending.title, series.name ?: "")
+                        val score = ApproximateTitleMatcher.computeSimilarityNormalized(normalizedTrending, normalizedName)
                         if (score >= 0.8 && score > bestScore) {
                             bestScore = score
                             bestSeries = series

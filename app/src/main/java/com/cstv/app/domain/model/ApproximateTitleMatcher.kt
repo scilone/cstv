@@ -5,7 +5,10 @@ object ApproximateTitleMatcher {
     fun computeSimilarity(tmdbTitle: String, iptvTitle: String): Double {
         val s1 = TitleNormalizer.normalize(tmdbTitle)
         val s2 = TitleNormalizer.normalize(iptvTitle)
+        return computeSimilarityNormalized(s1, s2)
+    }
 
+    fun computeSimilarityNormalized(s1: String, s2: String): Double {
         if (s1.isBlank() || s2.isBlank()) return 0.0
         if (s1 == s2) return 1.0
 
