@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.FastForward
 import androidx.compose.material.icons.filled.FastRewind
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Cast
 import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SkipNext
@@ -184,6 +185,27 @@ fun SeriesPlayerScreen(
     // navigation. Toute la logique du player (URL, sauvegarde de position,
     // titre) s'appuie sur cette valeur plutôt que sur le paramètre initial.
     var currentEpisode by remember { mutableStateOf(episode) }
+
+    // --- Chromecast (F4) ---
+    val castAvailable = remember { com.cstv.app.presentation.player.cast.isCastAvailable(context) }
+    val castMediaItem = remember(currentEpisode) {
+        val url = currentEpisode.getPlayUrl(credentials.baseUrl, credentials.username, credentials.password)
+        val label = "S%02dE%02d".format(currentEpisode.seasonNum, currentEpisode.episodeNum)
+        val title = if (currentEpisode.title.isNotBlank()) "$seriesName · $label · ${currentEpisode.title}" else "$seriesName · $label"
+        com.cstv.app.presentation.player.cast.CastMediaItemFactory.build(
+            url = url,
+            title = title,
+            extension = currentEpisode.containerExtension,
+            artworkUrl = seriesCover
+        )
+    }
+    val castStateHolder = com.cstv.app.presentation.player.cast.rememberCastController(
+        exoPlayer = exoPlayer,
+        available = castAvailable,
+        currentMediaItem = castMediaItem
+    )
+    val isCasting = castStateHolder.value.isCasting
+    val castDeviceName = castStateHolder.value.deviceName
 
     // Épisode suivant selon la carte des saisons/épisodes de la série ; null en
     // fin de série ou quand la map n'est pas disponible (reprise depuis
@@ -401,11 +423,14 @@ fun SeriesPlayerScreen(
     }
 
     // Save playback position loop (Runs every 1 second)
+    // Suit le player actif (local ou Cast) pour garder la progression vivante
+    // pendant un cast (F4).
     LaunchedEffect(exoPlayer) {
         while (true) {
-            if (exoPlayer.isPlaying) {
-                currentPosition = exoPlayer.currentPosition
-                duration = exoPlayer.duration.coerceAtLeast(0L)
+            val p = castStateHolder.value.activePlayer
+            if (p.isPlaying) {
+                currentPosition = p.currentPosition
+                duration = p.duration.coerceAtLeast(0L)
 
                 if (currentPosition > 0 && duration > 0) {
                     viewModel.savePosition(currentEpisode, currentPosition, duration, seriesName, seriesCover)
@@ -483,25 +508,25 @@ fun SeriesPlayerScreen(
         }
     }
 
+    // Transport sur le player actif (local ou Cast, F4).
     fun togglePlayPause() {
-        if (exoPlayer.isPlaying) {
-            exoPlayer.pause()
-        } else {
-            exoPlayer.play()
-        }
+        val p = castStateHolder.value.activePlayer
+        if (p.isPlaying) p.pause() else p.play()
         showControls = true
     }
 
     fun skipForward() {
-        val newPos = (exoPlayer.currentPosition + 10000L).coerceAtMost(exoPlayer.duration)
-        exoPlayer.seekTo(newPos)
+        val p = castStateHolder.value.activePlayer
+        val newPos = (p.currentPosition + 10000L).coerceAtMost(p.duration)
+        p.seekTo(newPos)
         currentPosition = newPos
         showControls = true
     }
 
     fun skipBackward() {
-        val newPos = (exoPlayer.currentPosition - 10000L).coerceAtLeast(0L)
-        exoPlayer.seekTo(newPos)
+        val p = castStateHolder.value.activePlayer
+        val newPos = (p.currentPosition - 10000L).coerceAtLeast(0L)
+        p.seekTo(newPos)
         currentPosition = newPos
         showControls = true
     }
@@ -574,6 +599,29 @@ fun SeriesPlayerScreen(
             )
         } else {
             Box(modifier = Modifier.fillMaxSize().background(Color.Black))
+        }
+
+        // Pendant un cast : masque la vidéo locale (figée) par un panneau dédié (F4).
+        if (isCasting) {
+            Box(
+                modifier = Modifier.fillMaxSize().background(Color(0xFF0F0F13)),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(
+                        imageVector = Icons.Default.Cast,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(48.dp)
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = castDeviceName?.let { "Lecture sur $it" } ?: "Lecture sur le téléviseur",
+                        color = Color.White,
+                        fontSize = 16.sp
+                    )
+                }
+            }
         }
 
         // Buffering Indicator
@@ -713,7 +761,12 @@ fun SeriesPlayerScreen(
                     contentDescription = "Retour",
                     onClick = handleClose
                 )
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    if (castAvailable) {
+                        com.cstv.app.presentation.player.cast.CastButton(
+                            modifier = Modifier.size(40.dp)
+                        )
+                    }
                     if (!isTv) {
                         PlayerTopButton(
                             icon = Icons.Default.PictureInPictureAlt,
@@ -832,7 +885,7 @@ fun SeriesPlayerScreen(
                             Slider(
                                 value = currentPosition.toFloat(),
                                 onValueChange = {
-                                    exoPlayer.seekTo(it.toLong())
+                                    castStateHolder.value.activePlayer.seekTo(it.toLong())
                                     currentPosition = it.toLong()
                                 },
                                 valueRange = 0f..duration.toFloat().coerceAtLeast(1f),
@@ -858,7 +911,7 @@ fun SeriesPlayerScreen(
                                 icon = Icons.Default.Replay,
                                 label = "Recommencer",
                                 onClick = {
-                                    exoPlayer.seekTo(0)
+                                    castStateHolder.value.activePlayer.seekTo(0)
                                     currentPosition = 0
                                     showControls = true
                                 }

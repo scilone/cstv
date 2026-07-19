@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.FastForward
 import androidx.compose.material.icons.filled.FastRewind
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Cast
 import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Subtitles
@@ -126,6 +127,25 @@ fun VodPlayerScreen(
             .setMediaSourceFactory(mediaSourceFactory)
             .build()
     }
+
+    // --- Chromecast (F4) ---
+    val castAvailable = remember { com.cstv.app.presentation.player.cast.isCastAvailable(context) }
+    val castMediaItem = remember(details) {
+        val url = details.getPlayUrl(credentials.baseUrl, credentials.username, credentials.password)
+        com.cstv.app.presentation.player.cast.CastMediaItemFactory.build(
+            url = url,
+            title = details.name,
+            extension = details.containerExtension,
+            artworkUrl = details.coverBig
+        )
+    }
+    val castStateHolder = com.cstv.app.presentation.player.cast.rememberCastController(
+        exoPlayer = exoPlayer,
+        available = castAvailable,
+        currentMediaItem = castMediaItem
+    )
+    val isCasting = castStateHolder.value.isCasting
+    val castDeviceName = castStateHolder.value.deviceName
 
     var isPlayerVisible by remember { mutableStateOf(true) }
     var currentResizeMode by remember { mutableStateOf(viewModel.getResizeMode()) }
@@ -348,12 +368,15 @@ fun VodPlayerScreen(
     }
 
     // Position & Duration Tracking Loop (Runs every 1 second)
+    // Suit le player actif (local ou Cast) pour que la barre de progression
+    // reste vivante pendant un cast.
     LaunchedEffect(exoPlayer) {
         while (true) {
-            if (exoPlayer.isPlaying) {
-                currentPosition = exoPlayer.currentPosition
-                duration = exoPlayer.duration.coerceAtLeast(0L)
-                
+            val p = castStateHolder.value.activePlayer
+            if (p.isPlaying) {
+                currentPosition = p.currentPosition
+                duration = p.duration.coerceAtLeast(0L)
+
                 // Periodically save playback progress in Room (every 5 seconds)
                 if (currentPosition > 0 && duration > 0) {
                     viewModel.savePosition(details.streamId, currentPosition, duration, details)
@@ -426,25 +449,27 @@ fun VodPlayerScreen(
         }
     }
 
+    // Le transport (play/pause/seek) pilote le player actif : ExoPlayer local, ou
+    // CastPlayer quand un cast est en cours (F4). Les fonctionnalités spécifiques
+    // au lecteur local (pistes, PIP, décodeurs) restent sur exoPlayer.
     fun togglePlayPause() {
-        if (exoPlayer.isPlaying) {
-            exoPlayer.pause()
-        } else {
-            exoPlayer.play()
-        }
+        val p = castStateHolder.value.activePlayer
+        if (p.isPlaying) p.pause() else p.play()
         showControls = true
     }
 
     fun skipForward() {
-        val newPos = (exoPlayer.currentPosition + 10000L).coerceAtMost(exoPlayer.duration)
-        exoPlayer.seekTo(newPos)
+        val p = castStateHolder.value.activePlayer
+        val newPos = (p.currentPosition + 10000L).coerceAtMost(p.duration)
+        p.seekTo(newPos)
         currentPosition = newPos
         showControls = true
     }
 
     fun skipBackward() {
-        val newPos = (exoPlayer.currentPosition - 10000L).coerceAtLeast(0L)
-        exoPlayer.seekTo(newPos)
+        val p = castStateHolder.value.activePlayer
+        val newPos = (p.currentPosition - 10000L).coerceAtLeast(0L)
+        p.seekTo(newPos)
         currentPosition = newPos
         showControls = true
     }
@@ -505,6 +530,29 @@ fun VodPlayerScreen(
             )
         } else {
             Box(modifier = Modifier.fillMaxSize().background(Color.Black))
+        }
+
+        // Pendant un cast : masque la vidéo locale (figée) par un panneau dédié.
+        if (isCasting) {
+            Box(
+                modifier = Modifier.fillMaxSize().background(Color(0xFF0F0F13)),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(
+                        imageVector = Icons.Default.Cast,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(48.dp)
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = castDeviceName?.let { "Lecture sur $it" } ?: "Lecture sur le téléviseur",
+                        color = Color.White,
+                        fontSize = 16.sp
+                    )
+                }
+            }
         }
 
         // Buffering Indicator
@@ -630,7 +678,12 @@ fun VodPlayerScreen(
                     contentDescription = "Retour",
                     onClick = handleClose
                 )
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    if (castAvailable) {
+                        com.cstv.app.presentation.player.cast.CastButton(
+                            modifier = Modifier.size(40.dp)
+                        )
+                    }
                     if (!isTv) {
                         PlayerTopButton(
                             icon = Icons.Default.PictureInPictureAlt,
@@ -751,7 +804,7 @@ fun VodPlayerScreen(
                             Slider(
                                 value = currentPosition.toFloat(),
                                 onValueChange = {
-                                    exoPlayer.seekTo(it.toLong())
+                                    castStateHolder.value.activePlayer.seekTo(it.toLong())
                                     currentPosition = it.toLong()
                                 },
                                 valueRange = 0f..duration.toFloat().coerceAtLeast(1f),
@@ -775,7 +828,7 @@ fun VodPlayerScreen(
                                 icon = Icons.Default.Replay,
                                 label = "Recommencer",
                                 onClick = {
-                                    exoPlayer.seekTo(0)
+                                    castStateHolder.value.activePlayer.seekTo(0)
                                     currentPosition = 0
                                     showControls = true
                                 }

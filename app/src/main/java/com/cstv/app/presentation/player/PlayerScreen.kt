@@ -20,6 +20,7 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Cast
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Tv
 import androidx.compose.material.icons.filled.Warning
@@ -165,6 +166,30 @@ fun PlayerScreen(
     var streamExtension by remember { mutableStateOf("m3u8") } // Default to m3u8
     var videoWidth by remember { mutableStateOf(0) }
     var videoHeight by remember { mutableStateOf(0) }
+
+    // --- Chromecast (F4) ---
+    val castAvailable = remember { com.cstv.app.presentation.player.cast.isCastAvailable(context) }
+    val castMediaItem = remember(currentStream, streamExtension) {
+        val url = currentStream.getPlayUrl(
+            baseUrl = credentials.baseUrl,
+            username = credentials.username,
+            password = credentials.password,
+            extension = streamExtension
+        )
+        com.cstv.app.presentation.player.cast.CastMediaItemFactory.build(
+            url = url,
+            title = currentStream.name,
+            extension = streamExtension,
+            artworkUrl = currentStream.streamIcon
+        )
+    }
+    val castStateHolder = com.cstv.app.presentation.player.cast.rememberCastController(
+        exoPlayer = exoPlayer,
+        available = castAvailable,
+        currentMediaItem = castMediaItem
+    )
+    val isCasting = castStateHolder.value.isCasting
+    val castDeviceName = castStateHolder.value.deviceName
 
     // EPG « en cours + suivant » informatif (Phase 60) : rechargé à chaque
     // changement de chaîne. Aucune interaction (pas de timeshift, hors specs).
@@ -380,6 +405,29 @@ fun PlayerScreen(
             Box(modifier = Modifier.fillMaxSize().background(Color.Black))
         }
 
+        // Pendant un cast : masque la vidéo locale (figée) par un panneau dédié (F4).
+        if (isCasting) {
+            Box(
+                modifier = Modifier.fillMaxSize().background(Color(0xFF0F0F13)),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(
+                        imageVector = Icons.Default.Cast,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(48.dp)
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = castDeviceName?.let { "Lecture sur $it" } ?: "Lecture sur le téléviseur",
+                        color = Color.White,
+                        fontSize = 16.sp
+                    )
+                }
+            }
+        }
+
         // Buffering Indicator
         if (isBuffering && playbackError == null) {
             Box(
@@ -511,7 +559,12 @@ fun PlayerScreen(
                     contentDescription = "Retour",
                     onClick = handleClose
                 )
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    if (castAvailable) {
+                        com.cstv.app.presentation.player.cast.CastButton(
+                            modifier = Modifier.size(40.dp)
+                        )
+                    }
                     if (!isTv) {
                         PlayerTopButton(
                             icon = Icons.Default.PictureInPictureAlt,
