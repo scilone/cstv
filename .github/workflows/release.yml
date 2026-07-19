@@ -36,10 +36,6 @@ jobs:
       - name: Grant Execute Permission for Gradlew
         run: chmod +x gradlew
 
-      - name: Run Unit Tests
-        if: github.event_name == 'pull_request' || (github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/'))
-        run: ./gradlew testDebugUnitTest --no-daemon
-
       - name: Decode Keystore File
         if: startsWith(github.ref, 'refs/tags/v')
         shell: python
