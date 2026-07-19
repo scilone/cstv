@@ -50,6 +50,7 @@ fun SettingsScreen(
     modifier: Modifier = Modifier
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    var showLogsDialog by remember { mutableStateOf(false) }
 
     Box(
         modifier = modifier
@@ -67,6 +68,7 @@ fun SettingsScreen(
                 onSubtitleSizeChanged = { viewModel.updateSubtitleSize(it) },
                 onSubtitleColorChanged = { viewModel.updateSubtitleColor(it) },
                 onSubtitleBackgroundChanged = { viewModel.updateSubtitleBackground(it) },
+                onShowLogs = { showLogsDialog = true },
                 onBack = onBack,
                 onLogout = onLogout
             )
@@ -80,9 +82,14 @@ fun SettingsScreen(
                 onSubtitleSizeChanged = { viewModel.updateSubtitleSize(it) },
                 onSubtitleColorChanged = { viewModel.updateSubtitleColor(it) },
                 onSubtitleBackgroundChanged = { viewModel.updateSubtitleBackground(it) },
+                onShowLogs = { showLogsDialog = true },
                 onBack = onBack,
                 onLogout = onLogout
             )
+        }
+
+        if (showLogsDialog) {
+            LogsDialog(onDismiss = { showLogsDialog = false })
         }
     }
 }
@@ -98,6 +105,7 @@ private fun TvSettingsLayout(
     onSubtitleSizeChanged: (SubtitleTextSize) -> Unit,
     onSubtitleColorChanged: (SubtitleTextColor) -> Unit,
     onSubtitleBackgroundChanged: (SubtitleBackground) -> Unit,
+    onShowLogs: () -> Unit,
     onBack: () -> Unit,
     onLogout: () -> Unit
 ) {
@@ -165,6 +173,8 @@ private fun TvSettingsLayout(
             onColorChanged = onSubtitleColorChanged,
             onBackgroundChanged = onSubtitleBackgroundChanged
         )
+
+        TvDiagnosticLogsCard(onShowLogs = onShowLogs)
 
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -303,6 +313,7 @@ private fun MobileSettingsLayout(
     onSubtitleSizeChanged: (SubtitleTextSize) -> Unit,
     onSubtitleColorChanged: (SubtitleTextColor) -> Unit,
     onSubtitleBackgroundChanged: (SubtitleBackground) -> Unit,
+    onShowLogs: () -> Unit,
     onBack: () -> Unit,
     onLogout: () -> Unit
 ) {
@@ -365,6 +376,8 @@ private fun MobileSettingsLayout(
             onColorChanged = onSubtitleColorChanged,
             onBackgroundChanged = onSubtitleBackgroundChanged
         )
+
+        MobileDiagnosticLogsCard(onShowLogs = onShowLogs)
 
         // Profiles (Phase 27)
         Spacer(modifier = Modifier.height(24.dp))
@@ -821,6 +834,159 @@ private fun MobileSubtitleStyleCard(
                         modifier = Modifier.weight(1f)
                     )
                 }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+private fun LogsDialog(
+    onDismiss: () -> Unit
+) {
+    val clipboardManager = androidx.compose.ui.platform.LocalClipboardManager.current
+    val logsText = remember { com.cstv.app.di.IptvLog.getHistory() }
+    val scrollState = rememberScrollState()
+    var isCopied by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "JOURNAUX DE DIAGNOSTIC (TMDB / CACHE)",
+                fontWeight = FontWeight.Bold,
+                fontSize = 16.sp,
+                color = Color.White
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(300.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = "Consultez ou copiez les derniers logs systèmes de diagnostic pour le matching TMDB.",
+                    fontSize = 12.sp,
+                    color = Color.Gray
+                )
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color.Black.copy(alpha = 0.4f))
+                        .border(1.dp, Color.Gray.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
+                        .padding(8.dp)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .verticalScroll(scrollState)
+                    ) {
+                        Text(
+                            text = if (logsText.isBlank()) "Aucun log disponible pour le moment." else logsText,
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                            fontSize = 11.sp,
+                            color = Color.LightGray
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    clipboardManager.setText(androidx.compose.ui.text.AnnotatedString(logsText))
+                    isCopied = true
+                },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (isCopied) Color(0xFF4CAF50) else MaterialTheme.colorScheme.primary
+                ),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Text(
+                    text = if (isCopied) "COPIÉ !" else "COPIER LES LOGS",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("FERMER", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            }
+        },
+        containerColor = Surface2,
+        shape = RoundedCornerShape(16.dp)
+    )
+}
+
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+private fun TvDiagnosticLogsCard(onShowLogs: () -> Unit) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = Surface3),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            TvText(
+                text = "JOURNAUX DE DIAGNOSTIC",
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.Bold,
+                style = TvTheme.typography.titleMedium
+            )
+            TvText(
+                text = "Consultez ou copiez les logs de diagnostic interne pour le matching TMDB et la gestion du cache.",
+                color = Color.Gray,
+                style = TvTheme.typography.bodySmall
+            )
+            TvButton(
+                onClick = onShowLogs,
+                modifier = Modifier.fillMaxWidth().height(40.dp)
+            ) {
+                TvText("VOIR / COPIER LES LOGS", style = TvTheme.typography.labelMedium)
+            }
+        }
+    }
+}
+
+@Composable
+private fun MobileDiagnosticLogsCard(onShowLogs: () -> Unit) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = Surface3),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Column {
+                Text(
+                    text = "Journaux de diagnostic",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp
+                )
+                Text(
+                    text = "Consultez ou copiez les logs de diagnostic interne pour le matching TMDB et le cache.",
+                    color = Color.Gray,
+                    fontSize = 12.sp
+                )
+            }
+
+            Button(
+                onClick = onShowLogs,
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                shape = RoundedCornerShape(8.dp),
+                modifier = Modifier.fillMaxWidth().height(40.dp)
+            ) {
+                Text("Voir / Copier les logs", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
             }
         }
     }
