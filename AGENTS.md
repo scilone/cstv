@@ -33,7 +33,6 @@ Pour maintenir les sessions d'IA ultra-rapides et éviter la surcharge cognitive
 - Application Android/Android TV native Kotlin uniquement.
 - Connexion **API Xtream Codes uniquement** (`player_api.php`). Aucun support M3U/M3U8 brut en tant que source, aucun Stalker Portal, aucun autre protocole IPTV.
 - Fonctionnalités couvertes : Live TV, VOD Films, Séries, Favoris, Recherche locale, Paramètres.
-- Explicitement hors périmètre, à ne jamais ajouter sans qu'on le demande : catch-up/timeshift, multi-comptes Xtream (plusieurs identifiants/mots de passe distincts), enregistrement (PVR), Chromecast, autre protocole IPTV, code PIN/restriction parentale par profil.
 - Depuis la Phase 27 : profils **locaux** multiples (type Netflix) sur un **seul** compte Xtream sont dans le périmètre (favoris/historique/reprise de lecture séparés par profil ; catalogue/cache Room toujours partagé et non dupliqué). Ne pas confondre avec du multi-comptes Xtream, qui reste hors périmètre.
 - Si une tâche demandée semble sortir de ce périmètre, signale-le avant de coder.
 
