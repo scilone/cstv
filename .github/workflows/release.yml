@@ -37,6 +37,7 @@ jobs:
         run: chmod +x gradlew
 
       - name: Run Unit Tests
+        if: github.event_name == 'pull_request' || (github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/'))
         run: ./gradlew testDebugUnitTest --no-daemon
 
       - name: Decode Keystore File
