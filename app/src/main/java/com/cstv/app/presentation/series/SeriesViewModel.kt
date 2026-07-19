@@ -36,7 +36,9 @@ class SeriesViewModel @Inject constructor(
     private val credentialsManager: CredentialsManager,
     private val settingsManager: SettingsManager,
     private val trackPreferenceRepository: com.cstv.app.domain.repository.TrackPreferenceRepository,
-    private val categoryPreferenceRepository: com.cstv.app.domain.repository.CategoryPreferenceRepository
+    private val categoryPreferenceRepository: com.cstv.app.domain.repository.CategoryPreferenceRepository,
+    private val vodRepository: com.cstv.app.domain.repository.VodRepository,
+    private val seriesRepository: com.cstv.app.domain.repository.SeriesRepository
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(SeriesState())
@@ -58,6 +60,48 @@ class SeriesViewModel @Inject constructor(
         // Phase 58) : le ViewModel survit en backstack pendant les Paramètres.
         viewModelScope.launch {
             categoryPreferenceRepository.changes.collect { loadCategories() }
+        }
+        // Observe et filtre les positions de lecture en temps réel (F5)
+        viewModelScope.launch {
+            kotlinx.coroutines.flow.combine(
+                vodRepository.observeAllPlaybackPositions(),
+                categoryPreferenceRepository.changes
+            ) { allPositions, _ ->
+                allPositions
+            }.collect { allPositions ->
+                val hiddenSeries = try {
+                    categoryPreferenceRepository.getPreferences(com.cstv.app.domain.model.CategoryType.SERIES)
+                        .filterValues { it.hidden }
+                        .keys
+                } catch (e: Exception) {
+                    emptySet()
+                }
+
+                // Get only "series" type playback positions
+                val seriesPositions = allPositions.filter { pos ->
+                    pos.type == "series" && pos.positionMs > 0 && pos.positionMs < (pos.durationMs - 15000L)
+                }
+
+                val seriesMap = try {
+                    seriesRepository.getSeriesStreams("all", false).associate { it.seriesId to it.categoryId }
+                } catch (e: Exception) {
+                    emptyMap()
+                }
+
+                val filtered = seriesPositions.filter { pos ->
+                    val catId = pos.seriesId?.let { seriesMap[it] }
+                    catId == null || catId !in hiddenSeries
+                }
+
+                // Regroupe les épisodes par seriesId pour n'afficher qu'une seule entrée par série
+                val seenSeriesIds = mutableSetOf<Int>()
+                val uniqueFiltered = filtered.filter { pos ->
+                    val seriesId = pos.seriesId
+                    if (seriesId == null) true else seenSeriesIds.add(seriesId)
+                }
+
+                _state.update { it.copy(resumeSeries = uniqueFiltered) }
+            }
         }
     }
 

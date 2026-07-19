@@ -633,3 +633,12 @@ Bouton "Voir tout" sur les sections favoris, passage en grille à 3 colonnes pou
   - Les champs de texte d'adresse de serveur (`serverAddress`) et d'identifiant (`username`) de l'écran de connexion `LoginScreen.kt`.
 - **Règle TV & Accessibilité :** Les boutons de suppression sont gérés de manière accessible (`contentDescription` via `common_clear` "Effacer"). Sur Android TV, l'icône Close est rendue focusable au D-pad de manière fluide et contrastée.
 - **Stabilité :** Build complet compilé (`assembleDebug`), linter au vert (`lintDebug`) et tous les tests de non-régression validés.
+
+---
+
+### Phase 61 (Feature F5) : Section « Continuer à regarder » sur Films & Séries (mode « Tout »)
+
+✅ **TERMINÉE** (Livrée) — Réalisée via les Tâches 1 et 2 de la feature :
+- **Tâche 1 (Films) :** Injection de `VodRepository` dans `VodViewModel` pour observer de manière réactive les positions de lecture (filées contre le masquage des catégories). Exposition de la liste `resumeMovies` dans `VodState`. Intégration sur `VodScreen.kt` (mobile et TV) d'une rangée `CategorySectionRow` « Continuer à regarder » en tête du mode « Tout » (avant « Favoris »), masquée si vide.
+- **Tâche 2 (Séries) :** Injection de `VodRepository` et `SeriesRepository` dans `SeriesViewModel` pour observer réactivement les positions de lecture, filtrer les catégories masquées, dédupliquer par `seriesId` pour n'avoir qu'une seule carte par série, et exposer `resumeSeries`. Intégration sur `SeriesScreen.kt` (mobile et TV) de la rangée « Continuer à regarder » avant « Favoris » en mode « Tout », masquée si vide.
+- **Stabilité & Tests :** Création des suites de tests unitaires `VodViewModelTest` et `SeriesViewModelTest` pour valider le chargement et le filtrage réactif des replays. Compilation et linter au vert complet.

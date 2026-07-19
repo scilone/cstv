@@ -37,6 +37,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import androidx.compose.ui.res.stringResource
+import com.cstv.app.R
 import com.cstv.app.domain.model.FavoriteItem
 import com.cstv.app.domain.model.VodCategory
 import com.cstv.app.domain.model.VodStream
@@ -162,6 +164,18 @@ private fun TvLayout(
         val favoriteIds = favoritesList.filter { it.type == "movie" }.map { it.id }.toSet()
         filteredStreams.filter { it.streamId in favoriteIds }
     }
+    val resumeMoviesStreams = remember(state.resumeMovies) {
+        state.resumeMovies.map { pos ->
+            VodStream(
+                streamId = pos.streamId,
+                name = pos.title ?: "",
+                streamIcon = pos.coverUrl,
+                rating = null,
+                added = null,
+                categoryId = ""
+            )
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -206,6 +220,19 @@ private fun TvLayout(
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 modifier = Modifier.fillMaxSize()
             ) {
+                if (resumeMoviesStreams.isNotEmpty()) {
+                    item {
+                        CategorySectionRow(
+                            categoryId = "resume_watching",
+                            title = stringResource(R.string.home_resume),
+                            movies = resumeMoviesStreams,
+                            onMovieSelected = onMovieSelected,
+                            isTv = true,
+                            getScroll = getScroll,
+                            saveScroll = saveScroll
+                        )
+                    }
+                }
                 if (favoriteMovies.isNotEmpty()) {
                     item {
                         CategorySectionRow(
@@ -320,6 +347,18 @@ private fun MobileLayout(
         val favoriteIds = favoritesList.filter { it.type == "movie" }.map { it.id }.toSet()
         filteredStreams.filter { it.streamId in favoriteIds }
     }
+    val resumeMoviesStreams = remember(state.resumeMovies) {
+        state.resumeMovies.map { pos ->
+            VodStream(
+                streamId = pos.streamId,
+                name = pos.title ?: "",
+                streamIcon = pos.coverUrl,
+                rating = null,
+                added = null,
+                categoryId = ""
+            )
+        }
+    }
 
     var showCategorySheet by remember { mutableStateOf(false) }
     var categorySearchQuery by remember { mutableStateOf("") }
@@ -384,6 +423,19 @@ private fun MobileLayout(
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 contentPadding = PaddingValues(vertical = 8.dp)
             ) {
+                if (resumeMoviesStreams.isNotEmpty()) {
+                    item {
+                        CategorySectionRow(
+                            categoryId = "resume_watching",
+                            title = stringResource(R.string.home_resume),
+                            movies = resumeMoviesStreams,
+                            onMovieSelected = onMovieSelected,
+                            isTv = false,
+                            getScroll = getScroll,
+                            saveScroll = saveScroll
+                        )
+                    }
+                }
                 if (favoriteMovies.isNotEmpty()) {
                     item {
                         CategorySectionRow(

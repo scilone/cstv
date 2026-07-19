@@ -54,27 +54,6 @@ Une fois qu'une fonctionnalité est implémentée et validée, sa description/so
 
 ---
 
-### ▶️ Feature F5 : Section « Continuer à regarder » sur Films & Séries (mode « Tout »)
-
-**Objectif** : dans les écrans **Films** (`presentation/vod/VodScreen.kt`) et **Séries** (`presentation/series/SeriesScreen.kt`), au sein de la catégorie **« Tout »** uniquement, ajouter une rangée horizontale **« Continuer à regarder »** placée **avant** la section « Favoris » existante. Elle liste les films / séries en cours de lecture (position mémorisée), scopés par profil actif.
-
-**État des lieux du code** :
-- Le mode « Tout » de `VodScreen`/`SeriesScreen` affiche déjà « Favoris » en première section via `CategorySectionRow(categoryId = "favorites", title = "Favoris", …)`, dans les deux variantes (mobile + TV). La nouvelle section s'insère juste au-dessus.
-- Les positions de lecture sont déjà en Room et exposées réactivement (`VodRepository.observeAllPlaybackPositions()` / équivalent Séries), scopées par profil — c'est la même source que le « Continuer à regarder » de la Home (`HomeViewModel.resumeWatchingList`). Réutiliser cette logique, ne pas dupliquer la source de vérité.
-- Chaîne de titre `home_resume` (« Continuer à regarder ») déjà présente dans `strings.xml`.
-
-#### Tâche 1 — Films : rangée « Continuer à regarder »
-**Modèle : Sonnet 5 · Effort : M**
-> Dans `VodViewModel`, expose une liste `resumeMovies` (films avec position de lecture enregistrée pour le profil actif, triés par dernier accès), en réutilisant la source réactive des positions (comme `HomeViewModel`). Dans `VodScreen`, en mode « Tout » seulement, ajoute une `CategorySectionRow` « Continuer à regarder » **avant** la section « Favoris », masquée si la liste est vide. Clic → reprend la lecture / ouvre le détail comme sur la Home. Applique aux deux variantes (mobile + TV, focus D-pad cohérent). Tests ViewModel : liste non vide / vide, scoping par profil.
-
-#### Tâche 2 — Séries : rangée « Continuer à regarder »
-**Modèle : Sonnet 5 · Effort : M**
-> Idem Tâche 1 pour `SeriesViewModel` / `SeriesScreen` : `resumeSeries` (séries avec un épisode en cours pour le profil actif), rangée « Continuer à regarder » avant « Favoris » en mode « Tout », masquée si vide, mobile + TV. Clic → reprend l'épisode en cours. Tests ViewModel.
-
-> Note : purement présentation + plomberie ViewModel, aucune nouvelle table/migration Room. Vérifier `assembleDebug` + `lintDebug` + `testDebugUnitTest`.
-
----
-
 ## 💡 Idées futures / Nouveau Backlog
 
 *Ajoutez ici vos nouvelles idées de fonctionnalités pour les prochaines sessions de développement.*

@@ -37,6 +37,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import androidx.compose.ui.res.stringResource
+import com.cstv.app.R
 import com.cstv.app.domain.model.FavoriteItem
 import com.cstv.app.domain.model.SeriesCategory
 import com.cstv.app.domain.model.SeriesStream
@@ -162,6 +164,18 @@ private fun TvLayout(
         val favoriteIds = favoritesList.filter { it.type == "series" }.map { it.id }.toSet()
         filteredStreams.filter { it.seriesId in favoriteIds }
     }
+    val resumeSeriesStreams = remember(state.resumeSeries) {
+        state.resumeSeries.map { pos ->
+            SeriesStream(
+                seriesId = pos.seriesId ?: pos.streamId,
+                name = pos.title ?: "",
+                cover = pos.coverUrl,
+                rating = null,
+                added = null,
+                categoryId = ""
+            )
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -206,6 +220,19 @@ private fun TvLayout(
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 modifier = Modifier.fillMaxSize()
             ) {
+                if (resumeSeriesStreams.isNotEmpty()) {
+                    item {
+                        CategorySectionRow(
+                            categoryId = "resume_watching",
+                            title = stringResource(R.string.home_resume),
+                            series = resumeSeriesStreams,
+                            onSeriesSelected = onSeriesSelected,
+                            isTv = true,
+                            getScroll = getScroll,
+                            saveScroll = saveScroll
+                        )
+                    }
+                }
                 if (favoriteSeries.isNotEmpty()) {
                     item {
                         CategorySectionRow(
@@ -320,6 +347,18 @@ private fun MobileLayout(
         val favoriteIds = favoritesList.filter { it.type == "series" }.map { it.id }.toSet()
         filteredStreams.filter { it.seriesId in favoriteIds }
     }
+    val resumeSeriesStreams = remember(state.resumeSeries) {
+        state.resumeSeries.map { pos ->
+            SeriesStream(
+                seriesId = pos.seriesId ?: pos.streamId,
+                name = pos.title ?: "",
+                cover = pos.coverUrl,
+                rating = null,
+                added = null,
+                categoryId = ""
+            )
+        }
+    }
 
     var showCategorySheet by remember { mutableStateOf(false) }
     var categorySearchQuery by remember { mutableStateOf("") }
@@ -384,6 +423,19 @@ private fun MobileLayout(
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 contentPadding = PaddingValues(vertical = 8.dp)
             ) {
+                if (resumeSeriesStreams.isNotEmpty()) {
+                    item {
+                        CategorySectionRow(
+                            categoryId = "resume_watching",
+                            title = stringResource(R.string.home_resume),
+                            series = resumeSeriesStreams,
+                            onSeriesSelected = onSeriesSelected,
+                            isTv = false,
+                            getScroll = getScroll,
+                            saveScroll = saveScroll
+                        )
+                    }
+                }
                 if (favoriteSeries.isNotEmpty()) {
                     item {
                         CategorySectionRow(

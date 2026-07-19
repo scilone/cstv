@@ -1,5 +1,6 @@
 package com.cstv.app.presentation.series
 
+import com.cstv.app.domain.model.PlaybackPosition
 import com.cstv.app.domain.model.SeriesCategory
 import com.cstv.app.domain.model.SeriesDetails
 import com.cstv.app.domain.model.SeriesStream
@@ -17,5 +18,6 @@ data class SeriesState(
     val isLoadingDetails: Boolean = false,
     val error: String? = null,
     // Compteur de séries par categoryId (cache local), pour la bottom sheet.
-    val categoryCounts: Map<String, Int> = emptyMap()
+    val categoryCounts: Map<String, Int> = emptyMap(),
+    val resumeSeries: List<PlaybackPosition> = emptyList()
 )

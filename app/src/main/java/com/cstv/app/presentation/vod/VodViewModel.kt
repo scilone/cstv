@@ -34,7 +34,8 @@ class VodViewModel @Inject constructor(
     private val credentialsManager: CredentialsManager,
     private val settingsManager: SettingsManager,
     private val trackPreferenceRepository: com.cstv.app.domain.repository.TrackPreferenceRepository,
-    private val categoryPreferenceRepository: com.cstv.app.domain.repository.CategoryPreferenceRepository
+    private val categoryPreferenceRepository: com.cstv.app.domain.repository.CategoryPreferenceRepository,
+    private val vodRepository: com.cstv.app.domain.repository.VodRepository
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(VodState())
@@ -56,6 +57,40 @@ class VodViewModel @Inject constructor(
         // Phase 58) : le ViewModel survit en backstack pendant les Paramètres.
         viewModelScope.launch {
             categoryPreferenceRepository.changes.collect { loadCategories() }
+        }
+        // Observe et filtre les positions de lecture en temps réel (F5)
+        viewModelScope.launch {
+            kotlinx.coroutines.flow.combine(
+                vodRepository.observeAllPlaybackPositions(),
+                categoryPreferenceRepository.changes
+            ) { allPositions, _ ->
+                allPositions
+            }.collect { allPositions ->
+                val hiddenVod = try {
+                    categoryPreferenceRepository.getPreferences(com.cstv.app.domain.model.CategoryType.VOD)
+                        .filterValues { it.hidden }
+                        .keys
+                } catch (e: Exception) {
+                    emptySet()
+                }
+
+                val moviesPositions = allPositions.filter { pos ->
+                    pos.type == "movie" && pos.positionMs > 0 && pos.positionMs < (pos.durationMs - 15000L)
+                }
+
+                val vodMap = try {
+                    vodRepository.getVodStreams("all", false).associate { it.streamId to it.categoryId }
+                } catch (e: Exception) {
+                    emptyMap()
+                }
+
+                val filtered = moviesPositions.filter { pos ->
+                    val catId = vodMap[pos.streamId]
+                    catId == null || catId !in hiddenVod
+                }
+
+                _state.update { it.copy(resumeMovies = filtered) }
+            }
         }
     }
 
