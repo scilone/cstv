@@ -22,7 +22,7 @@ class TrendingRepositoryImpl @Inject constructor(
 
     private val prefsName = "tmdb_trends_cache"
     private val sharedPrefs by lazy { context.getSharedPreferences(prefsName, Context.MODE_PRIVATE) }
-    private val cacheDurationMs = 24 * 60 * 60 * 1000L // 24 hours persistent cache
+    private val cacheDurationMs = 24 * 60 * 60 * 1000L // 24 hours persistent global cache
     private val mutex = Mutex()
 
     override suspend fun getTrending(): List<TrendingTitle> {
@@ -60,15 +60,15 @@ class TrendingRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun getCachedMatchedTrends(profileId: Int): List<TrendingCatalogItem>? = mutex.withLock {
-        val lastFetchTime = sharedPrefs.getLong("trends_time_$profileId", 0L)
+    override suspend fun getCachedMatchedTrendsGlobal(): List<TrendingCatalogItem>? = mutex.withLock {
+        val lastFetchTime = sharedPrefs.getLong("trends_time_global", 0L)
         val currentTime = System.currentTimeMillis()
 
         if (currentTime - lastFetchTime >= cacheDurationMs) {
             return null // Cache expired
         }
 
-        val json = sharedPrefs.getString("trends_data_$profileId", null) ?: return null
+        val json = sharedPrefs.getString("trends_data_global", null) ?: return null
         return try {
             val type = object : TypeToken<List<TrendingCatalogItem>>() {}.type
             gson.fromJson<List<TrendingCatalogItem>>(json, type)
@@ -77,13 +77,13 @@ class TrendingRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun saveMatchedTrends(profileId: Int, items: List<TrendingCatalogItem>) {
+    override suspend fun saveMatchedTrendsGlobal(items: List<TrendingCatalogItem>) {
         mutex.withLock {
             try {
                 val json = gson.toJson(items)
                 sharedPrefs.edit()
-                    .putString("trends_data_$profileId", json)
-                    .putLong("trends_time_$profileId", System.currentTimeMillis())
+                    .putString("trends_data_global", json)
+                    .putLong("trends_time_global", System.currentTimeMillis())
                     .apply()
             } catch (e: Exception) {
                 // Ignore save failures

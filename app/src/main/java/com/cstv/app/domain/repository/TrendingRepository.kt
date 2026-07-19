@@ -5,6 +5,6 @@ import com.cstv.app.domain.model.TrendingTitle
 
 interface TrendingRepository {
     suspend fun getTrending(): List<TrendingTitle>
-    suspend fun getCachedMatchedTrends(profileId: Int): List<TrendingCatalogItem>?
-    suspend fun saveMatchedTrends(profileId: Int, items: List<TrendingCatalogItem>)
+    suspend fun getCachedMatchedTrendsGlobal(): List<TrendingCatalogItem>?
+    suspend fun saveMatchedTrendsGlobal(items: List<TrendingCatalogItem>)
 }

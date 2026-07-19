@@ -10,7 +10,6 @@ import com.cstv.app.domain.repository.TrendingRepository
 import com.cstv.app.domain.repository.VodRepository
 import com.cstv.app.domain.repository.SeriesRepository
 import com.cstv.app.domain.repository.CategoryPreferenceRepository
-import com.cstv.app.data.local.storage.ProfileManager
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -29,7 +28,6 @@ class GetTrendingInCatalogUseCaseTest {
         val vodRepository = mock<VodRepository>()
         val seriesRepository = mock<SeriesRepository>()
         val categoryPreferenceRepository = mock<CategoryPreferenceRepository>()
-        val profileManager = mock<ProfileManager>()
 
         // Mock TMDB Trends
         val trends = listOf(
@@ -38,7 +36,7 @@ class GetTrendingInCatalogUseCaseTest {
             TrendingTitle(3, "Interstellar", isMovie = true, year = "2014", posterUrl = "url_int") // Not in IPTV catalog
         )
         whenever(trendingRepository.getTrending()).thenReturn(trends)
-        whenever(trendingRepository.getCachedMatchedTrends(any())).thenReturn(null) // Cache expired/null
+        whenever(trendingRepository.getCachedMatchedTrendsGlobal()).thenReturn(null) // Cache expired/null
 
         // Mock IPTV local database
         val movies = listOf(
@@ -53,14 +51,12 @@ class GetTrendingInCatalogUseCaseTest {
 
         // Mock preferences (no hidden categories)
         whenever(categoryPreferenceRepository.getPreferences(any())).thenReturn(emptyMap())
-        whenever(profileManager.currentProfileId()).thenReturn(1)
 
         val useCase = GetTrendingInCatalogUseCase(
             trendingRepository,
             vodRepository,
             seriesRepository,
-            categoryPreferenceRepository,
-            profileManager
+            categoryPreferenceRepository
         )
 
         val result = useCase()
@@ -85,13 +81,12 @@ class GetTrendingInCatalogUseCaseTest {
         val vodRepository = mock<VodRepository>()
         val seriesRepository = mock<SeriesRepository>()
         val categoryPreferenceRepository = mock<CategoryPreferenceRepository>()
-        val profileManager = mock<ProfileManager>()
 
         val trends = listOf(
             TrendingTitle(1, "Inception", isMovie = true, year = "2010", posterUrl = "url_inc")
         )
         whenever(trendingRepository.getTrending()).thenReturn(trends)
-        whenever(trendingRepository.getCachedMatchedTrends(any())).thenReturn(null)
+        whenever(trendingRepository.getCachedMatchedTrendsGlobal()).thenReturn(null)
 
         val movies = listOf(
             VodStream(streamId = 10, name = "Inception", streamIcon = "icon", rating = "9.0", added = "12345", categoryId = "hidden_category")
@@ -103,14 +98,12 @@ class GetTrendingInCatalogUseCaseTest {
         whenever(categoryPreferenceRepository.getPreferences(CategoryType.VOD)).thenReturn(
             mapOf("hidden_category" to CategoryPreference("hidden_category", hidden = true, sortOrder = null))
         )
-        whenever(profileManager.currentProfileId()).thenReturn(1)
 
         val useCase = GetTrendingInCatalogUseCase(
             trendingRepository,
             vodRepository,
             seriesRepository,
-            categoryPreferenceRepository,
-            profileManager
+            categoryPreferenceRepository
         )
 
         val result = useCase()
@@ -125,7 +118,6 @@ class GetTrendingInCatalogUseCaseTest {
         val vodRepository = mock<VodRepository>()
         val seriesRepository = mock<SeriesRepository>()
         val categoryPreferenceRepository = mock<CategoryPreferenceRepository>()
-        val profileManager = mock<ProfileManager>()
 
         val cachedList = listOf(
             TrendingCatalogItem(
@@ -133,15 +125,14 @@ class GetTrendingInCatalogUseCaseTest {
                 matchedMovie = VodStream(30, "Interstellar", "icon", "9.5", "12345", "cat_movies")
             )
         )
-        whenever(profileManager.currentProfileId()).thenReturn(1)
-        whenever(trendingRepository.getCachedMatchedTrends(1)).thenReturn(cachedList)
+        whenever(trendingRepository.getCachedMatchedTrendsGlobal()).thenReturn(cachedList)
+        whenever(categoryPreferenceRepository.getPreferences(any())).thenReturn(emptyMap())
 
         val useCase = GetTrendingInCatalogUseCase(
             trendingRepository,
             vodRepository,
             seriesRepository,
-            categoryPreferenceRepository,
-            profileManager
+            categoryPreferenceRepository
         )
 
         val result = useCase()

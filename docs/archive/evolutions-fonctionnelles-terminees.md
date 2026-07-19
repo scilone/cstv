@@ -642,3 +642,14 @@ Bouton "Voir tout" sur les sections favoris, passage en grille à 3 colonnes pou
 - **Tâche 1 (Films) :** Injection de `VodRepository` dans `VodViewModel` pour observer de manière réactive les positions de lecture (filées contre le masquage des catégories). Exposition de la liste `resumeMovies` dans `VodState`. Intégration sur `VodScreen.kt` (mobile et TV) d'une rangée `CategorySectionRow` « Continuer à regarder » en tête du mode « Tout » (avant « Favoris »), masquée si vide.
 - **Tâche 2 (Séries) :** Injection de `VodRepository` et `SeriesRepository` dans `SeriesViewModel` pour observer réactivement les positions de lecture, filtrer les catégories masquées, dédupliquer par `seriesId` pour n'avoir qu'une seule carte par série, et exposer `resumeSeries`. Intégration sur `SeriesScreen.kt` (mobile et TV) de la rangée « Continuer à regarder » avant « Favoris » en mode « Tout », masquée si vide.
 - **Stabilité & Tests :** Création des suites de tests unitaires `VodViewModelTest` et `SeriesViewModelTest` pour valider le chargement et le filtrage réactif des replays. Compilation et linter au vert complet.
+
+---
+
+### Feature F1 : Tuile « Tendances du moment » sur l'Accueil (TMDB)
+
+✅ **TERMINÉE** (Livrée) — Réalisée via les Tâches 1 à 4 :
+- **Tâche 1 (Data) :** Intégration de l'API externe TMDB via une instance Retrofit/OkHttpClient dédiée. Injection sécurisée de la clé `TMDB_API_KEY` stockée localement dans `local.properties` (BuildConfig.TMDB_API_KEY). Implémentation du repository thread-safe, mutex-protégé et doté d'un cache global de 24h.
+- **Tâche 2 (Domain) :** Logique unifiée et purement testée de normalisation de titres (`TitleNormalizer`) et de similarité approximative (`ApproximateTitleMatcher` par distance Levenshtein et word-containment). UseCase `GetTrendingInCatalogUseCase` qui croise les tendances TMDB avec le catalogue local visible (excluant les catégories masquées du profil actif).
+- **Tâche 3 (Presentation) :** Création du composant hautement visuel `HomeTrendingCarousel` mobile avec page indicators, gradient overlay et badge Tendance, branché réactivement à la place de `HomeHeroCard` (mobile).
+- **Tâche 4 (Fallback) :** Gestion de repli automatique et silencieuse sur `HomeHeroCard` (reprendre) si la liste est vide, hors-ligne ou sur Android TV pour garantir une fluidité d'affichage optimale sans crash.
+- **Stabilité & Tests :** 11 tests unitaires complets ajoutés (`TitleNormalizerTest`, `ApproximateTitleMatcherTest`, `GetTrendingInCatalogUseCaseTest`, `HomeViewModelTest`).
