@@ -62,10 +62,10 @@ fun PlayerTopButton(
             .clickable(onClick = onClick)
             .focusable()
             .background(OverlayButtonBg, RoundedCornerShape(10.dp))
-            .border(
-                width = if (isFocused) 2.dp else 1.dp,
-                color = if (isFocused) MaterialTheme.colorScheme.primary else Color(0x59FFFFFF),
-                shape = RoundedCornerShape(10.dp)
+            .then(
+                // Bordure uniquement au focus (D-pad TV) ; aucune bordure au repos.
+                if (isFocused) Modifier.border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(10.dp))
+                else Modifier
             ),
         contentAlignment = Alignment.Center
     ) {

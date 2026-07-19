@@ -2,7 +2,6 @@ package com.cstv.app.presentation.player.cast
 
 import android.view.ContextThemeWrapper
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
@@ -26,8 +25,7 @@ fun CastButton(modifier: Modifier = Modifier) {
     androidx.compose.foundation.layout.Box(
         modifier = modifier
             .size(44.dp)
-            .background(Color(0x59000000), RoundedCornerShape(10.dp))
-            .border(1.dp, Color(0x59FFFFFF), RoundedCornerShape(10.dp)),
+            .background(Color(0x59000000), RoundedCornerShape(10.dp)),
         contentAlignment = Alignment.Center
     ) {
         AndroidView(
