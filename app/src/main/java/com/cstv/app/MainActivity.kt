@@ -4,7 +4,7 @@ import android.app.UiModeManager
 import android.content.Context
 import android.content.res.Configuration
 import android.os.Bundle
-import androidx.activity.ComponentActivity
+import androidx.fragment.app.FragmentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Box
@@ -108,7 +108,11 @@ enum class MobileTab(val route: String, val title: String, val icon: androidx.co
 }
 
 @AndroidEntryPoint
-class MainActivity : ComponentActivity() {
+// FragmentActivity (et non ComponentActivity) : le dialogue de sélection Cast
+// (MediaRouteButton) a besoin d'un FragmentManager. FragmentActivity étend
+// ComponentActivity, donc setContent/PiP/Compose restent inchangés, et
+// n'impose PAS de thème AppCompat (contrairement à AppCompatActivity).
+class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
