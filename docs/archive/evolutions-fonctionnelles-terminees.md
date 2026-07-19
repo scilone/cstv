@@ -633,3 +633,12 @@ Bouton "Voir tout" sur les sections favoris, passage en grille à 3 colonnes pou
   - Les champs de texte d'adresse de serveur (`serverAddress`) et d'identifiant (`username`) de l'écran de connexion `LoginScreen.kt`.
 - **Règle TV & Accessibilité :** Les boutons de suppression sont gérés de manière accessible (`contentDescription` via `common_clear` "Effacer"). Sur Android TV, l'icône Close est rendue focusable au D-pad de manière fluide et contrastée.
 - **Stabilité :** Build complet compilé (`assembleDebug`), linter au vert (`lintDebug`) et tous les tests de non-régression validés.
+
+---
+
+### Phase 61 (Feature F4) : Partage Chromecast dans le lecteur
+
+✅ **TERMINÉE** (Livrée) — Réalisée de bout-en-bout via les Tâches 1 à 3 :
+- **Tâche 1 (Setup & Détection) :** Ajout des dépendances `media3-cast` de Media3 (1.4.0), `play-services-cast` et `play-services-cast-framework` (21.5.0). Déclaration de `CastOptionsProvider` meta-data pointant vers l'ID récepteur par défaut "CC1AD845". Création du service d'analyse `CastAvailabilityProvider` pour désactiver le bouton Cast de manière robuste sur Leanback (Android TV) et appareils sans-GMS sans risque de crash.
+- **Tâche 2 (Bascule & UI Lecteur) :** Intégration d'un `CastPlayer` (Media3) et bascule automatique de session, transfert de la position et de l'item en cours. Bouton Cast et contrôles de lecture mis en place dans l'UI.
+- **Tâche 3 (Documentation) :** Validation et non-régression de la lecture locale sans Chromecast et sur TV. Mise à jour de la documentation dans le `README.md` explicitant la limitation "mobile + GMS uniquement" et le comportement de repli.

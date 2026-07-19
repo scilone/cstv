@@ -54,40 +54,6 @@ Une fois qu'une fonctionnalité est implémentée et validée, sa description/so
 
 ---
 
-### 📺 Feature F4 : Partage Chromecast dans le lecteur
-
-**Objectif** : permettre de caster le flux en cours de lecture (Live, Film, Série) vers un appareil Chromecast depuis le lecteur, avec bascule lecture locale ↔ Cast et contrôles de base (play/pause, position).
-
-> ⚠️ **Alerte périmètre (AGENTS.md)** : le Chromecast est **explicitement listé hors périmètre** dans AGENTS.md (« Explicitement hors périmètre, à ne jamais ajouter sans qu'on le demande : … Chromecast »). Il est ici **demandé explicitement par le PO**, ce qui lève l'exclusion pour cette feature. Impacts à connaître :
-> - Nouvelles dépendances : `androidx.media3:media3-cast` (aligné sur media3 1.4.0) + `com.google.android.gms:play-services-cast-framework`. Nécessite les Google Play Services → **indisponible sur Android TV/AOSP sans GMS** : ne proposer le bouton Cast que sur mobile avec Cast dispo (feature `com.google.android.feature.services` / `CastContext` OK), le masquer proprement sinon.
-> - Un `CastOptionsProvider` + déclaration manifest sont requis. Receiver = **Default Media Receiver** (pas d'app receiver custom à héberger).
-> - Les URLs de lecture Xtream contiennent les identifiants (username/password) : elles transitent vers l'appareil Cast. Acceptable (réseau local) mais à ne jamais logger.
-
-**Ordre de livraison : 1 → 2 → 3.**
-
-#### Tâche 1 — Setup Cast SDK + détection de disponibilité
-**Modèle : Sonnet 5 · Effort : M**
-> Intègre le Cast SDK sans casser les builds TV/sans-GMS.
-> 1. Ajoute `media3-cast` + `play-services-cast-framework` dans `build.gradle.kts`.
-> 2. Crée un `CastOptionsProvider` (receiver = `CastMediaControlIntents.DEFAULT_MEDIA_RECEIVER_APPLICATION_ID`) et déclare-le dans le manifest (`OPTIONS_PROVIDER_CLASS_NAME`).
-> 3. Expose une détection robuste « Cast disponible » (GMS présent + `CastContext` initialisable) via un provider injecté (Hilt), pour conditionner l'affichage du bouton. Sur TV/sans-GMS → indisponible, aucun crash.
-> 4. Vérifie `assembleDebug` (mobile + variante TV) : aucune régression au démarrage sans Chromecast sur le réseau.
-
-#### Tâche 2 — Lecteur : bascule ExoPlayer ↔ CastPlayer + bouton Cast
-**Modèle : Opus 4.8 · Effort : L**
-> Câble le Cast dans le lecteur (`presentation/player/`), réutilisant l'item Media3 en cours.
-> 1. Introduis un `CastPlayer` (Media3) à côté de l'`ExoPlayer` existant ; un gestionnaire bascule le `Player` actif selon l'état de session Cast (`SessionAvailabilityListener`), en transférant l'item courant et la position (handoff local→cast et cast→local).
-> 2. Ajoute le `MediaRouteButton` (ou équivalent Compose) dans l'UI du lecteur, visible uniquement si Cast dispo (Tâche 1). Pendant le cast : afficher un état « Lecture sur <appareil> » + contrôles play/pause/seek pilotant le `CastPlayer`.
-> 3. Construis le `MediaItem` casté avec les métadonnées (titre, poster) et le bon type MIME (HLS `application/x-mpegurl` / mp4) à partir de l'URL Xtream. Ne jamais logger l'URL (credentials).
-> 4. Gère proprement le cycle de vie (perte de session, mise en arrière-plan, fin de flux) et libère les ressources. Respecte « un ViewModel par écran, pas de logique métier dans le Composable ».
-> 5. Tests : logique de sélection du player actif / handoff position (extraire la logique testable hors du Composable).
-
-#### Tâche 3 — Vérification bout-en-bout & non-régression
-**Modèle : Haiku 4.5 · Effort : S**
-> Valide : lecture locale inchangée sans Chromecast ; bascule cast/local sur mobile avec un appareil réel ; bouton absent sur TV/sans-GMS ; `assembleDebug` + `lintDebug` + `testDebugUnitTest` verts. Documente la limite « mobile + GMS uniquement » dans le README.
-
----
-
 ### ▶️ Feature F5 : Section « Continuer à regarder » sur Films & Séries (mode « Tout »)
 
 **Objectif** : dans les écrans **Films** (`presentation/vod/VodScreen.kt`) et **Séries** (`presentation/series/SeriesScreen.kt`), au sein de la catégorie **« Tout »** uniquement, ajouter une rangée horizontale **« Continuer à regarder »** placée **avant** la section « Favoris » existante. Elle liste les films / séries en cours de lecture (position mémorisée), scopés par profil actif.
