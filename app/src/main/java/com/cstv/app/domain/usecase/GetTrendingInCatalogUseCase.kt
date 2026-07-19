@@ -72,44 +72,52 @@ class GetTrendingInCatalogUseCase @Inject constructor(
                 val normalizedTrending = TitleNormalizer.normalize(trending.title)
 
                 if (trending.isMovie) {
-                    // Find best matching movie in catalog
-                    var bestMovie: com.cstv.app.domain.model.VodStream? = null
+                    val candidates = mutableListOf<com.cstv.app.domain.model.VodStream>()
                     var bestScore = 0.0
                     
                     for ((movie, normalizedName) in normalizedMovies) {
                         if (movie.streamId in seenMatchedIds) continue
                         val score = ApproximateTitleMatcher.computeSimilarityNormalized(normalizedTrending, normalizedName)
-                        if (score >= 0.8 && score > bestScore) {
-                            bestScore = score
-                            bestMovie = movie
+                        if (score >= 0.8) {
+                            if (score > bestScore) {
+                                bestScore = score
+                                candidates.clear()
+                                candidates.add(movie)
+                            } else if (score == bestScore) {
+                                candidates.add(movie)
+                            }
                         }
                     }
                     
-                    if (bestMovie != null) {
-                        seenMatchedIds.add(bestMovie.streamId)
-                        com.cstv.app.di.IptvLog.d("TMDB", "🎯 Match movie: '${trending.title}' ↔ '${bestMovie.name}' (score: $bestScore)")
-                        fullMatchedResult.add(TrendingCatalogItem(trendingTitle = trending, matchedMovie = bestMovie))
+                    if (candidates.isNotEmpty()) {
+                        candidates.forEach { seenMatchedIds.add(it.streamId) }
+                        com.cstv.app.di.IptvLog.d("TMDB", "🎯 Match movie: '${trending.title}' ↔ ${candidates.size} version(s) found (best score: $bestScore)")
+                        fullMatchedResult.add(TrendingCatalogItem(trendingTitle = trending, matchedMovies = candidates))
                     } else {
                         com.cstv.app.di.IptvLog.d("TMDB", "❔ No match found in catalog for trending movie: '${trending.title}'")
                     }
                 } else {
-                    // Find best matching series in catalog
-                    var bestSeries: com.cstv.app.domain.model.SeriesStream? = null
+                    val candidates = mutableListOf<com.cstv.app.domain.model.SeriesStream>()
                     var bestScore = 0.0
                     
                     for ((series, normalizedName) in normalizedSeries) {
                         if (series.seriesId in seenMatchedIds) continue
                         val score = ApproximateTitleMatcher.computeSimilarityNormalized(normalizedTrending, normalizedName)
-                        if (score >= 0.8 && score > bestScore) {
-                            bestScore = score
-                            bestSeries = series
+                        if (score >= 0.8) {
+                            if (score > bestScore) {
+                                bestScore = score
+                                candidates.clear()
+                                candidates.add(series)
+                            } else if (score == bestScore) {
+                                candidates.add(series)
+                            }
                         }
                     }
                     
-                    if (bestSeries != null) {
-                        seenMatchedIds.add(bestSeries.seriesId)
-                        com.cstv.app.di.IptvLog.d("TMDB", "🎯 Match series: '${trending.title}' ↔ '${bestSeries.name}' (score: $bestScore)")
-                        fullMatchedResult.add(TrendingCatalogItem(trendingTitle = trending, matchedSeries = bestSeries))
+                    if (candidates.isNotEmpty()) {
+                        candidates.forEach { seenMatchedIds.add(it.seriesId) }
+                        com.cstv.app.di.IptvLog.d("TMDB", "🎯 Match series: '${trending.title}' ↔ ${candidates.size} version(s) found (best score: $bestScore)")
+                        fullMatchedResult.add(TrendingCatalogItem(trendingTitle = trending, matchedSeriesList = candidates))
                     } else {
                         com.cstv.app.di.IptvLog.d("TMDB", "❔ No match found in catalog for trending series: '${trending.title}'")
                     }
@@ -130,25 +138,33 @@ class GetTrendingInCatalogUseCase @Inject constructor(
             return@withContext emptyList()
         }
 
-        // 3. Filter matched items on the fly by hidden categories of the ACTIVE profile
+        // 3. Filter and resolve matched items on the fly by hidden categories of the ACTIVE profile
         val hiddenMovies = getHiddenCategories(CategoryType.VOD)
         val hiddenSeries = getHiddenCategories(CategoryType.SERIES)
 
-        val filteredResult = matchedList.filter { item ->
-            if (item.matchedMovie != null) {
-                val isHidden = item.matchedMovie.categoryId in hiddenMovies
-                if (isHidden) {
-                    com.cstv.app.di.IptvLog.d("TMDB", "🚫 Movie '${item.matchedMovie.name}' filtered out because its category '${item.matchedMovie.categoryId}' is hidden.")
+        val filteredResult = matchedList.mapNotNull { item ->
+            if (item.matchedMovies.isNotEmpty()) {
+                val allowedMovies = item.matchedMovies.filter { it.categoryId !in hiddenMovies }
+                if (allowedMovies.isNotEmpty()) {
+                    val selected = allowedMovies.first()
+                    com.cstv.app.di.IptvLog.d("TMDB", "🎯 Selected allowed movie version for '${item.trendingTitle.title}': '${selected.name}' (Category: '${selected.categoryId}')")
+                    item.copy(matchedMovie = selected, matchedMovies = allowedMovies)
+                } else {
+                    com.cstv.app.di.IptvLog.d("TMDB", "🚫 Movie '${item.trendingTitle.title}' filtered out because ALL matched versions belong to hidden categories.")
+                    null // All matched movie versions are hidden
                 }
-                !isHidden
-            } else if (item.matchedSeries != null) {
-                val isHidden = item.matchedSeries.categoryId in hiddenSeries
-                if (isHidden) {
-                    com.cstv.app.di.IptvLog.d("TMDB", "🚫 Series '${item.matchedSeries.name}' filtered out because its category '${item.matchedSeries.categoryId}' is hidden.")
+            } else if (item.matchedSeriesList.isNotEmpty()) {
+                val allowedSeries = item.matchedSeriesList.filter { it.categoryId !in hiddenSeries }
+                if (allowedSeries.isNotEmpty()) {
+                    val selected = allowedSeries.first()
+                    com.cstv.app.di.IptvLog.d("TMDB", "🎯 Selected allowed series version for '${item.trendingTitle.title}': '${selected.name}' (Category: '${selected.categoryId}')")
+                    item.copy(matchedSeries = selected, matchedSeriesList = allowedSeries)
+                } else {
+                    com.cstv.app.di.IptvLog.d("TMDB", "🚫 Series '${item.trendingTitle.title}' filtered out because ALL matched versions belong to hidden categories.")
+                    null // All matched series versions are hidden
                 }
-                !isHidden
             } else {
-                true
+                item
             }
         }
 

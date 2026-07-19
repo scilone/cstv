@@ -122,6 +122,7 @@ class GetTrendingInCatalogUseCaseTest {
         val cachedList = listOf(
             TrendingCatalogItem(
                 trendingTitle = TrendingTitle(1, "Cached Interstellar", isMovie = true, year = "2014", posterUrl = "url_int"),
+                matchedMovies = listOf(VodStream(30, "Interstellar", "icon", "9.5", "12345", "cat_movies")),
                 matchedMovie = VodStream(30, "Interstellar", "icon", "9.5", "12345", "cat_movies")
             )
         )
@@ -140,5 +141,50 @@ class GetTrendingInCatalogUseCaseTest {
         // Should return cache immediately without querying database or TMDB API
         assertEquals(1, result.size)
         assertEquals("Cached Interstellar", result[0].trendingTitle.title)
+    }
+
+    @Test
+    fun test_useCase_selectsBestAvailableUnhiddenVersion_ifMultipleMatched() = runTest {
+        val trendingRepository = mock<TrendingRepository>()
+        val vodRepository = mock<VodRepository>()
+        val seriesRepository = mock<SeriesRepository>()
+        val categoryPreferenceRepository = mock<CategoryPreferenceRepository>()
+
+        // Mock TMDB Trends (Movie: Inception)
+        val trends = listOf(
+            TrendingTitle(1, "Inception", isMovie = true, year = "2010", posterUrl = "url_inc")
+        )
+        whenever(trendingRepository.getTrending()).thenReturn(trends)
+        whenever(trendingRepository.getCachedMatchedTrendsGlobal()).thenReturn(null)
+
+        // Mock IPTV local database (Inception in both PT (hidden) and FR (unhidden) categories)
+        val movies = listOf(
+            VodStream(streamId = 101, name = "|PT| Inception", streamIcon = "icon", rating = "9.0", added = "12345", categoryId = "cat_pt"),
+            VodStream(streamId = 102, name = "|FR| Inception", streamIcon = "icon", rating = "9.0", added = "12345", categoryId = "cat_fr")
+        )
+        whenever(vodRepository.getVodStreams(eq("all"), eq(false))).thenReturn(movies)
+        whenever(seriesRepository.getSeriesStreams(eq("all"), eq(false))).thenReturn(emptyList())
+
+        // Mark PT category as hidden, FR as visible
+        whenever(categoryPreferenceRepository.getPreferences(CategoryType.VOD)).thenReturn(
+            mapOf("cat_pt" to CategoryPreference("cat_pt", hidden = true, sortOrder = null))
+        )
+
+        val useCase = GetTrendingInCatalogUseCase(
+            trendingRepository,
+            vodRepository,
+            seriesRepository,
+            categoryPreferenceRepository
+        )
+
+        val result = useCase()
+
+        // The UseCase should successfully select the unhidden FR version (streamId 102) instead of discarding the movie!
+        assertEquals(1, result.size)
+        val item = result[0]
+        assertEquals("Inception", item.trendingTitle.title)
+        assertNotNull(item.matchedMovie)
+        assertEquals(102, item.matchedMovie!!.streamId)
+        assertEquals("cat_fr", item.matchedMovie!!.categoryId)
     }
 }
