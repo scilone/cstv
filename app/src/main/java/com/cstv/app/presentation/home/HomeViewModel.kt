@@ -243,20 +243,30 @@ class HomeViewModel @Inject constructor(
     }
 
     fun loadHomeData() {
+        // Tendances TMDB (F1) : appel réseau externe potentiellement lent/instable
+        // (DNS, timeout). Découplé du chargement principal (Live/VOD/Séries, tout
+        // local) pour ne JAMAIS bloquer le reste de la Home ni le spinner
+        // isLoading — sinon un TMDB lent/hors-ligne fait paraître la Home comme
+        // chargeant indéfiniment. Timeout client dur en garde-fou supplémentaire
+        // (au cas où un appel suspendu ignorerait les timeouts OkHttp).
+        viewModelScope.launch {
+            val trendingList = try {
+                kotlinx.coroutines.withTimeoutOrNull(15_000L) {
+                    getTrendingInCatalogUseCase()
+                } ?: emptyList()
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                emptyList()
+            }
+            _state.update { it.copy(trendingList = trendingList) }
+        }
+
         viewModelScope.launch {
             _state.update { it.copy(isLoading = true, error = null) }
             try {
                 // "Continuer à regarder" et "Favoris" sont alimentés en continu par les
                 // Flow collectés dans init() (voir groupResumeWatching) : plus de fetch
                 // ponctuel ici.
-
-                // 1. Fetch TMDB Trending list matched with local catalog
-                val trendingList = try {
-                    getTrendingInCatalogUseCase()
-                } catch (e: Exception) {
-                    if (e is kotlinx.coroutines.CancellationException) throw e
-                    emptyList()
-                }
 
                 // 3. Fetch TV - First Live Category and its Streams
                 // (catégories filtrées/ordonnées selon les préférences du profil, Phase 58)
@@ -317,7 +327,6 @@ class HomeViewModel @Inject constructor(
                 _state.update {
                     it.copy(
                         isLoading = false,
-                        trendingList = trendingList,
                         firstLiveCategory = firstLiveCat,
                         firstLiveStreams = firstLiveStreams,
                         firstVodStreams = firstVodStreams,
