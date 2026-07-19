@@ -341,6 +341,31 @@ fun HomeScreen(
                             )
                         }
                     }
+                } else if (state.trendingList.isNotEmpty()) {
+                    // TV : rangée poster focusable au D-pad (le pager mobile n'est
+                    // pas navigable au D-pad). Repli implicite sur les autres
+                    // sections si la liste est vide (pas de hero sur TV).
+                    item {
+                        HomeSectionRow(
+                            title = stringResource(R.string.home_trending),
+                            isTv = isTv,
+                            onSeeAll = null
+                        ) {
+                            HomeTrendingRowTv(
+                                trendingItems = state.trendingList,
+                                onMovieClick = { streamId ->
+                                    state.trendingList.find { it.matchedMovie?.streamId == streamId }?.matchedMovie?.let {
+                                        onSelectMovieDetail(it)
+                                    }
+                                },
+                                onSeriesClick = { seriesId ->
+                                    state.trendingList.find { it.matchedSeries?.seriesId == seriesId }?.matchedSeries?.let {
+                                        onSelectSeriesDetail(it)
+                                    }
+                                }
+                            )
+                        }
+                    }
                 }
 
                 // 2. Section: "Continuer à regarder"

@@ -2,8 +2,12 @@ package com.cstv.app.presentation.home.components
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
@@ -13,9 +17,15 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -181,5 +191,113 @@ fun HomeTrendingCarousel(
                 )
             }
         }
+    }
+}
+
+/**
+ * Variante TV du carrousel tendances : une rangée horizontale de vignettes
+ * poster focusables au D-pad (le HorizontalPager mobile n'est pas navigable au
+ * D-pad). Cohérente avec HomeVodMovieCard (même ratio 2:3, même bordure de
+ * focus). Clic → détail Film/Série existant.
+ */
+@Composable
+fun HomeTrendingRowTv(
+    trendingItems: List<TrendingCatalogItem>,
+    onMovieClick: (Int) -> Unit,
+    onSeriesClick: (Int) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    LazyRow(
+        modifier = modifier.fillMaxWidth().focusGroup(),
+        horizontalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        items(trendingItems) { item ->
+            HomeTrendingPosterCardTv(
+                item = item,
+                onClick = {
+                    val movieId = item.matchedMovie?.streamId
+                    val seriesId = item.matchedSeries?.seriesId
+                    when {
+                        movieId != null -> onMovieClick(movieId)
+                        seriesId != null -> onSeriesClick(seriesId)
+                    }
+                }
+            )
+        }
+    }
+}
+
+@Composable
+private fun HomeTrendingPosterCardTv(
+    item: TrendingCatalogItem,
+    onClick: () -> Unit
+) {
+    var isFocused by remember { mutableStateOf(false) }
+
+    Box(
+        modifier = Modifier
+            .width(130.dp)
+            .height(195.dp) // ratio 2:3, aligné sur HomeVodMovieCard
+            .onFocusChanged { isFocused = it.isFocused }
+            .border(
+                width = 2.dp,
+                color = if (isFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
+                shape = RoundedCornerShape(14.dp)
+            )
+            .clip(RoundedCornerShape(14.dp))
+            .clickable { onClick() }
+            .background(Color(0xFF1A1A1A)),
+        contentAlignment = Alignment.Center
+    ) {
+        AsyncImage(
+            model = item.trendingTitle.posterUrl,
+            contentDescription = item.trendingTitle.title,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize()
+        )
+
+        // Scrim bas pour lisibilité du titre
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            Color.Transparent,
+                            Color.Transparent,
+                            Color.Black.copy(alpha = 0.85f)
+                        )
+                    )
+                )
+        )
+
+        // Badge "Tendance" (haut-gauche)
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(6.dp)
+                .background(MaterialTheme.colorScheme.primary, shape = RoundedCornerShape(8.dp))
+                .padding(horizontal = 6.dp, vertical = 2.dp)
+        ) {
+            Text(
+                text = "★ TENDANCE",
+                color = Color.White,
+                fontSize = 8.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+
+        // Titre (bas)
+        Text(
+            text = item.trendingTitle.title,
+            color = Color.White,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(horizontal = 8.dp, vertical = 8.dp)
+        )
     }
 }
