@@ -1,20 +1,20 @@
-# IPTV Xtream Codes - Android & Android TV App (POC)
+# CSTV — Android & Android TV IPTV App
 
-Ce projet est un Proof of Concept (POC) d'une application Android native (Mobile et Android TV) permettant de se connecter à un serveur de flux IPTV via l'**API Xtream Codes** et de visionner du contenu en direct (Live TV), des films (VOD) et des séries.
+**CSTV** est une application Android native (Mobile et Android TV) qui se connecte à un serveur de flux IPTV via l'**API Xtream Codes** et permet de visionner du contenu en direct (Live TV avec EPG), des films (VOD) et des séries.
 
 ---
 
-## 🚀 État d'avancement : Phase 0 — Initialisation
+## 🚀 Fonctionnalités
 
-La **Phase 0** est entièrement réalisée et validée :
-- **Structure Clean Architecture** mise en place (`data` / `domain` / `presentation`).
-- **Configuration Hilt** opérationnelle (Application class `@HiltAndroidApp`, module de base, annotation `@AndroidEntryPoint` sur l'activité principale).
-- **Dépendances de base** déclarées et prêtes (Jetpack Compose, Compose for TV, Room, Retrofit, OkHttp, Coil, Media3/ExoPlayer, DataStore, Security Crypto, tests unitaires).
-- **Support Android TV** configuré dans `AndroidManifest.xml` (permissions, fonctionnalités matérielles optionnelles, bannière TV, intent-filters dédiés).
-- **Écran de démarrage adaptatif** (mobile/TV) fonctionnel :
-  - Détection automatique du type de périphérique (`UiModeManager`).
-  - Interface Jetpack Compose optimisée pour smartphone.
-  - Interface Compose for TV optimisée pour la navigation au D-pad de la télécommande.
+- **Connexion Xtream Codes** : authentification sécurisée (identifiants chiffrés), gestion d'erreurs complète (identifiants invalides, compte expiré, serveur injoignable).
+- **Profils locaux multiples** (type Netflix) sur un seul compte Xtream : favoris, historique, reprises de lecture et préférences de pistes séparés par profil ; catalogue partagé.
+- **Live TV** : catégories, zapping (swipe mobile / D-pad TV), EPG « en cours + suivant », chaînes récemment regardées, formats m3u8/ts avec fallback automatique.
+- **Films (VOD) & Séries** : catalogue complet en cache Room (survit aux mises à jour via migrations), fiches détaillées enrichies (acteurs, réalisateur, genre, année), titres associés, lecture avec reprise de position, lecture auto de l'épisode suivant.
+- **Accueil** : carrousel « Tendances du moment » (TMDB, rapproché du catalogue local par matching approximatif), « Continuer à regarder », favoris, dernières nouveautés, Top 10.
+- **Recherche** : recherche globale plein texte (FTS) + **recherche avancée** (type Film/Série, catégorie, note minimum, plage d'années dynamique, genres en ET).
+- **Téléchargements hors-ligne** : films et épisodes téléchargeables, lecture transparente depuis le cache.
+- **Lecteur** : Media3/ExoPlayer + décodeurs FFmpeg logiciels (NextLib) pour EAC3/AC3/DTS, sélection pistes audio/sous-titres mémorisée par média, styles de sous-titres, PiP, redimensionnement.
+- **Paramètres** : gestion des catégories (masquage/ordre par profil), synchronisation d'arrière-plan planifiée (WorkManager), gestion du cache, profils.
 
 ---
 
@@ -24,9 +24,10 @@ La **Phase 0** est entièrement réalisée et validée :
 - **UI** : Jetpack Compose (Mobile) & Compose for TV (Android TV)
 - **Architecture** : Clean Architecture + MVVM (Modèle-Vue-ViewModel)
 - **Injection de dépendances** : Hilt
-- **Réseau** : Retrofit + OkHttp
-- **Persistance locale** : Room (cache local) & DataStore / EncryptedSharedPreferences (identifiants chiffrés)
-- **Lecteur vidéo** : Media3 / ExoPlayer (avec support HLS)
+- **Réseau** : Retrofit + OkHttp (API Xtream Codes + API TMDB pour les tendances)
+- **Persistance locale** : Room (cache catalogue, migrations non destructives) & DataStore / EncryptedSharedPreferences (identifiants chiffrés)
+- **Lecteur vidéo** : Media3 / ExoPlayer (support HLS) + NextLib (décodeurs FFmpeg logiciels EAC3/AC3/DTS)
+- **Tâches de fond** : WorkManager (sync planifiée du catalogue)
 - **Images** : Coil Compose
 
 ---
@@ -51,29 +52,36 @@ L'affichage des "Tendances du moment" sur la page d'accueil utilise l'API de **T
 L'application est structurée selon les principes de la **Clean Architecture** :
 
 ```
-app/src/main/java/com/poc/iptvxtream/
+app/src/main/java/com/cstv/app/
 ├── IptvApplication.kt  (Point d'entrée de l'application, Hilt)
 ├── MainActivity.kt     (Activité principale adaptative Mobile/TV)
 ├── di/
 │   └── AppModule.kt    (Module de dépendances Hilt global)
 ├── data/               (Couche d'implémentation des données)
-│   ├── remote/         (Appels Retrofit, DTOs de l'API Xtream)
-│   ├── local/          (Room Database, DAOs, Entités, DataStore chiffré)
+│   ├── remote/         (Appels Retrofit : API Xtream + TMDB, DTOs, TypeAdapters Gson)
+│   ├── local/          (Room Database, DAOs, Entités, migrations, DataStore chiffré)
+│   ├── download/       (Téléchargements hors-ligne : cache Media3, utilitaires)
+│   ├── worker/         (Workers WorkManager : sync planifiée du catalogue)
 │   └── repository/     (Implémentations des interfaces de repository)
 ├── domain/             (Couche de logique métier pure - indépendante d'Android)
-│   ├── model/          (Modèles de données du domaine)
+│   ├── model/          (Modèles métier + objets purs testables : parsers, matchers)
 │   ├── repository/     (Définitions des interfaces de repository)
 │   └── usecase/        (Cas d'utilisation métier spécifiques)
 └── presentation/       (Couche UI - ViewModels & Composables Jetpack Compose)
+    ├── components/     (Composants partagés : sélecteur de catégorie, champs)
+    ├── navigation/     (AppNavGraph, navigation-compose côté mobile)
     ├── login/          (Écran d'authentification Xtream Codes)
-    ├── home/           (Dashboard / Menu d'accueil)
+    ├── profile/        (Sélection et gestion des profils locaux)
+    ├── home/           (Accueil : tendances, reprises, favoris, top 10)
     ├── livetv/         (Navigation des catégories & chaînes en direct)
-    ├── vod/            (Films, grilles et détails)
-    ├── series/         (Séries, saisons et épisodes)
+    ├── vod/            (Films : grilles, détails, lecteur)
+    ├── series/         (Séries : saisons, épisodes, détails, lecteur)
     ├── favorites/      (Gestion des favoris)
-    ├── search/         (Recherche unifiée locale)
-    ├── settings/       (Options & Configuration du cache)
-    └── player/         (Lecteur vidéo ExoPlayer Mobile & TV)
+    ├── search/         (Recherche globale FTS + recherche avancée)
+    ├── downloads/      (Écran des téléchargements hors-ligne)
+    ├── settings/       (Options, gestion des catégories, cache, sync)
+    ├── player/         (Lecteur Live TV + composants UI de lecteur partagés)
+    └── theme/          (Couleurs, typographies, thème Compose)
 ```
 
 ---

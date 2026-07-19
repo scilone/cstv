@@ -31,8 +31,11 @@ Pour maintenir les sessions d'IA ultra-rapides et éviter la surcharge cognitive
 ## Périmètre strict du projet
 
 - Application Android/Android TV native Kotlin uniquement.
-- Connexion **API Xtream Codes uniquement** (`player_api.php`). Aucun support M3U/M3U8 brut en tant que source, aucun Stalker Portal, aucun autre protocole IPTV.
-- Fonctionnalités couvertes : Live TV, VOD Films, Séries, Favoris, Recherche locale, Paramètres.
+- Connexion **API Xtream Codes uniquement** (`player_api.php`) comme source IPTV. Aucun support M3U/M3U8 brut en tant que source, aucun Stalker Portal, aucun autre protocole IPTV.
+- Fonctionnalités couvertes : Live TV (avec EPG), VOD Films, Séries, Favoris, Recherche locale (FTS + recherche avancée), Téléchargements hors-ligne, Profils locaux, Paramètres.
+- **Exception validée** : l'API **TMDB** (tendances de l'Accueil, Feature F1) est la seule API réseau externe autorisée en plus de Xtream. Clé dans `local.properties` (jamais versionnée), repli silencieux si absente/hors-ligne.
+- Explicitement hors périmètre, à ne jamais ajouter sans demande explicite du PO : catch-up/timeshift, multi-comptes Xtream (plusieurs identifiants distincts), enregistrement (PVR), autre protocole IPTV, code PIN/restriction parentale par profil.
+- **Chromecast : tenté (F4) puis retiré définitivement** (revert complet en v1.47.10) : le Default Media Receiver Google Cast ne décode pas AC3/EAC3/DTS, codecs fréquents sur ce catalogue (raison d'être de NextLib côté local) → cast vidéo sans son, non corrigeable côté app. Ne pas re-proposer sans transcoding serveur.
 - Depuis la Phase 27 : profils **locaux** multiples (type Netflix) sur un **seul** compte Xtream sont dans le périmètre (favoris/historique/reprise de lecture séparés par profil ; catalogue/cache Room toujours partagé et non dupliqué). Ne pas confondre avec du multi-comptes Xtream, qui reste hors périmètre.
 - Si une tâche demandée semble sortir de ce périmètre, signale-le avant de coder.
 
@@ -42,11 +45,13 @@ Pour maintenir les sessions d'IA ultra-rapides et éviter la surcharge cognitive
 - UI : Jetpack Compose (mobile) + Compose for TV (`androidx.tv:tv-material`, `tv-foundation`) pour Android TV.
 - Architecture : Clean Architecture (`data` / `domain` / `presentation`) + MVVM.
 - DI : Hilt.
-- Réseau : Retrofit + OkHttp.
-- Lecteur vidéo : ExoPlayer / Media3 (support HLS).
+- Réseau : Retrofit + OkHttp (instances séparées Xtream / TMDB).
+- Lecteur vidéo : ExoPlayer / Media3 (support HLS) + NextLib (`nextlib-media3ext`, décodeurs FFmpeg logiciels EAC3/AC3/DTS — version alignée sur celle de media3).
 - Persistance : Room (cache API) + DataStore chiffré ou EncryptedSharedPreferences (identifiants Xtream).
+- Tâches de fond : WorkManager (sync planifiée du catalogue).
 - Images : Coil.
 - Min SDK 21, target/compile SDK la dernière version stable disponible.
+- Build release : R8/minify actif. **Toute nouvelle interface Retrofit doit avoir sa règle `-keep` dans `proguard-rules.pro`** (cf. XtreamApiService/TmdbApiService — sans elle, le call adapter générique casse en release et crash à l'exécution, invisible en debug).
 
 ## Commandes de build et de test
 
@@ -75,29 +80,37 @@ Avant de considérer une phase comme terminée, exécute `assembleDebug` et `lin
 - Tout champ JSON potentiellement incohérent entre panels Xtream (int vs string) doit être parsé de façon défensive (voir cahier des charges section 2.3).
 - Jamais de credentials (username/password Xtream) en dur dans le code, en log, ou en clair dans les fichiers de config versionnés.
 - Compose : privilégier des composables stateless (state hoisting), préfixer les composables privés d'écran par le nom de l'écran (ex: `LiveTvChannelRow`).
+- ⚠️ **Piège : double système de navigation.** Le mobile passe par `AppNavGraph` (navigation-compose, `presentation/navigation/NavGraph.kt`) mais la TV passe par une navigation manuelle à base d'enum `AppScreen` + `when` dans `MainActivity.kt`. **Tout nouvel écran doit être câblé dans LES DEUX**, sinon il n'apparaît que sur une plateforme. Unification prévue (voir T-2 dans `docs/evolutions-techniques.md`).
 
 ## Structure de dossiers attendue
 
 ```
-app/src/main/java/<package>/
+app/src/main/java/com/cstv/app/
 ├── data/
-│   ├── remote/        (Retrofit API, DTOs)
-│   ├── local/          (Room entities/DAO, DataStore)
+│   ├── remote/        (Retrofit API Xtream + TMDB, DTOs, TypeAdapters Gson)
+│   ├── local/          (Room entities/DAO/migrations, DataStore)
+│   ├── download/      (téléchargements hors-ligne, cache Media3)
+│   ├── worker/        (WorkManager : sync planifiée)
 │   └── repository/    (implémentations des repositories)
 ├── domain/
-│   ├── model/          (modèles métier)
+│   ├── model/          (modèles métier + objets purs testables : parsers/matchers)
 │   ├── repository/    (interfaces)
 │   └── usecase/
 └── presentation/
+    ├── components/    (composants partagés inter-écrans)
+    ├── navigation/    (AppNavGraph — navigation-compose, côté mobile)
     ├── login/
-    ├── home/
-    ├── livetv/
+    ├── profile/
+    ├── home/          (+ home/components)
+    ├── livetv/        (+ livetv/components)
     ├── vod/
     ├── series/
     ├── favorites/
     ├── search/
+    ├── downloads/
     ├── settings/
-    └── player/
+    ├── player/        (lecteur Live + composants UI de lecteur partagés)
+    └── theme/
 ```
 
 ## Base de données Room (schéma et migrations)
@@ -170,4 +183,4 @@ Pour livrer une nouvelle version de l'application et générer un APK de product
    - Créer une Release GitHub officielle.
    - Attacher l'APK de release signé à la Release.
 
-Dernier tag poussé : `v1.28.0` (Phase 59, lecture auto de l'épisode suivant). Vérifie toujours `git tag --sort=-v:refname | head -1` avant de choisir le prochain numéro (patch pour un fix/correction, minor pour une nouvelle phase/fonctionnalité).
+Ne te fie jamais à un numéro de version écrit dans la documentation (il périme vite) : vérifie toujours `git tag --sort=-v:refname | head -1` avant de choisir le prochain numéro (patch pour un fix/correction, minor pour une nouvelle phase/fonctionnalité), et synchronise `versionCode`/`versionName` dans `app/build.gradle.kts` avant de tagger.
