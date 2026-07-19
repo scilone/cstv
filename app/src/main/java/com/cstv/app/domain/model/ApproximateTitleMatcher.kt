@@ -1,60 +1,63 @@
 package com.cstv.app.domain.model
 
-import kotlin.math.max
-
-/**
- * Score de similarité entre deux titres **déjà normalisés** par
- * [TitleNormalizer]. Sert à rapprocher un titre TMDB propre d'un titre IPTV
- * sale sans faux positifs grossiers.
- *
- * Stratégie :
- *  - égalité stricte après normalisation → 1.0 (cas dominant attendu) ;
- *  - sinon ratio de Levenshtein caractère-à-caractère : `1 - dist / maxLen`.
- *
- * Le ratio caractère tolère fautes/variantes mineures (`spider man` ↔
- * `spiderman`, accents déjà aplanis en amont) tout en rejetant les préfixes
- * trompeurs : `war` vs `warrior` → 1 - 4/7 ≈ 0.43, sous le seuil.
- *
- * **Seuil retenu : 0.85.** Choisi empiriquement : assez haut pour écarter les
- * quasi-homonymes courts (`war`/`warrior`, `up`/`upgrade`), assez bas pour
- * absorber une lettre/espace de différence sur un titre de longueur moyenne.
- * Objet pur et testable — aucune dépendance Android.
- */
 object ApproximateTitleMatcher {
 
-    const val DEFAULT_THRESHOLD = 0.85
+    fun computeSimilarity(tmdbTitle: String, iptvTitle: String): Double {
+        val s1 = TitleNormalizer.normalize(tmdbTitle)
+        val s2 = TitleNormalizer.normalize(iptvTitle)
 
-    /** Similarité 0.0–1.0 entre deux titres normalisés. */
-    fun similarity(a: String, b: String): Double {
-        if (a.isEmpty() || b.isEmpty()) return 0.0
-        if (a == b) return 1.0
-        val maxLen = max(a.length, b.length)
-        val dist = levenshtein(a, b)
-        return 1.0 - dist.toDouble() / maxLen
+        if (s1.isBlank() || s2.isBlank()) return 0.0
+        if (s1 == s2) return 1.0
+
+        // Word-boundary containment (e.g., "dragon ball" matches "dragon ball z")
+        val s1Words = s1.split(" ")
+        val s2Words = s2.split(" ")
+
+        if (s1Words.size > 1 && s2Words.size >= s1Words.size) {
+            // Check if s1 words are fully contained in order inside s2
+            if (isSubsequenceOfWords(s1Words, s2Words)) {
+                return 0.9
+            }
+        }
+
+        // Fallback to Levenshtein similarity
+        val distance = levenshtein(s1, s2)
+        val maxLength = maxOf(s1.length, s2.length)
+        return 1.0 - (distance.toDouble() / maxLength)
     }
 
-    /** Vrai si [similarity] atteint [threshold]. */
-    fun matches(a: String, b: String, threshold: Double = DEFAULT_THRESHOLD): Boolean =
-        similarity(a, b) >= threshold
-
-    // Distance de Levenshtein classique en O(n·m) mémoire O(min(n,m)),
-    // suffisante pour des titres (quelques dizaines de caractères).
-    private fun levenshtein(a: String, b: String): Int {
-        val (s, t) = if (a.length <= b.length) a to b else b to a
-        var prev = IntArray(s.length + 1) { it }
-        var curr = IntArray(s.length + 1)
-        for (j in 1..t.length) {
-            curr[0] = j
-            for (i in 1..s.length) {
-                val cost = if (s[i - 1] == t[j - 1]) 0 else 1
-                curr[i] = minOf(
-                    prev[i] + 1,        // suppression
-                    curr[i - 1] + 1,    // insertion
-                    prev[i - 1] + cost  // substitution
-                )
+    private fun isSubsequenceOfWords(sub: List<String>, full: List<String>): Boolean {
+        var subIndex = 0
+        var fullIndex = 0
+        while (subIndex < sub.size && fullIndex < full.size) {
+            if (sub[subIndex] == full[fullIndex]) {
+                subIndex++
             }
-            val tmp = prev; prev = curr; curr = tmp
+            fullIndex++
         }
-        return prev[s.length]
+        return subIndex == sub.size
+    }
+
+    private fun levenshtein(lhs: CharSequence, rhs: CharSequence): Int {
+        val lhsLength = lhs.length
+        val rhsLength = rhs.length
+
+        var cost = IntArray(lhsLength + 1) { it }
+        var newCost = IntArray(lhsLength + 1)
+
+        for (i in 1..rhsLength) {
+            newCost[0] = i
+            for (j in 1..lhsLength) {
+                val match = if (lhs[j - 1] == rhs[i - 1]) 0 else 1
+                val replace = cost[j - 1] + match
+                val insert = cost[j] + 1
+                val delete = newCost[j - 1] + 1
+                newCost[j] = minOf(minOf(insert, delete), replace)
+            }
+            val temp = cost
+            cost = newCost
+            newCost = temp
+        }
+        return cost[lhsLength]
     }
 }

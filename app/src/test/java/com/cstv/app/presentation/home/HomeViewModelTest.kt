@@ -44,6 +44,9 @@ class HomeViewModelTest {
     @Mock
     private lateinit var categoryPreferenceRepository: com.cstv.app.domain.repository.CategoryPreferenceRepository
 
+    @Mock
+    private lateinit var getTrendingInCatalogUseCase: com.cstv.app.domain.usecase.GetTrendingInCatalogUseCase
+
     // Phase 42 : StandardTestDispatcher (et non Unconfined) + runCurrent() après
     // construction. HomeViewModel lance désormais un ticker EPG infini
     // (while(true) { delay(60s); ... }) dans son init : avec un dispatcher
@@ -77,7 +80,8 @@ class HomeViewModelTest {
             favoritesRepository,
             getLiveEpgUseCase,
             getLiveCategoriesUseCase,
-            categoryPreferenceRepository
+            categoryPreferenceRepository,
+            getTrendingInCatalogUseCase
         )
         testDispatcher.scheduler.runCurrent()
         return vm
@@ -86,7 +90,7 @@ class HomeViewModelTest {
     // Phase 41 : resume/favorites viennent maintenant de Flows continus
     // (observeAllPlaybackPositions/observeFavorites) plutôt que d'un fetch
     // ponctuel dans loadHomeData ; ce helper les stub par défaut à vide.
-    private fun stubReactiveSources(
+    private suspend fun stubReactiveSources(
         positions: List<PlaybackPosition> = emptyList(),
         favorites: List<FavoriteItem> = emptyList()
     ) {
@@ -95,6 +99,7 @@ class HomeViewModelTest {
         // Phase 58 : flux de changements de préférences collecté dans init{},
         // et préférences vides par défaut (aucune catégorie masquée).
         doReturn(flowOf(Unit)).whenever(categoryPreferenceRepository).changes
+        whenever(getTrendingInCatalogUseCase.invoke()).thenReturn(emptyList())
     }
 
     private suspend fun stubEmptyCategoryPreferences() {
@@ -299,6 +304,34 @@ class HomeViewModelTest {
         // Resume Watching: Movie 101 is in "hidden_vod_cat", so it must be filtered out. Only Episode 201 should remain.
         assertEquals(1, state.resumeWatchingList.size)
         assertEquals(1001, state.resumeWatchingList[0].seriesId)
+
+        viewModel.viewModelScope.cancel()
+    }
+
+    @Test
+    fun test_loadHomeData_populatesTrendingList() = runTest {
+        stubReactiveSources()
+        stubEmptyCategoryPreferences()
+
+        val mockTrends = listOf(
+            TrendingCatalogItem(
+                trendingTitle = TrendingTitle(1, "Inception", isMovie = true, year = "2010", posterUrl = "url_inc"),
+                matchedMovie = VodStream(10, "Inception", "icon", "9.0", "12345", "1")
+            )
+        )
+        whenever(getTrendingInCatalogUseCase.invoke()).thenReturn(mockTrends)
+
+        // Stub other methods to succeed with empty list
+        whenever(getLiveCategoriesUseCase(false)).thenReturn(emptyList())
+        whenever(vodRepository.getVodStreams("all", false)).thenReturn(emptyList())
+        whenever(seriesRepository.getSeriesStreams("all", false)).thenReturn(emptyList())
+
+        viewModel = createViewModel()
+
+        val state = viewModel.state.value
+        assertEquals(1, state.trendingList.size)
+        assertEquals("Inception", state.trendingList[0].trendingTitle.title)
+        assertEquals(10, state.trendingList[0].matchedMovie!!.streamId)
 
         viewModel.viewModelScope.cancel()
     }

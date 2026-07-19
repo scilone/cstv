@@ -35,6 +35,7 @@ data class HomeState(
     val isLoading: Boolean = false,
     val resumeWatchingList: List<PlaybackPosition> = emptyList(),
     val favoritesList: List<FavoriteItem> = emptyList(),
+    val trendingList: List<com.cstv.app.domain.model.TrendingCatalogItem> = emptyList(),
     
     val firstLiveCategory: LiveCategory? = null,
     val firstLiveStreams: List<LiveStream> = emptyList(),
@@ -57,7 +58,8 @@ class HomeViewModel @Inject constructor(
     private val favoritesRepository: FavoritesRepository,
     private val getLiveEpgUseCase: GetLiveEpgUseCase,
     private val getLiveCategoriesUseCase: GetLiveCategoriesUseCase,
-    private val categoryPreferenceRepository: CategoryPreferenceRepository
+    private val categoryPreferenceRepository: CategoryPreferenceRepository,
+    private val getTrendingInCatalogUseCase: com.cstv.app.domain.usecase.GetTrendingInCatalogUseCase
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(HomeState())
@@ -248,6 +250,14 @@ class HomeViewModel @Inject constructor(
                 // Flow collectés dans init() (voir groupResumeWatching) : plus de fetch
                 // ponctuel ici.
 
+                // 1. Fetch TMDB Trending list matched with local catalog
+                val trendingList = try {
+                    getTrendingInCatalogUseCase()
+                } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
+                    emptyList()
+                }
+
                 // 3. Fetch TV - First Live Category and its Streams
                 // (catégories filtrées/ordonnées selon les préférences du profil, Phase 58)
                 val liveCategories = try {
@@ -307,6 +317,7 @@ class HomeViewModel @Inject constructor(
                 _state.update {
                     it.copy(
                         isLoading = false,
+                        trendingList = trendingList,
                         firstLiveCategory = firstLiveCat,
                         firstLiveStreams = firstLiveStreams,
                         firstVodStreams = firstVodStreams,

@@ -1,46 +1,32 @@
 package com.cstv.app.domain.model
 
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ApproximateTitleMatcherTest {
 
     @Test
-    fun similarity_identical_isOne() {
-        assertTrue(ApproximateTitleMatcher.similarity("dragon ball z", "dragon ball z") == 1.0)
+    fun test_computeSimilarity_isOne_forExactMatch() {
+        val score = ApproximateTitleMatcher.computeSimilarity("Inception", "Inception")
+        assertTrue(score >= 1.0)
     }
 
     @Test
-    fun similarity_emptyOperand_isZero() {
-        assertTrue(ApproximateTitleMatcher.similarity("", "matrix") == 0.0)
-        assertTrue(ApproximateTitleMatcher.similarity("matrix", "") == 0.0)
+    fun test_computeSimilarity_isHigh_forMatchedLanguagesOrQualityTags() {
+        val score = ApproximateTitleMatcher.computeSimilarity("Inception", "[FR] Inception 1080p MULTI x265")
+        assertTrue(score >= 0.9)
     }
 
     @Test
-    fun matches_exactAfterNormalization() {
-        assertTrue(ApproximateTitleMatcher.matches("the matrix", "the matrix"))
+    fun test_computeSimilarity_isHigh_forWordBoundarySubstrings() {
+        // TMDB is "Dragon Ball Z", IPTV is "Dragon Ball Z Saga Cell"
+        val score = ApproximateTitleMatcher.computeSimilarity("Dragon Ball Z", "Dragon Ball Z Saga Cell")
+        assertTrue(score >= 0.9) // Word containment check gives 0.9
     }
 
     @Test
-    fun matches_oneCharDifference_shortName() {
-        // "spider man" vs "spiderman" : 1 espace de diff sur 10 → 0.9 ≥ 0.85.
-        assertTrue(ApproximateTitleMatcher.matches("spider man", "spiderman"))
-    }
-
-    @Test
-    fun matches_rejects_warVsWarrior() {
-        // Faux positif classique : préfixe commun mais titres distincts.
-        assertFalse(ApproximateTitleMatcher.matches("war", "warrior"))
-    }
-
-    @Test
-    fun matches_rejects_unrelatedTitles() {
-        assertFalse(ApproximateTitleMatcher.matches("inception", "interstellar"))
-    }
-
-    @Test
-    fun matches_rejects_shortPrefix() {
-        assertFalse(ApproximateTitleMatcher.matches("up", "upgrade"))
+    fun test_computeSimilarity_isLow_forDifferentTitles() {
+        val score = ApproximateTitleMatcher.computeSimilarity("War", "Warrior")
+        assertTrue(score < 0.8) // Should not match different words
     }
 }

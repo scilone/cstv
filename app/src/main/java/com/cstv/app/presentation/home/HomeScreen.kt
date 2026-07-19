@@ -309,16 +309,37 @@ fun HomeScreen(
                     }
                 }
 
-                // NOUVEAU: Hero "Reprendre" (Phase 48)
-                if (state.resumeWatchingList.isNotEmpty() && !isTv) {
-                    item {
-                        HomeHeroCard(
-                            position = state.resumeWatchingList.first(),
-                            onClick = { handleResumeClick(state.resumeWatchingList.first()) },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 8.dp)
-                        )
+                // NOUVEAU: Hero "Reprendre" ou "Tendances" (Phase F1)
+                if (!isTv) {
+                    if (state.trendingList.isNotEmpty()) {
+                        item {
+                            HomeTrendingCarousel(
+                                trendingItems = state.trendingList,
+                                onMovieClick = { streamId ->
+                                    state.trendingList.find { it.matchedMovie?.streamId == streamId }?.matchedMovie?.let {
+                                        onSelectMovieDetail(it)
+                                    }
+                                },
+                                onSeriesClick = { seriesId ->
+                                    state.trendingList.find { it.matchedSeries?.seriesId == seriesId }?.matchedSeries?.let {
+                                        onSelectSeriesDetail(it)
+                                    }
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 8.dp)
+                            )
+                        }
+                    } else if (state.resumeWatchingList.isNotEmpty()) {
+                        item {
+                            HomeHeroCard(
+                                position = state.resumeWatchingList.first(),
+                                onClick = { handleResumeClick(state.resumeWatchingList.first()) },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 8.dp)
+                            )
+                        }
                     }
                 }
 

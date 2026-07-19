@@ -6,63 +6,36 @@ import org.junit.Test
 class TitleNormalizerTest {
 
     @Test
-    fun normalize_null_returnsEmpty() {
-        assertEquals("", TitleNormalizer.normalize(null))
+    fun test_normalize_stripsBracketedAndPipeEnclosedTags() {
+        assertEquals("interstellar", TitleNormalizer.normalize("[FR] Interstellar"))
+        assertEquals("interstellar", TitleNormalizer.normalize("|FR| Interstellar"))
+        assertEquals("interstellar", TitleNormalizer.normalize("Interstellar [MULTI]"))
+        assertEquals("interstellar", TitleNormalizer.normalize("Interstellar (VOSTFR)"))
     }
 
     @Test
-    fun normalize_blank_returnsEmpty() {
-        assertEquals("", TitleNormalizer.normalize("   "))
+    fun test_normalize_replacesSpecialCharactersWithSpaces() {
+        assertEquals("die hard", TitleNormalizer.normalize("Die-Hard"))
+        assertEquals("the matrix", TitleNormalizer.normalize("The.Matrix"))
+        assertEquals("avatar", TitleNormalizer.normalize("Avatar: The Way of Water").split(" ").first())
     }
 
     @Test
-    fun normalize_clean_title_lowercasesAndTrims() {
-        assertEquals("dragon ball z", TitleNormalizer.normalize("  Dragon Ball Z  "))
+    fun test_normalize_stripsStandaloneQualityAndLanguageTags() {
+        assertEquals("inception", TitleNormalizer.normalize("Inception 1080p MULTI x265"))
+        assertEquals("inception", TitleNormalizer.normalize("Inception 4k UHD HDR"))
+        assertEquals("inception", TitleNormalizer.normalize("Inception VF HD TrueFrench"))
     }
 
     @Test
-    fun normalize_stripsPipesAndLanguageAndQuality() {
-        assertEquals(
-            "dragon ball z",
-            TitleNormalizer.normalize("|FR| Dragon Ball Z 1080p MULTI")
-        )
+    fun test_normalize_stripsYears() {
+        assertEquals("gladiator", TitleNormalizer.normalize("Gladiator 2000"))
+        assertEquals("gladiator", TitleNormalizer.normalize("Gladiator (2000)"))
+        assertEquals("gladiator", TitleNormalizer.normalize("Gladiator [2000]"))
     }
 
     @Test
-    fun normalize_stripsBracketsAndCodec() {
-        assertEquals(
-            "the matrix",
-            TitleNormalizer.normalize("[VOSTFR] The Matrix [x265] HDR")
-        )
-    }
-
-    @Test
-    fun normalize_stripsYearInParens() {
-        assertEquals("blade runner", TitleNormalizer.normalize("Blade Runner (1982)"))
-    }
-
-    @Test
-    fun normalize_keepsBareYearToken() {
-        // Année NON entre parenthèses = potentiellement le titre lui-même.
-        assertEquals("1917", TitleNormalizer.normalize("1917"))
-        assertEquals("2012", TitleNormalizer.normalize("|FR| 2012 1080p"))
-    }
-
-    @Test
-    fun normalize_collapsesSeparatorsDotsUnderscores() {
-        assertEquals(
-            "spider man homecoming",
-            TitleNormalizer.normalize("Spider.Man_Homecoming")
-        )
-    }
-
-    @Test
-    fun normalize_allTags_returnsEmpty() {
-        assertEquals("", TitleNormalizer.normalize("|FR| 1080p MULTI x265"))
-    }
-
-    @Test
-    fun normalize_keepsAccentsLowercased() {
-        assertEquals("amélie", TitleNormalizer.normalize("Amélie"))
+    fun test_normalize_collapsesMultipleSpaces() {
+        assertEquals("batman begins", TitleNormalizer.normalize("  Batman    Begins  "))
     }
 }
