@@ -16,6 +16,7 @@ import com.cstv.app.domain.usecase.GetRelatedMoviesUseCase
 import com.cstv.app.domain.usecase.GetVodStreamsUseCase
 import com.cstv.app.domain.usecase.SavePlaybackPositionUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -62,7 +63,7 @@ class VodViewModel @Inject constructor(
         viewModelScope.launch {
             kotlinx.coroutines.flow.combine(
                 vodRepository.observeAllPlaybackPositions(),
-                categoryPreferenceRepository.changes
+                categoryPreferenceRepository.changes.onStart { emit(Unit) }
             ) { allPositions, _ ->
                 allPositions
             }.collect { allPositions ->
