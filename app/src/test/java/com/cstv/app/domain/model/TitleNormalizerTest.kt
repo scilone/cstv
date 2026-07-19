@@ -38,4 +38,11 @@ class TitleNormalizerTest {
     fun test_normalize_collapsesMultipleSpaces() {
         assertEquals("batman begins", TitleNormalizer.normalize("  Batman    Begins  "))
     }
+
+    @Test
+    fun test_normalize_preservesNumericOnlyTitles() {
+        // L'année EST le titre : ne doit pas être vidée.
+        assertEquals("1917", TitleNormalizer.normalize("1917"))
+        assertEquals("2012", TitleNormalizer.normalize("|FR| 2012 1080p MULTI"))
+    }
 }

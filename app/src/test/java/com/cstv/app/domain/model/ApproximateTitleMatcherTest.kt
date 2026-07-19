@@ -29,4 +29,26 @@ class ApproximateTitleMatcherTest {
         val score = ApproximateTitleMatcher.computeSimilarity("War", "Warrior")
         assertTrue(score < 0.8) // Should not match different words
     }
+
+    @Test
+    fun test_computeSimilarity_isLow_forShortPrefixOfLongerTitle() {
+        // "The Hunt" ne doit PAS matcher "The Hunt for Red October" (borne de
+        // longueur : 2 mots vs 5 mots).
+        val score = ApproximateTitleMatcher.computeSimilarity("The Hunt", "The Hunt for Red October")
+        assertTrue(score < 0.8)
+    }
+
+    @Test
+    fun test_computeSimilarity_isLow_forNonContiguousWords() {
+        // "Iron Man" ne doit PAS matcher "Iron Fist Man" (mots non contigus).
+        val score = ApproximateTitleMatcher.computeSimilarity("Iron Man", "Iron Fist Man")
+        assertTrue(score < 0.8)
+    }
+
+    @Test
+    fun test_computeSimilarity_stillMatches_contiguousPrefixWithinBound() {
+        // Contrôle non-régression : le containment légitime reste à 0.9.
+        val score = ApproximateTitleMatcher.computeSimilarity("Dragon Ball Z", "Dragon Ball Z Saga Cell")
+        assertTrue(score >= 0.9)
+    }
 }

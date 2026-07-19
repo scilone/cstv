@@ -13,11 +13,19 @@ object ApproximateTitleMatcher {
         val s1Words = s1.split(" ")
         val s2Words = s2.split(" ")
 
-        if (s1Words.size > 1 && s2Words.size >= s1Words.size) {
-            // Check if s1 words are fully contained in order inside s2
-            if (isSubsequenceOfWords(s1Words, s2Words)) {
-                return 0.9
-            }
+        // Containment "mots" : le titre TMDB propre apparaît comme suite CONTIGUË
+        // de mots dans le titre IPTV (ex. "Dragon Ball Z" dans "Dragon Ball Z Saga
+        // Cell"). Deux garde-fous contre les faux positifs :
+        //  - contiguïté (et non simple sous-séquence) : "Iron Man" ne matche pas
+        //    "Iron Fist Man" ;
+        //  - borne de longueur : le titre IPTV ne peut dépasser 2× le nombre de
+        //    mots TMDB, sinon "The Hunt" matcherait "The Hunt for Red October".
+        if (s1Words.size > 1 &&
+            s2Words.size >= s1Words.size &&
+            s2Words.size <= s1Words.size * 2 &&
+            containsContiguousWords(s2Words, s1Words)
+        ) {
+            return 0.9
         }
 
         // Fallback to Levenshtein similarity
@@ -26,16 +34,20 @@ object ApproximateTitleMatcher {
         return 1.0 - (distance.toDouble() / maxLength)
     }
 
-    private fun isSubsequenceOfWords(sub: List<String>, full: List<String>): Boolean {
-        var subIndex = 0
-        var fullIndex = 0
-        while (subIndex < sub.size && fullIndex < full.size) {
-            if (sub[subIndex] == full[fullIndex]) {
-                subIndex++
+    /** Vrai si [sub] apparaît comme suite de mots contiguë dans [full]. */
+    private fun containsContiguousWords(full: List<String>, sub: List<String>): Boolean {
+        if (sub.isEmpty() || sub.size > full.size) return false
+        for (start in 0..full.size - sub.size) {
+            var match = true
+            for (i in sub.indices) {
+                if (full[start + i] != sub[i]) {
+                    match = false
+                    break
+                }
             }
-            fullIndex++
+            if (match) return true
         }
-        return subIndex == sub.size
+        return false
     }
 
     private fun levenshtein(lhs: CharSequence, rhs: CharSequence): Int {

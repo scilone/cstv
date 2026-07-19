@@ -11,6 +11,10 @@ object TitleNormalizer {
         "multi", "vostfr", "vost", "vf", "vo", "hd", "sd", "3d", "fr", "en", "truefrench"
     )
 
+    // Année à 4 chiffres (1900-2099) : bornée pour ne pas prendre un nombre
+    // arbitraire à 4 chiffres du titre pour une année.
+    private val YEAR_REGEX = Regex("(?:19|20)\\d{2}")
+
     fun normalize(title: String?): String {
         if (title.isNullOrBlank()) return ""
 
@@ -27,10 +31,19 @@ object TitleNormalizer {
 
         // 4. Filter out standalone quality/language tags and years
         val cleanedWords = words.filter { word ->
-            word !in STANDALONE_TAGS && !word.matches(Regex("\\d{4}"))
+            word !in STANDALONE_TAGS && !word.matches(YEAR_REGEX)
         }
 
-        // 5. Join words back with a single space
-        return cleanedWords.joinToString(" ").trim()
+        // 5. Si le retrait des années vide le titre, c'est que l'année EST le
+        // titre (ex. "1917", "2012", "1984") : on le préserve alors, seuls les
+        // tags qualité/langue étant écartés.
+        val finalWords = if (cleanedWords.isEmpty()) {
+            words.filter { it !in STANDALONE_TAGS }
+        } else {
+            cleanedWords
+        }
+
+        // 6. Join words back with a single space
+        return finalWords.joinToString(" ").trim()
     }
 }
