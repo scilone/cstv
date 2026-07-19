@@ -1,7 +1,7 @@
 package com.cstv.app.presentation.player
 
 import android.content.Context
-import com.google.android.gms.cast.framework.CastContext
+import android.content.pm.PackageManager
 import com.google.android.gms.common.ConnectionResult
 import com.google.android.gms.common.GoogleApiAvailability
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -13,27 +13,20 @@ class CastAvailabilityProvider @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
     /**
-     * Détermine si le SDK Google Cast est disponible et initialisable sur cet appareil.
-     * Renvoie false sur Android TV ou appareil sans GMS pour éviter tout crash.
+     * Vrai si l'appareil peut caster : ni Android TV/Leanback, ni dépourvu de
+     * Google Play Services. Volontairement léger et sans effet de bord —
+     * n'initialise PAS le CastContext ici (init lourde, à faire sur le thread
+     * principal). Le SDK Cast s'initialise naturellement à l'usage (bouton /
+     * session de cast, F4 Tâche 2), où une éventuelle indisponibilité résiduelle
+     * se traduit par un simple « aucun appareil trouvé ».
      */
     fun isCastAvailable(): Boolean {
-        // Exclure d'emblée Android TV / Leanback
-        if (context.packageManager.hasSystemFeature("android.software.leanback")) {
+        // Android TV / Leanback : jamais de Cast.
+        if (context.packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK)) {
             return false
         }
-
-        return try {
-            // 1. Vérifier la présence de Google Play Services
-            val availability = GoogleApiAvailability.getInstance().isGooglePlayServicesAvailable(context)
-            if (availability != ConnectionResult.SUCCESS) {
-                return false
-            }
-
-            // 2. Tenter d'accéder défensivement au CastContext
-            CastContext.getSharedInstance(context)
-            true
-        } catch (e: Exception) {
-            false
-        }
+        // Google Play Services indispensable au framework Cast.
+        return GoogleApiAvailability.getInstance()
+            .isGooglePlayServicesAvailable(context) == ConnectionResult.SUCCESS
     }
 }

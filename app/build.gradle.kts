@@ -129,7 +129,7 @@ dependencies {
     implementation("androidx.media3:media3-ui:$media3Version")
     implementation("androidx.media3:media3-session:$media3Version")
     implementation("androidx.media3:media3-cast:$media3Version")
-    implementation("com.google.android.gms:play-services-cast:21.5.0")
+    // play-services-cast est inclus transitivement par cast-framework.
     implementation("com.google.android.gms:play-services-cast-framework:21.5.0")
     // NextLib : décodeurs FFmpeg software (EAC3/AC3/DTS/TrueHD...) pour les
     // appareils sans décodeur matériel de ces codecs. Aligné sur media3 1.4.0.
