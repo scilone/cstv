@@ -318,4 +318,49 @@ object AppModule {
     ): com.cstv.app.domain.repository.DownloadRepository {
         return com.cstv.app.data.repository.DownloadRepositoryImpl(context, downloadDao)
     }
+
+    @Provides
+    @Singleton
+    fun provideTmdbApiService(
+        gson: Gson
+    ): com.cstv.app.data.remote.api.TmdbApiService {
+        val loggingInterceptor = HttpLoggingInterceptor().apply {
+            level = if (BuildConfig.DEBUG) {
+                HttpLoggingInterceptor.Level.BODY
+            } else {
+                HttpLoggingInterceptor.Level.NONE
+            }
+        }
+        val client = OkHttpClient.Builder()
+            .addInterceptor(loggingInterceptor)
+            .connectTimeout(10, TimeUnit.SECONDS)
+            .readTimeout(10, TimeUnit.SECONDS)
+            .build()
+
+        return Retrofit.Builder()
+            .baseUrl("https://api.themoviedb.org/3/")
+            .client(client)
+            .addConverterFactory(GsonConverterFactory.create(gson))
+            .build()
+            .create(com.cstv.app.data.remote.api.TmdbApiService::class.java)
+    }
+
+    @Provides
+    @TmdbApiKey
+    fun provideTmdbApiKey(): String {
+        return BuildConfig.TMDB_API_KEY
+    }
+
+    @Provides
+    @Singleton
+    fun provideTrendingRepository(
+        tmdbApiService: com.cstv.app.data.remote.api.TmdbApiService,
+        @TmdbApiKey apiKey: String
+    ): com.cstv.app.domain.repository.TrendingRepository {
+        return com.cstv.app.data.repository.TrendingRepositoryImpl(tmdbApiService, apiKey)
+    }
 }
+
+@javax.inject.Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class TmdbApiKey

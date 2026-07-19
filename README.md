@@ -31,6 +31,21 @@ La **Phase 0** est entièrement réalisée et validée :
 
 ---
 
+## 🔑 Configuration TMDB (Tendances du moment)
+
+L'affichage des "Tendances du moment" sur la page d'accueil utilise l'API de **The Movie Database (TMDB)**. L'obtention d'une clé API gratuite est requise pour activer cette fonctionnalité :
+
+1. Créez un compte gratuit sur [The Movie Database (TMDB)](https://www.themoviedb.org/).
+2. Accédez à vos paramètres de compte, section **API**, et demandez une clé API développeur.
+3. Créez (ou ouvrez) le fichier `local.properties` à la racine de votre projet (ce fichier est exclu de Git).
+4. Ajoutez votre clé de la manière suivante :
+   ```properties
+   TMDB_API_KEY=votre_cle_api_tmdb_ici
+   ```
+5. Recompilez le projet. Si la clé est absente ou vide, l'application se repliera automatiquement et silencieusement sur l'affichage du dernier média en cours de lecture, sans aucun dysfonctionnement.
+
+---
+
 ## 📂 Architecture des Dossiers
 
 L'application est structurée selon les principes de la **Clean Architecture** :
