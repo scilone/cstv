@@ -4,7 +4,6 @@ Ce fichier contient les règles permanentes à suivre à chaque session de trava
 
 ## Documents de référence et Organisation du Backlog
 
-- `prompt-app-iptv-xtream.md` : cahier des charges fonctionnel complet (fonctionnalités, endpoints Xtream Codes, écrans, gestion d'erreurs).
 - `docs/evolutions-fonctionnelles.md` : Backlog fonctionnel actif. Contient uniquement les fonctionnalités et évolutions fonctionnelles ouvertes ou à implémenter.
 - `docs/evolutions-techniques.md` : Backlog technique actif. Contient uniquement la dette technique, les refactorings et les chantiers d'architecture/sécurité ouverts.
 - `docs/bugs.md` : Backlog de bugs actif. Contient uniquement les rapports de bugs ouverts, anomalies de comportement ou régressions constatées.
@@ -150,7 +149,7 @@ Toute fonctionnalité réseau doit gérer explicitement : identifiants invalides
 2. Écris les tests unitaires/fonctionnels de la feature livrée (voir section "Stratégie de tests"), puis exécute `./gradlew testDebugUnitTest` et corrige tout échec, y compris sur les tests des phases précédentes (non-régression).
 3. Vérifie que tu n'as pas dépassé le périmètre de la phase demandée.
 4. Signale dans ta réponse tout point du cahier des charges resté ambigu ou non traité.
-5. Ne modifie pas le fichier `prompt-app-iptv-xtream.md` sans demande explicite. Pour les évolutions fonctionnelles et techniques, respecte scrupuleusement le workflow d'archivage systématique vers `docs/archive/` dès qu'une tâche est livrée et validée.
+5. Pour les évolutions fonctionnelles, techniques et corrections de bugs, respecte scrupuleusement le workflow d'archivage systématique vers `docs/archive/` dès qu'une tâche est livrée et validée.
 6. Exécute `./gradlew assembleDebug` et donne-moi le chemin de l'APK généré.
 7. Effectue systématiquement un commit Git, crée un tag Git associé (ex: v1.x.y respectant SemVer) et pousse-les (y compris les tags avec `git push origin --tags` ou de manière ciblée) vers le dépôt distant après chaque fonctionnalité ou phase terminée.
 
