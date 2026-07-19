@@ -1,8 +1,10 @@
 package com.cstv.app.data.repository
 
+import android.content.Context
 import com.cstv.app.data.remote.api.TmdbApiService
 import com.cstv.app.data.remote.dto.TmdbTrendingItemDto
 import com.cstv.app.data.remote.dto.TmdbTrendingResponseDto
+import com.google.gson.Gson
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -18,8 +20,10 @@ class TrendingRepositoryImplTest {
 
     @Test
     fun test_getTrending_returnsEmptyList_ifApiKeyIsBlank() = runTest {
+        val context = mock<Context>()
         val apiService = mock<TmdbApiService>()
-        val repository = TrendingRepositoryImpl(apiService, apiKey = "")
+        val gson = Gson()
+        val repository = TrendingRepositoryImpl(context, apiService, apiKey = "", gson)
 
         val result = repository.getTrending()
 
@@ -29,7 +33,9 @@ class TrendingRepositoryImplTest {
 
     @Test
     fun test_getTrending_returnsMappedTitles_onApiSuccess() = runTest {
+        val context = mock<Context>()
         val apiService = mock<TmdbApiService>()
+        val gson = Gson()
         val mockResponse = TmdbTrendingResponseDto(
             results = listOf(
                 TmdbTrendingItemDto(
@@ -54,7 +60,7 @@ class TrendingRepositoryImplTest {
         )
         whenever(apiService.getTrending("valid_key")).thenReturn(mockResponse)
 
-        val repository = TrendingRepositoryImpl(apiService, apiKey = "valid_key")
+        val repository = TrendingRepositoryImpl(context, apiService, apiKey = "valid_key", gson)
 
         val result = repository.getTrending()
 
@@ -77,10 +83,12 @@ class TrendingRepositoryImplTest {
 
     @Test
     fun test_getTrending_returnsEmptyList_onApiFailure() = runTest {
+        val context = mock<Context>()
         val apiService = mock<TmdbApiService>()
+        val gson = Gson()
         whenever(apiService.getTrending("valid_key")).thenThrow(RuntimeException("API Error"))
 
-        val repository = TrendingRepositoryImpl(apiService, apiKey = "valid_key")
+        val repository = TrendingRepositoryImpl(context, apiService, apiKey = "valid_key", gson)
 
         val result = repository.getTrending()
 

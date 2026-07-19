@@ -7,6 +7,7 @@ import com.cstv.app.domain.repository.TrendingRepository
 import com.cstv.app.domain.repository.VodRepository
 import com.cstv.app.domain.repository.SeriesRepository
 import com.cstv.app.domain.repository.CategoryPreferenceRepository
+import com.cstv.app.data.local.storage.ProfileManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.util.concurrent.CancellationException
@@ -16,10 +17,24 @@ class GetTrendingInCatalogUseCase @Inject constructor(
     private val trendingRepository: TrendingRepository,
     private val vodRepository: VodRepository,
     private val seriesRepository: SeriesRepository,
-    private val categoryPreferenceRepository: CategoryPreferenceRepository
+    private val categoryPreferenceRepository: CategoryPreferenceRepository,
+    private val profileManager: ProfileManager
 ) {
 
     suspend operator fun invoke(): List<TrendingCatalogItem> = withContext(Dispatchers.Default) {
+        val activeProfileId = try {
+            profileManager.currentProfileId()
+        } catch (e: Exception) {
+            0
+        }
+
+        // 1. Check persistent cache for current profile
+        val cached = trendingRepository.getCachedMatchedTrends(activeProfileId)
+        if (cached != null) {
+            return@withContext cached
+        }
+
+        // 2. Fetch fresh trends from API if cache is expired/null
         val trendingList = trendingRepository.getTrending()
         if (trendingList.isEmpty()) {
             return@withContext emptyList()
@@ -89,6 +104,11 @@ class GetTrendingInCatalogUseCase @Inject constructor(
             }
 
             if (result.size >= 10) break
+        }
+
+        // Save matched results to persistent cache before returning
+        if (result.isNotEmpty()) {
+            trendingRepository.saveMatchedTrends(activeProfileId, result)
         }
 
         result

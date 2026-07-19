@@ -354,10 +354,12 @@ object AppModule {
     @Provides
     @Singleton
     fun provideTrendingRepository(
+        @ApplicationContext context: Context,
         tmdbApiService: com.cstv.app.data.remote.api.TmdbApiService,
-        @TmdbApiKey apiKey: String
+        @TmdbApiKey apiKey: String,
+        gson: Gson
     ): com.cstv.app.domain.repository.TrendingRepository {
-        return com.cstv.app.data.repository.TrendingRepositoryImpl(tmdbApiService, apiKey)
+        return com.cstv.app.data.repository.TrendingRepositoryImpl(context, tmdbApiService, apiKey, gson)
     }
 }
 
