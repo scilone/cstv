@@ -275,33 +275,33 @@ fun HomeScreen(
                             ) {
                                 val buttonModifier = Modifier.weight(1f).height(38.dp)
                                 TvButton(onClick = onNavigateToLiveTv, modifier = buttonModifier) {
-                                    TvText("LIVE TV", fontWeight = FontWeight.Bold, style = TvTheme.typography.labelSmall)
+                                    TvText(stringResource(R.string.home_nav_live_tv), fontWeight = FontWeight.Bold, style = TvTheme.typography.labelSmall)
                                 }
                                 TvButton(onClick = onNavigateToVod, modifier = buttonModifier) {
-                                    TvText("FILMS VOD", fontWeight = FontWeight.Bold, style = TvTheme.typography.labelSmall)
+                                    TvText(stringResource(R.string.home_nav_vod), fontWeight = FontWeight.Bold, style = TvTheme.typography.labelSmall)
                                 }
                                 TvButton(onClick = onNavigateToSeries, modifier = buttonModifier) {
-                                    TvText("SÉRIES", fontWeight = FontWeight.Bold, style = TvTheme.typography.labelSmall)
+                                    TvText(stringResource(R.string.home_nav_series), fontWeight = FontWeight.Bold, style = TvTheme.typography.labelSmall)
                                 }
                                 TvButton(onClick = onNavigateToFavorites, modifier = buttonModifier) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Icon(Icons.Default.Star, contentDescription = null, tint = Color.Yellow, modifier = Modifier.size(14.dp))
                                         Spacer(modifier = Modifier.width(4.dp))
-                                        TvText("FAVS", fontWeight = FontWeight.Bold, style = TvTheme.typography.labelSmall)
+                                        TvText(stringResource(R.string.home_nav_favs), fontWeight = FontWeight.Bold, style = TvTheme.typography.labelSmall)
                                     }
                                 }
                                 TvButton(onClick = onNavigateToSearch, modifier = buttonModifier) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(14.dp))
                                         Spacer(modifier = Modifier.width(4.dp))
-                                        TvText("RECH", fontWeight = FontWeight.Bold, style = TvTheme.typography.labelSmall)
+                                        TvText(stringResource(R.string.home_nav_search), fontWeight = FontWeight.Bold, style = TvTheme.typography.labelSmall)
                                     }
                                 }
                                 TvButton(onClick = onNavigateToSettings, modifier = buttonModifier) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Icon(Icons.Default.Settings, contentDescription = null, tint = Color.LightGray, modifier = Modifier.size(14.dp))
                                         Spacer(modifier = Modifier.width(4.dp))
-                                        TvText("PARAMS", fontWeight = FontWeight.Bold, style = TvTheme.typography.labelSmall)
+                                        TvText(stringResource(R.string.home_nav_settings), fontWeight = FontWeight.Bold, style = TvTheme.typography.labelSmall)
                                     }
                                 }
                             }

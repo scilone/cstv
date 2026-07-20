@@ -1,4 +1,6 @@
 package com.cstv.app.presentation.series
+import com.cstv.app.R
+import androidx.compose.ui.res.stringResource
 
 import android.app.Activity
 import android.content.Context
@@ -636,7 +638,7 @@ fun SeriesPlayerScreen(
                     Icon(Icons.Default.Warning, contentDescription = null, tint = Color.Red, modifier = Modifier.size(54.dp))
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(
-                        text = "Erreur de Lecture",
+                        text = stringResource(R.string.player_error_title),
                         color = Color.White,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold
@@ -663,14 +665,14 @@ fun SeriesPlayerScreen(
                         ) {
                             Icon(Icons.Default.Refresh, contentDescription = null)
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("Réessayer")
+                            Text(stringResource(R.string.player_retry))
                         }
 
                         OutlinedButton(
                             onClick = handleClose,
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
                         ) {
-                            Text("Retour")
+                            Text(stringResource(R.string.common_back))
                         }
                     }
                 }
@@ -980,7 +982,7 @@ private fun TrackSelectionDialog(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 // Audio Piste
-                Text("PISTE AUDIO", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Text(stringResource(R.string.player_audio_track_title), color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     availableAudioTracks.forEach { track ->
                         val isSelected = track.isSelected
@@ -1023,7 +1025,7 @@ private fun TrackSelectionDialog(
                 HorizontalDivider(color = Color.DarkGray, thickness = 0.5.dp)
 
                 // Subtitle Piste
-                Text("SOUS-TITRES", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Text(stringResource(R.string.player_subtitles_title), color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     val isNoneSelected = availableSubtitleTracks.none { it.isSelected }
                     var isNoneFocused by remember { mutableStateOf(false) }
@@ -1102,7 +1104,7 @@ private fun TrackSelectionDialog(
                 onClick = onDismiss,
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
             ) {
-                Text("Fermer", color = Color.White, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.player_close), color = Color.White, fontWeight = FontWeight.Bold)
             }
         }
     )

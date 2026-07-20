@@ -246,7 +246,7 @@ private fun TvLayout(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            Text("SAISONS", color = Color.Gray, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(bottom = 6.dp))
+            Text(stringResource(R.string.series_details_seasons_label), color = Color.Gray, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(bottom = 6.dp))
 
             LazyColumn(
                 verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -380,7 +380,7 @@ private fun TvLayout(
             if (episodes.isEmpty()) {
                 item {
                     Box(modifier = Modifier.fillMaxWidth().height(100.dp), contentAlignment = Alignment.Center) {
-                        Text("Aucun épisode disponible pour cette saison", color = Color.Gray)
+                        Text(stringResource(R.string.series_details_no_episodes_for_season), color = Color.Gray)
                     }
                 }
             } else {
@@ -608,7 +608,7 @@ private fun MobileLayout(
 
         if (episodes.isEmpty()) {
             Box(modifier = Modifier.fillMaxWidth().height(100.dp), contentAlignment = Alignment.Center) {
-                Text("Aucun épisode disponible", color = Color.Gray)
+                Text(stringResource(R.string.series_details_no_episodes), color = Color.Gray)
             }
         } else {
             Column(

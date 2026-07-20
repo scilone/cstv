@@ -1,4 +1,6 @@
 package com.cstv.app.presentation.livetv
+import com.cstv.app.R
+import androidx.compose.ui.res.stringResource
 import com.cstv.app.presentation.livetv.components.*
 
 import com.cstv.app.presentation.rememberForeverLazyListState
@@ -282,7 +284,7 @@ private fun TvLayout(
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = onSearchQueryChanged,
-                    placeholder = { Text("Rechercher une chaîne...", color = Color.Gray, fontSize = 13.sp) },
+                    placeholder = { Text(stringResource(R.string.livetv_search_placeholder), color = Color.Gray, fontSize = 13.sp) },
                     leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp)) },
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(

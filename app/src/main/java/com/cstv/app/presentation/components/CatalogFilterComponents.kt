@@ -177,7 +177,7 @@ fun CategoryFilterSheet(
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = onSearchQueryChange,
-                placeholder = { Text("Filtrer les catégories…", color = TextSecondary, fontSize = 13.5.sp, fontFamily = HankenGrotesk) },
+                placeholder = { Text(stringResource(R.string.category_filter_search_placeholder), color = TextSecondary, fontSize = 13.5.sp, fontFamily = HankenGrotesk) },
                 leadingIcon = {
                     Icon(
                         Icons.Default.Search,

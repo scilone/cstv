@@ -52,16 +52,6 @@ Une fois qu'une tâche technique est réalisée et validée, sa description/son 
 
 ---
 
-### T-4. Externaliser les chaînes UI codées en dur — Effort M (Priorité Basse)
-**Modèle : Haiku 4.5**
-
-**Constat (review v1.48.6).** ~54 appels `Text("...")` avec littéraux français hors `strings.xml` (recherche avancée, lecteurs, sheets, libellés divers), alors que le reste de l'app passe par `stringResource`. Bloque toute future localisation et crée des incohérences (mêmes libellés dupliqués).
-
-**Prompt.**
-> Externalise toutes les chaînes UI codées en dur de CSTV vers `res/values/strings.xml` : recense les `Text("...")`/`contentDescription = "..."` à littéraux dans `presentation/`, crée des ressources nommées par écran (`advanced_search_title`, `player_retry`, etc.), remplace par `stringResource(...)`. Ne touche pas aux chaînes de log/technique. Vérifie `assembleDebug` + `lintDebug` (lint `HardcodedText` doit être silencieux sur les fichiers traités).
-
----
-
 ### T-5. Réduire la fréquence d'écriture des positions de lecture — Effort S (Priorité Basse)
 **Modèle : Haiku 4.5**
 

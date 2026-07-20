@@ -129,9 +129,20 @@ Ce document rassemble l'historique des audits, correctifs techniques, mises à n
 
 ### 13. Mettre à jour les statuts de la feuille de route
 
-✅ **TERMINÉE** — `docs: marquer [TERMINE] les phases livrées de la feuille de route`
+* `docs: marquer [TERMINE] les phases livrées de la feuille de route`
 
 **Constat.** `feuille-de-route-phases.md` ne marque `[TERMINE]` que les phases 29 et 42-45, alors que les phases 18-28, 30-41, 46-53 et 55-57 sont livrées (vérifiable par les tags git v1.x et le code). Le document ment sur l'état du projet — gênant pour toute session IA qui s'y fie.
 
 **Prompt originel.**
 > Dans l'app Android cstv : mets à jour `feuille-de-route-phases.md` pour refléter l'état réel. Pour chaque phase sans `[TERMINE]`, vérifie dans le code et l'historique git (`git log --oneline --all | grep -i "phase N"`, tags v1.x) si elle est livrée ; si oui, ajoute `[TERMINE]` à son titre comme sur les phases 42-45. Cas à vérifier de près plutôt que supposer : Phase 19 (recherche acteur/réalisateur), Phase 21 (autocomplétion — a priori NON faite, laisser ouverte), Phase 54 (accent réglable — a priori NON faite, laisser ouverte). Ne modifie aucun contenu de phase, uniquement les marqueurs de statut. Commit docs.
+
+---
+
+### 14. Externaliser les chaînes UI codées en dur (T-4)
+
+✅ **TERMINÉE** — `refactor(i18n): externaliser toutes les chaînes UI codées en dur vers strings.xml` (tag `v1.48.18`)
+
+**Constat (review v1.48.6).** ~54 appels `Text("...")` avec littéraux français hors `strings.xml` (recherche avancée, lecteurs, sheets, libellés divers), alors que le reste de l'app passe par `stringResource`. Bloque toute future localisation et crée des incohérences (mêmes libellés dupliqués).
+
+**Prompt originel.**
+> Externalise toutes les chaînes UI codées en dur de CSTV vers `res/values/strings.xml` : recense les `Text("...")`/`contentDescription = "..."` à littéraux dans `presentation/`, crée des ressources nommées par écran (`advanced_search_title`, `player_retry`, etc.), remplace par `stringResource(...)`. Ne touche pas aux chaînes de log/technique. Vérifie `assembleDebug` + `lintDebug` (lint `HardcodedText` doit être silencieux sur les fichiers traités).

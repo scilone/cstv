@@ -296,7 +296,7 @@ private fun ProfileEditDialog(
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(stringResource(R.string.profile_delete_confirm_prompt), color = Color(0xFFCF6679), fontSize = 13.sp)
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            TextButton(onClick = { confirmingDelete = false }) { Text("Annuler") }
+                            TextButton(onClick = { confirmingDelete = false }) { Text(stringResource(R.string.profile_confirm_delete_cancel)) }
                             TextButton(onClick = onDelete) {
                                 Text(stringResource(R.string.profile_delete_confirm), color = Color(0xFFCF6679))
                             }

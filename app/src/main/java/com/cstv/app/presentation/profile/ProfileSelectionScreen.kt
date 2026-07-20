@@ -105,7 +105,7 @@ fun ProfileSelectionScreen(
             Spacer(modifier = Modifier.height(12.dp))
 
             TextButton(onClick = onLogout) {
-                Text("Déconnexion", color = Color.Gray)
+                Text(stringResource(R.string.profile_logout), color = Color.Gray)
             }
         }
     }

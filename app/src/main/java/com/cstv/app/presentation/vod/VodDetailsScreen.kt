@@ -551,7 +551,7 @@ private fun PlayButtonsRow(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Color.White)
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("REPRENDRE LA LECTURE", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        Text(stringResource(R.string.vod_details_resume_playback), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                     }
                 }
             }

@@ -89,4 +89,42 @@
     <string name="home_movie_badge">FILM</string>
     <string name="home_series_badge">SÉRIE</string>
     <string name="home_no_program">Pas de programme</string>
+
+    <!-- Évolutions Techniques T-4 (Externalisation des chaînes UI) -->
+    <string name="category_filter_search_placeholder">Filtrer les catégories…</string>
+    <string name="home_nav_live_tv">LIVE TV</string>
+    <string name="home_nav_vod">FILMS VOD</string>
+    <string name="home_nav_series">SÉRIES</string>
+    <string name="home_nav_favs">FAVS</string>
+    <string name="home_nav_search">RECH</string>
+    <string name="home_nav_settings">PARAMS</string>
+    <string name="livetv_search_placeholder">Rechercher une chaîne...</string>
+    <string name="player_loading_stream">Chargement du flux...</string>
+    <string name="player_error_title">Erreur de lecture</string>
+    <string name="player_retry">Réessayer</string>
+    <string name="profile_confirm_delete_cancel">Annuler</string>
+    <string name="profile_logout">Déconnexion</string>
+    <string name="series_details_seasons_label">SAISONS</string>
+    <string name="series_details_no_episodes_for_season">Aucun épisode disponible pour cette saison</string>
+    <string name="series_details_no_episodes">Aucun épisode disponible</string>
+    <string name="player_audio_track_title">PISTE AUDIO</string>
+    <string name="player_subtitles_title">SOUS-TITRES</string>
+    <string name="player_close">Fermer</string>
+    <string name="series_search_placeholder">Rechercher dans cette catégorie...</string>
+    <string name="settings_back">RETOUR</string>
+    <string name="settings_logout">DÉCONNEXION</string>
+    <string name="settings_manage_categories_tv">GÉRER LES CATÉGORIES</string>
+    <string name="settings_manage_categories_mobile">Gérer les catégories</string>
+    <string name="settings_sync_in_progress">SYNCHRONISATION...</string>
+    <string name="settings_force_sync_now">FORCER LA MISE À JOUR MAINTENANT</string>
+    <string name="settings_sync_in_progress_mobile">Synchronisation...</string>
+    <string name="settings_force_sync_now_mobile">Forcer la mise à jour maintenant</string>
+    <string name="settings_subtitle_size_tv">TAILLE</string>
+    <string name="settings_subtitle_color_tv">COULEUR DU TEXTE</string>
+    <string name="settings_subtitle_background_tv">FOND</string>
+    <string name="settings_subtitle_size_mobile">Taille</string>
+    <string name="settings_subtitle_color_mobile">Couleur du texte</string>
+    <string name="settings_subtitle_background_mobile">Fond</string>
+    <string name="vod_details_resume_playback">REPRENDRE LA LECTURE</string>
+    <string name="vod_search_placeholder">Rechercher dans cette catégorie...</string>
 </resources>

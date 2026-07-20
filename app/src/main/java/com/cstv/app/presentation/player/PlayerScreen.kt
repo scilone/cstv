@@ -1,4 +1,6 @@
 package com.cstv.app.presentation.player
+import com.cstv.app.R
+import androidx.compose.ui.res.stringResource
 
 import android.view.ViewGroup
 import android.widget.FrameLayout
@@ -389,7 +391,7 @@ fun PlayerScreen(
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     CircularProgressIndicator(color = MaterialTheme.colorScheme.primary, modifier = Modifier.size(54.dp))
                     Spacer(modifier = Modifier.height(12.dp))
-                    Text("Chargement du flux...", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.player_loading_stream), color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -427,7 +429,7 @@ fun PlayerScreen(
                     Icon(Icons.Default.Warning, contentDescription = null, tint = Color.Red, modifier = Modifier.size(54.dp))
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(
-                        text = "Erreur de Lecture",
+                        text = stringResource(R.string.player_error_title),
                         color = Color.White,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold
@@ -454,14 +456,14 @@ fun PlayerScreen(
                         ) {
                             Icon(Icons.Default.Refresh, contentDescription = null)
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("Réessayer")
+                            Text(stringResource(R.string.player_retry))
                         }
 
                         OutlinedButton(
                             onClick = handleClose,
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
                         ) {
-                            Text("Retour")
+                            Text(stringResource(R.string.common_back))
                         }
                     }
                 }
