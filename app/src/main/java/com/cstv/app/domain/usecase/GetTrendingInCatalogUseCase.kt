@@ -26,7 +26,9 @@ class GetTrendingInCatalogUseCase @Inject constructor(
         // 1. Check persistent global device cache
         val cachedGlobal = trendingRepository.getCachedMatchedTrendsGlobal()
         val matchedList = if (cachedGlobal != null) {
-            com.cstv.app.di.IptvLog.d("TMDB", "💾 Global matched cache HIT. Loaded ${cachedGlobal.size} items.")
+            com.cstv.app.di.IptvLog.d("TMDB", "💾 Global matched cache HIT. Loaded ${cachedGlobal.size} items: " +
+                cachedGlobal.joinToString { "'${it.trendingTitle.title}' ↔ '${it.matchedMovie?.name ?: it.matchedSeries?.name ?: "No Stream"}'" }
+            )
             cachedGlobal
         } else {
             com.cstv.app.di.IptvLog.d("TMDB", "💾 Global matched cache MISS. Fetching raw trends and matching...")
@@ -37,6 +39,11 @@ class GetTrendingInCatalogUseCase @Inject constructor(
                 com.cstv.app.di.IptvLog.w("TMDB", "🌐 TMDB API returned empty list of trends. Reverting to hero card.")
                 return@withContext emptyList()
             }
+
+            // Log raw trends returned by TMDB API!
+            com.cstv.app.di.IptvLog.d("TMDB", "🌐 TMDB raw trends [${trendingList.size} items]: " + 
+                trendingList.joinToString { "[${if (it.isMovie) "Movie" else "Series"}] '${it.title}' (${it.year})" }
+            )
 
             // Fetch ALL local catalog items (without filtering hidden categories yet)
             val allMovies = try {
