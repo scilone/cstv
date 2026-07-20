@@ -419,13 +419,8 @@ fun HomeFavoriteItemCard(
             )
         }
 
-        // Type Badge (top left)
-        val badgeColor = when (favorite.type) {
-            "live" -> Color(0xFFE50914) // Red for live direct
-            "movie" -> Color(0xFF0070F3) // Blue for movies
-            "series" -> Color(0xFF8A2BE2) // Purple for series
-            else -> Color.Gray
-        }
+        // Type Badge (top left) : style neutre "sans couleur", cohérent avec
+        // le badge du carrousel Tendances (HomeTrendingCarousel).
         val badgeLabel = when (favorite.type) {
             "live" -> stringResource(R.string.home_live_badge)
             "movie" -> stringResource(R.string.home_movie_badge)
@@ -437,7 +432,7 @@ fun HomeFavoriteItemCard(
                 .align(Alignment.TopStart)
                 .padding(6.dp)
                 .clip(RoundedCornerShape(4.dp))
-                .background(badgeColor)
+                .background(Color.White.copy(alpha = 0.2f))
                 .padding(horizontal = 4.dp, vertical = 2.dp)
         ) {
             Text(

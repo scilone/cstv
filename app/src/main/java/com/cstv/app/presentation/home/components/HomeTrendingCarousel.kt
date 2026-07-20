@@ -10,7 +10,6 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -56,7 +55,7 @@ fun HomeTrendingCarousel(
 
     Box(
         modifier = modifier
-            .height(280.dp)
+            .height(420.dp)
             .fillMaxWidth()
     ) {
         HorizontalPager(
@@ -110,55 +109,41 @@ fun HomeTrendingCarousel(
                             )
                     )
 
-                    // 3. Content info
+                    // 3. Badge type de média (haut-gauche), style neutre "sans
+                    // couleur" — cohérent avec HomeFavoriteItemCard.
                     Box(
                         modifier = Modifier
-                            .fillMaxSize()
+                            .align(Alignment.TopStart)
                             .padding(16.dp)
-                    ) {
-                        // Bottom text metadata
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .align(Alignment.BottomStart)
-                                .padding(bottom = 8.dp)
-                        ) {
-                            Text(
-                                text = item.trendingTitle.title,
-                                color = Color.White,
-                                fontSize = 20.sp,
-                                fontWeight = FontWeight.Bold
+                            .background(
+                                Color.White.copy(alpha = 0.2f),
+                                shape = RoundedCornerShape(4.dp)
                             )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically
-                              ) {
-                                Box(
-                                    modifier = Modifier
-                                        .background(
-                                            Color.White.copy(alpha = 0.2f),
-                                            shape = RoundedCornerShape(4.dp)
-                                        )
-                                        .padding(horizontal = 6.dp, vertical = 2.dp)
-                                ) {
-                                    Text(
-                                        text = if (isMovie) "FILM" else "SÉRIE",
-                                        color = Color.White,
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.SemiBold
-                                    )
-                                }
-                                item.trendingTitle.year?.let { year ->
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        text = year,
-                                        color = Color.LightGray,
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Normal
-                                    )
-                                }
-                            }
-                        }
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = if (isMovie) "FILM" else "SÉRIE",
+                            color = Color.White,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+
+                    // 4. Titre + année accolée (bas)
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .align(Alignment.BottomStart)
+                            .padding(16.dp)
+                            .padding(bottom = 8.dp)
+                    ) {
+                        Text(
+                            text = item.trendingTitle.year?.let { year -> "${item.trendingTitle.title} · $year" }
+                                ?: item.trendingTitle.title,
+                            color = Color.White,
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
             }
@@ -172,16 +157,15 @@ fun HomeTrendingCarousel(
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             repeat(trendingItems.size) { index ->
+                val isActive = pagerState.currentPage == index
                 Box(
                     modifier = Modifier
-                        .size(6.dp)
-                        .clip(CircleShape)
+                        .height(6.dp)
+                        .width(if (isActive) 20.dp else 6.dp)
+                        .clip(RoundedCornerShape(50))
                         .background(
-                            if (pagerState.currentPage == index) {
-                                MaterialTheme.colorScheme.primary
-                            } else {
-                                Color.Gray.copy(alpha = 0.5f)
-                            }
+                            if (isActive) MaterialTheme.colorScheme.primary
+                            else Color.Gray.copy(alpha = 0.5f)
                         )
                 )
             }
