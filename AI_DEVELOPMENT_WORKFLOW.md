@@ -285,7 +285,7 @@ Ne pas définir d'architecture technique.
 
 ## Modèle recommandé
 
-Haiku
+Haiku 4.5 / Gemini 3.5 flash
 
 ---
 
@@ -316,7 +316,7 @@ La spécification doit permettre à une personne externe au projet de comprendre
 
 ## Modèle recommandé
 
-Sonnet
+Sonnet 5 / GPT 5.6-Sol
 
 ---
 
@@ -347,7 +347,7 @@ Cette étape doit identifier :
 
 ## Modèle recommandé
 
-Opus
+Opus 4.8 / GPT 5.6-Terra
 
 ---
 
@@ -386,7 +386,7 @@ Tests unitaires présents.
 
 ## Modèle recommandé
 
-Sonnet
+Sonnet 5 / GPT 5.3 Codex
 
 ---
 
@@ -418,7 +418,7 @@ Ne pas modifier le périmètre sans validation.
 
 ## Modèle recommandé
 
-Sonnet
+GPT 5.3 Codex / Sonnet 5
 
 ---
 
@@ -468,7 +468,7 @@ Chaque problème doit contenir :
 
 ## Modèle recommandé
 
-Opus
+Opus 4.8 / GPT 5.6-Sol
 
 ---
 
@@ -494,7 +494,7 @@ Status: RESOLVED
 
 ## Modèle recommandé
 
-Sonnet
+GPT 5.3 Codex / Sonnet 5
 
 ---
 
@@ -521,7 +521,7 @@ Status: VALIDATED
 
 ## Modèle recommandé
 
-Sonnet
+Sonnet 5 / GPT 5.6-Sol
 
 ---
 
@@ -552,7 +552,7 @@ Ajouter :
 
 ## Modèle recommandé
 
-Haiku
+Haiku 4.5 / Gemini 3.5 Flash
 
 ---
 
