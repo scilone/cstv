@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.Flow
 interface VodRepository {
     suspend fun getVodCategories(forceRefresh: Boolean): List<VodCategory>
     suspend fun getVodStreams(categoryId: String, forceRefresh: Boolean): List<VodStream>
+    fun getVodStreamsPaged(categoryId: String): Flow<androidx.paging.PagingData<VodStream>>
     suspend fun getVodDetails(streamId: Int): VodDetails
     suspend fun savePlaybackPosition(
         streamId: Int,

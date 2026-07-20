@@ -1,6 +1,8 @@
 package com.cstv.app.presentation.livetv
 import com.cstv.app.R
 import androidx.compose.ui.res.stringResource
+import androidx.paging.compose.collectAsLazyPagingItems
+import androidx.paging.filter
 import com.cstv.app.presentation.livetv.components.*
 
 import com.cstv.app.presentation.rememberForeverLazyListState
@@ -26,6 +28,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import kotlinx.coroutines.flow.map
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -91,6 +94,16 @@ fun LiveTvScreen(
         }
     }
 
+    val pagedStreams = remember(viewModel.pagedStreams, searchQuery) {
+        if (searchQuery.isBlank()) {
+            viewModel.pagedStreams
+        } else {
+            viewModel.pagedStreams.map { pagingData ->
+                pagingData.filter { it.name.contains(searchQuery, ignoreCase = true) }
+            }
+        }
+    }.collectAsLazyPagingItems()
+
     // Refresh recently watched when returning from the player (the ViewModel outlives this screen)
     LaunchedEffect(Unit) {
         viewModel.loadRecentlyWatched()
@@ -113,6 +126,7 @@ fun LiveTvScreen(
                 favoritesList = favoritesList,
                 onToggleFavorite = onToggleFavorite,
                 filteredStreams = filteredStreams,
+                pagedStreams = pagedStreams,
                 searchQuery = searchQuery,
                 onSearchQueryChanged = { searchQuery = it },
                 isSpecificCategory = isSpecificCategory,
@@ -130,6 +144,7 @@ fun LiveTvScreen(
                 favoritesList = favoritesList,
                 onToggleFavorite = onToggleFavorite,
                 filteredStreams = filteredStreams,
+                pagedStreams = pagedStreams,
                 searchQuery = searchQuery,
                 onSearchQueryChanged = { searchQuery = it },
                 isSpecificCategory = isSpecificCategory,
@@ -151,6 +166,7 @@ private fun TvLayout(
     favoritesList: List<FavoriteItem>,
     onToggleFavorite: (LiveStream) -> Unit,
     filteredStreams: List<LiveStream>,
+    pagedStreams: androidx.paging.compose.LazyPagingItems<LiveStream>,
     searchQuery: String,
     onSearchQueryChanged: (String) -> Unit,
     isSpecificCategory: Boolean,
@@ -299,7 +315,7 @@ private fun TvLayout(
                 )
             }
 
-            if (filteredStreams.isEmpty()) {
+            if (pagedStreams.itemCount == 0) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(
                         text = if (searchQuery.isBlank()) "Aucune chaîne dans cette catégorie" else "Aucun résultat pour « $searchQuery »",
@@ -315,16 +331,19 @@ private fun TvLayout(
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                     modifier = Modifier.fillMaxSize().focusGroup()
                 ) {
-                    items(filteredStreams) { stream ->
-                        val isFav = favoritesList.any { it.id == stream.streamId && it.type == "live" }
-                        StreamTvCard(
-                            stream = stream,
-                            isFavorite = isFav,
-                            epgProgram = epgPrograms[stream.streamId],
-                            onLoadEpg = { onLoadEpg(stream.streamId) },
-                            onToggleFavorite = { onToggleFavorite(stream) },
-                            onClick = { onStreamSelected(stream) }
-                        )
+                    items(pagedStreams.itemCount) { index ->
+                        val stream = pagedStreams[index]
+                        if (stream != null) {
+                            val isFav = favoritesList.any { it.id == stream.streamId && it.type == "live" }
+                            StreamTvCard(
+                                stream = stream,
+                                isFavorite = isFav,
+                                epgProgram = epgPrograms[stream.streamId],
+                                onLoadEpg = { onLoadEpg(stream.streamId) },
+                                onToggleFavorite = { onToggleFavorite(stream) },
+                                onClick = { onStreamSelected(stream) }
+                            )
+                        }
                     }
                 }
             }
@@ -342,6 +361,7 @@ private fun MobileLayout(
     favoritesList: List<FavoriteItem>,
     onToggleFavorite: (LiveStream) -> Unit,
     filteredStreams: List<LiveStream>,
+    pagedStreams: androidx.paging.compose.LazyPagingItems<LiveStream>,
     searchQuery: String,
     onSearchQueryChanged: (String) -> Unit,
     isSpecificCategory: Boolean,
@@ -493,7 +513,7 @@ private fun MobileLayout(
                 )
             }
 
-            if (filteredStreams.isEmpty()) {
+            if (pagedStreams.itemCount == 0) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(
                         text = if (searchQuery.isBlank()) "Aucune chaîne dans cette catégorie" else "Aucun résultat pour « $searchQuery »",
@@ -511,16 +531,19 @@ private fun MobileLayout(
                         .fillMaxSize()
                         .padding(horizontal = 16.dp)
                 ) {
-                    items(filteredStreams) { stream ->
-                        val isFav = favoritesList.any { it.id == stream.streamId && it.type == "live" }
-                        MobileChannelGridCard(
-                            stream = stream,
-                            isFavorite = isFav,
-                            epgProgram = epgPrograms[stream.streamId],
-                            onLoadEpg = { onLoadEpg(stream.streamId) },
-                            onToggleFavorite = { onToggleFavorite(stream) },
-                            onClick = { onStreamSelected(stream) }
-                        )
+                    items(pagedStreams.itemCount) { index ->
+                        val stream = pagedStreams[index]
+                        if (stream != null) {
+                            val isFav = favoritesList.any { it.id == stream.streamId && it.type == "live" }
+                            MobileChannelGridCard(
+                                stream = stream,
+                                isFavorite = isFav,
+                                epgProgram = epgPrograms[stream.streamId],
+                                onLoadEpg = { onLoadEpg(stream.streamId) },
+                                onToggleFavorite = { onToggleFavorite(stream) },
+                                onClick = { onStreamSelected(stream) }
+                            )
+                        }
                     }
                 }
             }

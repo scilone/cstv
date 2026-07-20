@@ -1,5 +1,7 @@
 package com.cstv.app.presentation.series
 
+import androidx.paging.compose.collectAsLazyPagingItems
+import androidx.paging.filter
 import com.cstv.app.presentation.rememberForeverLazyListState
 import com.cstv.app.presentation.rememberForeverLazyGridState
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -23,6 +25,7 @@ import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import kotlinx.coroutines.flow.map
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -92,6 +95,16 @@ fun SeriesScreen(
         }
     }
 
+    val pagedStreams = remember(viewModel.pagedStreams, searchQuery) {
+        if (searchQuery.isBlank()) {
+            viewModel.pagedStreams
+        } else {
+            viewModel.pagedStreams.map { pagingData ->
+                pagingData.filter { it.name.contains(searchQuery, ignoreCase = true) }
+            }
+        }
+    }.collectAsLazyPagingItems()
+
     LaunchedEffect(Unit) {
         viewModel.loadCategories(forceRefresh = false)
     }
@@ -111,6 +124,7 @@ fun SeriesScreen(
                 onSeriesSelected = onSeriesSelected,
                 onRefresh = { viewModel.loadCategories(forceRefresh = true) },
                 filteredStreams = filteredStreams,
+                pagedStreams = pagedStreams,
                 favoritesList = favoritesList,
                 searchQuery = searchQuery,
                 onSearchQueryChanged = { searchQuery = it },
@@ -125,6 +139,7 @@ fun SeriesScreen(
                 onSeriesSelected = onSeriesSelected,
                 onRefresh = { viewModel.loadCategories(forceRefresh = true) },
                 filteredStreams = filteredStreams,
+                pagedStreams = pagedStreams,
                 favoritesList = favoritesList,
                 searchQuery = searchQuery,
                 onSearchQueryChanged = { searchQuery = it },
@@ -144,6 +159,7 @@ private fun TvLayout(
     onSeriesSelected: (SeriesStream) -> Unit,
     onRefresh: () -> Unit,
     filteredStreams: List<SeriesStream>,
+    pagedStreams: androidx.paging.compose.LazyPagingItems<SeriesStream>,
     favoritesList: List<FavoriteItem>,
     searchQuery: String,
     onSearchQueryChanged: (String) -> Unit,
@@ -290,7 +306,7 @@ private fun TvLayout(
                 )
             }
 
-            if (filteredStreams.isEmpty()) {
+            if (pagedStreams.itemCount == 0) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(
                         text = if (searchQuery.isBlank()) "Aucune série dans cette catégorie" else "Aucun résultat pour « $searchQuery »",
@@ -306,11 +322,14 @@ private fun TvLayout(
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                     modifier = Modifier.fillMaxSize().focusGroup()
                 ) {
-                    items(filteredStreams) { stream ->
-                        SeriesTvCard(
-                            stream = stream,
-                            onClick = { onSeriesSelected(stream) }
-                        )
+                    items(pagedStreams.itemCount) { index ->
+                        val stream = pagedStreams[index]
+                        if (stream != null) {
+                            SeriesTvCard(
+                                stream = stream,
+                                onClick = { onSeriesSelected(stream) }
+                            )
+                        }
                     }
                 }
             }
@@ -326,6 +345,7 @@ private fun MobileLayout(
     onSeriesSelected: (SeriesStream) -> Unit,
     onRefresh: () -> Unit,
     filteredStreams: List<SeriesStream>,
+    pagedStreams: androidx.paging.compose.LazyPagingItems<SeriesStream>,
     favoritesList: List<FavoriteItem>,
     searchQuery: String,
     onSearchQueryChanged: (String) -> Unit,
@@ -477,7 +497,7 @@ private fun MobileLayout(
                 )
             }
 
-            if (filteredStreams.isEmpty()) {
+            if (pagedStreams.itemCount == 0) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(
                         text = if (searchQuery.isBlank()) "Aucune série dans cette catégorie" else "Aucun résultat pour « $searchQuery »",
@@ -495,55 +515,73 @@ private fun MobileLayout(
                         .fillMaxSize()
                         .padding(12.dp)
                 ) {
-                    items(filteredStreams) { stream ->
-                        Card(
-                            colors = CardDefaults.cardColors(containerColor = Surface3),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { onSeriesSelected(stream) }
-                        ) {
-                            Column {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .aspectRatio(2f / 3f)
-                                        .background(Surface1),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    if (!stream.cover.isNullOrBlank()) {
-                                        AsyncImage(
-                                            model = stream.cover,
-                                            contentDescription = stream.name,
-                                            contentScale = ContentScale.Crop,
-                                            modifier = Modifier.fillMaxSize()
-                                        )
-                                    } else {
-                                        Icon(
-                                            imageVector = Icons.Default.PlayArrow,
-                                            contentDescription = null,
-                                            tint = Color.DarkGray,
-                                            modifier = Modifier.size(36.dp)
-                                        )
-                                    }
+                    items(pagedStreams.itemCount) { index ->
+                        val stream = pagedStreams[index]
+                        if (stream != null) {
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = Surface3),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { onSeriesSelected(stream) }
+                            ) {
+                                Column {
+                                    // Poster Box
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .aspectRatio(2f / 3f)
+                                            .background(Surface1),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        if (!stream.cover.isNullOrBlank()) {
+                                            AsyncImage(
+                                                model = stream.cover,
+                                                contentDescription = stream.name,
+                                                contentScale = ContentScale.Crop,
+                                                modifier = Modifier.fillMaxSize()
+                                            )
+                                        } else {
+                                            Icon(
+                                                imageVector = Icons.Default.PlayArrow,
+                                                contentDescription = null,
+                                                tint = Color.DarkGray,
+                                                modifier = Modifier.size(36.dp)
+                                            )
+                                        }
 
-                                    // Rating Badge
-                                    val cleanRating = stream.rating?.trim()
-                                    if (!cleanRating.isNullOrBlank() && cleanRating != "0" && cleanRating != "0.0") {
-                                        Box(
-                                            modifier = Modifier
-                                                .align(Alignment.TopEnd)
-                                                .padding(6.dp)
-                                                .clip(RoundedCornerShape(4.dp))
-                                                .background(Color(0xCC000000))
-                                                .padding(horizontal = 6.dp, vertical = 3.dp)
-                                        ) {
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Icon(Icons.Default.Star, contentDescription = null, tint = Color.Yellow, modifier = Modifier.size(10.dp))
-                                                Spacer(modifier = Modifier.width(3.dp))
-                                                Text(cleanRating, color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                        // Rating Badge
+                                        val cleanRating = stream.rating?.trim()
+                                        if (!cleanRating.isNullOrBlank() && cleanRating != "0" && cleanRating != "0.0") {
+                                            Box(
+                                                modifier = Modifier
+                                                    .align(Alignment.TopEnd)
+                                                    .padding(6.dp)
+                                                    .clip(RoundedCornerShape(4.dp))
+                                                    .background(Color(0xCC000000))
+                                                    .padding(horizontal = 6.dp, vertical = 3.dp)
+                                            ) {
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Icon(Icons.Default.Star, contentDescription = null, tint = Color.Yellow, modifier = Modifier.size(10.dp))
+                                                    Spacer(modifier = Modifier.width(3.dp))
+                                                    Text(cleanRating, color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                                }
                                             }
                                         }
                                     }
+
+                                    // Title
+                                    Text(
+                                        text = stream.name,
+                                        color = Color.White,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 11.sp,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(6.dp),
+                                        textAlign = TextAlign.Center
+                                    )
                                 }
                             }
                         }

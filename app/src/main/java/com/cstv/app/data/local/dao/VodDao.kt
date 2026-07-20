@@ -27,12 +27,18 @@ interface VodDao {
     @Query("SELECT * FROM vod_streams ORDER BY orderIndex ASC")
     suspend fun getAllStreams(): List<VodStreamEntity>
 
+    @Query("SELECT * FROM vod_streams ORDER BY orderIndex ASC")
+    fun getAllStreamsPaged(): androidx.paging.PagingSource<Int, VodStreamEntity>
+
     // Compteurs du sélecteur de catégorie (basés sur le cache local).
     @Query("SELECT categoryId, COUNT(*) AS count FROM vod_streams GROUP BY categoryId")
     suspend fun getCategoryCounts(): List<CategoryCount>
 
     @Query("SELECT * FROM vod_streams WHERE categoryId = :categoryId ORDER BY orderIndex ASC")
     suspend fun getStreamsByCategory(categoryId: String): List<VodStreamEntity>
+
+    @Query("SELECT * FROM vod_streams WHERE categoryId = :categoryId ORDER BY orderIndex ASC")
+    fun getStreamsByCategoryPaged(categoryId: String): androidx.paging.PagingSource<Int, VodStreamEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertStreams(streams: List<VodStreamEntity>)

@@ -16,7 +16,14 @@ import com.cstv.app.domain.usecase.GetRelatedMoviesUseCase
 import com.cstv.app.domain.usecase.GetVodStreamsUseCase
 import com.cstv.app.domain.usecase.SavePlaybackPositionUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
+import androidx.paging.PagingData
+import androidx.paging.cachedIn
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -51,6 +58,19 @@ class VodViewModel @Inject constructor(
     fun getScrollPosition(key: String): Pair<Int, Int> {
         return scrollPositions[key] ?: Pair(0, 0)
     }
+
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    val pagedStreams: Flow<PagingData<VodStream>> = state
+        .map { it.selectedCategory?.categoryId }
+        .distinctUntilChanged()
+        .flatMapLatest { categoryId ->
+            if (categoryId != null) {
+                vodRepository.getVodStreamsPaged(categoryId)
+                    .cachedIn(viewModelScope)
+            } else {
+                flowOf(PagingData.empty())
+            }
+        }
 
     init {
         loadCategories()

@@ -15,6 +15,13 @@ import com.cstv.app.domain.usecase.GetRelatedSeriesUseCase
 import com.cstv.app.domain.usecase.GetSeriesStreamsUseCase
 import com.cstv.app.domain.usecase.SavePlaybackPositionUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
+import androidx.paging.PagingData
+import androidx.paging.cachedIn
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -54,6 +61,19 @@ class SeriesViewModel @Inject constructor(
     fun getScrollPosition(key: String): Pair<Int, Int> {
         return scrollPositions[key] ?: Pair(0, 0)
     }
+
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    val pagedStreams: Flow<PagingData<SeriesStream>> = state
+        .map { it.selectedCategory?.categoryId }
+        .distinctUntilChanged()
+        .flatMapLatest { categoryId ->
+            if (categoryId != null) {
+                seriesRepository.getSeriesStreamsPaged(categoryId)
+                    .cachedIn(viewModelScope)
+            } else {
+                flowOf(PagingData.empty())
+            }
+        }
 
     init {
         loadCategories()

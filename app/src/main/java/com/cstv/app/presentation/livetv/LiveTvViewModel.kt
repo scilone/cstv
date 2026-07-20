@@ -17,6 +17,13 @@ import com.cstv.app.domain.usecase.SaveRecentlyWatchedUseCase
 import com.cstv.app.data.local.storage.SettingsManager
 import com.cstv.app.data.local.storage.ResizeMode
 import dagger.hilt.android.lifecycle.HiltViewModel
+import androidx.paging.PagingData
+import androidx.paging.cachedIn
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -35,7 +42,8 @@ class LiveTvViewModel @Inject constructor(
     private val getLiveEpgNowNextUseCase: GetLiveEpgNowNextUseCase,
     private val credentialsManager: CredentialsManager,
     private val categoryPreferenceRepository: com.cstv.app.domain.repository.CategoryPreferenceRepository,
-    private val settingsManager: SettingsManager
+    private val settingsManager: SettingsManager,
+    private val liveTvRepository: com.cstv.app.domain.repository.LiveTvRepository
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(LiveTvState())
@@ -73,6 +81,19 @@ class LiveTvViewModel @Inject constructor(
     fun getScrollPosition(key: String): Pair<Int, Int> {
         return scrollPositions[key] ?: Pair(0, 0)
     }
+
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    val pagedStreams: Flow<PagingData<LiveStream>> = state
+        .map { it.selectedCategory?.categoryId }
+        .distinctUntilChanged()
+        .flatMapLatest { categoryId ->
+            if (categoryId != null) {
+                liveTvRepository.getLiveStreamsPaged(categoryId)
+                    .cachedIn(viewModelScope)
+            } else {
+                flowOf(PagingData.empty())
+            }
+        }
 
     init {
         loadCategories()

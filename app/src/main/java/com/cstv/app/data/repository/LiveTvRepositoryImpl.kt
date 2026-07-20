@@ -1,5 +1,11 @@
 package com.cstv.app.data.repository
 
+import androidx.paging.Pager
+import androidx.paging.PagingConfig
+import androidx.paging.PagingData
+import androidx.paging.map
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import com.google.gson.JsonElement
 import com.cstv.app.data.local.dao.LiveTvDao
 import com.cstv.app.data.local.entity.LiveCategoryEntity
@@ -144,6 +150,34 @@ class LiveTvRepositoryImpl @Inject constructor(
 
         return entities.map { 
             LiveStream(it.streamId, it.name, it.streamIcon, it.epgChannelId, it.num, it.categoryId)
+        }
+    }
+
+    override fun getLiveStreamsPaged(categoryId: String): Flow<PagingData<LiveStream>> {
+        return Pager(
+            config = PagingConfig(
+                pageSize = 50,
+                enablePlaceholders = false,
+                initialLoadSize = 100
+            ),
+            pagingSourceFactory = {
+                if (categoryId == "all") {
+                    liveTvDao.getAllStreamsPaged()
+                } else {
+                    liveTvDao.getStreamsByCategoryPaged(categoryId)
+                }
+            }
+        ).flow.map { pagingData ->
+            pagingData.map { entity ->
+                LiveStream(
+                    streamId = entity.streamId,
+                    name = entity.name,
+                    streamIcon = entity.streamIcon,
+                    epgChannelId = entity.epgChannelId,
+                    num = entity.num,
+                    categoryId = entity.categoryId
+                )
+            }
         }
     }
 

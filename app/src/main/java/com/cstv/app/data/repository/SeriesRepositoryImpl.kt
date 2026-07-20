@@ -1,5 +1,11 @@
 package com.cstv.app.data.repository
 
+import androidx.paging.Pager
+import androidx.paging.PagingConfig
+import androidx.paging.PagingData
+import androidx.paging.map
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import com.cstv.app.data.local.dao.SeriesDao
 import com.cstv.app.data.local.dao.VodDao
 import com.cstv.app.data.local.entity.PlaybackPositionEntity
@@ -221,7 +227,7 @@ class SeriesRepositoryImpl @Inject constructor(
                 if (localStreams.isNotEmpty()) {
                     startBackgroundEnrichment()
                     return localStreams.map {
-                        SeriesStream(it.seriesId, it.name, it.cover, it.rating, it.added, it.categoryId, it.genre, it.releaseYear?.takeIf { y -> y > 0 })
+                        SeriesStream(it.seriesId, it.name, it.cover, it.rating, it.added, it.categoryId, it.genre, it.releaseYear?.takeIf { y -> y > 0 }, it.actors, it.director)
                     }
                 }
             } else {
@@ -229,7 +235,7 @@ class SeriesRepositoryImpl @Inject constructor(
                 if (localStreams.isNotEmpty()) {
                     startBackgroundEnrichment()
                     return localStreams.map {
-                        SeriesStream(it.seriesId, it.name, it.cover, it.rating, it.added, it.categoryId, it.genre, it.releaseYear?.takeIf { y -> y > 0 })
+                        SeriesStream(it.seriesId, it.name, it.cover, it.rating, it.added, it.categoryId, it.genre, it.releaseYear?.takeIf { y -> y > 0 }, it.actors, it.director)
                     }
                 }
             }
@@ -290,7 +296,39 @@ class SeriesRepositoryImpl @Inject constructor(
         startBackgroundEnrichment()
 
         return entities.map { 
-            SeriesStream(it.seriesId, it.name, it.cover, it.rating, it.added, it.categoryId, it.genre, it.releaseYear?.takeIf { y -> y > 0 })
+            SeriesStream(it.seriesId, it.name, it.cover, it.rating, it.added, it.categoryId, it.genre, it.releaseYear?.takeIf { y -> y > 0 }, it.actors, it.director)
+        }
+    }
+
+    override fun getSeriesStreamsPaged(categoryId: String): Flow<PagingData<SeriesStream>> {
+        return Pager(
+            config = PagingConfig(
+                pageSize = 50,
+                enablePlaceholders = false,
+                initialLoadSize = 100
+            ),
+            pagingSourceFactory = {
+                if (categoryId == "all") {
+                    seriesDao.getAllStreamsPaged()
+                } else {
+                    seriesDao.getStreamsByCategoryPaged(categoryId)
+                }
+            }
+        ).flow.map { pagingData ->
+            pagingData.map { entity ->
+                SeriesStream(
+                    seriesId = entity.seriesId,
+                    name = entity.name,
+                    cover = entity.cover,
+                    rating = entity.rating,
+                    added = entity.added,
+                    categoryId = entity.categoryId,
+                    genre = entity.genre,
+                    releaseYear = entity.releaseYear?.takeIf { it > 0 },
+                    actors = entity.actors,
+                    director = entity.director
+                )
+            }
         }
     }
 
@@ -339,7 +377,7 @@ class SeriesRepositoryImpl @Inject constructor(
         }
 
         return RelatedTitlesSelector.select(genres, currentCategoryId, candidates, limit)
-            .map { SeriesStream(it.seriesId, it.name, it.cover, it.rating, it.added, it.categoryId, it.genre, it.releaseYear?.takeIf { y -> y > 0 }) }
+            .map { SeriesStream(it.seriesId, it.name, it.cover, it.rating, it.added, it.categoryId, it.genre, it.releaseYear?.takeIf { y -> y > 0 }, it.actors, it.director) }
     }
 
     override suspend fun getSeriesDetails(seriesId: Int): SeriesDetails {
@@ -467,7 +505,9 @@ class SeriesRepositoryImpl @Inject constructor(
             added = entity.added,
             categoryId = entity.categoryId,
             genre = entity.genre,
-            releaseYear = entity.releaseYear?.takeIf { it > 0 }
+            releaseYear = entity.releaseYear?.takeIf { it > 0 },
+            actors = entity.actors,
+            director = entity.director
         )
     }
 }

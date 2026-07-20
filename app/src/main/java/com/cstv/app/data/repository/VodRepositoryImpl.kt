@@ -1,5 +1,9 @@
 package com.cstv.app.data.repository
 
+import androidx.paging.Pager
+import androidx.paging.PagingConfig
+import androidx.paging.PagingData
+import androidx.paging.map
 import com.cstv.app.data.local.dao.VodDao
 import com.cstv.app.data.local.entity.PlaybackPositionEntity
 import com.cstv.app.data.local.entity.VodCategoryEntity
@@ -282,7 +286,7 @@ class VodRepositoryImpl @Inject constructor(
                 if (localStreams.isNotEmpty()) {
                     startBackgroundEnrichment()
                     return localStreams.map {
-                        VodStream(it.streamId, it.name, it.streamIcon, it.rating, it.added, it.categoryId, it.genre, it.releaseYear?.takeIf { y -> y > 0 })
+                        VodStream(it.streamId, it.name, it.streamIcon, it.rating, it.added, it.categoryId, it.genre, it.releaseYear?.takeIf { y -> y > 0 }, it.actors, it.director)
                     }
                 }
             } else {
@@ -290,7 +294,7 @@ class VodRepositoryImpl @Inject constructor(
                 if (localStreams.isNotEmpty()) {
                     startBackgroundEnrichment()
                     return localStreams.map {
-                        VodStream(it.streamId, it.name, it.streamIcon, it.rating, it.added, it.categoryId, it.genre, it.releaseYear?.takeIf { y -> y > 0 })
+                        VodStream(it.streamId, it.name, it.streamIcon, it.rating, it.added, it.categoryId, it.genre, it.releaseYear?.takeIf { y -> y > 0 }, it.actors, it.director)
                     }
                 }
             }
@@ -351,7 +355,39 @@ class VodRepositoryImpl @Inject constructor(
         startBackgroundEnrichment()
 
         return entities.map { 
-            VodStream(it.streamId, it.name, it.streamIcon, it.rating, it.added, it.categoryId, it.genre, it.releaseYear?.takeIf { y -> y > 0 })
+            VodStream(it.streamId, it.name, it.streamIcon, it.rating, it.added, it.categoryId, it.genre, it.releaseYear?.takeIf { y -> y > 0 }, it.actors, it.director)
+        }
+    }
+
+    override fun getVodStreamsPaged(categoryId: String): Flow<PagingData<VodStream>> {
+        return Pager(
+            config = PagingConfig(
+                pageSize = 50,
+                enablePlaceholders = false,
+                initialLoadSize = 100
+            ),
+            pagingSourceFactory = {
+                if (categoryId == "all") {
+                    vodDao.getAllStreamsPaged()
+                } else {
+                    vodDao.getStreamsByCategoryPaged(categoryId)
+                }
+            }
+        ).flow.map { pagingData ->
+            pagingData.map { entity ->
+                VodStream(
+                    streamId = entity.streamId,
+                    name = entity.name,
+                    streamIcon = entity.streamIcon,
+                    rating = entity.rating,
+                    added = entity.added,
+                    categoryId = entity.categoryId,
+                    genre = entity.genre,
+                    releaseYear = entity.releaseYear?.takeIf { it > 0 },
+                    actors = entity.actors,
+                    director = entity.director
+                )
+            }
         }
     }
 
@@ -400,7 +436,7 @@ class VodRepositoryImpl @Inject constructor(
         }
 
         return com.cstv.app.domain.model.RelatedTitlesSelector.select(genres, currentCategoryId, candidates, limit)
-            .map { VodStream(it.streamId, it.name, it.streamIcon, it.rating, it.added, it.categoryId, it.genre, it.releaseYear?.takeIf { y -> y > 0 }) }
+            .map { VodStream(it.streamId, it.name, it.streamIcon, it.rating, it.added, it.categoryId, it.genre, it.releaseYear?.takeIf { y -> y > 0 }, it.actors, it.director) }
     }
 
     override suspend fun getVodDetails(streamId: Int): VodDetails {
@@ -571,7 +607,9 @@ class VodRepositoryImpl @Inject constructor(
             added = entity.added,
             categoryId = entity.categoryId,
             genre = entity.genre,
-            releaseYear = entity.releaseYear?.takeIf { it > 0 }
+            releaseYear = entity.releaseYear?.takeIf { it > 0 },
+            actors = entity.actors,
+            director = entity.director
         )
     }
 }

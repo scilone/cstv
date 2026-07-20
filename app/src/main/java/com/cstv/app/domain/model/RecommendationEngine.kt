@@ -2,19 +2,25 @@ package com.cstv.app.domain.model
 
 object RecommendationEngine {
     
-    // Poids relatifs des critères de scoring
-    private const val WEIGHT_GENRE = 0.40
-    private const val WEIGHT_CATEGORY = 0.20
-    private const val WEIGHT_RATING = 0.25
+    // Balanced weighted scoring criteria (Total: 1.00)
+    private const val WEIGHT_GENRE = 0.30
+    private const val WEIGHT_CATEGORY = 0.15
+    private const val WEIGHT_ACTORS = 0.15
+    private const val WEIGHT_DIRECTOR = 0.10
+    private const val WEIGHT_RATING = 0.15
     private const val WEIGHT_FRESHNESS = 0.15
 
     const val MAX_RECOMMENDATIONS = 100
     private const val FRESHNESS_DECAY_DAYS = 180.0
     private const val MILLIS_PER_DAY = 24L * 60 * 60 * 1000L
 
+    private val EXCLUDED_NAMES = setOf("inconnu", "n/a", "na", "unknown", "-", "")
+
     data class ProfileTaste(
         val genreWeights: Map<String, Double>,
-        val categoryWeights: Map<String, Double>
+        val categoryWeights: Map<String, Double>,
+        val actorWeights: Map<String, Double>,
+        val directorWeights: Map<String, Double>
     )
 
     interface RecommendableItem {
@@ -24,6 +30,8 @@ object RecommendationEngine {
         val rating: String?
         val addedEpoch: String?
         val releaseYear: Int?
+        val actors: String?
+        val director: String?
     }
 
     class RecommendableVod(val stream: VodStream) : RecommendableItem {
@@ -33,6 +41,8 @@ object RecommendationEngine {
         override val rating: String? = stream.rating
         override val addedEpoch: String? = stream.added
         override val releaseYear: Int? = stream.releaseYear
+        override val actors: String? = stream.actors
+        override val director: String? = stream.director
     }
 
     class RecommendableSeries(val series: SeriesStream) : RecommendableItem {
@@ -42,19 +52,25 @@ object RecommendationEngine {
         override val rating: String? = series.rating
         override val addedEpoch: String? = series.added
         override val releaseYear: Int? = series.releaseYear
+        override val actors: String? = series.actors
+        override val director: String? = series.director
     }
 
     /**
      * Construit le profil de goûts de l'utilisateur à partir des médias distincts qu'il a regardés.
      */
     fun buildProfileTaste(watchedItems: List<RecommendableItem>): ProfileTaste {
-        if (watchedItems.isEmpty()) return ProfileTaste(emptyMap(), emptyMap())
+        if (watchedItems.isEmpty()) return ProfileTaste(emptyMap(), emptyMap(), emptyMap(), emptyMap())
 
         val genreCounts = mutableMapOf<String, Int>()
         val categoryCounts = mutableMapOf<String, Int>()
+        val actorCounts = mutableMapOf<String, Int>()
+        val directorCounts = mutableMapOf<String, Int>()
 
         var totalItemsWithGenres = 0
-        var totalItems = watchedItems.size
+        var totalItemsWithActors = 0
+        var totalItemsWithDirector = 0
+        val totalItems = watchedItems.size
 
         for (item in watchedItems) {
             // Count category
@@ -71,20 +87,40 @@ object RecommendationEngine {
                     }
                 }
             }
+
+            // Count actors (parsing comma-separated values)
+            val itemActors = parseNamesList(item.actors)
+            if (itemActors.isNotEmpty()) {
+                totalItemsWithActors++
+                for (actor in itemActors) {
+                    actorCounts[actor] = (actorCounts[actor] ?: 0) + 1
+                }
+            }
+
+            // Count director
+            val director = item.director?.trim()?.lowercase()
+            if (!director.isNullOrBlank() && director !in EXCLUDED_NAMES) {
+                totalItemsWithDirector++
+                directorCounts[director] = (directorCounts[director] ?: 0) + 1
+            }
         }
 
         // Calculate relative weights (0.0 to 1.0)
-        // For categories, it's straight count / total_items
         val categoryWeights = categoryCounts.mapValues { it.value.toDouble() / totalItems }
 
-        // For genres, a single movie can have multiple genres, so we calculate
-        // the frequency of a genre across the total number of items that HAD genres.
-        // e.g., If I watched 10 movies with genres, and 8 were Westerns, Western weight = 0.8
         val genreWeights = genreCounts.mapValues { 
             if (totalItemsWithGenres > 0) it.value.toDouble() / totalItemsWithGenres else 0.0 
         }
 
-        return ProfileTaste(genreWeights, categoryWeights)
+        val actorWeights = actorCounts.mapValues {
+            if (totalItemsWithActors > 0) it.value.toDouble() / totalItemsWithActors else 0.0
+        }
+
+        val directorWeights = directorCounts.mapValues {
+            if (totalItemsWithDirector > 0) it.value.toDouble() / totalItemsWithDirector else 0.0
+        }
+
+        return ProfileTaste(genreWeights, categoryWeights, actorWeights, directorWeights)
     }
 
     /**
@@ -138,19 +174,38 @@ object RecommendationEngine {
             for (g in candidateGenres) {
                 val normalized = GenreParser.normalize(g)
                 if (normalized.isNotBlank()) {
-                    sumWeights += taste.genreWeights[normalized] ?: 0.0
+                    sumWeights += taste.genreWeights.getOrDefault(normalized, 0.0)
                 }
             }
             genreScore = sumWeights.coerceAtMost(1.0)
         }
 
         // 2. Category Score (0.0 to 1.0)
-        val categoryScore = taste.categoryWeights[candidate.categoryId] ?: 0.0
+        val categoryScore = taste.categoryWeights.getOrDefault(candidate.categoryId, 0.0)
 
-        // 3. Rating Score (0.0 to 1.0)
+        // 3. Actors Score (0.0 to 1.0)
+        var actorsScore = 0.0
+        val candidateActors = parseNamesList(candidate.actors)
+        if (candidateActors.isNotEmpty()) {
+            var sumWeights = 0.0
+            for (actor in candidateActors) {
+                sumWeights += taste.actorWeights.getOrDefault(actor, 0.0)
+            }
+            actorsScore = sumWeights.coerceAtMost(1.0)
+        }
+
+        // 4. Director Score (0.0 to 1.0)
+        val director = candidate.director?.trim()?.lowercase()
+        val directorScore = if (!director.isNullOrBlank()) {
+            taste.directorWeights.getOrDefault(director, 0.0)
+        } else {
+            0.0
+        }
+
+        // 5. Rating Score (0.0 to 1.0)
         val ratingScore = (parseRating(candidate.rating) / 10.0).coerceIn(0.0, 1.0)
 
-        // 4. Freshness Score (0.0 to 1.0)
+        // 6. Freshness Score (0.0 to 1.0)
         var freshnessScore = 0.0
         val addedEpoch = parseAddedEpoch(candidate.addedEpoch)
         if (addedEpoch > 0) {
@@ -165,11 +220,20 @@ object RecommendationEngine {
             }
         }
 
-        // Compute final weighted score
+        // Compute final balanced weighted score (Total weight: 1.00)
         return (genreScore * WEIGHT_GENRE) +
                (categoryScore * WEIGHT_CATEGORY) +
+               (actorsScore * WEIGHT_ACTORS) +
+               (directorScore * WEIGHT_DIRECTOR) +
                (ratingScore * WEIGHT_RATING) +
                (freshnessScore * WEIGHT_FRESHNESS)
+    }
+
+    private fun parseNamesList(raw: String?): List<String> {
+        if (raw.isNullOrBlank()) return emptyList()
+        return raw.split(",")
+            .map { it.trim().lowercase() }
+            .filter { it.isNotBlank() && it !in EXCLUDED_NAMES }
     }
 
     private fun parseRating(rating: String?): Double {

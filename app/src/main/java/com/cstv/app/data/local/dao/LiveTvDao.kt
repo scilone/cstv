@@ -25,12 +25,18 @@ interface LiveTvDao {
     @Query("SELECT * FROM live_streams ORDER BY num ASC")
     suspend fun getAllStreams(): List<LiveStreamEntity>
 
+    @Query("SELECT * FROM live_streams ORDER BY num ASC")
+    fun getAllStreamsPaged(): androidx.paging.PagingSource<Int, LiveStreamEntity>
+
     // Compteurs du sélecteur de catégorie (basés sur le cache local).
     @Query("SELECT categoryId, COUNT(*) AS count FROM live_streams GROUP BY categoryId")
     suspend fun getCategoryCounts(): List<CategoryCount>
 
     @Query("SELECT * FROM live_streams WHERE categoryId = :categoryId ORDER BY num ASC")
     suspend fun getStreamsByCategory(categoryId: String): List<LiveStreamEntity>
+
+    @Query("SELECT * FROM live_streams WHERE categoryId = :categoryId ORDER BY num ASC")
+    fun getStreamsByCategoryPaged(categoryId: String): androidx.paging.PagingSource<Int, LiveStreamEntity>
 
     @Query("SELECT * FROM live_streams WHERE streamId = :streamId LIMIT 1")
     suspend fun getStreamById(streamId: Int): LiveStreamEntity?

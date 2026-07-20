@@ -8,6 +8,7 @@ import com.cstv.app.domain.model.LiveStream
 interface LiveTvRepository {
     suspend fun getLiveCategories(forceRefresh: Boolean): List<LiveCategory>
     suspend fun getLiveStreams(categoryId: String, forceRefresh: Boolean): List<LiveStream>
+    fun getLiveStreamsPaged(categoryId: String): kotlinx.coroutines.flow.Flow<androidx.paging.PagingData<LiveStream>>
     suspend fun saveRecentlyWatched(stream: LiveStream)
     suspend fun getRecentlyWatched(): List<LiveStream>
     suspend fun getLiveEpg(streamId: Int, forceRefresh: Boolean = false): LiveEpgProgram?
