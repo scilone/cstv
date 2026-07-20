@@ -77,13 +77,13 @@ class RecommendationEngineTest {
         val scoreHorror = RecommendationEngine.scoreCandidate(candidateHorror, taste, currentTime)
 
         // Western should score extremely high:
-        // (0.8 * 0.30) [Genre] + (0.5 * 0.15) [Cat] + (0.9 * 0.15) [Actor] + (1.0 * 0.10) [Director] + (1.0 * 0.15) [Rating] + (1.0 * 0.15) [Fresh]
-        // = 0.24 + 0.075 + 0.135 + 0.10 + 0.15 + 0.15 = 0.85
-        assertEquals(0.85, scoreWestern, 0.01)
+        // (0.8 * 0.30) [Genre] + (0.5 * 0.25) [Cat] + (0.9 * 0.10) [Actor] + (1.0 * 0.10) [Director] + (1.0 * 0.20) [Rating] + (1.0 * 0.05) [Fresh]
+        // = 0.24 + 0.125 + 0.09 + 0.10 + 0.20 + 0.05 = 0.805
+        assertEquals(0.805, scoreWestern, 0.01)
 
         // Horror should score low:
-        // (0.0 * 0.30) + (0.0 * 0.15) + (0.0 * 0.15) + (0.0 * 0.10) + (0.5 * 0.15) + (0.0 * 0.15) = 0.075
-        assertEquals(0.075, scoreHorror, 0.01)
+        // (0.0 * 0.30) + (0.0 * 0.25) + (0.0 * 0.10) + (0.0 * 0.10) + (0.5 * 0.20) + (0.0 * 0.05) = 0.10
+        assertEquals(0.10, scoreHorror, 0.01)
 
         assertTrue(scoreWestern > scoreHorror)
     }

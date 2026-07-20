@@ -4,11 +4,11 @@ object RecommendationEngine {
     
     // Balanced weighted scoring criteria (Total: 1.00)
     private const val WEIGHT_GENRE = 0.30
-    private const val WEIGHT_CATEGORY = 0.15
-    private const val WEIGHT_ACTORS = 0.15
+    private const val WEIGHT_CATEGORY = 0.25
+    private const val WEIGHT_ACTORS = 0.10
     private const val WEIGHT_DIRECTOR = 0.10
-    private const val WEIGHT_RATING = 0.15
-    private const val WEIGHT_FRESHNESS = 0.15
+    private const val WEIGHT_RATING = 0.20
+    private const val WEIGHT_FRESHNESS = 0.05
 
     const val MAX_RECOMMENDATIONS = 100
     private const val FRESHNESS_DECAY_DAYS = 180.0
