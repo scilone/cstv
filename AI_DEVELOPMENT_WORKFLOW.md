@@ -1,0 +1,753 @@
+# AI Development Workflow
+
+## Objectif
+
+Ce document définit le workflow standard de création, analyse, développement, validation et livraison des éléments du projet.
+
+Ce workflow doit être utilisé pour toute évolution du projet :
+
+- nouvelle fonctionnalité ;
+- correction de bug ;
+- amélioration technique ;
+- refactoring ;
+- évolution d'architecture.
+
+Chaque élément est représenté par un fichier Markdown unique qui constitue sa source de vérité.
+
+---
+
+# Organisation des éléments
+
+Les éléments sont organisés dans le dossier :
+
+```
+ai/
+
+├── features/
+├── bugs/
+├── technical/
+```
+
+Chaque catégorie possède un dossier `archive/` contenant les éléments terminés.
+
+Structure :
+
+```
+ai/
+
+├── features/
+│   ├── F1-recommendations.md
+│   └── archive/
+│
+├── bugs/
+│   ├── B1-player-freeze.md
+│   └── archive/
+│
+└── technical/
+    ├── T3-cache-refactor.md
+    └── archive/
+```
+
+---
+
+# Identifiants
+
+Chaque élément possède un identifiant unique et permanent, sans zéros de remplissage.
+
+Formats :
+
+```
+Fx = Feature (ex: F1, F2, F12...)
+
+Bx = Bug (ex: B1, B2, B12...)
+
+Tx = Technical (ex: T1, T2, T12...)
+```
+
+Exemples :
+
+```
+F1-recommendations.md
+
+B1-player-freeze.md
+
+T3-cache-refactor.md
+```
+
+L'identifiant ne doit jamais changer.
+
+Le nom descriptif peut évoluer, mais l'identifiant reste identique.
+
+---
+
+# Source de vérité
+
+Le fichier Markdown associé à l'élément contient toutes les informations nécessaires :
+
+- contexte ;
+- objectif ;
+- spécifications fonctionnelles ;
+- spécifications techniques ;
+- architecture ;
+- décisions prises ;
+- tâches ;
+- notes de développement ;
+- review ;
+- informations de livraison.
+
+Aucune information importante ne doit exister uniquement dans une conversation avec une IA.
+
+---
+
+# Structure d'un fichier élément
+
+Chaque élément doit suivre cette structure :
+
+```markdown
+# F1 - Nom de l'élément
+
+## Informations générales
+
+Type:
+Feature / Bug / Technical
+
+Status:
+IDEA
+
+Created:
+YYYY-MM-DD
+
+Target version:
+
+---
+
+# 1. Description
+
+Description générale du besoin.
+
+---
+
+# 2. Contexte
+
+Pourquoi cet élément existe.
+
+Quel problème il résout.
+
+---
+
+# 3. Spécification fonctionnelle
+
+Décrire :
+
+- comportement attendu ;
+- parcours utilisateur ;
+- règles métier ;
+- critères d'acceptation ;
+- cas limites ;
+- gestion des erreurs.
+
+---
+
+# 4. Spécification technique
+
+Décrire :
+
+- composants impactés ;
+- nouveaux composants ;
+- modèles de données ;
+- API ;
+- services ;
+- stockage ;
+- cache ;
+- performances ;
+- sécurité ;
+- compatibilité.
+
+---
+
+# 5. Architecture
+
+Décrire :
+
+- architecture proposée ;
+- flux de données ;
+- responsabilités des composants ;
+- décisions techniques.
+
+---
+
+# 6. Plan de développement
+
+Liste des tâches :
+
+- [ ] Task 1
+- [ ] Task 2
+- [ ] Task 3
+
+---
+
+# 7. Notes de développement
+
+Historique des décisions prises pendant l'implémentation.
+
+---
+
+# 8. Review
+
+Résultats des revues.
+
+## Critique
+
+## Majeur
+
+## Mineur
+
+## Corrections demandées
+
+---
+
+# 9. Release
+
+Version :
+
+Commit :
+
+Date :
+```
+
+---
+
+# Cycle de vie
+
+Chaque élément suit le cycle suivant :
+
+```
+IDEA
+ ↓
+ANALYSIS
+ ↓
+SPECIFICATION
+ ↓
+ARCHITECTURE
+ ↓
+TASK BREAKDOWN
+ ↓
+IMPLEMENTATION
+ ↓
+REVIEW
+ ↓
+FIXES
+ ↓
+VALIDATION
+ ↓
+DOCUMENTATION
+ ↓
+RELEASE
+ ↓
+ARCHIVE
+```
+
+---
+
+# Étape 1 - Création et structuration
+
+## Objectif
+
+Transformer une idée ou un problème brut en élément exploitable.
+
+## Actions
+
+Créer un fichier :
+
+```
+ai/{category}/{id}-{name}.md
+```
+
+Exemples :
+
+```
+ai/features/F1-recommendations.md
+
+ai/bugs/B1-player-freeze.md
+
+ai/technical/T3-cache-refactor.md
+```
+
+Compléter :
+
+- description ;
+- contexte ;
+- objectif ;
+- hypothèses ;
+- questions ouvertes.
+
+Ne pas définir d'architecture technique.
+
+## Modèle recommandé
+
+Haiku
+
+---
+
+# Étape 2 - Spécification fonctionnelle
+
+## Objectif
+
+Décrire précisément le comportement attendu.
+
+## Actions
+
+Compléter :
+
+```
+Spécification fonctionnelle
+```
+
+Ajouter :
+
+- user stories ;
+- parcours utilisateur ;
+- règles métier ;
+- critères d'acceptation ;
+- cas limites ;
+- gestion des erreurs.
+
+La spécification doit permettre à une personne externe au projet de comprendre exactement le résultat attendu.
+
+## Modèle recommandé
+
+Sonnet
+
+---
+
+# Étape 3 - Spécification technique et architecture
+
+## Objectif
+
+Définir la solution technique.
+
+## Actions
+
+Compléter :
+
+- spécification technique ;
+- architecture ;
+- composants impactés ;
+- nouveaux composants ;
+- choix techniques.
+
+Les décisions doivent être justifiées.
+
+Cette étape doit identifier :
+
+- les fichiers qui seront modifiés ;
+- les dépendances nécessaires ;
+- les risques techniques ;
+- les contraintes de performance.
+
+## Modèle recommandé
+
+Opus
+
+---
+
+# Étape 4 - Découpage des tâches
+
+## Objectif
+
+Transformer la conception en tâches exécutables.
+
+## Actions
+
+Créer une liste de tâches.
+
+Chaque tâche doit :
+
+- avoir un objectif clair ;
+- être indépendante ;
+- être réalisable en une session ;
+- préciser les fichiers concernés ;
+- préciser les critères de validation.
+
+Exemple :
+
+```markdown
+- [ ] Créer RecommendationRepository
+
+Objectif:
+Créer la couche d'accès aux recommandations.
+
+Fichiers:
+- RecommendationRepository.kt
+
+Validation:
+Tests unitaires présents.
+```
+
+## Modèle recommandé
+
+Sonnet
+
+---
+
+# Étape 5 - Implémentation
+
+## Objectif
+
+Développer l'élément.
+
+## Actions
+
+Pour chaque tâche :
+
+1. Lire le fichier complet de l'élément.
+2. Comprendre les décisions existantes.
+3. Implémenter uniquement la tâche demandée.
+4. Respecter l'architecture définie.
+5. Ajouter les tests nécessaires.
+6. Vérifier les tests existants.
+7. Mettre à jour le statut des tâches.
+
+Format :
+
+```
+- [x] Tâche terminée
+```
+
+Ne pas modifier le périmètre sans validation.
+
+## Modèle recommandé
+
+Sonnet
+
+---
+
+# Étape 6 - Review technique
+
+## Objectif
+
+Analyser la qualité de l'implémentation.
+
+## Actions
+
+Effectuer une revue complète :
+
+- architecture ;
+- qualité du code ;
+- performances ;
+- sécurité ;
+- tests ;
+- maintenabilité ;
+- dette technique ;
+- edge cases ;
+- cohérence avec les spécifications.
+
+Ne pas modifier le code.
+
+Ajouter les résultats dans :
+
+```
+Review
+```
+
+Classer les problèmes :
+
+```
+Critique
+
+Majeur
+
+Mineur
+```
+
+Chaque problème doit contenir :
+
+- description ;
+- impact ;
+- correction attendue.
+
+## Modèle recommandé
+
+Opus
+
+---
+
+# Étape 7 - Correction
+
+## Objectif
+
+Appliquer les corrections issues de la review.
+
+## Actions
+
+Pour chaque problème :
+
+- corriger ;
+- ajouter ou modifier les tests ;
+- vérifier la non-régression.
+
+Mettre à jour la review :
+
+```
+Status: RESOLVED
+```
+
+## Modèle recommandé
+
+Sonnet
+
+---
+
+# Étape 8 - Validation finale
+
+## Objectif
+
+Vérifier que l'élément répond au besoin initial.
+
+Vérifier :
+
+- comportement attendu ;
+- règles métier ;
+- expérience utilisateur ;
+- qualité technique ;
+- absence de régression ;
+- tests validés.
+
+Mettre à jour :
+
+```
+Status: VALIDATED
+```
+
+## Modèle recommandé
+
+Sonnet
+
+---
+
+# Étape 9 - Documentation
+
+## Objectif
+
+Mettre à jour la documentation globale.
+
+Mettre à jour selon le besoin :
+
+```
+docs/
+
+├── features.md
+├── architecture.md
+├── user-guide.md
+└── changelog.md
+```
+
+Ajouter :
+
+- nouvelle fonctionnalité ;
+- correction utilisateur visible ;
+- changement architectural ;
+- migration ;
+- impact technique.
+
+## Modèle recommandé
+
+Haiku
+
+---
+
+# Étape 10 - Livraison Git
+
+## Objectif
+
+Publier officiellement l'élément.
+
+Avant livraison :
+
+- toutes les tâches sont terminées ;
+- tous les tests passent ;
+- documentation à jour.
+
+---
+
+# Convention Git
+
+Les commits utilisent Gitmoji.
+
+Format :
+
+```
+:emoji: description
+```
+
+Exemples :
+
+Nouvelle fonctionnalité :
+
+```
+✨ Add movie recommendations
+```
+
+Bug :
+
+```
+🐛 Fix player freeze
+```
+
+Refactoring :
+
+```
+♻️ Refactor recommendation architecture
+```
+
+Documentation :
+
+```
+📝 Update documentation
+```
+
+Tests :
+
+```
+✅ Add recommendation tests
+```
+
+Performance :
+
+```
+⚡ Improve cache performance
+```
+
+Dépendances :
+
+```
+⬆️ Update dependencies
+```
+
+---
+
+# Versioning SemVer
+
+Les versions utilisent :
+
+```
+MAJOR.MINOR.PATCH
+```
+
+Format du tag :
+
+```
+v1.5.0
+```
+
+---
+
+## MAJOR
+
+Modification incompatible.
+
+Exemple :
+
+```
+v1.5.0 → v2.0.0
+```
+
+---
+
+## MINOR
+
+Nouvelle fonctionnalité compatible.
+
+Exemple :
+
+```
+v1.4.0 → v1.5.0
+```
+
+---
+
+## PATCH
+
+Correction ou amélioration mineure.
+
+Exemple :
+
+```
+v1.5.0 → v1.5.1
+```
+
+---
+
+# Finalisation
+
+Créer le commit :
+
+```
+git commit
+```
+
+Créer le tag :
+
+```
+git tag vX.Y.Z
+```
+
+Publier :
+
+```
+git push
+git push --tags
+```
+
+Mettre à jour le fichier :
+
+```markdown
+Status:
+RELEASED
+
+Version:
+vX.Y.Z
+
+Date:
+YYYY-MM-DD
+```
+
+Déplacer ensuite le fichier dans :
+
+```
+ai/{category}/archive/
+```
+
+---
+
+# Commandes d'utilisation
+
+Les demandes doivent suivre ce format :
+
+```
+Exécute l'étape X de {ID}
+```
+
+Exemples :
+
+```
+Exécute l'étape 1 de F1.
+
+Exécute l'étape 3 de B2.
+
+Exécute l'étape 5 de T3.
+```
+
+---
+
+# Règles générales
+
+L'agent doit toujours :
+
+1. Lire le fichier correspondant à l'identifiant demandé.
+2. Identifier l'état actuel.
+3. Exécuter uniquement l'étape demandée.
+4. Mettre à jour le fichier concerné.
+5. Respecter les décisions déjà prises.
+6. Signaler les incohérences avant modification.
+7. Ne jamais modifier le périmètre sans validation.

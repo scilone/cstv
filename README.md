@@ -88,19 +88,19 @@ app/src/main/java/com/cstv/app/
 
 ## 📋 Gestion du Projet & Organisation du Backlog
 
-Le développement de l'application suit un flux de travail agile strict conçu pour maintenir les sessions de développement d'IA extrêmement rapides et efficaces :
+Le développement de l'application suit un flux de travail agile strict basé sur l'IA, décrit en détail dans le fichier **`AI_DEVELOPMENT_WORKFLOW.md`** :
 
-* **Backlog Actif** :
-  * `docs/evolutions-fonctionnelles.md` (Préfixe **F-X**) : Nouvelles fonctionnalités de l'application.
-  * `docs/evolutions-techniques.md` (Préfixe **T-X**) : Chantiers d'architecture, refactorings, sécurité et dettes.
-  * `docs/bugs.md` (Préfixe **B-X**) : Rapports d'anomalies de comportement et régressions ouvertes.
+* **Backlog Actif** (sous `ai/`) :
+  * `ai/features/` : Nouvelles fonctionnalités du projet (format de fichier : `Fx-name.md`, ex : `F1-name.md`).
+  * `ai/bugs/` : Rapports de bugs et anomalies à corriger (format de fichier : `Bx-name.md`, ex : `B1-name.md`).
+  * `ai/technical/` : Tâches d'architecture, refactorings et dettes techniques (format de fichier : `Tx-name.md`, ex : `T3-name.md`).
 
-* **Dossier d'Archives** (`docs/archive/`) :
-  * `docs/archive/evolutions-fonctionnelles-terminees.md` : Toutes les fonctionnalités fonctionnelles terminées et validées.
-  * `docs/archive/evolutions-techniques-terminees.md` : Toutes les corrections, refactorings et optimisations techniques validés.
-  * `docs/archive/bugs-termines.md` : Toutes les corrections de bugs archivées et validées.
+* **Dossier d'Archives** (sous `ai/*/archive/`) :
+  * `ai/features/archive/` : Historique des fonctionnalités fonctionnelles terminées et validées.
+  * `ai/bugs/archive/` : Historique des corrections de bugs validées.
+  * `ai/technical/archive/` : Historique des refactorings et optimisations techniques validés.
 
-* **Workflow d'IA systématique** : Dès qu'une tâche active (**F**, **T** ou **B**) est livrée et validée, sa description/son prompt est coupé-collé de son fichier actif vers le fichier d'archive correspondant afin de garder les backlogs actifs ultra-courts, ce qui évite toute surcharge cognitive et de contexte pour l'IA.
+* **Workflow d'IA systématique** : Chaque tâche a son propre fichier Markdown comme source unique de vérité. Le développement de la tâche suit le cycle de vie de `AI_DEVELOPMENT_WORKFLOW.md` à travers des instructions explicites (ex: *"Exécute l'étape 5 de T3"*). Dès qu'un élément est livré et validé, son fichier est déplacé vers son sous-dossier `archive/` respectif.
 
 ---
 

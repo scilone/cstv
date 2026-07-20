@@ -1,57 +1,53 @@
 # AGENTS.md
 
-Ce fichier contient les règles permanentes à suivre à chaque session de travail sur ce projet. Lis-le en entier avant toute modification de code.
+Fichier = règles permanentes chaque session travail projet. Lis tout avant modif code.
 
 ## Documents de référence et Organisation du Backlog
 
-- `docs/evolutions-fonctionnelles.md` : Backlog fonctionnel actif. Contient uniquement les fonctionnalités et évolutions fonctionnelles ouvertes ou à implémenter.
-- `docs/evolutions-techniques.md` : Backlog technique actif. Contient uniquement la dette technique, les refactorings et les chantiers d'architecture/sécurité ouverts.
-- `docs/bugs.md` : Backlog de bugs actif. Contient uniquement les rapports de bugs ouverts, anomalies de comportement ou régressions constatées.
-- `docs/archive/` : Dossier d'archivage historique.
-  - `docs/archive/evolutions-fonctionnelles-terminees.md` : Miroir d'archivage pour toutes les évolutions et phases fonctionnelles validées.
-  - `docs/archive/evolutions-techniques-terminees.md` : Miroir d'archivage pour tous les correctifs et audits techniques réalisés.
-  - `docs/archive/bugs-termines.md` : Miroir d'archivage pour tous les bugs, anomalies et régressions corrigés et validés.
-- `docs/design-reference/` : source de vérité visuelle pour la refonte UI/UX
-  (Phases 46-54). Contient le HTML/CSS brut exporté de la maquette Claude Design (couleurs, radius, typographie exacts) et, quand disponibles, des captures d'écran de référence par écran. À consulter systématiquement en amont de chaque phase plutôt que de deviner les valeurs de design.
+Le projet utilise un workflow standard de développement basé sur l'IA, décrit en détail dans le fichier **`AI_DEVELOPMENT_WORKFLOW.md`**.
 
-### 🔄 Flux de Travail et Archivage Systématique (Workflow)
-Pour maintenir les sessions d'IA ultra-rapides et éviter la surcharge cognitive et de contexte :
-1. **Ne lisez pas les archives** : Ne chargez jamais inutilement les fichiers du dossier `docs/archive/` dans les sessions d'IA de développement.
-2. **Archivage après complétion** : Dès qu'une évolution fonctionnelle, technique ou correction de bug est livrée, validée et taggée :
-   - Prenez sa description/prompt de son fichier actif (`docs/evolutions-fonctionnelles.md`, `docs/evolutions-techniques.md` ou `docs/bugs.md`).
-   - Déplacez-la (couper-coller) vers le fichier d'archive correspondant sous `docs/archive/`, en la marquant comme `✅ TERMINÉE` ou `✅ CORRIGÉ`.
-   - Laissez les fichiers actifs extrêmement courts et ciblés sur le travail immédiat.
-3. **Modèle & Effort requis** : Chaque évolution ou correction de bug inscrite dans le backlog actif doit obligatoirement spécifier le **modèle d'IA recommandé** (`Haiku 4.5`, `Sonnet 5` ou `Opus 4.8`) et l'**effort associé** (`S` pour <1h, `M` pour 1-3h, `L` pour une journée ou plus).
-4. **Identifiants uniques de Features, de Tâches et de Bugs** : Chaque fonctionnalité, évolution technique ou correction de bug inscrite dans le backlog actif ou d'archive doit posséder un identifiant unique et permanent :
-   - **F-X** (ex: `F-5`) pour les fonctionnalités (features fonctionnelles).
-   - **T-X** (ex: `T-2`) pour les évolutions techniques et dettes.
-   - **B-X** (ex: `B-1`) pour les corrections de bugs.
-   Les sous-tâches sont numérotées séquentiellement au sein de cette feature (ex: `Tâche 1`, `Tâche 2`, etc.). Cela permet au PO d'ordonner facilement un travail ciblé (ex: « fais la tâche 3 de la feature F-5 » ou « corrige le bug B-1 »).
+- **Structure du Backlog** : Tous les éléments de développement (Features, Bugs, Technical) se trouvent sous le dossier **`ai/`** :
+  - `ai/features/` : Nouvelles fonctionnalités du projet (format de fichier : `Fx-name.md`, ex : `F1-name.md`).
+  - `ai/bugs/` : Rapports de bugs et anomalies à corriger (format de fichier : `Bx-name.md`, ex : `B1-name.md`).
+  - `ai/technical/` : Tâches d'architecture, refactorings et dettes techniques (format de fichier : `Tx-name.md`, ex : `T3-name.md`).
+- **Dossiers Archives** : Chaque catégorie de tâche possède son sous-dossier `archive/` contenant les tâches déjà réalisées (ex: `ai/features/archive/`).
+- `docs/design-reference/` : source vérité visuelle refonte UI/UX
+  (Phases 46-54). HTML/CSS brut exporté maquette Claude Design (couleurs, radius, typo exacts) + captures écran référence par écran quand dispo. Consulter systématiquement avant chaque phase plutôt que deviner valeurs design.
+
+### 🔄 Flux de Travail de l'IA (AI Development Workflow)
+Pour éviter la surcharge cognitive et de contexte, respecte scrupuleusement le cycle de vie décrit dans `AI_DEVELOPMENT_WORKFLOW.md` :
+1. **Source de vérité unique** : Chaque tâche a son propre fichier Markdown (`ai/{category}/{id}-{name}.md`) qui contient tout son contexte (spécifications, plan de développement, notes, review, etc.).
+2. **Cycle de vie standard** : Chaque élément évolue par étapes :
+   `IDEA ➔ ANALYSIS ➔ SPECIFICATION ➔ ARCHITECTURE ➔ TASK BREAKDOWN ➔ IMPLEMENTATION ➔ REVIEW ➔ FIXES ➔ VALIDATION ➔ DOCUMENTATION ➔ RELEASE ➔ ARCHIVE`
+3. **Commandes d'interaction** : Pour piloter le développement, utilise des instructions explicites comme :
+   - *"Exécute l'étape 1 de F1"*
+   - *"Exécute l'étape 5 de T3"*
+4. **Archivage** : Une fois la tâche entièrement terminée, validée et livrée (avec commits Git/tag SemVer), déplace le fichier de la tâche vers son sous-dossier `archive/` respectif.
 
 ## Périmètre strict du projet
 
-- Application Android/Android TV native Kotlin uniquement.
-- Connexion **API Xtream Codes uniquement** (`player_api.php`) comme source IPTV. Aucun support M3U/M3U8 brut en tant que source, aucun Stalker Portal, aucun autre protocole IPTV.
-- Fonctionnalités couvertes : Live TV (avec EPG), VOD Films, Séries, Favoris, Recherche locale (FTS + recherche avancée), Téléchargements hors-ligne, Profils locaux, Paramètres.
-- **Exception validée** : l'API **TMDB** (tendances de l'Accueil, Feature F1) est la seule API réseau externe autorisée en plus de Xtream. Clé dans `local.properties` (jamais versionnée), repli silencieux si absente/hors-ligne.
-- Explicitement hors périmètre, à ne jamais ajouter sans demande explicite du PO : catch-up/timeshift, multi-comptes Xtream (plusieurs identifiants distincts), enregistrement (PVR), autre protocole IPTV, code PIN/restriction parentale par profil.
-- **Chromecast : tenté (F4) puis retiré définitivement** (revert complet en v1.47.10) : le Default Media Receiver Google Cast ne décode pas AC3/EAC3/DTS, codecs fréquents sur ce catalogue (raison d'être de NextLib côté local) → cast vidéo sans son, non corrigeable côté app. Ne pas re-proposer sans transcoding serveur.
-- Depuis la Phase 27 : profils **locaux** multiples (type Netflix) sur un **seul** compte Xtream sont dans le périmètre (favoris/historique/reprise de lecture séparés par profil ; catalogue/cache Room toujours partagé et non dupliqué). Ne pas confondre avec du multi-comptes Xtream, qui reste hors périmètre.
-- Si une tâche demandée semble sortir de ce périmètre, signale-le avant de coder.
+- App Android/Android TV native Kotlin uniquement.
+- Connexion **API Xtream Codes uniquement** (`player_api.php`) source IPTV. Zéro support M3U/M3U8 brut source, zéro Stalker Portal, zéro autre protocole IPTV.
+- Fonctionnalités couvertes : Live TV (avec EPG), VOD Films, Séries, Favoris, Recherche locale (FTS + avancée), Téléchargements hors-ligne, Profils locaux, Paramètres.
+- **Exception validée** : API **TMDB** (tendances Accueil, Feature F1) seule API réseau externe autorisée en plus Xtream. Clé dans `local.properties` (jamais versionnée), repli silencieux si absente/hors-ligne.
+- Explicitement hors périmètre, jamais ajouter sans demande explicite PO : catch-up/timeshift, multi-comptes Xtream (plusieurs identifiants distincts), enregistrement (PVR), autre protocole IPTV, code PIN/restriction parentale par profil.
+- **Chromecast : tenté (F4) puis retiré définitivement** (revert complet v1.47.10) : Default Media Receiver Google Cast décode pas AC3/EAC3/DTS, codecs fréquents ce catalogue (raison d'être NextLib côté local) → cast vidéo sans son, non corrigeable côté app. Pas re-proposer sans transcoding serveur.
+- Depuis Phase 27 : profils **locaux** multiples (type Netflix) sur **un seul** compte Xtream dans périmètre (favoris/historique/reprise lecture séparés par profil ; catalogue/cache Room toujours partagé, non dupliqué). Pas confondre avec multi-comptes Xtream, hors périmètre.
+- Tâche demandée semble sortir périmètre → signale avant coder.
 
-## Stack technique imposée (ne pas dévier sans validation)
+## Stack technique imposée (pas dévier sans validation)
 
-- Kotlin uniquement, pas de Java.
-- UI : Jetpack Compose (mobile) + Compose for TV (`androidx.tv:tv-material`, `tv-foundation`) pour Android TV.
+- Kotlin uniquement, pas Java.
+- UI : Jetpack Compose (mobile) + Compose for TV (`androidx.tv:tv-material`, `tv-foundation`) Android TV.
 - Architecture : Clean Architecture (`data` / `domain` / `presentation`) + MVVM.
 - DI : Hilt.
 - Réseau : Retrofit + OkHttp (instances séparées Xtream / TMDB).
-- Lecteur vidéo : ExoPlayer / Media3 (support HLS) + NextLib (`nextlib-media3ext`, décodeurs FFmpeg logiciels EAC3/AC3/DTS — version alignée sur celle de media3).
+- Lecteur vidéo : ExoPlayer / Media3 (support HLS) + NextLib (`nextlib-media3ext`, décodeurs FFmpeg logiciels EAC3/AC3/DTS — version alignée media3).
 - Persistance : Room (cache API) + DataStore chiffré ou EncryptedSharedPreferences (identifiants Xtream).
-- Tâches de fond : WorkManager (sync planifiée du catalogue).
+- Tâches fond : WorkManager (sync planifiée catalogue).
 - Images : Coil.
-- Min SDK 21, target/compile SDK la dernière version stable disponible.
-- Build release : R8/minify actif. **Toute nouvelle interface Retrofit doit avoir sa règle `-keep` dans `proguard-rules.pro`** (cf. XtreamApiService/TmdbApiService — sans elle, le call adapter générique casse en release et crash à l'exécution, invisible en debug).
+- Min SDK 21, target/compile SDK dernière stable dispo.
+- Build release : R8/minify actif. **Toute nouvelle interface Retrofit doit avoir règle `-keep` dans `proguard-rules.pro`** (cf. XtreamApiService/TmdbApiService — sans elle, call adapter générique casse release, crash exécution, invisible debug).
 
 ## Commandes de build et de test
 
@@ -69,18 +65,18 @@ Pour maintenir les sessions d'IA ultra-rapides et éviter la surcharge cognitive
 ./gradlew installDebug
 ```
 
-Avant de considérer une phase comme terminée, exécute `assembleDebug` et `lintDebug` et corrige toute erreur avant de livrer.
+Avant considérer phase terminée, exécute `assembleDebug` + `lintDebug`, corrige toute erreur avant livrer.
 
 ## Conventions de code
 
-- Nommage : `PascalCase` pour les classes/composables, `camelCase` pour les fonctions/variables, `UPPER_SNAKE_CASE` pour les constantes.
-- Un ViewModel par écran, jamais de logique métier directement dans un Composable.
-- Les appels réseau et l'accès Room passent toujours par un Repository (`domain` définit l'interface, `data` l'implémente).
-- Les modèles réseau (DTO Retrofit) ne doivent jamais fuiter dans la couche `presentation` : toujours mapper vers un modèle `domain`.
-- Tout champ JSON potentiellement incohérent entre panels Xtream (int vs string) doit être parsé de façon défensive (voir cahier des charges section 2.3).
-- Jamais de credentials (username/password Xtream) en dur dans le code, en log, ou en clair dans les fichiers de config versionnés.
-- Compose : privilégier des composables stateless (state hoisting), préfixer les composables privés d'écran par le nom de l'écran (ex: `LiveTvChannelRow`).
-- ⚠️ **Piège : double système de navigation.** Le mobile passe par `AppNavGraph` (navigation-compose, `presentation/navigation/NavGraph.kt`) mais la TV passe par une navigation manuelle à base d'enum `AppScreen` + `when` dans `MainActivity.kt`. **Tout nouvel écran doit être câblé dans LES DEUX**, sinon il n'apparaît que sur une plateforme. Unification prévue (voir T-2 dans `docs/evolutions-techniques.md`).
+- Nommage : `PascalCase` classes/composables, `camelCase` fonctions/variables, `UPPER_SNAKE_CASE` constantes.
+- Un ViewModel par écran, jamais logique métier direct dans Composable.
+- Appels réseau + accès Room toujours via Repository (`domain` définit interface, `data` implémente).
+- Modèles réseau (DTO Retrofit) jamais fuiter couche `presentation` : toujours mapper vers modèle `domain`.
+- Tout champ JSON potentiellement incohérent entre panels Xtream (int vs string) doit parser façon défensive (voir cahier charges section 2.3).
+- Jamais credentials (username/password Xtream) en dur code, en log, ou clair fichiers config versionnés.
+- Compose : privilégier composables stateless (state hoisting), préfixer composables privés écran par nom écran (ex: `LiveTvChannelRow`).
+- ⚠️ **Piège : double système navigation.** Mobile passe par `AppNavGraph` (navigation-compose, `presentation/navigation/NavGraph.kt`) mais TV passe navigation manuelle enum `AppScreen` + `when` dans `MainActivity.kt`. **Tout nouvel écran doit câbler DANS LES DEUX**, sinon apparaît qu'une plateforme. Unification prévue (voir backlog technique sous `ai/technical/`).
 
 ## Structure de dossiers attendue
 
@@ -116,59 +112,59 @@ app/src/main/java/com/cstv/app/
 ## Base de données Room (schéma et migrations)
 
 - Base actuelle : `AppDatabase`, version **16** (voir `app/src/main/java/.../data/local/db/AppDatabase.kt`).
-- **Pas de `fallbackToDestructiveMigration()`** depuis la Phase 27. `AppModule.provideDatabase()` utilise `.addMigrations(*ALL_MIGRATIONS)` (voir `data/local/db/Migrations.kt`). Le cache catalogue, les favoris, l'historique, les positions de lecture et les profils **doivent survivre** à une mise à jour de l'app.
-- Règle impérative : toute nouvelle colonne/table/changement de clé primaire sur une entité Room doit être accompagné d'une `Migration(oldVersion, newVersion)` réelle dans `Migrations.kt`, ajoutée à `ALL_MIGRATIONS`, qui transforme le schéma en SQL brut (`CREATE TABLE`/`ALTER TABLE`/copie de données) sans perte. SQLite ne permettant pas d'ajouter une colonne à une clé primaire via `ALTER TABLE`, le pattern est : créer `<table>_new` avec le nouveau schéma, `INSERT INTO ... SELECT` depuis l'ancienne table (avec valeur de backfill pour la nouvelle colonne), `DROP TABLE` l'ancienne, `RENAME TO`. Voir `MIGRATION_9_10` comme référence.
-- Le fallback destructif (`fallbackToDestructiveMigration()`) est réservé à un **breaking change majeur explicitement décidé avec l'utilisateur** (ex: refonte complète du schéma jugée trop coûteuse à migrer). Dans ce cas : le signaler clairement en amont, obtenir confirmation, documenter dans le commit et dans AGENTS.md, et prévoir de le retirer au bump suivant.
-- Entités avec `profileId` dans leur clé primaire (données scopées par profil depuis la Phase 27) : `FavoriteEntity`, `PlaybackPositionEntity`, `RecentlyWatchedLiveEntity`, `TrackPreferenceEntity`, `CategoryPreferenceEntity`. Les entités de catalogue (chaînes/films/séries/catégories/EPG) restent sans `profileId`, partagées entre tous les profils.
-- Limite connue : le projet n'a pas d'infrastructure de test instrumenté (`androidTest`) pour valider les migrations avec `MigrationTestHelper`. Les migrations sont donc relues manuellement (SQL vérifié contre le schéma des entités) plutôt que testées automatiquement — à améliorer si le projet passe en production.
+- **Pas de `fallbackToDestructiveMigration()`** depuis Phase 27. `AppModule.provideDatabase()` utilise `.addMigrations(*ALL_MIGRATIONS)` (voir `data/local/db/Migrations.kt`). Cache catalogue, favoris, historique, positions lecture, profils **doivent survivre** mise à jour app.
+- Règle impérative : toute nouvelle colonne/table/changement clé primaire sur entité Room doit accompagner `Migration(oldVersion, newVersion)` réelle dans `Migrations.kt`, ajoutée à `ALL_MIGRATIONS`, transformant schéma en SQL brut (`CREATE TABLE`/`ALTER TABLE`/copie données) sans perte. SQLite permet pas ajouter colonne à clé primaire via `ALTER TABLE`, pattern : créer `<table>_new` nouveau schéma, `INSERT INTO ... SELECT` depuis ancienne table (valeur backfill nouvelle colonne), `DROP TABLE` ancienne, `RENAME TO`. Voir `MIGRATION_9_10` référence.
+- Fallback destructif (`fallbackToDestructiveMigration()`) réservé **breaking change majeur explicitement décidé avec utilisateur** (ex: refonte complète schéma jugée trop coûteuse migrer). Ce cas : signaler clairement en amont, obtenir confirmation, documenter commit + AGENTS.md, prévoir retirer bump suivant.
+- Entités avec `profileId` clé primaire (données scopées par profil depuis Phase 27) : `FavoriteEntity`, `PlaybackPositionEntity`, `RecentlyWatchedLiveEntity`, `TrackPreferenceEntity`, `CategoryPreferenceEntity`. Entités catalogue (chaînes/films/séries/catégories/EPG) restent sans `profileId`, partagées tous profils.
+- Limite connue : projet a pas infrastructure test instrumenté (`androidTest`) valider migrations avec `MigrationTestHelper`. Migrations donc relues manuellement (SQL vérifié contre schéma entités) plutôt testées automatiquement — améliorer si projet passe production.
 
 ## Stratégie de tests
 
-Chaque nouvelle fonctionnalité livrée dans une phase doit être accompagnée de tests, pas seulement de code fonctionnel. Priorité aux couches où un bug est coûteux ou silencieux :
+Chaque nouvelle fonctionnalité livrée phase doit accompagner tests, pas juste code fonctionnel. Priorité couches où bug coûteux ou silencieux :
 
 **Couverture obligatoire (priorité haute)**
-- **Parsing des réponses Xtream Codes** : tests unitaires sur le mapping DTO → modèle domain, avec des cas volontairement "sales" (champ en string au lieu d'int, champ manquant, champ null, tableau vide) pour chaque endpoint (`login`, `get_live_streams`, `get_vod_streams`, `get_vod_info`, `get_series`, `get_series_info`).
-- **Authentification** : tests sur les cas identifiants invalides, compte expiré, timeout, réponse JSON malformée — vérifier que chaque cas produit l'état d'erreur attendu (pas de crash, pas de faux positif "connecté").
-- **Construction des URLs de lecture** (live/movie/series) : test unitaire vérifiant le format exact de l'URL générée à partir des identifiants et de l'ID de flux.
-- **Repositories** : tests avec un client HTTP fake/mock (pas d'appel réseau réel) vérifiant la logique de cache (Room) — quand on sert le cache, quand on rafraîchit.
+- **Parsing réponses Xtream Codes** : tests unitaires mapping DTO → modèle domain, cas volontairement "sales" (champ string au lieu int, champ manquant, null, tableau vide) pour chaque endpoint (`login`, `get_live_streams`, `get_vod_streams`, `get_vod_info`, `get_series`, `get_series_info`).
+- **Authentification** : tests cas identifiants invalides, compte expiré, timeout, réponse JSON malformée — vérifier chaque cas produit état erreur attendu (pas crash, pas faux positif "connecté").
+- **Construction URLs lecture** (live/movie/series) : test unitaire vérifiant format exact URL générée depuis identifiants + ID flux.
+- **Repositories** : tests avec client HTTP fake/mock (pas appel réseau réel) vérifiant logique cache (Room) — quand sert cache, quand rafraîchit.
 
 **Couverture recommandée (priorité moyenne)**
-- **ViewModels** des écrans principaux (Login, Live TV, VOD, Séries) : tests vérifiant que les états UI (loading/succès/erreur) changent correctement selon la réponse du repository (mocké).
-- **Logique de reprise de lecture** (position mémorisée en Room) pour films/séries.
-- **Favoris et recherche locale** : tests sur les opérations d'ajout/retrait et sur le filtrage.
+- **ViewModels** écrans principaux (Login, Live TV, VOD, Séries) : tests vérifiant états UI (loading/succès/erreur) changent correct selon réponse repository (mocké).
+- **Logique reprise lecture** (position mémorisée Room) films/séries.
+- **Favoris + recherche locale** : tests opérations ajout/retrait + filtrage.
 
-**Non prioritaire / à ne pas sur-investir**
-- Tests UI Compose bout en bout (screenshot/instrumentation) : uniquement si tu as le temps une fois le reste couvert, jamais au détriment des tests unitaires ci-dessus.
-- Pas de test sur du code de layout pur sans logique (couleurs, dimensions).
+**Non prioritaire / pas sur-investir**
+- Tests UI Compose bout en bout (screenshot/instrumentation) : que si temps une fois reste couvert, jamais au détriment tests unitaires ci-dessus.
+- Pas test code layout pur sans logique (couleurs, dimensions).
 
 **Pièges Mockito/Kotlin rencontrés (à réappliquer)**
-- Une classe Kotlin `class Foo` avec une méthode retournant un type primitif (`Int`, `Boolean`, etc.) peut, une fois mockée, provoquer un `NullPointerException` sur unboxing (`Callable.call()` retourne `null`) selon la config Mockito du projet (pas de `mockito-inline`/`mockito-android` ici). Solution retenue : extraire une **interface** (`ProfileManager`) + une implémentation (`ProfileManagerImpl`), et mocker l'interface.
-- Ne jamais nommer une fonction membre comme le getter JVM généré par une `val`/`StateFlow` du même type (ex: property `val activeProfileId: StateFlow<Int>` + fonction `fun getActiveProfileId(): Int` génèrent toutes les deux `getActiveProfileId()` côté bytecode → collision de signature à la compilation). Utilise un nom distinct pour la fonction (ex: `currentProfileId()`).
-- Pour stubber un mock dont la méthode est aussi un `@JvmName`/accesseur ambigu, préfère `doReturn(x).whenever(mock).method()` à `whenever(mock.method()).thenReturn(x)` si Mockito lève `WrongTypeOfReturnValue`.
+- Classe Kotlin `class Foo` avec méthode retournant type primitif (`Int`, `Boolean`, etc.) peut, une fois mockée, provoquer `NullPointerException` unboxing (`Callable.call()` retourne `null`) selon config Mockito projet (pas `mockito-inline`/`mockito-android` ici). Solution retenue : extraire **interface** (`ProfileManager`) + implémentation (`ProfileManagerImpl`), mocker interface.
+- Jamais nommer fonction membre comme getter JVM généré par `val`/`StateFlow` même type (ex: property `val activeProfileId: StateFlow<Int>` + fonction `fun getActiveProfileId(): Int` génèrent toutes deux `getActiveProfileId()` côté bytecode → collision signature compilation). Utilise nom distinct fonction (ex: `currentProfileId()`).
+- Pour stubber mock dont méthode aussi `@JvmName`/accesseur ambigu, préfère `doReturn(x).whenever(mock).method()` à `whenever(mock.method()).thenReturn(x)` si Mockito lève `WrongTypeOfReturnValue`.
 
 **Non-régression**
-- Avant de livrer une phase, exécute `./gradlew testDebugUnitTest` en plus de `assembleDebug`.
-- Si un test d'une phase précédente échoue suite à tes changements, corrige-le ou signale-le explicitement dans ta réponse — ne le supprime ni ne le désactive jamais pour faire passer le build sans validation explicite de ma part.
-- Chaque fois qu'un bug Xtream Codes réel est découvert et corrigé (ex: un panel qui renvoie un champ dans un format inattendu), ajoute un test de non-régression correspondant.
+- Avant livrer phase, exécute `./gradlew testDebugUnitTest` en plus `assembleDebug`.
+- Si test phase précédente échoue suite tes changements, corrige-le ou signale explicitement ta réponse — jamais supprimer ni désactiver pour faire passer build sans validation explicite de ma part.
+- Chaque fois bug Xtream Codes réel découvert et corrigé (ex: panel renvoie champ format inattendu), ajoute test non-régression correspondant.
 
 ## Gestion des erreurs (rappel)
 
-Toute fonctionnalité réseau doit gérer explicitement : identifiants invalides, compte expiré, serveur injoignable/timeout, absence de connexion internet, flux vidéo non lisible. Ne jamais afficher de stack trace brute à l'utilisateur (voir cahier des charges section 5).
+Toute fonctionnalité réseau doit gérer explicitement : identifiants invalides, compte expiré, serveur injoignable/timeout, absence connexion internet, flux vidéo non lisible. Jamais afficher stack trace brute utilisateur (voir cahier charges section 5).
 
 ## Avant de conclure une tâche
 
-1. Vérifie que le build passe (`assembleDebug`).
-2. Écris les tests unitaires/fonctionnels de la feature livrée (voir section "Stratégie de tests"), puis exécute `./gradlew testDebugUnitTest` et corrige tout échec, y compris sur les tests des phases précédentes (non-régression).
-3. Vérifie que tu n'as pas dépassé le périmètre de la phase demandée.
-4. Signale dans ta réponse tout point du cahier des charges resté ambigu ou non traité.
-5. Pour les évolutions fonctionnelles, techniques et corrections de bugs, respecte scrupuleusement le workflow d'archivage systématique vers `docs/archive/` dès qu'une tâche est livrée et validée.
-6. Effectue systématiquement un commit Git, crée un tag Git associé (ex: v1.x.y respectant SemVer) et pousse-les (y compris les tags avec `git push origin --tags` ou de manière ciblée) vers le dépôt distant après chaque fonctionnalité ou phase terminée.
+1. Vérifie build passe (`assembleDebug`).
+2. Écris tests unitaires/fonctionnels feature livrée (voir section "Stratégie de tests"), puis exécute `./gradlew testDebugUnitTest`, corrige tout échec, y compris tests phases précédentes (non-régression).
+3. Vérifie pas dépassé périmètre phase demandée.
+4. Signale ta réponse tout point cahier charges resté ambigu ou non traité.
+5. Pour les évolutions fonctionnelles, techniques ou correctifs de bugs, respecte scrupuleusement le workflow d'archivage systématique vers les dossiers `archive/` correspondants sous `ai/` dès la tâche livrée et validée.
+6. Effectue systématiquement commit Git, crée tag Git associé (ex: v1.x.y respectant SemVer), pousse (y compris tags avec `git push origin --tags` ou ciblé) vers dépôt distant après chaque fonctionnalité/phase terminée.
 
 ## Processus de Release et Tagging SemVer
 
-Pour livrer une nouvelle version de l'application et générer un APK de production signé automatiquement :
-1. Assure-toi que tous les tests passent (`./gradlew testDebugUnitTest`).
-2. Crée et pousse un tag Git respectant SemVer (ex: `v1.0.0`) :
+Pour livrer nouvelle version app, générer APK production signé automatiquement :
+1. Assure-toi tous tests passent (`./gradlew testDebugUnitTest`).
+2. Crée et pousse tag Git respectant SemVer (ex: `v1.0.0`) :
    ```bash
    git tag -a v1.0.0 -m "Release v1.0.0 - Fin de la Phase X"
    git push origin v1.0.0
