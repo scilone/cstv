@@ -141,7 +141,7 @@ class VodViewModel @Inject constructor(
 
     fun loadCategories(forceRefresh: Boolean = false) {
         viewModelScope.launch {
-            _state.update { it.copy(isLoadingCategories = true, error = null) }
+            _state.update { it.copy(isLoadingCategories = _state.value.categories.isEmpty(), error = null) }
             try {
                 val categories = getVodCategoriesUseCase(forceRefresh)
                 val finalCategories = listOf(VodCategory("all", "Tout", 0)) + categories
@@ -171,7 +171,7 @@ class VodViewModel @Inject constructor(
 
     fun loadStreams(categoryId: String, forceRefresh: Boolean = false) {
         viewModelScope.launch {
-            _state.update { it.copy(isLoadingStreams = true, error = null) }
+            _state.update { it.copy(isLoadingStreams = _state.value.streams.isEmpty(), error = null) }
             try {
                 val streams = getVodStreamsUseCase(categoryId, forceRefresh)
                 _state.update { it.copy(streams = streams, isLoadingStreams = false) }

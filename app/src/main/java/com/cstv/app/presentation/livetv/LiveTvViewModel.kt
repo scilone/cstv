@@ -141,7 +141,7 @@ class LiveTvViewModel @Inject constructor(
 
     fun loadCategories(forceRefresh: Boolean = false) {
         viewModelScope.launch {
-            _state.update { it.copy(isLoadingCategories = true, error = null) }
+            _state.update { it.copy(isLoadingCategories = _state.value.categories.isEmpty(), error = null) }
             try {
                 val categories = getLiveCategoriesUseCase(forceRefresh)
                 val finalCategories = listOf(LiveCategory("all", "Tout", 0)) + categories
@@ -171,7 +171,7 @@ class LiveTvViewModel @Inject constructor(
 
     fun loadStreams(categoryId: String, forceRefresh: Boolean = false) {
         viewModelScope.launch {
-            _state.update { it.copy(isLoadingStreams = true, error = null) }
+            _state.update { it.copy(isLoadingStreams = _state.value.streams.isEmpty(), error = null) }
             try {
                 val streams = getLiveStreamsUseCase(categoryId, forceRefresh)
                 _state.update { it.copy(streams = streams, isLoadingStreams = false) }
