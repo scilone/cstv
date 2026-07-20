@@ -110,7 +110,7 @@ class VodRepositoryImplTest {
         )
         whenever(apiService.getVodCategories("username", "password")).thenReturn(remoteCategories)
 
-        val result = repository.getVodCategories(forceRefresh = false)
+        val result = repository.getVodCategories(forceRefresh = true)
 
         assertEquals(2, result.size)
         assertEquals("Action Updated", result[0].categoryName)

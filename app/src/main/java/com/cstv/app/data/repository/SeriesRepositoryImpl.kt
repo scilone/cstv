@@ -176,11 +176,8 @@ class SeriesRepositoryImpl @Inject constructor(
         if (!forceRefresh) {
             val localCategories = seriesDao.getAllCategories()
             if (localCategories.isNotEmpty()) {
-                val lastCachedAt = localCategories.first().cachedAt
-                if (currentTime - lastCachedAt < CACHE_EXPIRY_MILLIS) {
-                    return localCategories.map { 
-                        SeriesCategory(it.categoryId, it.categoryName, it.parentId)
-                    }
+                return localCategories.map { 
+                    SeriesCategory(it.categoryId, it.categoryName, it.parentId)
                 }
             }
         }
@@ -220,9 +217,8 @@ class SeriesRepositoryImpl @Inject constructor(
 
         if (!forceRefresh) {
             if (categoryId == "all") {
-                val lastAllStreamsSyncAt = settingsManager.getSeriesAllStreamsSyncedAt()
-                if (lastAllStreamsSyncAt != 0L && currentTime - lastAllStreamsSyncAt < CACHE_EXPIRY_MILLIS) {
-                    val localStreams = seriesDao.getAllStreams()
+                val localStreams = seriesDao.getAllStreams()
+                if (localStreams.isNotEmpty()) {
                     startBackgroundEnrichment()
                     return localStreams.map {
                         SeriesStream(it.seriesId, it.name, it.cover, it.rating, it.added, it.categoryId, it.genre, it.releaseYear?.takeIf { y -> y > 0 })
@@ -231,12 +227,9 @@ class SeriesRepositoryImpl @Inject constructor(
             } else {
                 val localStreams = seriesDao.getStreamsByCategory(categoryId)
                 if (localStreams.isNotEmpty()) {
-                    val lastCachedAt = localStreams.first().cachedAt
-                    if (currentTime - lastCachedAt < CACHE_EXPIRY_MILLIS) {
-                        startBackgroundEnrichment()
-                        return localStreams.map {
-                            SeriesStream(it.seriesId, it.name, it.cover, it.rating, it.added, it.categoryId, it.genre, it.releaseYear?.takeIf { y -> y > 0 })
-                        }
+                    startBackgroundEnrichment()
+                    return localStreams.map {
+                        SeriesStream(it.seriesId, it.name, it.cover, it.rating, it.added, it.categoryId, it.genre, it.releaseYear?.takeIf { y -> y > 0 })
                     }
                 }
             }

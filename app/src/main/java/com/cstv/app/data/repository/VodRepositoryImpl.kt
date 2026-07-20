@@ -237,11 +237,8 @@ class VodRepositoryImpl @Inject constructor(
         if (!forceRefresh) {
             val localCategories = vodDao.getAllCategories()
             if (localCategories.isNotEmpty()) {
-                val lastCachedAt = localCategories.first().cachedAt
-                if (currentTime - lastCachedAt < CACHE_EXPIRY_MILLIS) {
-                    return localCategories.map { 
-                        VodCategory(it.categoryId, it.categoryName, it.parentId)
-                    }
+                return localCategories.map { 
+                    VodCategory(it.categoryId, it.categoryName, it.parentId)
                 }
             }
         }
@@ -281,9 +278,8 @@ class VodRepositoryImpl @Inject constructor(
 
         if (!forceRefresh) {
             if (categoryId == "all") {
-                val lastAllStreamsSyncAt = settingsManager.getVodAllStreamsSyncedAt()
-                if (lastAllStreamsSyncAt != 0L && currentTime - lastAllStreamsSyncAt < CACHE_EXPIRY_MILLIS) {
-                    val localStreams = vodDao.getAllStreams()
+                val localStreams = vodDao.getAllStreams()
+                if (localStreams.isNotEmpty()) {
                     startBackgroundEnrichment()
                     return localStreams.map {
                         VodStream(it.streamId, it.name, it.streamIcon, it.rating, it.added, it.categoryId, it.genre, it.releaseYear?.takeIf { y -> y > 0 })
@@ -292,12 +288,9 @@ class VodRepositoryImpl @Inject constructor(
             } else {
                 val localStreams = vodDao.getStreamsByCategory(categoryId)
                 if (localStreams.isNotEmpty()) {
-                    val lastCachedAt = localStreams.first().cachedAt
-                    if (currentTime - lastCachedAt < CACHE_EXPIRY_MILLIS) {
-                        startBackgroundEnrichment()
-                        return localStreams.map {
-                            VodStream(it.streamId, it.name, it.streamIcon, it.rating, it.added, it.categoryId, it.genre, it.releaseYear?.takeIf { y -> y > 0 })
-                        }
+                    startBackgroundEnrichment()
+                    return localStreams.map {
+                        VodStream(it.streamId, it.name, it.streamIcon, it.rating, it.added, it.categoryId, it.genre, it.releaseYear?.takeIf { y -> y > 0 })
                     }
                 }
             }

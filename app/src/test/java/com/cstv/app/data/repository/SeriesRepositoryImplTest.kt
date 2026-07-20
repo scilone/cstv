@@ -115,7 +115,7 @@ class SeriesRepositoryImplTest {
         )
         whenever(apiService.getSeriesCategories("username", "password")).thenReturn(remoteCategories)
 
-        val result = repository.getSeriesCategories(forceRefresh = false)
+        val result = repository.getSeriesCategories(forceRefresh = true)
 
         assertEquals(2, result.size)
         assertEquals("Drames Updated", result[0].categoryName)

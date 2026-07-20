@@ -112,7 +112,7 @@ class LiveTvRepositoryImplTest {
         )
         whenever(apiService.getLiveCategories("username", "password")).thenReturn(remoteCategories)
 
-        val result = repository.getLiveCategories(forceRefresh = false)
+        val result = repository.getLiveCategories(forceRefresh = true)
 
         // Should return fresh fetched categories
         assertEquals(2, result.size)

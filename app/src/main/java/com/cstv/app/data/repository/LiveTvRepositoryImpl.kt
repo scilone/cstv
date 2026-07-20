@@ -39,11 +39,8 @@ class LiveTvRepositoryImpl @Inject constructor(
         if (!forceRefresh) {
             val localCategories = liveTvDao.getAllCategories()
             if (localCategories.isNotEmpty()) {
-                val lastCachedAt = localCategories.first().cachedAt
-                if (currentTime - lastCachedAt < CACHE_EXPIRY_MILLIS) {
-                    return localCategories.map { 
-                        LiveCategory(it.categoryId, it.categoryName, it.parentId)
-                    }
+                return localCategories.map { 
+                    LiveCategory(it.categoryId, it.categoryName, it.parentId)
                 }
             }
         }
@@ -85,9 +82,8 @@ class LiveTvRepositoryImpl @Inject constructor(
 
         if (!forceRefresh) {
             if (categoryId == "all") {
-                val lastAllStreamsSyncAt = settingsManager.getLiveAllStreamsSyncedAt()
-                if (lastAllStreamsSyncAt != 0L && currentTime - lastAllStreamsSyncAt < CACHE_EXPIRY_MILLIS) {
-                    val localStreams = liveTvDao.getAllStreams()
+                val localStreams = liveTvDao.getAllStreams()
+                if (localStreams.isNotEmpty()) {
                     return localStreams.map {
                         LiveStream(it.streamId, it.name, it.streamIcon, it.epgChannelId, it.num, it.categoryId)
                     }
@@ -95,11 +91,8 @@ class LiveTvRepositoryImpl @Inject constructor(
             } else {
                 val localStreams = liveTvDao.getStreamsByCategory(categoryId)
                 if (localStreams.isNotEmpty()) {
-                    val lastCachedAt = localStreams.first().cachedAt
-                    if (currentTime - lastCachedAt < CACHE_EXPIRY_MILLIS) {
-                        return localStreams.map {
-                            LiveStream(it.streamId, it.name, it.streamIcon, it.epgChannelId, it.num, it.categoryId)
-                        }
+                    return localStreams.map {
+                        LiveStream(it.streamId, it.name, it.streamIcon, it.epgChannelId, it.num, it.categoryId)
                     }
                 }
             }
