@@ -72,13 +72,18 @@ class TrendingRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun getCachedMatchedTrendsGlobal(): List<TrendingCatalogItem>? = mutex.withLock {
+    override suspend fun getCachedMatchedTrendsGlobal(lastCatalogSyncTime: Long): List<TrendingCatalogItem>? = mutex.withLock {
         val lastFetchTime = sharedPrefs.getLong("trends_time_global_v2", 0L)
         val currentTime = System.currentTimeMillis()
 
         if (currentTime - lastFetchTime >= cacheDurationMs) {
             com.cstv.app.di.IptvLog.d("TMDB", "💾 Global trends cache expired.")
             return null // Cache expired
+        }
+
+        if (lastFetchTime < lastCatalogSyncTime) {
+            com.cstv.app.di.IptvLog.d("TMDB", "💾 Global trends cache invalidated because the catalog was resynchronized.")
+            return null // Invalidate cache on catalog update
         }
 
         val json = sharedPrefs.getString("trends_data_global_v2", null) ?: run {

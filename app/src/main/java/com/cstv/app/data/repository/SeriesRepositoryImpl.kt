@@ -463,4 +463,18 @@ class SeriesRepositoryImpl @Inject constructor(
     override suspend fun clearPlaybackPosition(episodeStreamId: Int) {
         vodDao.deletePlaybackPosition(episodeStreamId, profileManager.currentProfileId())
     }
+
+    override suspend fun getStreamById(seriesId: Int): SeriesStream? {
+        val entity = seriesDao.getStreamById(seriesId) ?: return null
+        return SeriesStream(
+            seriesId = entity.seriesId,
+            name = entity.name,
+            cover = entity.cover,
+            rating = entity.rating,
+            added = entity.added,
+            categoryId = entity.categoryId,
+            genre = entity.genre,
+            releaseYear = entity.releaseYear?.takeIf { it > 0 }
+        )
+    }
 }

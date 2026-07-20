@@ -10,6 +10,7 @@ import com.cstv.app.domain.repository.TrendingRepository
 import com.cstv.app.domain.repository.VodRepository
 import com.cstv.app.domain.repository.SeriesRepository
 import com.cstv.app.domain.repository.CategoryPreferenceRepository
+import com.cstv.app.data.local.storage.SettingsManager
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -18,6 +19,7 @@ import org.junit.Test
 import org.mockito.kotlin.any
 import org.mockito.kotlin.eq
 import org.mockito.kotlin.mock
+import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 
 class GetTrendingInCatalogUseCaseTest {
@@ -28,6 +30,10 @@ class GetTrendingInCatalogUseCaseTest {
         val vodRepository = mock<VodRepository>()
         val seriesRepository = mock<SeriesRepository>()
         val categoryPreferenceRepository = mock<CategoryPreferenceRepository>()
+        val settingsManager = mock<SettingsManager>()
+
+        whenever(settingsManager.getVodAllStreamsSyncedAt()).thenReturn(0L)
+        whenever(settingsManager.getSeriesAllStreamsSyncedAt()).thenReturn(0L)
 
         // Mock TMDB Trends
         val trends = listOf(
@@ -36,7 +42,7 @@ class GetTrendingInCatalogUseCaseTest {
             TrendingTitle(3, "Interstellar", isMovie = true, year = "2014", posterUrl = "url_int") // Not in IPTV catalog
         )
         whenever(trendingRepository.getTrending()).thenReturn(trends)
-        whenever(trendingRepository.getCachedMatchedTrendsGlobal()).thenReturn(null) // Cache expired/null
+        whenever(trendingRepository.getCachedMatchedTrendsGlobal(0L)).thenReturn(null) // Cache expired/null
 
         // Mock IPTV local database
         val movies = listOf(
@@ -49,6 +55,10 @@ class GetTrendingInCatalogUseCaseTest {
         whenever(vodRepository.getVodStreams(eq("all"), eq(false))).thenReturn(movies)
         whenever(seriesRepository.getSeriesStreams(eq("all"), eq(false))).thenReturn(series)
 
+        // Mock existence revalidation
+        whenever(vodRepository.getStreamById(10)).thenReturn(movies[0])
+        whenever(seriesRepository.getStreamById(20)).thenReturn(series[0])
+
         // Mock preferences (no hidden categories)
         whenever(categoryPreferenceRepository.getPreferences(any())).thenReturn(emptyMap())
 
@@ -56,7 +66,8 @@ class GetTrendingInCatalogUseCaseTest {
             trendingRepository,
             vodRepository,
             seriesRepository,
-            categoryPreferenceRepository
+            categoryPreferenceRepository,
+            settingsManager
         )
 
         val result = useCase()
@@ -81,18 +92,25 @@ class GetTrendingInCatalogUseCaseTest {
         val vodRepository = mock<VodRepository>()
         val seriesRepository = mock<SeriesRepository>()
         val categoryPreferenceRepository = mock<CategoryPreferenceRepository>()
+        val settingsManager = mock<SettingsManager>()
+
+        whenever(settingsManager.getVodAllStreamsSyncedAt()).thenReturn(0L)
+        whenever(settingsManager.getSeriesAllStreamsSyncedAt()).thenReturn(0L)
 
         val trends = listOf(
             TrendingTitle(1, "Inception", isMovie = true, year = "2010", posterUrl = "url_inc")
         )
         whenever(trendingRepository.getTrending()).thenReturn(trends)
-        whenever(trendingRepository.getCachedMatchedTrendsGlobal()).thenReturn(null)
+        whenever(trendingRepository.getCachedMatchedTrendsGlobal(0L)).thenReturn(null)
 
         val movies = listOf(
             VodStream(streamId = 10, name = "Inception", streamIcon = "icon", rating = "9.0", added = "12345", categoryId = "hidden_category")
         )
         whenever(vodRepository.getVodStreams(eq("all"), eq(false))).thenReturn(movies)
         whenever(seriesRepository.getSeriesStreams(eq("all"), eq(false))).thenReturn(emptyList())
+
+        // Mock existence revalidation
+        whenever(vodRepository.getStreamById(10)).thenReturn(movies[0])
 
         // "hidden_category" is marked as hidden
         whenever(categoryPreferenceRepository.getPreferences(CategoryType.VOD)).thenReturn(
@@ -103,7 +121,8 @@ class GetTrendingInCatalogUseCaseTest {
             trendingRepository,
             vodRepository,
             seriesRepository,
-            categoryPreferenceRepository
+            categoryPreferenceRepository,
+            settingsManager
         )
 
         val result = useCase()
@@ -118,22 +137,31 @@ class GetTrendingInCatalogUseCaseTest {
         val vodRepository = mock<VodRepository>()
         val seriesRepository = mock<SeriesRepository>()
         val categoryPreferenceRepository = mock<CategoryPreferenceRepository>()
+        val settingsManager = mock<SettingsManager>()
 
+        whenever(settingsManager.getVodAllStreamsSyncedAt()).thenReturn(0L)
+        whenever(settingsManager.getSeriesAllStreamsSyncedAt()).thenReturn(0L)
+
+        val movie = VodStream(30, "Interstellar", "icon", "9.5", "12345", "cat_movies")
         val cachedList = listOf(
             TrendingCatalogItem(
                 trendingTitle = TrendingTitle(1, "Cached Interstellar", isMovie = true, year = "2014", posterUrl = "url_int"),
-                matchedMovies = listOf(VodStream(30, "Interstellar", "icon", "9.5", "12345", "cat_movies")),
-                matchedMovie = VodStream(30, "Interstellar", "icon", "9.5", "12345", "cat_movies")
+                matchedMovies = listOf(movie),
+                matchedMovie = movie
             )
         )
-        whenever(trendingRepository.getCachedMatchedTrendsGlobal()).thenReturn(cachedList)
+        whenever(trendingRepository.getCachedMatchedTrendsGlobal(0L)).thenReturn(cachedList)
         whenever(categoryPreferenceRepository.getPreferences(any())).thenReturn(emptyMap())
+
+        // Mock existence revalidation
+        whenever(vodRepository.getStreamById(30)).thenReturn(movie)
 
         val useCase = GetTrendingInCatalogUseCase(
             trendingRepository,
             vodRepository,
             seriesRepository,
-            categoryPreferenceRepository
+            categoryPreferenceRepository,
+            settingsManager
         )
 
         val result = useCase()
@@ -149,13 +177,17 @@ class GetTrendingInCatalogUseCaseTest {
         val vodRepository = mock<VodRepository>()
         val seriesRepository = mock<SeriesRepository>()
         val categoryPreferenceRepository = mock<CategoryPreferenceRepository>()
+        val settingsManager = mock<SettingsManager>()
+
+        whenever(settingsManager.getVodAllStreamsSyncedAt()).thenReturn(0L)
+        whenever(settingsManager.getSeriesAllStreamsSyncedAt()).thenReturn(0L)
 
         // Mock TMDB Trends (Movie: Inception)
         val trends = listOf(
             TrendingTitle(1, "Inception", isMovie = true, year = "2010", posterUrl = "url_inc")
         )
         whenever(trendingRepository.getTrending()).thenReturn(trends)
-        whenever(trendingRepository.getCachedMatchedTrendsGlobal()).thenReturn(null)
+        whenever(trendingRepository.getCachedMatchedTrendsGlobal(0L)).thenReturn(null)
 
         // Mock IPTV local database (Inception in both PT (hidden) and FR (unhidden) categories)
         val movies = listOf(
@@ -164,6 +196,10 @@ class GetTrendingInCatalogUseCaseTest {
         )
         whenever(vodRepository.getVodStreams(eq("all"), eq(false))).thenReturn(movies)
         whenever(seriesRepository.getSeriesStreams(eq("all"), eq(false))).thenReturn(emptyList())
+
+        // Mock existence revalidation
+        whenever(vodRepository.getStreamById(101)).thenReturn(movies[0])
+        whenever(vodRepository.getStreamById(102)).thenReturn(movies[1])
 
         // Mark PT category as hidden, FR as visible
         whenever(categoryPreferenceRepository.getPreferences(CategoryType.VOD)).thenReturn(
@@ -174,7 +210,8 @@ class GetTrendingInCatalogUseCaseTest {
             trendingRepository,
             vodRepository,
             seriesRepository,
-            categoryPreferenceRepository
+            categoryPreferenceRepository,
+            settingsManager
         )
 
         val result = useCase()
@@ -186,5 +223,49 @@ class GetTrendingInCatalogUseCaseTest {
         assertNotNull(item.matchedMovie)
         assertEquals(102, item.matchedMovie!!.streamId)
         assertEquals("cat_fr", item.matchedMovie!!.categoryId)
+    }
+
+    @Test
+    fun test_useCase_invalidatesCache_ifCatalogWasResynchronized() = runTest {
+        val trendingRepository = mock<TrendingRepository>()
+        val vodRepository = mock<VodRepository>()
+        val seriesRepository = mock<SeriesRepository>()
+        val categoryPreferenceRepository = mock<CategoryPreferenceRepository>()
+        val settingsManager = mock<SettingsManager>()
+
+        // Mock resynchronized timestamps (resynced at 1000L)
+        whenever(settingsManager.getVodAllStreamsSyncedAt()).thenReturn(1000L)
+        whenever(settingsManager.getSeriesAllStreamsSyncedAt()).thenReturn(0L)
+
+        // Mock cached trends (which were fetched at 500L, so older than sync time, thus returning null on getCachedMatchedTrendsGlobal(1000))
+        whenever(trendingRepository.getCachedMatchedTrendsGlobal(1000L)).thenReturn(null)
+
+        // Mock TMDB Trends & IPTV DB to verify re-match runs
+        val trends = listOf(TrendingTitle(1, "Inception", isMovie = true, year = "2010", posterUrl = "url_inc"))
+        whenever(trendingRepository.getTrending()).thenReturn(trends)
+
+        val movies = listOf(VodStream(streamId = 10, name = "Inception", streamIcon = "icon", rating = "9.0", added = "12345", categoryId = "cat_movies"))
+        whenever(vodRepository.getVodStreams(eq("all"), eq(false))).thenReturn(movies)
+        whenever(seriesRepository.getSeriesStreams(eq("all"), eq(false))).thenReturn(emptyList())
+        
+        // Mock existence revalidation
+        whenever(vodRepository.getStreamById(10)).thenReturn(movies[0])
+
+        whenever(categoryPreferenceRepository.getPreferences(any())).thenReturn(emptyMap())
+
+        val useCase = GetTrendingInCatalogUseCase(
+            trendingRepository,
+            vodRepository,
+            seriesRepository,
+            categoryPreferenceRepository,
+            settingsManager
+        )
+
+        val result = useCase()
+
+        // Should successfully perform re-match
+        assertEquals(1, result.size)
+        assertEquals("Inception", result[0].trendingTitle.title)
+        verify(trendingRepository).getTrending() // Verifies raw TMDB API fetch was executed!
     }
 }

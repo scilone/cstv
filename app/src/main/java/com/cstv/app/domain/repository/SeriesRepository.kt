@@ -55,4 +55,7 @@ interface SeriesRepository {
         limit: Int = 10,
         excludedCategoryIds: Set<String> = emptySet()
     ): List<SeriesStream>
+
+    /** Récupère une série du cache local par son identifiant unique, ou null s'elle n'existe plus. */
+    suspend fun getStreamById(seriesId: Int): SeriesStream?
 }

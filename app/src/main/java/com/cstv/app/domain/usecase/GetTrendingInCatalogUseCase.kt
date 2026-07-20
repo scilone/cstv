@@ -8,6 +8,7 @@ import com.cstv.app.domain.repository.TrendingRepository
 import com.cstv.app.domain.repository.VodRepository
 import com.cstv.app.domain.repository.SeriesRepository
 import com.cstv.app.domain.repository.CategoryPreferenceRepository
+import com.cstv.app.data.local.storage.SettingsManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.util.concurrent.CancellationException
@@ -17,14 +18,20 @@ class GetTrendingInCatalogUseCase @Inject constructor(
     private val trendingRepository: TrendingRepository,
     private val vodRepository: VodRepository,
     private val seriesRepository: SeriesRepository,
-    private val categoryPreferenceRepository: CategoryPreferenceRepository
+    private val categoryPreferenceRepository: CategoryPreferenceRepository,
+    private val settingsManager: SettingsManager
 ) {
 
     suspend operator fun invoke(): List<TrendingCatalogItem> = withContext(Dispatchers.Default) {
         com.cstv.app.di.IptvLog.d("TMDB", "🚀 GetTrendingInCatalogUseCase triggered.")
 
+        // Invalidate cache if catalog was resynchronized after cache generation (Bug B-3)
+        val lastVodSync = settingsManager.getVodAllStreamsSyncedAt()
+        val lastSeriesSync = settingsManager.getSeriesAllStreamsSyncedAt()
+        val lastCatalogSyncTime = maxOf(lastVodSync, lastSeriesSync)
+
         // 1. Check persistent global device cache
-        val cachedGlobal = trendingRepository.getCachedMatchedTrendsGlobal()
+        val cachedGlobal = trendingRepository.getCachedMatchedTrendsGlobal(lastCatalogSyncTime)
         val matchedList = if (cachedGlobal != null) {
             com.cstv.app.di.IptvLog.d("TMDB", "💾 Global matched cache HIT. Loaded ${cachedGlobal.size} items: " +
                 cachedGlobal.joinToString { "'${it.trendingTitle.title}' ↔ '${it.matchedMovie?.name ?: it.matchedSeries?.name ?: "No Stream"}'" }
@@ -155,7 +162,13 @@ class GetTrendingInCatalogUseCase @Inject constructor(
                 val seriesList = item.matchedSeriesList
 
                 if (!movies.isNullOrEmpty()) {
-                    val allowedMovies = movies.filter { it.categoryId !in hiddenMovies }
+                    // Revalidate that candidates still exist in the database (Bug B-3)
+                    val existingMovies = movies.mapNotNull { vodRepository.getStreamById(it.streamId) }
+                    if (existingMovies.isEmpty()) {
+                        com.cstv.app.di.IptvLog.d("TMDB", "🚫 Movie '${item.trendingTitle.title}' filtered out because ALL matched versions were deleted from database.")
+                        return@mapNotNull null
+                    }
+                    val allowedMovies = existingMovies.filter { it.categoryId !in hiddenMovies }
                     if (allowedMovies.isNotEmpty()) {
                         val selected = allowedMovies.first()
                         com.cstv.app.di.IptvLog.d("TMDB", "🎯 Selected allowed movie version for '${item.trendingTitle.title}': '${selected.name}' (Category: '${selected.categoryId}')")
@@ -165,7 +178,13 @@ class GetTrendingInCatalogUseCase @Inject constructor(
                         null // All matched movie versions are hidden
                     }
                 } else if (!seriesList.isNullOrEmpty()) {
-                    val allowedSeries = seriesList.filter { it.categoryId !in hiddenSeries }
+                    // Revalidate that candidates still exist in the database (Bug B-3)
+                    val existingSeries = seriesList.mapNotNull { seriesRepository.getStreamById(it.seriesId) }
+                    if (existingSeries.isEmpty()) {
+                        com.cstv.app.di.IptvLog.d("TMDB", "🚫 Series '${item.trendingTitle.title}' filtered out because ALL matched versions were deleted from database.")
+                        return@mapNotNull null
+                    }
+                    val allowedSeries = existingSeries.filter { it.categoryId !in hiddenSeries }
                     if (allowedSeries.isNotEmpty()) {
                         val selected = allowedSeries.first()
                         com.cstv.app.di.IptvLog.d("TMDB", "🎯 Selected allowed series version for '${item.trendingTitle.title}': '${selected.name}' (Category: '${selected.categoryId}')")
@@ -177,21 +196,33 @@ class GetTrendingInCatalogUseCase @Inject constructor(
                 } else {
                     // Backward compatibility: support old v1.47.25 cache structure where lists are null but singular elements are present
                     if (item.matchedMovie != null) {
-                        val isHidden = item.matchedMovie.categoryId in hiddenMovies
-                        if (!isHidden) {
-                            com.cstv.app.di.IptvLog.d("TMDB", "🎯 Selected allowed movie version (Legacy Cache) for '${item.trendingTitle.title}': '${item.matchedMovie.name}'")
-                            item.copy(matchedMovies = listOf(item.matchedMovie))
+                        val existingMovie = vodRepository.getStreamById(item.matchedMovie.streamId)
+                        if (existingMovie != null) {
+                            val isHidden = existingMovie.categoryId in hiddenMovies
+                            if (!isHidden) {
+                                com.cstv.app.di.IptvLog.d("TMDB", "🎯 Selected allowed movie version (Legacy Cache) for '${item.trendingTitle.title}': '${existingMovie.name}'")
+                                item.copy(matchedMovie = existingMovie, matchedMovies = listOf(existingMovie))
+                            } else {
+                                com.cstv.app.di.IptvLog.d("TMDB", "🚫 Movie '${item.trendingTitle.title}' (Legacy Cache) filtered out because it is in a hidden category.")
+                                null
+                            }
                         } else {
-                            com.cstv.app.di.IptvLog.d("TMDB", "🚫 Movie '${item.trendingTitle.title}' (Legacy Cache) filtered out because it is in a hidden category.")
+                            com.cstv.app.di.IptvLog.d("TMDB", "🚫 Movie '${item.trendingTitle.title}' (Legacy Cache) filtered out because it was deleted from database.")
                             null
                         }
                     } else if (item.matchedSeries != null) {
-                        val isHidden = item.matchedSeries.categoryId in hiddenSeries
-                        if (!isHidden) {
-                            com.cstv.app.di.IptvLog.d("TMDB", "🎯 Selected allowed series version (Legacy Cache) for '${item.trendingTitle.title}': '${item.matchedSeries.name}'")
-                            item.copy(matchedSeriesList = listOf(item.matchedSeries))
+                        val existingSeries = seriesRepository.getStreamById(item.matchedSeries.seriesId)
+                        if (existingSeries != null) {
+                            val isHidden = existingSeries.categoryId in hiddenSeries
+                            if (!isHidden) {
+                                com.cstv.app.di.IptvLog.d("TMDB", "🎯 Selected allowed series version (Legacy Cache) for '${item.trendingTitle.title}': '${existingSeries.name}'")
+                                item.copy(matchedSeries = existingSeries, matchedSeriesList = listOf(existingSeries))
+                            } else {
+                                com.cstv.app.di.IptvLog.d("TMDB", "🚫 Series '${item.trendingTitle.title}' (Legacy Cache) filtered out because it is in a hidden category.")
+                                null
+                            }
                         } else {
-                            com.cstv.app.di.IptvLog.d("TMDB", "🚫 Series '${item.trendingTitle.title}' (Legacy Cache) filtered out because it is in a hidden category.")
+                            com.cstv.app.di.IptvLog.d("TMDB", "🚫 Series '${item.trendingTitle.title}' (Legacy Cache) filtered out because it was deleted from database.")
                             null
                         }
                     } else {

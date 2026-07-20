@@ -567,4 +567,18 @@ class VodRepositoryImpl @Inject constructor(
             }
         }
     }
+
+    override suspend fun getStreamById(streamId: Int): VodStream? {
+        val entity = vodDao.getStreamById(streamId) ?: return null
+        return VodStream(
+            streamId = entity.streamId,
+            name = entity.name,
+            streamIcon = entity.streamIcon,
+            rating = entity.rating,
+            added = entity.added,
+            categoryId = entity.categoryId,
+            genre = entity.genre,
+            releaseYear = entity.releaseYear?.takeIf { it > 0 }
+        )
+    }
 }

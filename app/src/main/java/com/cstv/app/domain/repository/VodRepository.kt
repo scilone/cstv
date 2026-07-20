@@ -76,4 +76,7 @@ interface VodRepository {
         limit: Int = 10,
         excludedCategoryIds: Set<String> = emptySet()
     ): List<VodStream>
+
+    /** Récupère un film du cache local par son identifiant unique, ou null s'il n'existe plus. */
+    suspend fun getStreamById(streamId: Int): VodStream?
 }
