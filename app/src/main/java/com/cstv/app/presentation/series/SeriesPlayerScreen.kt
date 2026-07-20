@@ -402,15 +402,20 @@ fun SeriesPlayerScreen(
         currentEpisode = next
     }
 
-    // Save playback position loop (Runs every 1 second)
+    // Save playback position loop (Runs every 1 second, saves to Room every 5 seconds)
     LaunchedEffect(exoPlayer) {
+        var secondsCounter = 0
         while (true) {
             if (exoPlayer.isPlaying) {
                 currentPosition = exoPlayer.currentPosition
                 duration = exoPlayer.duration.coerceAtLeast(0L)
 
                 if (currentPosition > 0 && duration > 0) {
-                    viewModel.savePosition(currentEpisode, currentPosition, duration, seriesName, seriesCover)
+                    secondsCounter++
+                    if (secondsCounter >= 5) {
+                        viewModel.savePosition(currentEpisode, currentPosition, duration, seriesName, seriesCover)
+                        secondsCounter = 0
+                    }
                 }
             }
             delay(1000)

@@ -25,8 +25,8 @@ android {
         // Phase 39 : synchronisés avec le dernier tag git poussé (voir AGENTS.md,
         // section "Checklist avant de conclure une tâche"). versionCode dérivé du
         // SemVer : major*10_000 + minor*100 + patch (marge de 0-99 par segment).
-        versionCode = 14_818
-        versionName = "1.48.18"
+        versionCode = 14_819
+        versionName = "1.48.19"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {

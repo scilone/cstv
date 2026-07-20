@@ -146,3 +146,14 @@ Ce document rassemble l'historique des audits, correctifs techniques, mises à n
 
 **Prompt originel.**
 > Externalise toutes les chaînes UI codées en dur de CSTV vers `res/values/strings.xml` : recense les `Text("...")`/`contentDescription = "..."` à littéraux dans `presentation/`, crée des ressources nommées par écran (`advanced_search_title`, `player_retry`, etc.), remplace par `stringResource(...)`. Ne touche pas aux chaînes de log/technique. Vérifie `assembleDebug` + `lintDebug` (lint `HardcodedText` doit être silencieux sur les fichiers traités).
+
+---
+
+### 15. Réduire la fréquence d'écriture des positions de lecture (T-5)
+
+✅ **TERMINÉE** — `perf(player): réduire la fréquence de sauvegarde de la position de lecture à 5 secondes` (tag `v1.48.19`)
+
+**Constat (review v1.48.6).** Les boucles de suivi des lecteurs VOD/Séries appellent `viewModel.savePosition(...)` **à chaque seconde** de lecture (le commentaire dit « every 5 seconds » mais le code écrit bien 1×/s) → une écriture Room + FTS par seconde pendant toute la lecture. Inutilement coûteux (I/O, batterie), surtout sur TV bas de gamme.
+
+**Prompt originel.**
+> Dans les boucles de suivi de position de `VodPlayerScreen` et `SeriesPlayerScreen` (et l'équivalent Live si applicable) : garde la mise à jour de l'UI (position/durée) à 1 s, mais n'écris la position en Room que toutes les 5 s (compteur/modulo) ET aux moments critiques déjà gérés (pause, dispose, fin de lecture). Aligne le commentaire sur le comportement réel. Non-régression : la reprise de lecture doit rester précise à ≤ 5 s.

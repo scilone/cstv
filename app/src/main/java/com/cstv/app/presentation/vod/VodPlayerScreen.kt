@@ -349,8 +349,9 @@ fun VodPlayerScreen(
         exoPlayer.trackSelectionParameters = updatedParams.build()
     }
 
-    // Position & Duration Tracking Loop (Runs every 1 second)
+    // Position & Duration Tracking Loop (Runs every 1 second, saves to Room every 5 seconds)
     LaunchedEffect(exoPlayer) {
+        var secondsCounter = 0
         while (true) {
             if (exoPlayer.isPlaying) {
                 currentPosition = exoPlayer.currentPosition
@@ -358,7 +359,11 @@ fun VodPlayerScreen(
                 
                 // Periodically save playback progress in Room (every 5 seconds)
                 if (currentPosition > 0 && duration > 0) {
-                    viewModel.savePosition(details.streamId, currentPosition, duration, details)
+                    secondsCounter++
+                    if (secondsCounter >= 5) {
+                        viewModel.savePosition(details.streamId, currentPosition, duration, details)
+                        secondsCounter = 0
+                    }
                 }
             }
             delay(1000)

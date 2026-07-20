@@ -52,16 +52,6 @@ Une fois qu'une tâche technique est réalisée et validée, sa description/son 
 
 ---
 
-### T-5. Réduire la fréquence d'écriture des positions de lecture — Effort S (Priorité Basse)
-**Modèle : Haiku 4.5**
-
-**Constat (review v1.48.6).** Les boucles de suivi des lecteurs VOD/Séries appellent `viewModel.savePosition(...)` **à chaque seconde** de lecture (le commentaire dit « every 5 seconds » mais le code écrit bien 1×/s) → une écriture Room + FTS par seconde pendant toute la lecture. Inutilement coûteux (I/O, batterie), surtout sur TV bas de gamme.
-
-**Prompt.**
-> Dans les boucles de suivi de position de `VodPlayerScreen` et `SeriesPlayerScreen` (et l'équivalent Live si applicable) : garde la mise à jour de l'UI (position/durée) à 1 s, mais n'écris la position en Room que toutes les 5 s (compteur/modulo) ET aux moments critiques déjà gérés (pause, dispose, fin de lecture). Aligne le commentaire sur le comportement réel. Non-régression : la reprise de lecture doit rester précise à ≤ 5 s.
-
----
-
 ## 🔧 Dette Technique Future / Améliorations de Code
 
 *Ajoutez ici vos futures dettes techniques ou tâches d'architecture identifiées lors des prochaines sessions de développement.*
