@@ -65,6 +65,7 @@ fun AppNavGraph(
     profileState: ProfileUiState,
     favsState: com.cstv.app.presentation.favorites.FavoritesUiState,
     homeLazyListState: LazyListState,
+    isTv: Boolean,
     
     // Active states
     activeStream: LiveStream?,
@@ -98,7 +99,7 @@ fun AppNavGraph(
         composable("login") {
             LoginScreen(
                 viewModel = loginViewModel,
-                isTv = false,
+                isTv = isTv,
                 onLoginSuccess = { userInfo ->
                     onUserChanged(userInfo)
                     navController.navigate("home") {
@@ -111,7 +112,7 @@ fun AppNavGraph(
             val activeProfile = profileState.profiles.find { it.id == profileState.activeProfileId }
             HomeScreen(
                 userInfo = loggedInUser ?: UserInfo("User", true, "Active", "Inconnue", 1, 0, "Connecté"),
-                isTv = false,
+                isTv = isTv,
                 viewModel = homeViewModel,
                 activeProfileAvatarId = activeProfile?.avatarId ?: 0,
                 activeProfileName = activeProfile?.name ?: loggedInUser?.username ?: "",
@@ -231,7 +232,7 @@ fun AppNavGraph(
                         categoryId = stream.categoryId
                     )
                 },
-                isTv = false,
+                isTv = isTv,
                 onStreamSelected = { stream, list ->
                     onActiveStreamChanged(stream)
                     onActiveStreamsListChanged(list)
@@ -243,7 +244,7 @@ fun AppNavGraph(
             val vodViewModel: VodViewModel = hiltViewModel()
             VodScreen(
                 viewModel = vodViewModel,
-                isTv = false,
+                isTv = isTv,
                 favoritesList = favsState.favorites,
                 onMovieSelected = { stream ->
                     onActiveVodMovieChanged(stream)
@@ -256,7 +257,7 @@ fun AppNavGraph(
             val seriesViewModel: SeriesViewModel = hiltViewModel()
             SeriesScreen(
                 viewModel = seriesViewModel,
-                isTv = false,
+                isTv = isTv,
                 favoritesList = favsState.favorites,
                 onSeriesSelected = { stream ->
                     onActiveSeriesShowChanged(stream)
@@ -268,7 +269,7 @@ fun AppNavGraph(
         composable("search") {
             SearchScreen(
                 viewModel = favoritesViewModel,
-                isTv = false,
+                isTv = isTv,
                 onPlayLive = { stream ->
                     onActiveStreamChanged(stream)
                     onActiveStreamsListChanged(listOf(stream))
@@ -290,7 +291,7 @@ fun AppNavGraph(
         composable("favorites") {
             FavoritesScreen(
                 viewModel = favoritesViewModel,
-                isTv = false,
+                isTv = isTv,
                 onPlayLive = { id, catId ->
                     val stream = LiveStream(id, "Chaîne Favorie", null, null, 1, catId)
                     onActiveStreamChanged(stream)
@@ -314,7 +315,7 @@ fun AppNavGraph(
             val settingsViewModel: SettingsViewModel = hiltViewModel()
             SettingsScreen(
                 viewModel = settingsViewModel,
-                isTv = false,
+                isTv = isTv,
                 onBack = {
                     navController.popBackStack()
                 },
@@ -336,7 +337,7 @@ fun AppNavGraph(
         composable("downloads") {
             com.cstv.app.presentation.downloads.DownloadsScreen(
                 viewModel = downloadsViewModel,
-                isTv = false,
+                isTv = isTv,
                 onPlayMovie = { item ->
                     onActiveVodDetailsChanged(com.cstv.app.buildOfflineVodDetails(item))
                     onResumePositionMsChanged(0L)
@@ -355,7 +356,7 @@ fun AppNavGraph(
             val categoryManagementViewModel: com.cstv.app.presentation.settings.CategoryManagementViewModel = hiltViewModel()
             com.cstv.app.presentation.settings.CategoryManagementScreen(
                 viewModel = categoryManagementViewModel,
-                isTv = false,
+                isTv = isTv,
                 onBack = {
                     navController.popBackStack()
                 }
@@ -383,7 +384,7 @@ fun AppNavGraph(
         composable("profile_management") {
             com.cstv.app.presentation.profile.ProfileManagementScreen(
                 viewModel = profileViewModel,
-                isTv = false,
+                isTv = isTv,
                 onBack = {
                     navController.popBackStack()
                 }
@@ -410,7 +411,7 @@ fun AppNavGraph(
                     
                     VodDetailsScreen(
                         details = details,
-                        isTv = false,
+                        isTv = isTv,
                         isFavorite = isFav,
                         onToggleFavorite = {
                             favoritesViewModel.toggleFavorite(
@@ -476,7 +477,7 @@ fun AppNavGraph(
                     
                     SeriesDetailsScreen(
                         details = details,
-                        isTv = false,
+                        isTv = isTv,
                         isFavorite = isFav,
                         onToggleFavorite = {
                             favoritesViewModel.toggleFavorite(
@@ -526,7 +527,7 @@ fun AppNavGraph(
                     initialStream = activeStream,
                     streamsList = activeStreamsList,
                     credentials = creds,
-                    isTv = false,
+                    isTv = isTv,
                     viewModel = liveTvViewModel,
                     onClose = {
                         navController.popBackStack()
@@ -547,7 +548,7 @@ fun AppNavGraph(
                     details = activeVodDetails,
                     initialPositionMs = resumePositionMs,
                     credentials = creds,
-                    isTv = false,
+                    isTv = isTv,
                     viewModel = vodViewModel,
                     onClose = {
                         navController.popBackStack()
@@ -568,7 +569,7 @@ fun AppNavGraph(
                     seriesCover = activeSeriesDetails?.cover,
                     seriesEpisodes = activeSeriesDetails?.episodes ?: emptyMap(),
                     credentials = creds,
-                    isTv = false,
+                    isTv = isTv,
                     viewModel = seriesViewModel,
                     onClose = {
                         navController.popBackStack()
@@ -586,7 +587,7 @@ fun AppNavGraph(
             val recentlyAddedViewModel: RecentlyAddedViewModel = hiltViewModel()
             RecentlyAddedScreen(
                 viewModel = recentlyAddedViewModel,
-                isTv = false,
+                isTv = isTv,
                 isSeries = isSeriesParam,
                 onBack = {
                     navController.popBackStack()

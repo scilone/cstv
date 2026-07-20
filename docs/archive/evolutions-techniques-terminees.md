@@ -175,3 +175,19 @@ Ce document rassemble l'historique des audits, correctifs techniques, mises à n
 > 
 > Contraintes : préserver la restauration de position de défilement (Phase 20) et les sections horizontales du mode "Tout" (celles-ci affichent peu d'items par rangée : ne paginer que les grilles verticales, garder les rangées horizontales en List simple si plus simple). Mesure avant/après (temps d'affichage + mémoire via Debug.getNativeHeapAllocatedSize ou profiler) sur la plus grosse catégorie et note les chiffres dans le message de commit.
 
+---
+
+### 17. Unifier la navigation TV et mobile (T-2)
+
+✅ **TERMINÉE** — `refactor(navigation): unification de la navigation TV et mobile avec navigation-compose` (tag `v1.48.27`)
+
+**Constat.** Deux systèmes de navigation coexistent : le mobile passe par `AppNavGraph` (navigation-compose, `presentation/navigation/NavGraph.kt`, ~600 lignes) tandis que la TV passe par une navigation manuelle (enum `AppScreen` + `screenHistory` + gros `when` dans `MainActivity.kt`, ~890 lignes). Chaque nouvel écran doit être câblé **deux fois**, avec deux logiques de back différentes — source répétée de régressions (écrans présents sur une plateforme seulement, comportements back divergents) et premier facteur de la taille de MainActivity.
+
+**Prompt originel.**
+> Unifie la navigation de l'app CSTV sur navigation-compose pour les deux plateformes (mobile + TV), en supprimant la navigation manuelle par enum `AppScreen` de `MainActivity.kt`.
+> 1. Étends `AppNavGraph` pour couvrir tous les écrans encore gérés manuellement côté TV, avec les mêmes routes que le mobile. Les différences TV (focus D-pad, layouts) restent dans les écrans (`isTv`), pas dans la navigation.
+> 2. Reproduis fidèlement le comportement back TV actuel (BackHandler : retour hiérarchique, déconnexion depuis le dashboard) avec `navController` (popBackStack + logique de racine).
+> 3. Réduis `MainActivity` à : détection isTv, thème, état de session, hôte du NavGraph.
+> 4. Aucune régression : parcours complet mobile + TV (login → home → chaque écran → back), `assembleDebug` + `lintDebug` + `testDebugUnitTest`.
+
+

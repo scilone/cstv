@@ -8,21 +8,6 @@ Une fois qu'une tâche technique est réalisée et validée, sa description/son 
 
 ## 🎯 Évolutions Techniques Actives
 
-### T-2. Unifier la navigation TV et mobile — Effort L (Priorité Haute)
-**Modèle : Opus 4.8**
-
-**Constat (review v1.48.6).** Deux systèmes de navigation coexistent : le mobile passe par `AppNavGraph` (navigation-compose, `presentation/navigation/NavGraph.kt`, ~600 lignes) tandis que la TV passe par une navigation manuelle (enum `AppScreen` + `screenHistory` + gros `when` dans `MainActivity.kt`, ~890 lignes). Chaque nouvel écran doit être câblé **deux fois**, avec deux logiques de back différentes — source répétée de régressions (écrans présents sur une plateforme seulement, comportements back divergents) et premier facteur de la taille de MainActivity.
-
-**Prompt.**
-> Unifie la navigation de l'app CSTV sur navigation-compose pour les deux plateformes (mobile + TV), en supprimant la navigation manuelle par enum `AppScreen` de `MainActivity.kt`.
-> 1. Étends `AppNavGraph` pour couvrir tous les écrans encore gérés manuellement côté TV, avec les mêmes routes que le mobile. Les différences TV (focus D-pad, layouts) restent dans les écrans (`isTv`), pas dans la navigation.
-> 2. Reproduis fidèlement le comportement back TV actuel (BackHandler : retour hiérarchique, déconnexion depuis le dashboard) avec `navController` (popBackStack + logique de racine).
-> 3. Réduis `MainActivity` à : détection isTv, thème, état de session, hôte du NavGraph.
-> 4. Aucune régression : parcours complet mobile + TV (login → home → chaque écran → back), `assembleDebug` + `lintDebug` + `testDebugUnitTest`.
-> Procède écran par écran (commits intermédiaires) plutôt qu'en big-bang.
-
----
-
 ### T-3. Factoriser les trois lecteurs vidéo — Effort L (Priorité Moyenne)
 **Modèle : Opus 4.8**
 
