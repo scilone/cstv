@@ -342,4 +342,55 @@ class HomeViewModelTest {
 
         viewModel.viewModelScope.cancel()
     }
+
+    // F-6 : les recommandations sont peuplées depuis GetRecommendationsUseCase
+    // (découplé de isLoading, comme TMDB) et exposées telles quelles dans le
+    // state — c'est ce state qui pilote la visibilité des sections "Recommandé
+    // pour vous" (Films/Séries) et leur grille "Voir tout" dans HomeScreen.
+    @Test
+    fun test_loadHomeData_populatesRecommendedMoviesAndSeries() = runTest {
+        stubReactiveSources()
+        stubEmptyCategoryPreferences()
+        whenever(getLiveCategoriesUseCase(false)).thenReturn(emptyList())
+        whenever(vodRepository.getVodStreams("all", false)).thenReturn(emptyList())
+        whenever(seriesRepository.getSeriesStreams("all", false)).thenReturn(emptyList())
+
+        val recoMovie = VodStream(501, "Recommended Movie", "icon", "8.0", "12345", "1")
+        val recoSeries = SeriesStream(601, "Recommended Series", "cover", "8.5", "12345", "1")
+        whenever(getRecommendationsUseCase.invoke(any())).thenReturn(
+            com.cstv.app.domain.usecase.GetRecommendationsUseCase.RecommendationResult(
+                movies = listOf(recoMovie),
+                series = listOf(recoSeries)
+            )
+        )
+
+        viewModel = createViewModel()
+
+        val state = viewModel.state.value
+        assertEquals(1, state.recommendedMovies.size)
+        assertEquals("Recommended Movie", state.recommendedMovies[0].name)
+        assertEquals(1, state.recommendedSeries.size)
+        assertEquals("Recommended Series", state.recommendedSeries[0].name)
+
+        viewModel.viewModelScope.cancel()
+    }
+
+    // Cold start (F-6) : le use case renvoie des listes vides -> le state reste
+    // vide et les sections restent masquées côté HomeScreen (pas de fallback).
+    @Test
+    fun test_loadHomeData_coldStart_recommendedListsStayEmpty() = runTest {
+        stubReactiveSources() // stubReactiveSources() renvoie déjà des listes vides par défaut
+        stubEmptyCategoryPreferences()
+        whenever(getLiveCategoriesUseCase(false)).thenReturn(emptyList())
+        whenever(vodRepository.getVodStreams("all", false)).thenReturn(emptyList())
+        whenever(seriesRepository.getSeriesStreams("all", false)).thenReturn(emptyList())
+
+        viewModel = createViewModel()
+
+        val state = viewModel.state.value
+        assertTrue(state.recommendedMovies.isEmpty())
+        assertTrue(state.recommendedSeries.isEmpty())
+
+        viewModel.viewModelScope.cancel()
+    }
 }

@@ -159,9 +159,11 @@ fun HomeScreen(
                     favoritesList = state.favoritesList,
                     topVodStreams = state.topVodStreams,
                     recommendedMovies = state.recommendedMovies,
+                    recommendedSeries = state.recommendedSeries,
                     onResumeClick = handleResumeClick,
                     onFavoriteClick = handleFavoriteClick,
                     onMovieClick = onSelectMovieDetail,
+                    onSeriesClick = onSelectSeriesDetail,
                     onBack = { expandedSection = null },
                     modifier = Modifier.fillMaxSize()
                 )
@@ -571,7 +573,7 @@ fun HomeScreen(
                         HomeSectionRow(
                             title = stringResource(R.string.home_recommended_series),
                             isTv = isTv,
-                            onSeeAll = null // Could be added to expanded grid later if desired
+                            onSeeAll = { expandedSection = HomeExpandedSection.RECOMMENDED_SERIES }
                         ) {
                             LazyRow(
                                 state = rememberForeverLazyListState("home_reco_series", { viewModel.getScrollPosition(it) }, { k, i, o -> viewModel.saveScrollPosition(k, i, o) }),
@@ -595,7 +597,7 @@ fun HomeScreen(
 }
 
 // Section de l'accueil affichable en grille verticale via "Voir tout".
-private enum class HomeExpandedSection { RESUME, FAVORITES, TOP_MOVIES, RECOMMENDED_MOVIES }
+private enum class HomeExpandedSection { RESUME, FAVORITES, TOP_MOVIES, RECOMMENDED_MOVIES, RECOMMENDED_SERIES }
 
 @Composable
 private fun HomeExpandedGrid(
@@ -604,9 +606,11 @@ private fun HomeExpandedGrid(
     favoritesList: List<FavoriteItem>,
     topVodStreams: List<VodStream>,
     recommendedMovies: List<VodStream>,
+    recommendedSeries: List<SeriesStream>,
     onResumeClick: (PlaybackPosition) -> Unit,
     onFavoriteClick: (FavoriteItem) -> Unit,
     onMovieClick: (VodStream) -> Unit,
+    onSeriesClick: (SeriesStream) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -615,12 +619,14 @@ private fun HomeExpandedGrid(
         HomeExpandedSection.FAVORITES -> stringResource(R.string.home_favorites)
         HomeExpandedSection.TOP_MOVIES -> stringResource(R.string.home_top_movies)
         HomeExpandedSection.RECOMMENDED_MOVIES -> stringResource(R.string.home_recommended_movies)
+        HomeExpandedSection.RECOMMENDED_SERIES -> stringResource(R.string.home_recommended_series)
     }
     val count = when (section) {
         HomeExpandedSection.RESUME -> resumeList.size
         HomeExpandedSection.FAVORITES -> favoritesList.size
         HomeExpandedSection.TOP_MOVIES -> topVodStreams.size
         HomeExpandedSection.RECOMMENDED_MOVIES -> recommendedMovies.size
+        HomeExpandedSection.RECOMMENDED_SERIES -> recommendedSeries.size
     }
     // "Continuer à regarder" = vignettes paysage -> 2 colonnes ;
     // Les autres = affiches -> 3 colonnes.
@@ -677,6 +683,12 @@ private fun HomeExpandedGrid(
                     HomeVodMovieCard(
                         stream = stream,
                         onClick = { onMovieClick(stream) }
+                    )
+                }
+                HomeExpandedSection.RECOMMENDED_SERIES -> gridItems(recommendedSeries) { stream ->
+                    HomeSeriesShowCard(
+                        stream = stream,
+                        onClick = { onSeriesClick(stream) }
                     )
                 }
             }

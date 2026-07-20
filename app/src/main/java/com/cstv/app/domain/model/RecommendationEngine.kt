@@ -58,7 +58,7 @@ object RecommendationEngine {
 
         for (item in watchedItems) {
             // Count category
-            categoryCounts[item.categoryId] = categoryCounts.getOrDefault(item.categoryId, 0) + 1
+            categoryCounts[item.categoryId] = (categoryCounts[item.categoryId] ?: 0) + 1
 
             // Count genres
             val itemGenres = GenreParser.parseGenres(item.genres)
@@ -67,7 +67,7 @@ object RecommendationEngine {
                 for (g in itemGenres) {
                     val normalized = GenreParser.normalize(g)
                     if (normalized.isNotBlank()) {
-                        genreCounts[normalized] = genreCounts.getOrDefault(normalized, 0) + 1
+                        genreCounts[normalized] = (genreCounts[normalized] ?: 0) + 1
                     }
                 }
             }
@@ -138,14 +138,14 @@ object RecommendationEngine {
             for (g in candidateGenres) {
                 val normalized = GenreParser.normalize(g)
                 if (normalized.isNotBlank()) {
-                    sumWeights += taste.genreWeights.getOrDefault(normalized, 0.0)
+                    sumWeights += taste.genreWeights[normalized] ?: 0.0
                 }
             }
             genreScore = sumWeights.coerceAtMost(1.0)
         }
 
         // 2. Category Score (0.0 to 1.0)
-        val categoryScore = taste.categoryWeights.getOrDefault(candidate.categoryId, 0.0)
+        val categoryScore = taste.categoryWeights[candidate.categoryId] ?: 0.0
 
         // 3. Rating Score (0.0 to 1.0)
         val ratingScore = (parseRating(candidate.rating) / 10.0).coerceIn(0.0, 1.0)

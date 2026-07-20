@@ -653,3 +653,13 @@ Bouton "Voir tout" sur les sections favoris, passage en grille à 3 colonnes pou
 - **Tâche 3 (Presentation) :** Création du composant hautement visuel `HomeTrendingCarousel` mobile avec page indicators, gradient overlay et badge Tendance, branché réactivement à la place de `HomeHeroCard` (mobile).
 - **Tâche 4 (Fallback) :** Gestion de repli automatique et silencieuse sur `HomeHeroCard` (reprendre) si la liste est vide, hors-ligne ou sur Android TV pour garantir une fluidité d'affichage optimale sans crash.
 - **Stabilité & Tests :** 11 tests unitaires complets ajoutés (`TitleNormalizerTest`, `ApproximateTitleMatcherTest`, `GetTrendingInCatalogUseCaseTest`, `HomeViewModelTest`).
+
+---
+
+### Feature F-6 : Recommandations personnalisées par profil (« Recommandé pour vous »)
+
+✅ **TERMINÉE** (Livrée) — Réalisée via les Tâches 1 et 2 :
+- **Tâche 1 (Domain) :** `RecommendationEngine` (objet pur, `domain/model/`) construit un profil de goûts par profil actif (poids de fréquence par genre normalisé `GenreParser.normalize` et par `categoryId`, dédupliqués par média distinct — une série de 50 épisodes ne compte qu'une fois) puis score tout candidat non vu (`0.40×genres + 0.20×catégorie + 0.25×note + 0.15×fraîcheur linéaire sur 180j`), tri stable (score puis note puis fraîcheur), top 100. `GetRecommendationsUseCase` (`@Singleton`) exécute sous `Dispatchers.Default`, exclut catégories masquées, applique le cold start (< 3 médias distincts régarés ⇒ listes vides), et cache le résultat en mémoire par `profileId` avec TTL 24h (Mutex, invalidation immédiate au changement de profil).
+- **Tâche 2 (Presentation) :** Deux sections `HomeSectionRow` « Recommandé pour vous » (Films/Séries) sur la Home mobile + TV (D-pad), masquées si vide (cold start), calcul découplé du chargement principal (comme TMDB, jamais bloquant). « Voir tout » ouvre la vue développée en grille existante (`HomeExpandedSection`).
+- **Revue & corrections post-livraison (Sonnet 5) :** section « Séries recommandées » — le bouton « Voir tout » était non câblé (`onSeeAll = null`), sans variante `HomeExpandedSection.RECOMMENDED_SERIES` dans la grille développée ; ajouté (enum, titre, count, grille, clic détail série). Correction d'un crash potentiel sur Android < 7 (`Map.getOrDefault` requiert l'API 24, minSdk du projet = 21) dans `RecommendationEngine` — remplacé par l'idiome `map[key] ?: default`, détecté par `lintDebug`. Ajout de 2 tests `HomeViewModelTest` couvrant le peuplement des sections recommandées et le cold start (manquants du cahier des charges Tâche 2.4).
+- **Stabilité & Tests :** `RecommendationEngineTest`, `GetRecommendationsUseCaseTest`, tests `HomeViewModelTest` dédiés. `assembleDebug` + `lintDebug` + `testDebugUnitTest` au vert.
