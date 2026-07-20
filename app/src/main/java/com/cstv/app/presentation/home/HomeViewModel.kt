@@ -27,6 +27,7 @@ import javax.inject.Inject
 
 import com.cstv.app.domain.model.LiveEpgProgram
 import com.cstv.app.domain.usecase.GetLiveEpgUseCase
+import com.cstv.app.domain.usecase.GetRecommendationsUseCase
 import com.cstv.app.domain.model.TopRatedSelector
 
 private const val EPG_POLL_INTERVAL_MILLIS = 60_000L
@@ -46,6 +47,9 @@ data class HomeState(
     val topVodStreams: List<VodStream> = emptyList(),
     val topSeriesStreams: List<SeriesStream> = emptyList(),
     
+    val recommendedMovies: List<VodStream> = emptyList(),
+    val recommendedSeries: List<SeriesStream> = emptyList(),
+    
     val error: String? = null,
     val epgPrograms: Map<Int, LiveEpgProgram> = emptyMap()
 )
@@ -59,7 +63,8 @@ class HomeViewModel @Inject constructor(
     private val getLiveEpgUseCase: GetLiveEpgUseCase,
     private val getLiveCategoriesUseCase: GetLiveCategoriesUseCase,
     private val categoryPreferenceRepository: CategoryPreferenceRepository,
-    private val getTrendingInCatalogUseCase: com.cstv.app.domain.usecase.GetTrendingInCatalogUseCase
+    private val getTrendingInCatalogUseCase: com.cstv.app.domain.usecase.GetTrendingInCatalogUseCase,
+    private val getRecommendationsUseCase: GetRecommendationsUseCase
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(HomeState())
@@ -259,6 +264,23 @@ class HomeViewModel @Inject constructor(
                 emptyList()
             }
             _state.update { it.copy(trendingList = trendingList) }
+        }
+
+        // Recommandations F-6 : calcul intensif (parsing genres sur des milliers d'entrées)
+        // Découplé de la Home pour un affichage asynchrone progressif, comme TMDB.
+        viewModelScope.launch {
+            try {
+                val recos = getRecommendationsUseCase()
+                _state.update { 
+                    it.copy(
+                        recommendedMovies = recos.movies,
+                        recommendedSeries = recos.series
+                    ) 
+                }
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                // Fail silently for recommendations
+            }
         }
 
         viewModelScope.launch {

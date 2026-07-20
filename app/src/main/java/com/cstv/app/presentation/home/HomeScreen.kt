@@ -151,18 +151,22 @@ fun HomeScreen(
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
             }
-        } else if (expandedSection != null) {
-            HomeExpandedGrid(
-                section = expandedSection!!,
-                resumeList = state.resumeWatchingList,
-                favoritesList = state.favoritesList,
-                onResumeClick = handleResumeClick,
-                onFavoriteClick = handleFavoriteClick,
-                onBack = { expandedSection = null },
-                modifier = Modifier.fillMaxSize()
-            )
         } else {
-            LazyColumn(
+            expandedSection?.let { section ->
+                HomeExpandedGrid(
+                    section = section,
+                    resumeList = state.resumeWatchingList,
+                    favoritesList = state.favoritesList,
+                    topVodStreams = state.topVodStreams,
+                    recommendedMovies = state.recommendedMovies,
+                    onResumeClick = handleResumeClick,
+                    onFavoriteClick = handleFavoriteClick,
+                    onMovieClick = onSelectMovieDetail,
+                    onBack = { expandedSection = null },
+                    modifier = Modifier.fillMaxSize()
+                )
+            } ?: run {
+                LazyColumn(
                 state = lazyListState,
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(16.dp),
@@ -465,16 +469,16 @@ fun HomeScreen(
                     }
                 }
 
-                // NOUVEAU: Section "Top 10 Films"
+                // 6. Section: Top 10 Films (Trending/Top Rated)
                 if (state.topVodStreams.isNotEmpty()) {
                     item {
                         HomeSectionRow(
                             title = stringResource(R.string.home_top_movies),
                             isTv = isTv,
-                            onSeeAll = null
+                            onSeeAll = { expandedSection = HomeExpandedSection.TOP_MOVIES }
                         ) {
                             LazyRow(
-                                state = rememberForeverLazyListState("home_top_vod", { viewModel.getScrollPosition(it) }, { k, i, o -> viewModel.saveScrollPosition(k, i, o) }),
+                                state = rememberForeverLazyListState("home_top_movies", { viewModel.getScrollPosition(it) }, { k, i, o -> viewModel.saveScrollPosition(k, i, o) }),
                                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                                 modifier = Modifier.fillMaxWidth().focusGroup()
                             ) {
@@ -489,7 +493,31 @@ fun HomeScreen(
                     }
                 }
 
-                // 6. Section: "Séries" (Latest additions Series Streams)
+                // 7. Section F-6: "Films recommandés pour vous"
+                if (state.recommendedMovies.isNotEmpty()) {
+                    item {
+                        HomeSectionRow(
+                            title = stringResource(R.string.home_recommended_movies),
+                            isTv = isTv,
+                            onSeeAll = { expandedSection = HomeExpandedSection.RECOMMENDED_MOVIES }
+                        ) {
+                            LazyRow(
+                                state = rememberForeverLazyListState("home_reco_movies", { viewModel.getScrollPosition(it) }, { k, i, o -> viewModel.saveScrollPosition(k, i, o) }),
+                                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                                modifier = Modifier.fillMaxWidth().focusGroup()
+                            ) {
+                                items(state.recommendedMovies) { stream ->
+                                    HomeVodMovieCard(
+                                        stream = stream,
+                                        onClick = { onSelectMovieDetail(stream) }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 8. Section: "Séries" (Latest additions Series Streams)
                 if (state.firstSeriesStreams.isNotEmpty()) {
                     item {
                         HomeSectionRow(
@@ -513,7 +541,7 @@ fun HomeScreen(
                     }
                 }
 
-                // NOUVEAU: Section "Top 10 Séries"
+                // 9. Section: Top 10 Séries
                 if (state.topSeriesStreams.isNotEmpty()) {
                     item {
                         HomeSectionRow(
@@ -536,34 +564,66 @@ fun HomeScreen(
                         }
                     }
                 }
+
+                // 10. Section F-6: "Séries recommandées pour vous"
+                if (state.recommendedSeries.isNotEmpty()) {
+                    item {
+                        HomeSectionRow(
+                            title = stringResource(R.string.home_recommended_series),
+                            isTv = isTv,
+                            onSeeAll = null // Could be added to expanded grid later if desired
+                        ) {
+                            LazyRow(
+                                state = rememberForeverLazyListState("home_reco_series", { viewModel.getScrollPosition(it) }, { k, i, o -> viewModel.saveScrollPosition(k, i, o) }),
+                                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                                modifier = Modifier.fillMaxWidth().focusGroup()
+                            ) {
+                                items(state.recommendedSeries) { stream ->
+                                    HomeSeriesShowCard(
+                                        stream = stream,
+                                        onClick = { onSelectSeriesDetail(stream) }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+                }
             }
         }
     }
 }
 
 // Section de l'accueil affichable en grille verticale via "Voir tout".
-private enum class HomeExpandedSection { RESUME, FAVORITES }
+private enum class HomeExpandedSection { RESUME, FAVORITES, TOP_MOVIES, RECOMMENDED_MOVIES }
 
 @Composable
 private fun HomeExpandedGrid(
     section: HomeExpandedSection,
     resumeList: List<PlaybackPosition>,
     favoritesList: List<FavoriteItem>,
+    topVodStreams: List<VodStream>,
+    recommendedMovies: List<VodStream>,
     onResumeClick: (PlaybackPosition) -> Unit,
     onFavoriteClick: (FavoriteItem) -> Unit,
+    onMovieClick: (VodStream) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val title = when (section) {
         HomeExpandedSection.RESUME -> stringResource(R.string.home_resume)
         HomeExpandedSection.FAVORITES -> stringResource(R.string.home_favorites)
+        HomeExpandedSection.TOP_MOVIES -> stringResource(R.string.home_top_movies)
+        HomeExpandedSection.RECOMMENDED_MOVIES -> stringResource(R.string.home_recommended_movies)
     }
     val count = when (section) {
         HomeExpandedSection.RESUME -> resumeList.size
         HomeExpandedSection.FAVORITES -> favoritesList.size
+        HomeExpandedSection.TOP_MOVIES -> topVodStreams.size
+        HomeExpandedSection.RECOMMENDED_MOVIES -> recommendedMovies.size
     }
     // "Continuer à regarder" = vignettes paysage -> 2 colonnes ;
-    // "Favoris" = affiches -> 3 colonnes.
+    // Les autres = affiches -> 3 colonnes.
     val columns = if (section == HomeExpandedSection.RESUME) 2 else 3
 
     Column(modifier = modifier.padding(16.dp)) {
@@ -605,6 +665,18 @@ private fun HomeExpandedGrid(
                         favorite = fav,
                         onClick = { onFavoriteClick(fav) },
                         modifier = Modifier.fillMaxWidth()
+                    )
+                }
+                HomeExpandedSection.TOP_MOVIES -> gridItems(topVodStreams) { stream ->
+                    HomeVodMovieCard(
+                        stream = stream,
+                        onClick = { onMovieClick(stream) }
+                    )
+                }
+                HomeExpandedSection.RECOMMENDED_MOVIES -> gridItems(recommendedMovies) { stream ->
+                    HomeVodMovieCard(
+                        stream = stream,
+                        onClick = { onMovieClick(stream) }
                     )
                 }
             }

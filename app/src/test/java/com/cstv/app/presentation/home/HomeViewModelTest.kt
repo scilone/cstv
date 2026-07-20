@@ -47,6 +47,9 @@ class HomeViewModelTest {
     @Mock
     private lateinit var getTrendingInCatalogUseCase: com.cstv.app.domain.usecase.GetTrendingInCatalogUseCase
 
+    @Mock
+    private lateinit var getRecommendationsUseCase: com.cstv.app.domain.usecase.GetRecommendationsUseCase
+
     // Phase 42 : StandardTestDispatcher (et non Unconfined) + runCurrent() après
     // construction. HomeViewModel lance désormais un ticker EPG infini
     // (while(true) { delay(60s); ... }) dans son init : avec un dispatcher
@@ -81,7 +84,8 @@ class HomeViewModelTest {
             getLiveEpgUseCase,
             getLiveCategoriesUseCase,
             categoryPreferenceRepository,
-            getTrendingInCatalogUseCase
+            getTrendingInCatalogUseCase,
+            getRecommendationsUseCase
         )
         testDispatcher.scheduler.runCurrent()
         return vm
@@ -100,6 +104,9 @@ class HomeViewModelTest {
         // et préférences vides par défaut (aucune catégorie masquée).
         doReturn(flowOf(Unit)).whenever(categoryPreferenceRepository).changes
         whenever(getTrendingInCatalogUseCase.invoke()).thenReturn(emptyList())
+        whenever(getRecommendationsUseCase.invoke(any())).thenReturn(
+            com.cstv.app.domain.usecase.GetRecommendationsUseCase.RecommendationResult(emptyList(), emptyList())
+        )
     }
 
     private suspend fun stubEmptyCategoryPreferences() {
