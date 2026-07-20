@@ -262,7 +262,10 @@ class HomeViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
-            _state.update { it.copy(isLoading = true, error = null) }
+            val isCurrentStateEmpty = _state.value.firstLiveStreams.isEmpty() &&
+                    _state.value.firstVodStreams.isEmpty() &&
+                    _state.value.firstSeriesStreams.isEmpty()
+            _state.update { it.copy(isLoading = isCurrentStateEmpty, error = null) }
             try {
                 // "Continuer à regarder" et "Favoris" sont alimentés en continu par les
                 // Flow collectés dans init() (voir groupResumeWatching) : plus de fetch
