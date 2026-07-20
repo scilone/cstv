@@ -110,31 +110,12 @@ fun HomeTrendingCarousel(
                             )
                     )
 
-                    // 3. Badge "Tendance" and Content info
+                    // 3. Content info
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
                             .padding(16.dp)
                     ) {
-                        // Top-left badge "Tendance"
-                        Box(
-                            modifier = Modifier
-                                .background(
-                                    MaterialTheme.colorScheme.primary,
-                                    shape = RoundedCornerShape(12.dp)
-                                )
-                                .padding(horizontal = 10.dp, vertical = 4.dp)
-                                .align(Alignment.TopStart)
-                        ) {
-                            Text(
-                                text = "★ TENDANCE",
-                                color = Color.White,
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 1.sp
-                            )
-                        }
-
                         // Bottom text metadata
                         Column(
                             modifier = Modifier
