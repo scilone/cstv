@@ -73,7 +73,7 @@ class TrendingRepositoryImpl @Inject constructor(
     }
 
     override suspend fun getCachedMatchedTrendsGlobal(): List<TrendingCatalogItem>? = mutex.withLock {
-        val lastFetchTime = sharedPrefs.getLong("trends_time_global", 0L)
+        val lastFetchTime = sharedPrefs.getLong("trends_time_global_v2", 0L)
         val currentTime = System.currentTimeMillis()
 
         if (currentTime - lastFetchTime >= cacheDurationMs) {
@@ -81,7 +81,7 @@ class TrendingRepositoryImpl @Inject constructor(
             return null // Cache expired
         }
 
-        val json = sharedPrefs.getString("trends_data_global", null) ?: run {
+        val json = sharedPrefs.getString("trends_data_global_v2", null) ?: run {
             com.cstv.app.di.IptvLog.d("TMDB", "💾 Global trends cache is empty.")
             return null
         }
@@ -101,8 +101,8 @@ class TrendingRepositoryImpl @Inject constructor(
             try {
                 val json = gson.toJson(items)
                 sharedPrefs.edit()
-                    .putString("trends_data_global", json)
-                    .putLong("trends_time_global", System.currentTimeMillis())
+                    .putString("trends_data_global_v2", json)
+                    .putLong("trends_time_global_v2", System.currentTimeMillis())
                     .apply()
                 com.cstv.app.di.IptvLog.d("TMDB", "💾 Global matched trends successfully saved in persistent cache.")
             } catch (e: Exception) {
