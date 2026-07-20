@@ -143,8 +143,11 @@ class GetTrendingInCatalogUseCase @Inject constructor(
         val hiddenSeries = getHiddenCategories(CategoryType.SERIES)
 
         val filteredResult = matchedList.mapNotNull { item ->
-            if (item.matchedMovies.isNotEmpty()) {
-                val allowedMovies = item.matchedMovies.filter { it.categoryId !in hiddenMovies }
+            val movies = item.matchedMovies
+            val seriesList = item.matchedSeriesList
+
+            if (!movies.isNullOrEmpty()) {
+                val allowedMovies = movies.filter { it.categoryId !in hiddenMovies }
                 if (allowedMovies.isNotEmpty()) {
                     val selected = allowedMovies.first()
                     com.cstv.app.di.IptvLog.d("TMDB", "🎯 Selected allowed movie version for '${item.trendingTitle.title}': '${selected.name}' (Category: '${selected.categoryId}')")
@@ -153,8 +156,8 @@ class GetTrendingInCatalogUseCase @Inject constructor(
                     com.cstv.app.di.IptvLog.d("TMDB", "🚫 Movie '${item.trendingTitle.title}' filtered out because ALL matched versions belong to hidden categories.")
                     null // All matched movie versions are hidden
                 }
-            } else if (item.matchedSeriesList.isNotEmpty()) {
-                val allowedSeries = item.matchedSeriesList.filter { it.categoryId !in hiddenSeries }
+            } else if (!seriesList.isNullOrEmpty()) {
+                val allowedSeries = seriesList.filter { it.categoryId !in hiddenSeries }
                 if (allowedSeries.isNotEmpty()) {
                     val selected = allowedSeries.first()
                     com.cstv.app.di.IptvLog.d("TMDB", "🎯 Selected allowed series version for '${item.trendingTitle.title}': '${selected.name}' (Category: '${selected.categoryId}')")
@@ -164,7 +167,28 @@ class GetTrendingInCatalogUseCase @Inject constructor(
                     null // All matched series versions are hidden
                 }
             } else {
-                item
+                // Backward compatibility: support old v1.47.25 cache structure where lists are null but singular elements are present
+                if (item.matchedMovie != null) {
+                    val isHidden = item.matchedMovie.categoryId in hiddenMovies
+                    if (!isHidden) {
+                        com.cstv.app.di.IptvLog.d("TMDB", "🎯 Selected allowed movie version (Legacy Cache) for '${item.trendingTitle.title}': '${item.matchedMovie.name}'")
+                        item.copy(matchedMovies = listOf(item.matchedMovie))
+                    } else {
+                        com.cstv.app.di.IptvLog.d("TMDB", "🚫 Movie '${item.trendingTitle.title}' (Legacy Cache) filtered out because it is in a hidden category.")
+                        null
+                    }
+                } else if (item.matchedSeries != null) {
+                    val isHidden = item.matchedSeries.categoryId in hiddenSeries
+                    if (!isHidden) {
+                        com.cstv.app.di.IptvLog.d("TMDB", "🎯 Selected allowed series version (Legacy Cache) for '${item.trendingTitle.title}': '${item.matchedSeries.name}'")
+                        item.copy(matchedSeriesList = listOf(item.matchedSeries))
+                    } else {
+                        com.cstv.app.di.IptvLog.d("TMDB", "🚫 Series '${item.trendingTitle.title}' (Legacy Cache) filtered out because it is in a hidden category.")
+                        null
+                    }
+                } else {
+                    item
+                }
             }
         }
 
