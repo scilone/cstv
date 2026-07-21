@@ -174,14 +174,14 @@ object RecommendationEngine {
             for (g in candidateGenres) {
                 val normalized = GenreParser.normalize(g)
                 if (normalized.isNotBlank()) {
-                    sumWeights += taste.genreWeights.getOrDefault(normalized, 0.0)
+                    sumWeights += taste.genreWeights[normalized] ?: 0.0
                 }
             }
             genreScore = sumWeights.coerceAtMost(1.0)
         }
 
         // 2. Category Score (0.0 to 1.0)
-        val categoryScore = taste.categoryWeights.getOrDefault(candidate.categoryId, 0.0)
+        val categoryScore = taste.categoryWeights[candidate.categoryId] ?: 0.0
 
         // 3. Actors Score (0.0 to 1.0)
         var actorsScore = 0.0
@@ -189,7 +189,7 @@ object RecommendationEngine {
         if (candidateActors.isNotEmpty()) {
             var sumWeights = 0.0
             for (actor in candidateActors) {
-                sumWeights += taste.actorWeights.getOrDefault(actor, 0.0)
+                sumWeights += taste.actorWeights[actor] ?: 0.0
             }
             actorsScore = sumWeights.coerceAtMost(1.0)
         }
@@ -197,7 +197,7 @@ object RecommendationEngine {
         // 4. Director Score (0.0 to 1.0)
         val director = candidate.director?.trim()?.lowercase()
         val directorScore = if (!director.isNullOrBlank()) {
-            taste.directorWeights.getOrDefault(director, 0.0)
+            taste.directorWeights[director] ?: 0.0
         } else {
             0.0
         }

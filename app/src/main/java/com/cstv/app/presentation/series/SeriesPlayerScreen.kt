@@ -76,6 +76,14 @@ import com.cstv.app.presentation.player.PlayerBottomAction
 import com.cstv.app.presentation.player.ResolutionBadge
 import com.cstv.app.presentation.theme.Surface1
 import com.cstv.app.presentation.theme.Surface3
+import com.cstv.app.presentation.player.core.KeepScreenOnEffect
+import com.cstv.app.presentation.player.core.PlayerOverlayHost
+import com.cstv.app.presentation.player.core.PlayerOverlayGradients
+import com.cstv.app.presentation.player.core.PlayerOverlayTopBar
+import com.cstv.app.presentation.player.core.TrackPlayerPosition
+import com.cstv.app.presentation.player.core.enterPictureInPicture
+import com.cstv.app.presentation.player.core.rememberManagedExoPlayer
+import com.cstv.app.presentation.player.core.rememberPipState
 import com.cstv.app.domain.model.Credentials
 import com.cstv.app.domain.model.SeriesEpisode
 import com.cstv.app.domain.model.computeNextEpisode
@@ -118,23 +126,7 @@ fun SeriesPlayerScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val exoPlayer = remember {
-        // Source de données adossée au cache de téléchargement : un épisode
-        // téléchargé (feature #15) est lu hors-ligne de façon transparente.
-        val mediaSourceFactory = DefaultMediaSourceFactory(
-            OfflineDownloadUtil.getReadOnlyCacheDataSourceFactory(context)
-        )
-        // Décodeurs FFmpeg (NextLib) préférés pour l'audio : lit EAC3/AC3/DTS
-        // même sur les appareils sans décodeur matériel de ces codecs (le
-        // décodeur HW peut s'annoncer supporté puis crasher le
-        // MediaCodecAudioRenderer, d'où le mode PREFER plutôt que fallback).
-        val renderersFactory = NextRenderersFactory(context)
-            .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
-            .setEnableDecoderFallback(true)
-        ExoPlayer.Builder(context, renderersFactory)
-            .setMediaSourceFactory(mediaSourceFactory)
-            .build()
-    }
+    val exoPlayer = rememberManagedExoPlayer(useOfflineCache = true)
 
     var isPlayerVisible by remember { mutableStateOf(true) }
     var currentResizeMode by remember { mutableStateOf(viewModel.getResizeMode()) }
@@ -149,36 +141,7 @@ fun SeriesPlayerScreen(
 
     var playerViewRef by remember { mutableStateOf<PlayerView?>(null) }
     val componentActivity = remember(context) { context.findActivity() as? androidx.activity.ComponentActivity }
-    var isInPipMode by remember {
-        mutableStateOf(
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
-                componentActivity?.isInPictureInPictureMode == true
-            } else {
-                false
-            }
-        )
-    }
-
-    DisposableEffect(componentActivity) {
-        if (componentActivity == null) return@DisposableEffect onDispose {}
-        val listener = androidx.core.util.Consumer<androidx.core.app.PictureInPictureModeChangedInfo> { info ->
-            isInPipMode = info.isInPictureInPictureMode
-        }
-        componentActivity.addOnPictureInPictureModeChangedListener(listener)
-        onDispose {
-            componentActivity.removeOnPictureInPictureModeChangedListener(listener)
-        }
-    }
-
-    LaunchedEffect(isInPipMode) {
-        // Le SurfaceView interne au PlayerView ne se relayout pas tout seul
-        // au redimensionnement de la fenêtre PIP (bug connu ExoPlayer/Media3) :
-        // un cycle invisible/visible force un vrai passage de layout.
-        playerViewRef?.let { view ->
-            view.visibility = android.view.View.INVISIBLE
-            view.post { view.visibility = android.view.View.VISIBLE }
-        }
-    }
+    val isInPipMode = rememberPipState(playerViewRef)
 
     // Épisode actuellement lu (Phase 59) : initialisé sur celui reçu en
     // navigation, puis remplacé en interne à chaque enchaînement (auto en fin
@@ -223,15 +186,7 @@ fun SeriesPlayerScreen(
         handleClose()
     }
 
-    // Prevent screen lock during playback
-    DisposableEffect(Unit) {
-        val activity = context.findActivity()
-        val window = activity?.window
-        window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        onDispose {
-            window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        }
-    }
+    KeepScreenOnEffect()
 
     var isPlaying by remember { mutableStateOf(true) }
     var isBuffering by remember { mutableStateOf(true) }
@@ -246,13 +201,6 @@ fun SeriesPlayerScreen(
     var availableAudioTracks by remember { mutableStateOf(emptyList<TrackInfo>()) }
     var availableSubtitleTracks by remember { mutableStateOf(emptyList<TrackInfo>()) }
     var showTrackDialog by remember { mutableStateOf(false) }
-
-    LaunchedEffect(showControls, isPlaying) {
-        if (showControls && isPlaying) {
-            delay(5000)
-            showControls = false
-        }
-    }
 
     // Prepare & Play Episode. Clé = currentEpisode : rejoué à chaque
     // enchaînement (Phase 59), pas seulement à l'ouverture initiale.
@@ -402,25 +350,27 @@ fun SeriesPlayerScreen(
         currentEpisode = next
     }
 
-    // Save playback position loop (Runs every 1 second, saves to Room every 5 seconds)
-    LaunchedEffect(exoPlayer) {
-        var secondsCounter = 0
-        while (true) {
-            if (exoPlayer.isPlaying) {
-                currentPosition = exoPlayer.currentPosition
-                duration = exoPlayer.duration.coerceAtLeast(0L)
-
-                if (currentPosition > 0 && duration > 0) {
-                    secondsCounter++
-                    if (secondsCounter >= 5) {
-                        viewModel.savePosition(currentEpisode, currentPosition, duration, seriesName, seriesCover)
-                        secondsCounter = 0
-                    }
+    TrackPlayerPosition(
+        exoPlayer = exoPlayer,
+        contentKey = currentEpisode.id,
+        isPlaying = isPlaying,
+        onPositionChanged = { positionMs, durationMs ->
+            currentPosition = positionMs
+            duration = durationMs
+        },
+        onPeriodicSave = { positionMs, durationMs ->
+            viewModel.savePosition(currentEpisode, positionMs, durationMs, seriesName, seriesCover)
+        },
+        onTrackerDispose = { positionMs, durationMs ->
+            if (positionMs > 0L && durationMs > 0L) {
+                if (positionMs >= durationMs - 15_000L) {
+                    viewModel.clearPosition(currentEpisode.id)
+                } else {
+                    viewModel.savePosition(currentEpisode, positionMs, durationMs, seriesName, seriesCover)
                 }
             }
-            delay(1000)
         }
-    }
+    )
 
     // ExoPlayer Listener
     DisposableEffect(exoPlayer) {
@@ -469,17 +419,7 @@ fun SeriesPlayerScreen(
         updateTracksState(exoPlayer.currentTracks)
 
         onDispose {
-            val lastPos = exoPlayer.currentPosition
-            val lastDur = exoPlayer.duration
-            if (lastPos > 0 && lastDur > 0) {
-                if (lastPos >= (lastDur - 15000L)) {
-                    viewModel.clearPosition(currentEpisode.id)
-                } else {
-                    viewModel.savePosition(currentEpisode, lastPos, lastDur, seriesName, seriesCover)
-                }
-            }
             exoPlayer.removeListener(listener)
-            exoPlayer.release()
         }
     }
 
@@ -685,36 +625,21 @@ fun SeriesPlayerScreen(
         }
 
         // Custom Media Controls Overlay (refonte Phase 60)
-        if (showControls && playbackError == null && !isInPipMode) {
+        if (playbackError == null) PlayerOverlayHost(
+            isVisible = showControls,
+            isInPipMode = isInPipMode,
+            isAutoHideBlocked = showTrackDialog,
+            isPlaying = isPlaying,
+            onVisibilityChanged = { showControls = it }
+        ) {
             val hasMultipleAudio = availableAudioTracks.size > 1
             val hasSubtitles = availableSubtitleTracks.isNotEmpty()
             val episodeLabel = "S%02dE%02d".format(currentEpisode.seasonNum, currentEpisode.episodeNum)
 
-            // Dégradés haut/bas pour lisibilité.
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(120.dp)
-                    .align(Alignment.TopCenter)
-                    .background(Brush.verticalGradient(listOf(Color(0xB3000000), Color.Transparent)))
-            )
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(220.dp)
-                    .align(Alignment.BottomCenter)
-                    .background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xCC000000))))
-            )
+            PlayerOverlayGradients(topHeight = 120.dp, bottomHeight = 220.dp)
 
             // Barre supérieure : retour (gauche) — PIP + format (droite)
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .align(Alignment.TopCenter)
-                    .padding(16.dp)
-            ) {
+            PlayerOverlayTopBar {
                 PlayerTopButton(
                     icon = Icons.AutoMirrored.Filled.ArrowBack,
                     contentDescription = "Retour",
@@ -725,31 +650,7 @@ fun SeriesPlayerScreen(
                         PlayerTopButton(
                             icon = Icons.Default.PictureInPictureAlt,
                             contentDescription = "Picture-in-Picture",
-                            onClick = {
-                                val act = componentActivity ?: return@PlayerTopButton
-                                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                                    val builder = android.app.PictureInPictureParams.Builder()
-                                    val vs = exoPlayer.videoSize
-                                    if (vs.width > 0 && vs.height > 0) {
-                                        try {
-                                            val ratio = vs.width.toFloat() / vs.height.toFloat()
-                                            if (ratio in 0.4184f..2.39f) {
-                                                builder.setAspectRatio(android.util.Rational(vs.width, vs.height))
-                                            } else {
-                                                builder.setAspectRatio(android.util.Rational(16, 9))
-                                            }
-                                        } catch (e: Exception) {
-                                            builder.setAspectRatio(android.util.Rational(16, 9))
-                                        }
-                                    } else {
-                                        builder.setAspectRatio(android.util.Rational(16, 9))
-                                    }
-                                    act.enterPictureInPictureMode(builder.build())
-                                } else if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
-                                    @Suppress("DEPRECATION")
-                                    act.enterPictureInPictureMode()
-                                }
-                            }
+                            onClick = { enterPictureInPicture(componentActivity, exoPlayer.videoSize) }
                         )
                     }
                     PlayerTopButton(
