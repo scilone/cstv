@@ -6,7 +6,7 @@ Type:
 Feature
 
 Status:
-SPECIFICATION
+ARCHITECTURE
 
 Created:
 2026-07-21
@@ -116,3 +116,334 @@ Permettre à un profil local de retirer lui-même un contenu de ses listes de re
 # 5. Notes de spécification
 
 - La maquette de référence ne définit pas encore de dialogue ou de geste de suppression pour ces cartes. L'étape 3 précisera les composants et l'intégration visuelle en réutilisant les tokens existants de `docs/design-reference/`, sans introduire de charte parallèle.
+
+---
+
+# 6. Spécification technique
+
+## Périmètre de données
+
+F8 réutilise les tables existantes :
+
+- `playback_positions` pour les films et épisodes de séries ;
+- `recently_watched_live` pour les chaînes récentes.
+
+Aucune colonne, table ou clé primaire n'est ajoutée. `AppDatabase` reste en version 16 tant que F8 est développé indépendamment ; si F7 est intégré avant F8, F8 conserve naturellement la version 17 introduite par F7. Aucune migration spécifique à F8 n'est requise.
+
+## Modèle de cible
+
+Les ViewModels transmettent les modèles de domaine déjà disponibles :
+
+- `PlaybackPosition` pour un film ou la position représentative d'une série ;
+- `LiveStream` pour une chaîne récente.
+
+Le type du `PlaybackPosition`, son `seriesId`, son `streamId` et son titre permettent au repository de déterminer la portée de suppression. Aucun DTO ou modèle Room ne remonte en présentation.
+
+## Repository d'historique
+
+Une interface de domaine dédiée évite de placer les règles de suppression dans les Composables ou dans les repositories de catalogue :
+
+```kotlin
+interface ViewingHistoryRepository {
+    fun observeRecentlyWatched(limit: Int = 10): Flow<List<LiveStream>>
+    suspend fun removeFromContinueWatching(position: PlaybackPosition)
+    suspend fun removeRecentlyWatched(streamId: Int)
+}
+```
+
+`ViewingHistoryRepositoryImpl` injecte `AppDatabase`, `VodDao`, `LiveTvDao` et `ProfileManager`.
+
+- Chaque opération capture une seule fois le `profileId` actif.
+- Un film déclenche une suppression exacte `(streamId, profileId)`.
+- Une chaîne déclenche une suppression exacte `(streamId, profileId)` dans `recently_watched_live`.
+- Une série charge les positions du profil et calcule tous les `streamId` appartenant à la même série, puis les supprime dans une transaction Room unique.
+- Une suppression déjà effectuée est idempotente : zéro ligne affectée est considérée comme un succès.
+
+`VodDao` reçoit `deletePlaybackPositions(streamIds, profileId)`. Cette requête n'est appelée que lorsque la liste est non vide afin d'éviter un `IN ()` dépendant du dialecte SQLite.
+
+`LiveTvDao` reçoit :
+
+- `observeRecentlyWatched(profileId, limit): Flow<List<RecentlyWatchedLiveEntity>>` ;
+- `deleteRecentlyWatched(streamId, profileId)`.
+
+L'observation utilise la même limite de dix chaînes et le même tri `watchedAt DESC` que la lecture ponctuelle actuelle.
+
+## Regroupement robuste des séries
+
+Un objet de domaine pur `PlaybackHistoryMatcher` détermine les épisodes à supprimer. Deux positions appartiennent à la même série lorsque :
+
+1. leurs `seriesId` non nuls sont égaux ; ou
+2. une ligne historique a `seriesId = null` et son titre possède le même préfixe de série normalisé que la cible ;
+3. le `streamId` est celui de la position représentative, qui est toujours inclus en dernier recours.
+
+Le préfixe historique est extrait uniquement du format produit par l'application :
+
+```text
+Nom de série - S{n}E{n} Titre de l'épisode
+```
+
+La séparation est recherchée par motif ` - S<nombre>E<nombre> ` depuis la fin du titre, ce qui préserve les tirets éventuellement présents dans le nom de la série. Si le format ne correspond pas, aucun rapprochement textuel large n'est tenté : seule la position représentative est supprimée, afin de ne jamais effacer l'historique d'une autre série.
+
+F8 partage avec F7 la correction de `SeriesViewModel.savePosition` consistant à enregistrer le `seriesId` actif. Si F8 est implémenté en premier, cette correction fait partie de F8 ; si F7 l'a déjà apportée, elle n'est pas dupliquée.
+
+## Use cases
+
+Trois use cases explicites sont ajoutés :
+
+- `RemoveFromContinueWatchingUseCase(position)` ;
+- `RemoveRecentlyWatchedUseCase(streamId)` ;
+- `ObserveRecentlyWatchedUseCase()`.
+
+Après une suppression réussie de film ou série, `RemoveFromContinueWatchingUseCase` appelle `GetRecommendationsUseCase.invalidateCache()`. Le contrat d'invalidation observable défini dans l'architecture F7 est réutilisé : `HomeViewModel` recalcule uniquement les recommandations. Si F8 est intégré avant F7, cette API d'invalidation est introduite sans logique d'évaluation puis réutilisée par F7.
+
+La suppression Live TV n'invalide pas les recommandations, puisque les chaînes n'entrent pas dans le profil de goûts.
+
+## Réactivité
+
+- Les listes « Continuer à regarder » de `HomeViewModel`, `VodViewModel` et `SeriesViewModel` collectent déjà `VodRepository.observeAllPlaybackPositions()`. Toute suppression Room les met donc à jour sans rechargement manuel.
+- `LiveTvViewModel` remplace le chargement ponctuel des chaînes récentes par la collecte de `ObserveRecentlyWatchedUseCase`. L'appel de sauvegarde existant n'a plus besoin de rappeler `loadRecentlyWatched()` après chaque insertion.
+- Les sections sont déjà conditionnées par `isNotEmpty()` ; elles disparaissent naturellement au passage à une liste vide.
+- La vue étendue « Continuer à regarder » de la Home se ferme automatiquement si sa liste devient vide, plutôt que d'afficher une grille vide.
+
+## État des écrans
+
+`HomeState`, `VodState`, `SeriesState` et `LiveTvState` reçoivent :
+
+```kotlin
+val isRemovingHistory: Boolean = false
+val historyRemovalError: String? = null
+```
+
+Chaque ViewModel expose une méthode de suppression et une méthode de consommation d'erreur. La cible en attente de confirmation reste un état UI local à l'écran (`rememberSaveable` n'est pas requis pour une boîte de dialogue éphémère) :
+
+- `PlaybackPosition?` dans Home, Films et Séries ;
+- `LiveStream?` dans Live TV.
+
+À la confirmation, l'écran conserve la cible jusqu'à la fin de l'opération :
+
+- succès observé dans la liste → fermeture du dialogue ;
+- échec → fermeture, élément conservé et Snackbar non technique ;
+- changement de profil ou disparition préalable de la cible → fermeture sans seconde suppression.
+
+Les boutons du dialogue sont désactivés pendant `isRemovingHistory` afin d'éviter une double validation.
+
+## Geste partagé mobile/TV
+
+Un helper de présentation `historyItemActions` centralise les interactions sans changer l'action courte :
+
+```kotlin
+fun Modifier.historyItemActions(
+    isTv: Boolean,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit
+): Modifier
+```
+
+- Mobile : `combinedClickable` fournit clic, appui long et sémantique d'accessibilité.
+- Android TV : le clic normal reste porté par `clickable`; un `onPreviewKeyEvent` intercepte uniquement Entrée/D-pad centre lorsque `nativeKeyEvent.isLongPress` ou `repeatCount > 0`.
+- Après déclenchement long, les répétitions et le `KeyUp` correspondant sont consommés pour empêcher le clic court de lancer le contenu.
+- Un appui centre relâché sans répétition traverse vers `clickable` et conserve la lecture existante.
+- La sémantique expose « Retirer de la liste » comme action longue pour les services d'accessibilité.
+
+Le helper mémorise localement si le long press a été consommé. Aucun timer ou coroutine n'est créé par carte : Android fournit le seuil et la répétition de touche.
+
+## Cartes impactées
+
+Les callbacks `onLongClick` sont optionnels sur les cartes réutilisées hors historique. Ils ne sont fournis que dans les sections ciblées :
+
+- `HomeHeroCard` lorsque le hero est une reprise ;
+- `HomeResumeWatchingCard` dans la rangée et la vue étendue Home ;
+- `HomeVodMovieCard` / `MovieTvCard` dans la seule rangée `resume_watching` de Films ;
+- `HomeSeriesShowCard` / `SeriesTvCard` dans la seule rangée `resume_watching` de Séries ;
+- `MobileRecentlyWatchedItem` / `RecentlyWatchedTvItem` dans Live TV.
+
+`CategorySectionRow` de Films et Séries reçoit un callback long optionnel et le transmet aux cartes uniquement pour la rangée de reprise. Les cartes de Nouveautés, catégories, Favoris, recommandations et recherche restent inchangées.
+
+Toutes les listes concernées utilisent une clé stable (`streamId` pour film/live, `seriesId ?: streamId` pour série) afin de limiter les recompositions et d'aider Compose à restaurer le focus vers un voisin après suppression.
+
+## Dialogue partagé
+
+`HistoryRemovalDialog` est un composable stateless commun aux quatre écrans :
+
+```kotlin
+@Composable
+fun HistoryRemovalDialog(
+    title: String,
+    isTv: Boolean,
+    isRemoving: Boolean,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+)
+```
+
+- `Dialog` personnalisé sur `Surface2`, rayon 16.dp, bordure blanche faible et largeur maximale 360.dp mobile / 480.dp TV.
+- Titre « Retirer de la liste ? », nom du contenu, texte expliquant que la progression ou l'entrée récente sera effacée.
+- Actions « Annuler » et « Retirer de la liste » ; aucune action Undo.
+- Mobile : boutons Material 3 ; TV : boutons Compose for TV avec `FocusRequester` initial sur Annuler.
+- Retour système, clic extérieur et Annuler appellent `onDismiss` uniquement hors suppression en cours.
+- Un indicateur compact remplace le contenu du bouton de confirmation pendant l'écriture.
+
+Les couleurs `Surface2`, `TextPrimary`, `TextSecondary` et `AccentLavande`, ainsi que les rayons existants, proviennent de la référence design. Aucun token ou asset nouveau n'est introduit.
+
+Un `SnackbarHost` local à chaque écran consomme `historyRemovalError`. La chaîne affichée est générique et ne contient jamais l'exception brute.
+
+## Navigation et plateformes
+
+`AppNavGraph` étant aujourd'hui unifié pour mobile et Android TV, aucun nouvel écran ni route n'est ajouté. Les écrans reçoivent déjà leur ViewModel ; les callbacks de suppression restent internes à `HomeScreen`, `VodScreen`, `SeriesScreen` et `LiveTvScreen`. `MainActivity` n'est pas modifié.
+
+## Dépendances et sécurité
+
+- Aucune nouvelle dépendance Gradle ; Foundation, Compose Material 3, Compose for TV, Room KTX et Hilt sont déjà présents.
+- Aucun appel réseau, permission ou règle ProGuard supplémentaire.
+- Aucun fichier téléchargé, favori, vote F7, donnée EPG ou métadonnée catalogue n'est touché.
+- Le `profileId` n'est jamais fourni par la présentation : il est capturé par le repository depuis `ProfileManager` au moment de l'opération.
+
+---
+
+# 7. Architecture
+
+## Flux de suppression VOD/Série
+
+```text
+carte -- appui long --> HistoryRemovalDialog
+                              │ confirmer
+                              ▼
+                  ViewModel de l'écran
+                              │
+                              ▼
+          RemoveFromContinueWatchingUseCase
+                              │
+                              ▼
+             ViewingHistoryRepositoryImpl
+                 │ AppDatabase.withTransaction
+                 ├── film : DELETE streamId
+                 └── série : matcher + DELETE streamIds
+                              │
+             Flow playback_positions réémis
+                 ├── HomeViewModel
+                 ├── VodViewModel
+                 └── SeriesViewModel
+                              │
+                              ▼
+                    disparition des cartes
+```
+
+Après la transaction, le use case invalide les recommandations. Cette invalidation est secondaire : son échec ne restaure pas l'historique supprimé.
+
+## Flux de suppression Live TV
+
+```text
+carte récente -- appui long --> dialogue --> LiveTvViewModel
+                                                │
+                                                ▼
+                              RemoveRecentlyWatchedUseCase
+                                                │
+                                                ▼
+                                    LiveTvDao.delete exact
+                                                │
+                                  Flow recently_watched_live
+                                                │
+                                                ▼
+                                    LiveTvState.recentlyWatched
+```
+
+## Responsabilités
+
+- `PlaybackHistoryMatcher` : regroupement pur et testable des positions d'une série.
+- `ViewingHistoryRepositoryImpl` : scoping profil, transactions Room, mapping des chaînes récentes.
+- Use cases : intention de suppression et invalidation éventuelle des recommandations.
+- ViewModels : état de progression/erreur et appel des use cases.
+- Écrans : cible temporaire, dialogue et Snackbar.
+- Cartes/helper : distinction clic court/appui long et sémantique.
+
+## Fichiers nouveaux
+
+- `domain/model/PlaybackHistoryMatcher.kt`
+- `domain/repository/ViewingHistoryRepository.kt`
+- `domain/usecase/RemoveFromContinueWatchingUseCase.kt`
+- `domain/usecase/RemoveRecentlyWatchedUseCase.kt`
+- `domain/usecase/ObserveRecentlyWatchedUseCase.kt`
+- `data/repository/ViewingHistoryRepositoryImpl.kt`
+- `presentation/components/HistoryItemActions.kt`
+- `presentation/components/HistoryRemovalDialog.kt`
+- tests unitaires correspondants sous `app/src/test/`.
+
+## Fichiers modifiés
+
+- `data/local/dao/VodDao.kt` : suppression groupée de positions.
+- `data/local/dao/LiveTvDao.kt` : observation réactive et suppression ciblée.
+- `di/AppModule.kt` : provider du repository d'historique.
+- `domain/usecase/GetRecentlyWatchedUseCase.kt` : remplacé dans `LiveTvViewModel` par l'observation réactive ; conservé seulement s'il reste un consommateur.
+- `presentation/home/HomeState` dans `HomeViewModel.kt`, `HomeViewModel.kt`, `HomeScreen.kt` et `home/components/HomeCards.kt`.
+- `presentation/vod/VodState.kt`, `VodViewModel.kt`, `VodScreen.kt`.
+- `presentation/series/SeriesState.kt`, `SeriesViewModel.kt`, `SeriesScreen.kt`.
+- `presentation/livetv/LiveTvState.kt`, `LiveTvViewModel.kt`, `LiveTvScreen.kt` et `livetv/components/LiveTvComponents.kt`.
+- `domain/repository/LiveTvRepository.kt` et `data/repository/LiveTvRepositoryImpl.kt` uniquement pour retirer le rechargement ponctuel devenu inutile, sans modifier la sauvegarde des chaînes récentes.
+- `presentation/home/components/HomeCards.kt` : callbacks longs des cartes Home partagées.
+- `app/src/main/res/values/strings.xml` : dialogue, actions, descriptions d'accessibilité et erreur.
+- `ai/features/F8-remove-continue-watching-recently-viewed.md` : suivi du cycle de vie.
+
+## Décisions techniques justifiées
+
+- **Repository dédié** : les suppressions traversent VOD, séries et Live sans mélanger cette règle utilisateur aux repositories de catalogue.
+- **Transaction série** : la sélection des épisodes et leur suppression utilisent le même profil et la même vue de la base.
+- **Fallback de titre strict** : nettoie les anciennes positions incomplètes sans suppression large par simple préfixe ambigu.
+- **Flow Room pour les récents** : aligne Live TV sur les reprises déjà réactives et supprime les refresh manuels.
+- **Cible de dialogue locale** : état purement visuel, tandis que l'écriture et les erreurs restent dans le ViewModel.
+- **Gestion explicite de la touche TV** : garantit qu'un long centre ne déclenche pas ensuite la lecture.
+- **Callbacks longs optionnels** : aucune nouvelle action ne fuite vers les cartes hors historique.
+
+---
+
+# 8. Validation prévue
+
+## Tests unitaires
+
+- `PlaybackHistoryMatcherTest` : même `seriesId`, plusieurs épisodes, titre avec tirets, ligne legacy sans `seriesId`, format inconnu et non-collision entre deux séries proches.
+- `ViewingHistoryRepositoryImplTest` : profil capturé une fois, suppression exacte film/live, suppression groupée série, cible absente idempotente et rollback sur erreur DAO.
+- `RemoveFromContinueWatchingUseCaseTest` : invalidation après succès film/série, aucune invalidation après échec.
+- `RemoveRecentlyWatchedUseCaseTest` : aucune invalidation de recommandation.
+- `ObserveRecentlyWatchedUseCaseTest` : ordre, limite, mise à jour après suppression et changement de profil via Flow fake.
+- `HomeViewModelTest`, `VodViewModelTest`, `SeriesViewModelTest`, `LiveTvViewModelTest` : état loading, succès, erreur, consommation du message et listes réémises.
+- Non-régression `SeriesViewModelTest` : `seriesId` enregistré pour les nouvelles positions.
+
+Les gestes Compose et le focus D-pad sont du layout/interactif pur. Le projet n'ayant pas d'infrastructure UI instrumentée, ils sont validés manuellement plutôt que par un test unitaire artificiel.
+
+## Vérifications automatisées finales
+
+- `./gradlew testDebugUnitTest`
+- `./gradlew assembleDebug`
+- `./gradlew lintDebug`
+
+## Scénarios manuels obligatoires
+
+1. Mobile et TV : clic court sur chaque type de carte conserve la lecture/navigation actuelle.
+2. Mobile : appui long sur hero Home, rangée Home, vue étendue, Reprendre Films/Séries et récente Live ouvre le bon dialogue.
+3. TV : maintien D-pad centre ouvre une seule fois le dialogue et ne lance jamais le média au relâchement.
+4. Annuler, retour et clic extérieur ne modifient aucune donnée ; Annuler reçoit le focus initial sur TV.
+5. Film : disparition simultanée de Home et Films, sans toucher favori/téléchargement/vote.
+6. Série multi-épisodes avec et sans `seriesId` historique : disparition Home/Séries et remise à zéro de tous les épisodes correspondants.
+7. Live : disparition immédiate de la chaîne récente, sans toucher son favori ni l'EPG.
+8. Dernier élément : disparition de la section ; vue étendue Home fermée ; focus TV replacé sur un élément valide.
+9. Changement de profil : historique indépendant et dialogue obsolète fermé.
+10. Hors ligne et après redémarrage : suppression toujours effective et persistante.
+11. Erreur Room simulée : dialogue fermé, carte conservée, message générique, aucune stack trace.
+
+## Risques et atténuations
+
+- **Long press TV suivi d'un clic court** : mémoriser la consommation et intercepter le `KeyUp` associé.
+- **Suppression trop large d'une série legacy** : motif de titre strict et inclusion minimale du seul épisode cible en cas d'ambiguïté.
+- **Profil changé pendant le dialogue** : fermer la cible lorsque le Flow de liste/profil change avant confirmation ; repository capture toujours le profil courant une seule fois.
+- **Perte de focus après retrait** : clés stables, dialogue conservé jusqu'à la réémission Room et tests premier/milieu/dernier/unique.
+- **Double confirmation** : désactivation des actions pendant l'écriture et repository idempotent.
+- **Recommandations encore en cache** : réutiliser l'invalidation mutex + événement définie par F7.
+- **Régression des cartes partagées** : callback long nullable et fourni uniquement par les rangées `resume_watching`.
+- **Série créée sans `seriesId`** : corriger la sauvegarde future et maintenir le fallback legacy.
+
+## Contraintes de performance
+
+- Les suppressions film/live sont indexées par leurs clés primaires composites.
+- La suppression série parcourt uniquement l'historique du profil, volume réduit par rapport au catalogue, puis exécute un unique `DELETE ... IN (...)`.
+- Aucun scan du catalogue, appel réseau, chargement d'image ou worker.
+- Un seul collecteur de chaînes récentes dans `LiveTvViewModel`, en remplacement des lectures ponctuelles répétées.
+- Aucun timer de long press par carte ; les événements natifs de touche TV sont utilisés.
