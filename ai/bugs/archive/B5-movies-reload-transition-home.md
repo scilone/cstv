@@ -6,13 +6,19 @@ Type:
 Bug
 
 Status:
-TASK BREAKDOWN
+RELEASED
 
 Created:
 2026-07-21
 
 Target version:
-v1.48.32
+v1.48.33
+
+Version:
+v1.48.33
+
+Date:
+2026-07-21
 
 ---
 
@@ -281,7 +287,7 @@ Aucune dépendance nouvelle. La solution repose exclusivement sur Navigation Com
 
 # 9. Plan de développement
 
-- [ ] Tâche 1 — Unifier la navigation de la barre mobile
+- [x] Tâche 1 — Unifier la navigation de la barre mobile
 
 Objectif :
 Supprimer la dérogation appliquée à `MobileTab.HOME` afin que tous les onglets de la barre inférieure utilisent la même politique de sauvegarde et restauration d'état.
@@ -326,7 +332,7 @@ Validation :
 - aucune destination principale dupliquée, écran vide ou crash n'apparaît ;
 - les parcours existants depuis Accueil et vers les lecteurs restent fonctionnels.
 
-- [ ] Tâche 3 — Exécuter la non-régression automatisée
+- [x] Tâche 3 — Exécuter la non-régression automatisée
 
 Objectif :
 Vérifier que la modification de la DSL Navigation ne casse ni la compilation ni les tests unitaires existants.
@@ -349,3 +355,29 @@ Validation :
 3. Tâche 3 : validation automatisée finale.
 
 Les tâches 2 et 3 ne modifient pas l'architecture définie ; elles confirment la correction et sa non-régression.
+
+---
+
+# 10. Notes de développement
+
+## 2026-07-21 — Implémentation de la tâche 1
+
+- Suppression de la branche spéciale appliquée à `MobileTab.HOME` dans `MainActivity.kt`.
+- Tous les onglets mobiles utilisent désormais la même navigation avec `saveState = true`, `launchSingleTop = true` et `restoreState = true`.
+- Aucun ViewModel, écran, route, modèle de données ou dépendance n'a été modifié.
+- Aucun test unitaire spécifique n'est ajouté : le ticket confirme que la restauration du cycle de vie Navigation Compose exige une validation manuelle sur appareil ou émulateur, sans infrastructure instrumentée dans le projet.
+
+## 2026-07-21 — Non-régression automatisée
+
+- `./gradlew --no-daemon testDebugUnitTest` : succès.
+- `./gradlew --no-daemon assembleDebug` : succès.
+- `./gradlew --no-daemon lintDebug` : succès.
+- La tâche 2 reste à valider manuellement sur un appareil ou un émulateur mobile ; aucun appareil cible n'est accessible dans cet environnement.
+
+## 2026-07-21 — Étape 8 : validation finale technique
+
+- Étape 7 non requise : aucune section de review ni anomalie ouverte n'est présente dans ce ticket ; le diff applique la correction prévue sans écart de périmètre.
+- Vérification statique : tous les onglets de la barre mobile, y compris `HOME`, utilisent maintenant le même bloc `navigate` avec `popUpTo(findStartDestination().id)`, `saveState = true`, `launchSingleTop = true` et `restoreState = true`.
+- `./gradlew --no-daemon testDebugUnitTest assembleDebug lintDebug` : succès (`BUILD SUCCESSFUL`).
+- `git diff --check` : succès, sans erreur d'espacement.
+- Aucun appareil ou émulateur ADB n'est disponible : les parcours manuels Films → Accueil → Films, Séries → Accueil → Séries, bascules rapides et restauration depuis les détails restent requis avant de passer le ticket à `VALIDATED`.

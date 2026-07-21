@@ -204,21 +204,12 @@ class MainActivity : ComponentActivity() {
                                                     NavigationBarItem(
                                                         selected = selected,
                                                         onClick = {
-                                                            if (tab == MobileTab.HOME) {
-                                                                navController.navigate(tab.route) {
-                                                                    popUpTo("home") {
-                                                                        inclusive = false
-                                                                    }
-                                                                    launchSingleTop = true
+                                                            navController.navigate(tab.route) {
+                                                                popUpTo(navController.graph.findStartDestination().id) {
+                                                                    saveState = true
                                                                 }
-                                                            } else {
-                                                                navController.navigate(tab.route) {
-                                                                    popUpTo(navController.graph.findStartDestination().id) {
-                                                                        saveState = true
-                                                                    }
-                                                                    launchSingleTop = true
-                                                                    restoreState = true
-                                                                }
+                                                                launchSingleTop = true
+                                                                restoreState = true
                                                             }
                                                         },
                                                         icon = { Icon(tab.icon, contentDescription = tab.title) },

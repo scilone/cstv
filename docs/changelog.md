@@ -4,6 +4,16 @@ Ce document retrace l'historique des versions, des fonctionnalités livrées, de
 
 ---
 
+## [v1.48.33] - 2026-07-21
+### 🐛 Correctifs de Bugs
+* **Restauration de l'état des onglets de catalogue après passage par l'Accueil (B5)** :
+  - Unification du comportement de clic sur la barre de navigation inférieure mobile dans `MainActivity.kt`.
+  - Suppression de la gestion conditionnelle spécifique à `MobileTab.HOME`.
+  - Utilisation du mécanisme standard de sauvegarde et restauration d'état de Jetpack Compose Navigation (`saveState = true`, `launchSingleTop = true`, `restoreState = true`) sur l'intégralité des destinations de la barre mobile, y compris l'Accueil.
+  - Résolution des problèmes de ré-instanciation et rechargement (affichage intempestif du loader/indicateur de progression) pour les écrans Films (`VodScreen`) et Séries (`SeriesScreen`) lors du retour depuis l'Accueil.
+
+---
+
 ## [v1.48.32] - 2026-07-21
 ### 🐛 Correctifs de Bugs
 * **Action Favori rapide dans « Tout » sur mobile (B4)** :
