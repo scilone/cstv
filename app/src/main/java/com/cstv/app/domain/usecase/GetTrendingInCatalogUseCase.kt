@@ -1,9 +1,8 @@
 package com.cstv.app.domain.usecase
 
 import com.cstv.app.domain.model.TrendingCatalogItem
-import com.cstv.app.domain.model.ApproximateTitleMatcher
-import com.cstv.app.domain.model.TitleNormalizer
 import com.cstv.app.domain.model.CategoryType
+import com.cstv.app.domain.model.TmdbCatalogMatcher
 import com.cstv.app.domain.repository.TrendingRepository
 import com.cstv.app.domain.repository.VodRepository
 import com.cstv.app.domain.repository.SeriesRepository
@@ -74,64 +73,43 @@ class GetTrendingInCatalogUseCase @Inject constructor(
             }
 
             com.cstv.app.di.IptvLog.d("TMDB", "⚡ Pre-normalizing IPTV titles...")
-            // 20x Performance optimization: pre-normalize IPTV titles once before the loops
-            val normalizedMovies = allMovies.map { it to TitleNormalizer.normalize(it.name ?: "") }
-            val normalizedSeries = allSeries.map { it to TitleNormalizer.normalize(it.name ?: "") }
+            val normalizedMovies = TmdbCatalogMatcher.prepareMovies(allMovies)
+            val normalizedSeries = TmdbCatalogMatcher.prepareSeries(allSeries)
             com.cstv.app.di.IptvLog.d("TMDB", "⚡ Pre-normalization complete. Running similarity algorithms...")
 
             val fullMatchedResult = mutableListOf<TrendingCatalogItem>()
-            val seenMatchedIds = mutableSetOf<Int>() // Prevent matching the same movie or series twice
+            // Xtream movie and series identifiers use separate namespaces, so a
+            // shared set would incorrectly reject a series whose id matches an
+            // already matched movie id (or vice versa).
+            val seenMovieIds = mutableSetOf<Int>()
+            val seenSeriesIds = mutableSetOf<Int>()
 
             for (trending in trendingList) {
-                val normalizedTrending = TitleNormalizer.normalize(trending.title)
-
                 if (trending.isMovie) {
-                    val candidates = mutableListOf<com.cstv.app.domain.model.VodStream>()
-                    var bestScore = 0.0
-                    
-                    for ((movie, normalizedName) in normalizedMovies) {
-                        if (movie.streamId in seenMatchedIds) continue
-                        val score = ApproximateTitleMatcher.computeSimilarityNormalized(normalizedTrending, normalizedName)
-                        if (score >= 0.8) {
-                            if (score > bestScore) {
-                                bestScore = score
-                                candidates.clear()
-                                candidates.add(movie)
-                            } else if (score == bestScore) {
-                                candidates.add(movie)
-                            }
-                        }
-                    }
-                    
-                    if (candidates.isNotEmpty()) {
-                        candidates.forEach { seenMatchedIds.add(it.streamId) }
-                        com.cstv.app.di.IptvLog.d("TMDB", "🎯 Match movie: '${trending.title}' ↔ ${candidates.size} version(s) found (best score: $bestScore)")
-                        fullMatchedResult.add(TrendingCatalogItem(trendingTitle = trending, matchedMovies = candidates))
+                    val match = TmdbCatalogMatcher.findBestMatches(
+                        tmdbTitle = trending.title,
+                        tmdbYear = trending.year,
+                        catalog = normalizedMovies,
+                        excludedIds = seenMovieIds
+                    )
+                    if (match != null) {
+                        match.candidates.forEach { seenMovieIds.add(it.streamId) }
+                        com.cstv.app.di.IptvLog.d("TMDB", "🎯 Match movie: '${trending.title}' ↔ ${match.candidates.size} version(s) found (best score: ${match.score})")
+                        fullMatchedResult.add(TrendingCatalogItem(trendingTitle = trending, matchedMovies = match.candidates))
                     } else {
                         com.cstv.app.di.IptvLog.d("TMDB", "❔ No match found in catalog for trending movie: '${trending.title}'")
                     }
                 } else {
-                    val candidates = mutableListOf<com.cstv.app.domain.model.SeriesStream>()
-                    var bestScore = 0.0
-                    
-                    for ((series, normalizedName) in normalizedSeries) {
-                        if (series.seriesId in seenMatchedIds) continue
-                        val score = ApproximateTitleMatcher.computeSimilarityNormalized(normalizedTrending, normalizedName)
-                        if (score >= 0.8) {
-                            if (score > bestScore) {
-                                bestScore = score
-                                candidates.clear()
-                                candidates.add(series)
-                            } else if (score == bestScore) {
-                                candidates.add(series)
-                            }
-                        }
-                    }
-                    
-                    if (candidates.isNotEmpty()) {
-                        candidates.forEach { seenMatchedIds.add(it.seriesId) }
-                        com.cstv.app.di.IptvLog.d("TMDB", "🎯 Match series: '${trending.title}' ↔ ${candidates.size} version(s) found (best score: $bestScore)")
-                        fullMatchedResult.add(TrendingCatalogItem(trendingTitle = trending, matchedSeriesList = candidates))
+                    val match = TmdbCatalogMatcher.findBestMatches(
+                        tmdbTitle = trending.title,
+                        tmdbYear = trending.year,
+                        catalog = normalizedSeries,
+                        excludedIds = seenSeriesIds
+                    )
+                    if (match != null) {
+                        match.candidates.forEach { seenSeriesIds.add(it.seriesId) }
+                        com.cstv.app.di.IptvLog.d("TMDB", "🎯 Match series: '${trending.title}' ↔ ${match.candidates.size} version(s) found (best score: ${match.score})")
+                        fullMatchedResult.add(TrendingCatalogItem(trendingTitle = trending, matchedSeriesList = match.candidates))
                     } else {
                         com.cstv.app.di.IptvLog.d("TMDB", "❔ No match found in catalog for trending series: '${trending.title}'")
                     }

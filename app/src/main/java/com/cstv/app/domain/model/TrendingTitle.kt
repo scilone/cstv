@@ -4,6 +4,6 @@ data class TrendingTitle(
     val tmdbId: Int,
     val title: String,
     val isMovie: Boolean,
-    val year: String?,
+    val year: Int?,
     val posterUrl: String?
 )

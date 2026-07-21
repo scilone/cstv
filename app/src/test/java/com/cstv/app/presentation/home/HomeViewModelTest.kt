@@ -322,7 +322,7 @@ class HomeViewModelTest {
 
         val mockTrends = listOf(
             TrendingCatalogItem(
-                trendingTitle = TrendingTitle(1, "Inception", isMovie = true, year = "2010", posterUrl = "url_inc"),
+                trendingTitle = TrendingTitle(1, "Inception", isMovie = true, year = 2010, posterUrl = "url_inc"),
                 matchedMovie = VodStream(10, "Inception", "icon", "9.0", "12345", "1")
             )
         )

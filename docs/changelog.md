@@ -4,6 +4,18 @@ Ce document retrace l'historique des versions, des fonctionnalités livrées, de
 
 ---
 
+## [v1.49.0] - 2026-07-21
+### 🐛 Correctifs de Bugs
+* **Rapprochement rigoureux des médias TMDB avec l'année de sortie (B6)** :
+  - Ajout d'une validation stricte de l'année de sortie (release year) lors du rapprochement (matching) entre les tendances/populaires TMDB et le catalogue local IPTV, avec une tolérance absolue maximale de **+/- 1 an**.
+  - Intégration de l'extraction défensive de l'année de sortie TMDB sous forme d'un `Int?` dans `TrendingTitle` via `ReleaseYearParser`, assurant la robustesse face aux dates absentes ou malformées.
+  - Création du matcher partagé et réutilisable **`TmdbCatalogMatcher`** pour centraliser l'algorithme de calcul de similarité textuelle normalisée (`>= 0.8`) et de validation d'année de sortie compatible (ou repli par similarité seule si l'une des deux années est inconnue/égale à 0).
+  - Résolution des faux positifs d'homonymes et de remakes (comme Dune 2021 vs Dune 1984) en éliminant les versions d'autres époques du catalogue IPTV local lors du matching.
+  - Séparation de la déduplication des identifiants locaux correspondants par type (films vs séries) pour éviter les collisions d'identifiants Xtream dans `seenMatchedIds`.
+  - Passage de la version du cache global des tendances de `trends_*_global_v2` à `trends_*_global_v3` pour invalider proprement les anciens rapprochements erronés stockés dans les préférences sans perturber le fonctionnement de l'application.
+
+---
+
 ## [v1.48.33] - 2026-07-21
 ### 🐛 Correctifs de Bugs
 * **Restauration de l'état des onglets de catalogue après passage par l'Accueil (B5)** :

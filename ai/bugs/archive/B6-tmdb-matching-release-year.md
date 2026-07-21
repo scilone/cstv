@@ -6,7 +6,7 @@ Type:
 Bug
 
 Status:
-TASK BREAKDOWN
+RELEASED (v1.49.0 - 2026-07-21)
 
 Created:
 2026-07-21
@@ -183,7 +183,7 @@ cache global v3 -> résolution Room -> filtre catégories du profil -> Home
 
 # 6. Plan de développement
 
-- [ ] **Task 1 : Fiabiliser le modèle, le mapping et le cache TMDB**
+- [x] **Task 1 : Fiabiliser le modèle, le mapping et le cache TMDB**
 
   **Objectif :**
   Passer `TrendingTitle.year` à `Int?`, utiliser `ReleaseYearParser` et versionner le cache Trending en v3.
@@ -196,7 +196,7 @@ cache global v3 -> résolution Room -> filtre catégories du profil -> Home
   **Validation :**
   Tests des dates valides, absentes et malformées, et vérification qu'un cache v2 n'est plus relu.
 
-- [ ] **Task 2 : Créer le matcher TMDB/catalogue partagé**
+- [x] **Task 2 : Créer le matcher TMDB/catalogue partagé**
 
   **Objectif :**
   Extraire la similarité, la tolérance `+/- 1`, les années inconnues et la sélection stable dans un composant domaine pur réutilisable par F9.
@@ -208,7 +208,7 @@ cache global v3 -> résolution Room -> filtre catégories du profil -> Home
   **Validation :**
   Tests des écarts `-1`, `0`, `+1`, des années incompatibles/absentes, des homonymes et des ex aequo.
 
-- [ ] **Task 3 : Brancher le matcher dans les Tendances**
+- [x] **Task 3 : Brancher le matcher dans les Tendances**
 
   **Objectif :**
   Remplacer les boucles du use case par le matcher partagé sans modifier le filtrage du profil ni la résolution dynamique du cache.
@@ -220,7 +220,7 @@ cache global v3 -> résolution Room -> filtre catégories du profil -> Home
   **Validation :**
   Tests du scénario Dune 2021/1984, du cache, de l'ordre, des catégories masquées et des médias supprimés.
 
-- [ ] **Task 4 : Validation complète de B6**
+- [x] **Task 4 : Validation complète de B6**
 
   **Objectif :**
   Valider le correctif et le contrat partagé attendu par F9.
@@ -235,4 +235,149 @@ cache global v3 -> résolution Room -> filtre catégories du profil -> Home
 
 # 7. Notes de développement
 
-(Cette section sera enrichie au cours du développement).
+- 2026-07-21 — L'année TMDB est désormais normalisée en `Int?` avec
+  `ReleaseYearParser`; les caches de matching passent de v2 à v3 afin que les
+  associations calculées avant B6 ne soient jamais relues.
+- 2026-07-21 — `TmdbCatalogMatcher` prépare les titres locaux une seule fois,
+  filtre les années incompatibles avant la sélection par score et reste
+  tolérant lorsqu'une année est inconnue.
+- 2026-07-21 — Étape 7 : la déduplication des tendances est désormais séparée
+  entre films et séries afin que deux identifiants Xtream identiques, issus de
+  leurs espaces respectifs, ne s'excluent pas mutuellement. Le matcher défend
+  aussi la sentinelle `0`, utilise une tolérance epsilon pour les ex aequo et
+  couvre la validation d'année des séries.
+- 2026-07-21 — Étape 8 : `testDebugUnitTest`, `assembleDebug` et `lintDebug`
+  passent. Les avertissements lint existants ne sont pas introduits par B6.
+
+---
+
+# 8. Review
+
+Revue technique (étape 6) réalisée le 2026-07-21 sur l'implémentation des Tasks 1
+à 3. Périmètre : `TmdbCatalogMatcher`, `TrendingTitle`, `TrendingRepositoryImpl`,
+`GetTrendingInCatalogUseCase` et leurs tests. Aucune modification de code.
+
+## Synthèse
+
+L'implémentation respecte la spécification fonctionnelle et technique : année
+TMDB en `Int?` via `ReleaseYearParser`, matcher pur partagé, tolérance `+/- 1`,
+robustesse sur années inconnues, cache versionné en v3, filtrage année avant
+sélection du score. Les critères d'acceptation sont couverts par les tests
+(Dune 2021/1984, écart `+/-1`, année absente, ex aequo, ordre catalogue). Les
+problèmes ci-dessous sont périphériques et n'invalident pas le correctif B6
+lui-même.
+
+## Critique
+
+Aucun.
+
+## Majeur
+
+### M1 — Collision d'ID entre films et séries dans `seenMatchedIds`
+
+**Description :** `GetTrendingInCatalogUseCase` partage un unique `Set<Int>`
+(`seenMatchedIds`) passé comme `excludedIds` aux deux appels
+`findBestMatches` (films *et* séries). Or `VodStream.streamId` et
+`SeriesStream.seriesId` proviennent de deux espaces d'identifiants Xtream
+indépendants qui se recouvrent fréquemment (les deux séquences démarrent bas).
+Un film dont le `streamId = 42` a matché ajoute `42` au set ; une série dont le
+`seriesId = 42` sera alors exclue à tort de son propre matching
+(`GetTrendingInCatalogUseCase.kt:81,89,92,103,106`).
+
+**Impact :** faux négatif silencieux — une tendance série légitime peut ne pas
+s'afficher sur l'Accueil parce que son id a été « consommé » par un film sans
+rapport. Aléatoire selon le recouvrement des ids du fournisseur. Problème
+probablement préexistant à B6 mais reconduit par le refactor.
+
+**Correction attendue :** séparer la déduplication par type, p. ex. deux sets
+distincts (`seenMovieIds` / `seenSeriesIds`), ou préfixer les ids. Ajouter un
+test couvrant un `streamId` et un `seriesId` identiques.
+
+**Status: RESOLVED (2026-07-21).** Deux ensembles distincts sont utilisés et
+un test de use case couvre un film et une série portant tous deux l'id `42`.
+
+## Mineur
+
+### m1 — `isYearCompatible` ne neutralise plus la sentinelle `0`
+
+**Description :** la spec (§4) prévoit `iptvYear == null || iptvYear <= 0 || ...`
+dans la validation d'année. L'implémentation retire le garde `<= 0` de
+`isYearCompatible` (`TmdbCatalogMatcher.kt:78-79`) et s'appuie sur la
+normalisation `releaseYear?.takeIf { it > 0 }` faite dans `prepareMovies`/
+`prepareSeries`. Correct pour le chemin actuel, mais `findBestMatches` /
+`CatalogCandidate` sont publics et destinés à être réutilisés par F9. Un
+appelant F9 qui construirait un `CatalogCandidate(releaseYear = 0)` sans passer
+par les helpers verrait `abs(tmdbYear - 0)` rejeter le candidat au lieu de le
+traiter comme année inconnue.
+
+**Impact :** fragilité de contrat pour le composant partagé (F9) ; nul sur B6.
+
+**Correction attendue :** ajouter `iptvYear <= 0` dans `isYearCompatible` (défense
+en profondeur, coût O(1)) ou documenter explicitement que `CatalogCandidate`
+doit être créé uniquement via `prepareMovies`/`prepareSeries`.
+
+**Status: RESOLVED (2026-07-21).** `isYearCompatible` traite explicitement
+`0` comme une année inconnue ; un test construit directement un
+`CatalogCandidate` avec cette sentinelle.
+
+### m2 — Branche « legacy cache » désormais inatteignable
+
+**Description :** le passage du cache en v3 (`trends_*_global_v3`) garantit que
+tout item désérialisé possède les listes `matchedMovies`/`matchedSeriesList`
+(toujours écrites par `saveMatchedTrendsGlobal`). La branche de compatibilité
+v1.47.25 (`matchedMovie`/`matchedSeries` singuliers,
+`GetTrendingInCatalogUseCase.kt:171-206`) ne peut plus être atteinte via le
+cache v3 : aucune ancienne structure n'est relue après le bump de version.
+
+**Impact :** dette technique — ~35 lignes de code mort, bruit de maintenance.
+
+**Correction attendue :** supprimer la branche legacy (hors périmètre B6, à
+planifier) ou ajouter un commentaire justifiant sa conservation temporaire.
+
+**Status: DEFERRED.** La suppression est volontairement reportée : elle est
+hors du périmètre du rapprochement d'année et relève d'un nettoyage technique
+à planifier séparément.
+
+### m3 — Comparaison d'égalité sur `Double` pour les ex aequo
+
+**Description :** la sélection des ex aequo utilise `score == bestScore`
+(`TmdbCatalogMatcher.kt:71`) sur des `Double`. Fonctionne pour les scores
+discrets (1.0, 0.9) mais deux candidats au score issu de Levenshtein
+(`1.0 - distance/maxLength`) pourraient différer d'un epsilon flottant et ne pas
+être groupés comme ex aequo.
+
+**Impact :** très faible — cas marginal, dégrade au pire le regroupement de
+doublons, jamais un faux positif.
+
+**Correction attendue :** tolérance epsilon (`abs(score - bestScore) < 1e-9`) si
+le comportement ex aequo doit être strictement garanti.
+
+**Status: RESOLVED (2026-07-21).** La comparaison utilise désormais un epsilon
+de `1e-9`.
+
+### m4 — Couverture de tests : filtrage par année côté séries non testé
+
+**Description :** `TmdbCatalogMatcherTest` ne couvre le filtrage d'année que via
+`prepareMovies`. Le chemin `prepareSeries` (`SeriesStream.releaseYear`) n'a aucun
+test de compatibilité d'année.
+
+**Impact :** régression possible non détectée sur les tendances séries.
+
+**Correction attendue :** dupliquer au moins un scénario année incompatible /
+tolérance `+/-1` sur `prepareSeries`.
+
+**Status: RESOLVED (2026-07-21).** Un test vérifie que la version série de
+1984 est écartée au profit de celle de 2021.
+
+### m5 — Clés de cache v2 non purgées
+
+**Description :** les anciennes clés `trends_*_global_v2` restent stockées dans
+`SharedPreferences` (jamais supprimées), conformément à la décision « pas de
+migration » (§4). Simple résidu, sans impact fonctionnel.
+
+**Impact :** négligeable (quelques Ko de SharedPrefs orphelins).
+
+**Correction attendue :** aucune requise ; nettoyage opportuniste possible.
+
+**Status: ACCEPTED.** Aucun changement requis conformément à la décision de
+non-migration du cache v2.

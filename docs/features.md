@@ -35,7 +35,7 @@ Introduits en Phase 27, les profils locaux permettent un partage personnalisé d
 * **Catalogue de films** : Navigation par catégories avec affichage des affiches et des métadonnées (durée, genre, année de sortie, description).
 * **Reprise de lecture** : Mémorisation automatique de la position de lecture dans la base de données Room (propre à chaque profil). Reprise fluide là où l'utilisateur s'est arrêté.
 * **Recommandations & Titres similaires** : Moteur de recommandation local affichant des suggestions de titres similaires basées sur les genres, l'année ou les réalisateurs.
-* **Tendances Accueil via TMDB** : Intégration de l'API externe TMDB pour afficher les films populaires mondiaux sur l'écran d'accueil, avec repli transparent si la clé API locale est absente ou si le réseau externe est indisponible.
+* **Tendances Accueil via TMDB** : Intégration de l'API externe TMDB pour afficher les films populaires mondiaux sur l'écran d'accueil, avec repli transparent si la clé API locale est absente ou si le réseau externe est indisponible. Le rapprochement (matching) avec le catalogue IPTV local est renforcé par la validation rigoureuse de l'année de sortie (tolérance maximale de +/- 1 an) pour éviter les faux positifs (comme les remakes ou homonymes d'autres époques), avec un repli textuel si l'année est inconnue.
 
 ---
 

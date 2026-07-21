@@ -4,6 +4,7 @@ import android.content.Context
 import com.cstv.app.data.remote.api.TmdbApiService
 import com.cstv.app.domain.model.TrendingCatalogItem
 import com.cstv.app.domain.model.TrendingTitle
+import com.cstv.app.domain.model.ReleaseYearParser
 import com.cstv.app.domain.repository.TrendingRepository
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
@@ -54,7 +55,7 @@ class TrendingRepositoryImpl @Inject constructor(
                 val isMovie = item.mediaType == "movie"
                 
                 val fullDate = if (isMovie) item.releaseDate else item.firstAirDate
-                val year = fullDate?.take(4) // Extract year only (e.g. "2026")
+                val year = ReleaseYearParser.parseYear(fullDate)
 
                 val posterUrl = item.posterPath?.let { "https://image.tmdb.org/t/p/w500$it" }
 
@@ -73,7 +74,7 @@ class TrendingRepositoryImpl @Inject constructor(
     }
 
     override suspend fun getCachedMatchedTrendsGlobal(lastCatalogSyncTime: Long): List<TrendingCatalogItem>? = mutex.withLock {
-        val lastFetchTime = sharedPrefs.getLong("trends_time_global_v2", 0L)
+        val lastFetchTime = sharedPrefs.getLong("trends_time_global_v3", 0L)
         val currentTime = System.currentTimeMillis()
 
         if (currentTime - lastFetchTime >= cacheDurationMs) {
@@ -86,7 +87,7 @@ class TrendingRepositoryImpl @Inject constructor(
             return null // Invalidate cache on catalog update
         }
 
-        val json = sharedPrefs.getString("trends_data_global_v2", null) ?: run {
+        val json = sharedPrefs.getString("trends_data_global_v3", null) ?: run {
             com.cstv.app.di.IptvLog.d("TMDB", "💾 Global trends cache is empty.")
             return null
         }
@@ -106,8 +107,8 @@ class TrendingRepositoryImpl @Inject constructor(
             try {
                 val json = gson.toJson(items)
                 sharedPrefs.edit()
-                    .putString("trends_data_global_v2", json)
-                    .putLong("trends_time_global_v2", System.currentTimeMillis())
+                    .putString("trends_data_global_v3", json)
+                    .putLong("trends_time_global_v3", System.currentTimeMillis())
                     .apply()
                 com.cstv.app.di.IptvLog.d("TMDB", "💾 Global matched trends successfully saved in persistent cache.")
             } catch (e: Exception) {
