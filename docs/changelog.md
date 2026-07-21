@@ -4,6 +4,16 @@ Ce document retrace l'historique des versions, des fonctionnalités livrées, de
 
 ---
 
+## [v1.48.31] - 2026-07-21
+### 🐛 Correctifs de Bugs
+* **Correction de la jauge de progression pleine au lancement d'un média (B2)** :
+  - Création de `PlaybackProgressState` dans `player/core` pour normaliser l'affichage de la progression et de la durée.
+  - Garantie d'une jauge entièrement vide (0 %) tant que la durée du média est inconnue (pendant la préparation/le buffering), évitant le décalage temporaire entre la position de reprise et la durée.
+  - Résolution du décalage horizontal (saut) du Slider pour les contenus de plus de 1 h en réservant une largeur de texte fixe minimale de `56.dp` pour les labels de temps et les placeholders.
+  - Couverture complète de la logique de normalisation par des tests unitaires robustes.
+
+---
+
 ## [v1.48.30] - 2026-07-21
 ### 🐛 Correctifs de Bugs
 * **Correction de la vidéo partielle au lancement du Picture-in-Picture (B1)** :

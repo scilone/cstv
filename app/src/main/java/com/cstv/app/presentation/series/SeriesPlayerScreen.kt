@@ -80,8 +80,10 @@ import com.cstv.app.presentation.player.core.KeepScreenOnEffect
 import com.cstv.app.presentation.player.core.PlayerOverlayHost
 import com.cstv.app.presentation.player.core.PlayerOverlayGradients
 import com.cstv.app.presentation.player.core.PlayerOverlayTopBar
+import com.cstv.app.presentation.player.core.PLAYER_PROGRESS_TIME_LABEL_MIN_WIDTH
 import com.cstv.app.presentation.player.core.TrackPlayerPosition
 import com.cstv.app.presentation.player.core.enterPictureInPicture
+import com.cstv.app.presentation.player.core.playbackProgressState
 import com.cstv.app.presentation.player.core.rememberManagedExoPlayer
 import com.cstv.app.presentation.player.core.rememberPipState
 import com.cstv.app.domain.model.Credentials
@@ -193,6 +195,7 @@ fun SeriesPlayerScreen(
     var playbackError by remember { mutableStateOf<String?>(null) }
     var currentPosition by remember { mutableStateOf(episode.resumePositionMs) }
     var duration by remember { mutableStateOf(0L) }
+    val playbackProgress = playbackProgressState(currentPosition, duration)
     var showControls by remember { mutableStateOf(true) }
     var videoWidth by remember { mutableStateOf(0) }
     var videoHeight by remember { mutableStateOf(0) }
@@ -736,14 +739,24 @@ fun SeriesPlayerScreen(
                             horizontalArrangement = Arrangement.spacedBy(10.dp),
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text(text = formatTime(currentPosition), color = Color.White, fontSize = 12.sp)
+                            if (playbackProgress.isReady) {
+                                Text(
+                                    text = formatTime(playbackProgress.positionMs),
+                                    color = Color.White,
+                                    fontSize = 12.sp,
+                                    modifier = Modifier.widthIn(min = PLAYER_PROGRESS_TIME_LABEL_MIN_WIDTH)
+                                )
+                            } else {
+                                Spacer(modifier = Modifier.width(PLAYER_PROGRESS_TIME_LABEL_MIN_WIDTH))
+                            }
                             Slider(
-                                value = currentPosition.toFloat(),
+                                value = playbackProgress.positionMs.toFloat(),
                                 onValueChange = {
                                     exoPlayer.seekTo(it.toLong())
                                     currentPosition = it.toLong()
                                 },
-                                valueRange = 0f..duration.toFloat().coerceAtLeast(1f),
+                                valueRange = 0f..playbackProgress.sliderRangeEnd,
+                                enabled = playbackProgress.isReady,
                                 colors = SliderDefaults.colors(
                                     thumbColor = MaterialTheme.colorScheme.primary,
                                     activeTrackColor = MaterialTheme.colorScheme.primary,
@@ -751,7 +764,16 @@ fun SeriesPlayerScreen(
                                 ),
                                 modifier = Modifier.weight(1f)
                             )
-                            Text(text = formatTime(duration), color = Color.White, fontSize = 12.sp)
+                            if (playbackProgress.isReady) {
+                                Text(
+                                    text = formatTime(playbackProgress.durationMs),
+                                    color = Color.White,
+                                    fontSize = 12.sp,
+                                    modifier = Modifier.widthIn(min = PLAYER_PROGRESS_TIME_LABEL_MIN_WIDTH)
+                                )
+                            } else {
+                                Spacer(modifier = Modifier.width(PLAYER_PROGRESS_TIME_LABEL_MIN_WIDTH))
+                            }
                         }
 
                         // Barre d'actions : Recommencer — Épisode précédent/suivant

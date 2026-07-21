@@ -4,8 +4,40 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import androidx.media3.exoplayer.ExoPlayer
 import kotlinx.coroutines.delay
+
+/**
+ * Valeurs exclusivement destinées à l'affichage de la jauge de lecture.
+ *
+ * La position réellement connue par le lecteur reste gérée par les écrans :
+ * cette normalisation évite uniquement de présenter une reprise avec une durée
+ * encore inconnue comme une jauge pleine.
+ */
+internal data class PlaybackProgressState(
+    val positionMs: Long,
+    val durationMs: Long
+) {
+    val isReady: Boolean
+        get() = durationMs > 0L
+
+    val sliderRangeEnd: Float
+        get() = durationMs.toFloat().coerceAtLeast(1f)
+}
+
+/** Largeur minimale commune aux temps `MM:SS` et `H:MM:SS` du lecteur. */
+internal val PLAYER_PROGRESS_TIME_LABEL_MIN_WIDTH: Dp = 56.dp
+
+internal fun playbackProgressState(positionMs: Long, durationMs: Long): PlaybackProgressState {
+    if (durationMs <= 0L) return PlaybackProgressState(positionMs = 0L, durationMs = 0L)
+
+    return PlaybackProgressState(
+        positionMs = positionMs.coerceIn(0L, durationMs),
+        durationMs = durationMs
+    )
+}
 
 internal class PositionSaveCadence(private val saveIntervalMs: Long = 5_000L) {
     init {
