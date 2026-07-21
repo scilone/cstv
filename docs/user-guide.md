@@ -50,7 +50,9 @@ L'application est entièrement optimisée pour deux types d'appareils :
 * **EPG (Guide des programmes)** :
   * Sur l'écran de la liste des chaînes, l'application affiche directement le titre du programme actuellement en cours ainsi que celui à venir.
   * En cliquant sur une chaîne, vous pouvez consulter le guide des programmes complet pour voir la grille horaire de la journée.
-* **Ajout aux favoris** : Restez appuyé sur une chaîne (tactile) ou appuyez longuement sur le bouton central OK (télécommande) pour l'ajouter à votre liste de favoris rapides.
+* **Ajout aux favoris** : 
+  * **Sur mobile** : Appuyez simplement sur l'icône d'étoile en haut à droite du logo de la chaîne directement depuis la rangée (dans l'écran « Tout ») ou depuis la grille d'une catégorie. L'étoile devient or/jaune pour confirmer l'état de favori. Vous pouvez également rester appuyé longuement sur une chaîne pour faire basculer son statut.
+  * **Sur TV (télécommande)** : Appuyez longuement sur le bouton central OK pour l'ajouter ou la retirer de votre liste de favoris rapides.
 * **Zapping direct** : Lors de la lecture d'une chaîne, vous pouvez zapper instantanément à la chaîne suivante ou précédente via les flèches Haut/Bas de votre télécommande ou en glissant verticalement sur votre écran de téléphone.
 
 ---

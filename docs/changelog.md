@@ -4,6 +4,19 @@ Ce document retrace l'historique des versions, des fonctionnalités livrées, de
 
 ---
 
+## [v1.48.32] - 2026-07-21
+### 🐛 Correctifs de Bugs
+* **Action Favori rapide dans « Tout » sur mobile (B4)** :
+  - Déplacement de l'étoile favori de la rangée inférieure vers le coin supérieur droit du logo (`Modifier.align(Alignment.TopEnd)`) dans `MobileStreamCard`.
+  - Amélioration de l'accessibilité : zone tactile minimale de `48.dp` pour l'icône, tout en maintenant l'aspect visuel circulaire de `30.dp` sur fond sombre à 45% d'opacité (respect des critères WCAG/Material).
+  - Amélioration du contraste et de la lisibilité avec `Icons.Default.StarBorder` pour l'état non-favori et `Icons.Default.Star` pour l'état favori de couleur jaune/or (`FavoriteGold`).
+  - Intégration de libellés d'accessibilité dynamiques (`contentDescription`) traduits : "Ajouter aux favoris" et "Retirer des favoris".
+  - Nettoyage du layout : remplacement de la rangée (`Row`) inférieure superflue par un seul texte (`Text`) pour afficher le numéro de la chaîne.
+  - Synchronisation et harmonisation de la grille de catégorie spécifique (`MobileChannelGridCard`) pour bénéficier des mêmes avancées (accessibilité, libellés dynamiques, icône d'état vide, etc.).
+  - Préservation et isolation complète d'Android TV (`StreamTvCard`) et de la branche TV pour éviter toute régression.
+
+---
+
 ## [v1.48.31] - 2026-07-21
 ### 🐛 Correctifs de Bugs
 * **Correction de la jauge de progression pleine au lancement d'un média (B2)** :

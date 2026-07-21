@@ -19,6 +19,8 @@
     <string name="favorites_category_live">LIVE TV</string>
     <string name="favorites_category_vod">FILMS &amp; VOD</string>
     <string name="favorites_category_series">SÉRIES</string>
+    <string name="live_tv_add_favorite">Ajouter aux favoris</string>
+    <string name="live_tv_remove_favorite">Retirer des favoris</string>
     <string name="search_placeholder">Rechercher des chaînes, films, séries...</string>
     <string name="search_initial_prompt">Saisissez un mot-clé pour lancer la recherche locale.</string>
     <string name="search_no_results">Aucun résultat trouvé pour « %1$s ».</string>

@@ -4,12 +4,14 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -20,6 +22,7 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.foundation.focusGroup
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -30,6 +33,7 @@ import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.MaterialTheme as TvTheme
 import androidx.tv.material3.Text as TvText
 import coil.compose.AsyncImage
+import com.cstv.app.R
 import com.cstv.app.domain.model.PlaybackPosition
 import com.cstv.app.domain.model.FavoriteItem
 import com.cstv.app.domain.model.LiveStream
@@ -37,6 +41,7 @@ import com.cstv.app.domain.model.LiveEpgProgram
 import com.cstv.app.domain.model.LiveCategory
 import com.cstv.app.presentation.theme.AccentLavande
 import com.cstv.app.presentation.theme.DarkBackground
+import com.cstv.app.presentation.theme.FavoriteGold
 import com.cstv.app.presentation.theme.Surface1
 import com.cstv.app.presentation.theme.Surface2
 import com.cstv.app.presentation.theme.Surface3
@@ -178,6 +183,31 @@ fun MobileStreamCard(
                         modifier = Modifier.size(24.dp)
                     )
                 }
+
+                IconButton(
+                    onClick = onToggleFavorite,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .size(48.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(30.dp)
+                            .clip(CircleShape)
+                            .background(Color.Black.copy(alpha = 0.45f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = if (isFavorite) Icons.Default.Star else Icons.Default.StarBorder,
+                            contentDescription = stringResource(
+                                if (isFavorite) R.string.live_tv_remove_favorite
+                                else R.string.live_tv_add_favorite
+                            ),
+                            tint = if (isFavorite) FavoriteGold else Color.White.copy(alpha = 0.85f),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.height(6.dp))
@@ -216,29 +246,13 @@ fun MobileStreamCard(
                 )
             }
 
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
-                modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
-            ) {
-                Text(
-                    text = "CH ${stream.num}",
-                    color = MaterialTheme.colorScheme.primary,
-                    fontSize = 9.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                IconButton(
-                    onClick = onToggleFavorite,
-                    modifier = Modifier.size(26.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Star,
-                        contentDescription = "Favori",
-                        tint = if (isFavorite) Color.Yellow else Color.White.copy(alpha = 0.55f),
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
-            }
+            Text(
+                text = "CH ${stream.num}",
+                color = MaterialTheme.colorScheme.primary,
+                fontSize = 9.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(top = 4.dp)
+            )
         }
     }
 }
@@ -519,23 +533,31 @@ fun MobileChannelGridCard(
                 )
             }
 
-            // Bouton favori toujours visible (fond sombre pour rester lisible
-            // même sur un logo clair), étoile agrandie.
+            // Cible tactile 48 dp, avec un fond visuel de 30 dp toujours lisible
+            // même sur un logo clair.
             IconButton(
                 onClick = onToggleFavorite,
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .padding(4.dp)
-                    .size(30.dp)
-                    .clip(RoundedCornerShape(999.dp))
-                    .background(Color.Black.copy(alpha = 0.45f))
+                    .size(48.dp)
             ) {
-                Icon(
-                    imageVector = Icons.Default.Star,
-                    contentDescription = "Favori",
-                    tint = if (isFavorite) Color.Yellow else Color.White.copy(alpha = 0.85f),
-                    modifier = Modifier.size(20.dp)
-                )
+                Box(
+                    modifier = Modifier
+                        .size(30.dp)
+                        .clip(CircleShape)
+                        .background(Color.Black.copy(alpha = 0.45f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = if (isFavorite) Icons.Default.Star else Icons.Default.StarBorder,
+                        contentDescription = stringResource(
+                            if (isFavorite) R.string.live_tv_remove_favorite
+                            else R.string.live_tv_add_favorite
+                        ),
+                        tint = if (isFavorite) FavoriteGold else Color.White.copy(alpha = 0.85f),
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
             }
         }
 

@@ -6,13 +6,19 @@ Type:
 Bug
 
 Status:
-ARCHITECTURE
+RELEASED
 
 Created:
 2026-07-21
 
 Target version:
 v1.48.32
+
+Version:
+v1.48.32
+
+Date:
+2026-07-21
 
 ---
 
@@ -225,3 +231,103 @@ Le projet ne dispose pas d'une infrastructure de tests UI Compose adaptée à ce
 - **Action trop petite** : conserver une zone tactile stable sans réduire l'icône au seul glyphe visible.
 - **Chevauchement du logo** : réserver le coin supérieur droit et appliquer le même pattern que la grille mobile.
 - **Régression Android TV par composant partagé** : ne modifier ni `StreamTvCard` ni la branche `isTv`.
+
+---
+
+# 8. Review technique
+
+Status: RESOLVED
+
+Revue de l'implémentation dans `MobileStreamCard` (`LiveTvComponents.kt`) et des libellés ajoutés dans `strings.xml`. Aucun code modifié pendant cette étape.
+
+## Synthèse
+
+- L'étoile est déplacée dans le `Box` du logo avec `Modifier.align(Alignment.TopEnd)`, fond sombre circulaire, tint conditionnel. Conforme à la spécification (§5 « Adaptation de `MobileStreamCard` »).
+- L'`IconButton` de la `Row` inférieure est supprimé; la position de l'action ne dépend plus du contenu EPG. Conforme.
+- Le placement reprend fidèlement le pattern de `MobileChannelGridCard` (mêmes dimensions `30.dp`/`20.dp`, `Color.Black` alpha `0.45`, coin `999.dp`, tint `Yellow`/`White` alpha `0.85`). Cohérence visuelle respectée (§ « Réutilisation et cohérence »).
+- `contentDescription` dépendant de l'état via `stringResource` : meilleur que la grille de référence, qui garde encore « Favori » en dur.
+- `StreamTvCard` et la branche `isTv` restent intacts : non-régression Android TV préservée.
+- Aucun état favori local optimiste introduit; `isFavorite` reste la source de vérité. Conforme (§ Gestion des erreurs).
+
+## Critique
+
+Aucun problème critique.
+
+## Majeur
+
+**M1 — Cible tactile sous le minimum d'accessibilité**
+
+- Description : l'`IconButton` est contraint à `Modifier.size(30.dp)`, ce qui écrase la zone tactile minimale interactive par défaut de Compose (`48.dp`). L'action favori reste donc sous le seuil recommandé Material / WCAG (48×48 dp).
+- Impact : sur le cœur même du ticket (accessibilité tactile mobile), une cible de 30 dp augmente le risque de touchers manqués ou imprécis, en particulier sur les petites densités et en bord de rangée.
+- Correction attendue : conserver l'aspect visuel `30.dp` mais restaurer une zone tactile d'au moins `48.dp` (ne pas forcer `size(30.dp)` sur l'`IconButton`, ou envelopper le glyphe dans un conteneur cliquable de `48.dp` sans agrandir le fond visible). Aligner ensuite la grille (`MobileChannelGridCard`) sur la même règle pour éviter une divergence.
+
+## Mineur
+
+**m1 — `Row` inférieure devenue superflue**
+
+- Description : après retrait de l'`IconButton`, la `Row` du bas ne contient plus qu'un seul `Text` (« CH n »), mais conserve `horizontalArrangement = Arrangement.SpaceBetween` et `verticalAlignment` désormais sans effet.
+- Impact : dette technique mineure, layout trompeur à la relecture.
+- Correction attendue : remplacer la `Row` par le `Text` seul (avec le `padding(top = 4.dp)`).
+
+**m2 — État favori distingué uniquement par la teinte**
+
+- Description : les deux états utilisent `Icons.Default.Star` (plein), seule la couleur change (`Yellow` vs `White` alpha `0.85`).
+- Impact : distinction favori/non-favori faible pour un utilisateur sensible au contraste ou daltonien; l'étoile blanche pleine peut se lire comme « favori ».
+- Correction attendue : envisager `Icons.Default.StarBorder` pour l'état non favori et `Icons.Default.Star` pour l'état favori, en complément de la teinte.
+
+**m3 — Incohérence d'accessibilité avec la grille**
+
+- Description : `MobileStreamCard` expose un `contentDescription` dépendant de l'état, alors que `MobileChannelGridCard` conserve « Favori » en dur.
+- Impact : lecteurs d'écran incohérents entre les deux cartes mobiles; hors périmètre B4 mais introduit par ce correctif.
+- Correction attendue : consigner un suivi pour aligner la grille sur les libellés `live_tv_add_favorite` / `live_tv_remove_favorite`.
+
+**m4 — Valeurs brutes non thématisées**
+
+- Description : `RoundedCornerShape(999.dp)` (au lieu de `CircleShape`) et `Color.Yellow` brut, dupliqués entre les deux cartes.
+- Impact : incohérence potentielle avec la palette de thème et duplication de constantes.
+- Correction attendue : utiliser `CircleShape` et une couleur issue du thème; facultatif tant que la cohérence entre les deux cartes est maintenue.
+
+## Tests
+
+- Pas de test UI Compose pour cette interaction tactile (limite d'infrastructure documentée en §7). Acceptable pour un déplacement de `Modifier`; la validation reste manuelle.
+- Vérifier avant conclusion : `./gradlew assembleDebug` et `./gradlew lintDebug` (le lint d'accessibilité peut signaler M1).
+
+## Corrections appliquées
+
+- **M1 résolu** : les deux cartes mobiles utilisent maintenant une cible tactile `IconButton` de `48.dp`, tout en conservant un fond circulaire visible de `30.dp`.
+- **m1 résolu** : la `Row` devenue inutile est remplacée par le libellé de chaîne seul.
+- **m2 résolu** : l'état non favori utilise `StarBorder`, en complément de sa teinte claire ; l'état favori conserve `Star` avec l'or de la maquette (`#FFB300`).
+- **m3 résolu** : `MobileChannelGridCard` utilise les mêmes libellés accessibles dynamiques que `MobileStreamCard`.
+- **m4 résolu** : les deux cartes utilisent `CircleShape` et la couleur de thème `FavoriteGold`.
+
+---
+
+# 9. Validation finale
+
+Status: VALIDATED
+
+## Validation automatisée
+
+- `./gradlew --no-daemon testDebugUnitTest assembleDebug lintDebug` : **succès** le 2026-07-21.
+- Tests unitaires, compilation de l'APK debug et lint terminés sans erreur. Les seuls avertissements concernent l'annotation `UnstableApi` de Media3, déjà présente et sans lien avec B4.
+- `git diff --check` : succès, sans erreur d'espaces.
+
+## Validation fonctionnelle
+
+- La correction respecte la séparation des actions : l'`IconButton` favori est une cible Compose distincte de la carte cliquable de lecture.
+- Les états favori/non favori, les libellés accessibles et la source de vérité Room restent inchangés hors rendu des cartes mobiles.
+- Android TV n'est pas modifié : aucune branche `isTv` ni `StreamTvCard` n'a été touchée.
+- Aucun appareil ou émulateur ADB n'est disponible dans l'environnement pour réaliser les scénarios tactiles manuels. Ils restent à exécuter sur mobile avant publication : ajout/retrait depuis « Tout » et « Favoris », carte sans logo/EPG, texte long, changement de profil et contrôle Android TV.
+
+---
+
+# 10. Release
+
+Version :
+v1.48.32
+
+Commit :
+:bug: fix(livetv): improve mobile quick favorite action accessibility (B4)
+
+Date :
+2026-07-21
