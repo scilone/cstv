@@ -59,8 +59,8 @@ L'application est entièrement optimisée pour deux types d'appareils :
 
 ## 5. Vidéos à la Demande (VOD) & Séries
 
-* **Fiches détaillées** : En ouvrant un film ou une série, vous accédez à son résumé, à son année de sortie, à sa note et à des suggestions de films similaires recommandés pour vous.
-* **Reprise de lecture** : Si vous quittez la lecture d'un film ou d'un épisode de série avant la fin, l'application mémorise précisément votre position. Lors du prochain lancement, cliquez simplement sur "Reprendre la lecture" pour continuer là où vous vous étiez arrêté.
+* **Fiches détaillées** : En ouvrant un film ou une série, vous accédez à son résumé, à son année de sortie, à sa note et à des suggestions de films similaires recommandés pour vous. Vous pouvez également cliquer directement sur le nom d'un acteur ou d'un réalisateur dans la fiche pour lancer une recherche instantanée de ses œuvres associées.
+* **Reprise de lecture** : Si vous quittez la lecture d'un film ou d'un épisode de série avant la fin, l'application mémorise précisément votre position. Lors du prochain lancement, cliquez simplement sur "Reprendre la lecture" pour continuer là où vous vous étiez arrêté. Les étiquettes (badges) indiquant le type de média (FILM, SÉRIE, DIRECT) sur l'écran d'accueil bénéficient d'un contraste renforcé (fond noir semi-opaque à 50% avec fine bordure blanche transparente) pour être immédiatement lisibles sur n'importe quelle pochette, claire ou foncée.
 * **Saisons & Épisodes** : L'interface des séries regroupe proprement les épisodes par saisons. À la fin d'un épisode, l'application vous propose de lancer automatiquement l'épisode suivant.
 
 ---
@@ -77,8 +77,8 @@ L'application est entièrement optimisée pour deux types d'appareils :
 
 Si vous cherchez un contenu spécifique dans le catalogue volumineux de votre abonnement :
 1. Accédez à la page de **Recherche**.
-2. Saisissez vos mots-clés. Le moteur de recherche intègre un correcteur orthographique automatique pour tolérer les légères fautes de frappe.
-3. Utilisez le bouton **Recherche Avancée** pour restreindre les résultats par type de contenu (uniquement les chaînes en direct, uniquement les films ou uniquement les séries) ou pour filtrer par catégorie thématique.
+2. Saisissez vos mots-clés (ou cliquez sur le nom d'un acteur ou réalisateur depuis une fiche de détails). Lors d'une recherche initiée depuis les crédits d'une fiche, vos anciens filtres de recherche avancée sont automatiquement réinitialisés pour éviter de fausser les résultats. Le moteur de recherche effectue une recherche complète (titre, acteurs, réalisateur, genre) et intègre un correcteur orthographique automatique pour tolérer les légères fautes de frappe lors des saisies manuelles.
+3. Utilisez le bouton **Recherche Avancée** pour restreindre les résultats par type de contenu (uniquement les chaînes en direct, uniquement les films ou uniquement les séries) ou pour filtrer par catégorie thématique. Vos filtres de recherche avancée s'appliqueront cumulativement à votre recherche.
 
 ---
 

@@ -4,6 +4,20 @@ Ce document retrace l'historique des versions, des fonctionnalités livrées, de
 
 ---
 
+## [v1.49.2] - 2026-07-22
+### 🐛 Correctifs de Bugs
+* **Filtrage de recherche par acteur / crédit (B7)** :
+  - Centralisation de la transition « crédit vers recherche » dans le ViewModel (`FavoritesViewModel.searchFromCredit`) : annulation atomique des jobs de recherche/comptage en cours, remise à zéro complète des filtres avancés actifs (`DEFAULT`), suppression des catégories chargées, fermeture de la feuille de filtres, et déclenchement d'une recherche VOD/Séries propre.
+  - Extension du prédicat de recherche catalogue dans `AdvancedCatalogSearchUseCase` pour faire correspondre la requête textuelle non seulement au titre, mais également aux acteurs (`actors`), au réalisateur (`director`) et au genre (`genre`), de manière insensible à la casse et gérant élégamment les valeurs `null`.
+  - Mapping complet des entités VOD et Séries retournées par le DAO FTS dans `FavoritesRepositoryImpl.searchUnified` pour préserver et restituer toutes les métadonnées de crédits (`actors`, `director`, `genre` et `releaseYear`) au domaine.
+  - Raccordement symétrique des boutons d'acteurs/réalisateurs depuis les fiches détails VOD (`vod_details`) et Séries (`series_details`) vers la nouvelle intention du ViewModel dans `NavGraph.kt`.
+* **Visibilité de l'étiquette de type de média sur l'accueil (B8)** :
+  - Création du composable partagé, stateless et performant `HomeMediaTypeBadge.kt` dans `presentation/home/components/`.
+  - Application d'un fond sombre semi-opaque à 50% (`Color.Black.copy(alpha = 0.5f)`) et d'une fine bordure blanche transparente à 20% (`Color.White.copy(alpha = 0.2f)`) avec rayon de `4.dp` pour maximiser la lisibilité du texte blanc sur les affiches extrêmement claires ou détaillées.
+  - Migration des badges de type de média de `HomeFavoriteItemCard` (Favoris, texte de 8 sp) et `HomeTrendingCarousel` (Tendances, texte de 10 sp) vers ce nouveau composant partagé tout en préservant leurs comportements de clic, marges et positions d'origine.
+
+---
+
 ## [v1.49.1] - 2026-07-21
 ### ⚡ Performances & Optimisations
 * **Ajustements de la recommandation de médias** :
