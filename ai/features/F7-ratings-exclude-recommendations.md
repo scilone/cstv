@@ -6,7 +6,7 @@ Type:
 Feature
 
 Status:
-ARCHITECTURE
+TASK BREAKDOWN
 
 Created:
 2026-07-21
@@ -487,3 +487,152 @@ Le projet ne disposant pas d'infrastructure `androidTest`, la migration 16→17 
 - Une transaction locale courte par vote, sans accès réseau ni scan du catalogue.
 - Aucun collecteur par carte : seuls les écrans de détail actifs observent un vote ; la Home observe un flux global d'invalidation.
 - Le recalcul complet n'est déclenché qu'après un changement confirmé, jamais à chaque recomposition.
+
+---
+
+# 9. Plan de développement
+
+## Ordre d'exécution
+
+Les tâches 1 à 3 construisent le contrat de données et de recommandations. Les tâches 4 et 5 dépendent de ce contrat. La tâche 6 valide l'ensemble. F8 réutilisera l'invalidation des recommandations créée à la tâche 3.
+
+### Tâche 1 — Modèle d'évaluation et migration Room
+
+- [ ] Créer le stockage profilé des évaluations et sa migration non destructive 16 → 17.
+
+Objectif :
+Ajouter les modèles domaine/data, le DAO, l'entité `media_ratings`, la migration et le nettoyage des votes lors de la suppression d'un profil, sans changer le comportement de l'UI.
+
+Fichiers :
+
+- `domain/model/MediaRating.kt`
+- `data/local/entity/MediaRatingEntity.kt`
+- `data/local/dao/MediaRatingDao.kt`
+- `data/local/db/AppDatabase.kt`
+- `data/local/db/Migrations.kt`
+- `data/repository/ProfileRepositoryImpl.kt`
+- `di/AppModule.kt`
+- tests de mapping et de `ProfileRepositoryImpl`.
+
+Validation :
+
+- Schéma Room version 17 et `MIGRATION_16_17` présents dans `ALL_MIGRATIONS`.
+- SQL relu contre l'entité ; aucun fallback destructif.
+- États `LIKE`, `DISLIKE`, neutre et valeur inconnue couverts par test.
+- La suppression d'un profil appelle aussi le nettoyage des votes.
+- `./gradlew testDebugUnitTest` passe.
+
+### Tâche 2 — Repository atomique et commande de vote
+
+- [ ] Implémenter l'écriture/lecture d'évaluation et les effets atomiques d'un `DISLIKE`.
+
+Objectif :
+Créer `MediaRatingRepository` et `SetMediaRatingUseCase`. Un vote négatif doit, dans une unique transaction, enregistrer le vote, retirer le favori et supprimer la reprise du profil ; un vote neutre ou positif ne modifie que l'évaluation.
+
+Fichiers :
+
+- `domain/repository/MediaRatingRepository.kt`
+- `data/repository/MediaRatingRepositoryImpl.kt`
+- `domain/usecase/SetMediaRatingUseCase.kt`
+- `data/local/dao/VodDao.kt`
+- `data/local/dao/FavoritesDao.kt` si une requête existante ne couvre pas le cas transactionnel.
+- `di/AppModule.kt`
+- `app/src/test/.../MediaRatingRepositoryImplTest.kt`
+- `app/src/test/.../SetMediaRatingUseCaseTest.kt`.
+
+Validation :
+
+- Repository scopé par le `profileId` capturé une seule fois.
+- `DISLIKE` film/série retire les bonnes données personnelles et jamais un téléchargement.
+- Série : suppression par `seriesId` et par IDs d'épisodes fournis.
+- Une erreur DAO annule toute la transaction ; le cache n'est pas invalidé.
+- `./gradlew testDebugUnitTest` passe.
+
+### Tâche 3 — Recommandations pondérées et invalidation réactive
+
+- [ ] Intégrer les évaluations au moteur de recommandations et exposer un rafraîchissement ciblé de la Home.
+
+Objectif :
+Appliquer les exclusions absolues, le poids `LIKE = 3.0`, la sortie du cold start par like et l'invalidation observable du cache, sans recharger le reste de la Home.
+
+Fichiers :
+
+- `domain/model/RecommendationEngine.kt`
+- `domain/usecase/GetRecommendationsUseCase.kt`
+- `presentation/home/HomeViewModel.kt`
+- `app/src/test/.../RecommendationEngineTest.kt`
+- `app/src/test/.../GetRecommendationsUseCaseTest.kt`
+- `app/src/test/.../HomeViewModelTest.kt`.
+
+Validation :
+
+- Les `LIKE` et `DISLIKE` sont absents des résultats ; seul `LIKE` renforce le goût.
+- Un media aimé et vu n'est compté qu'une fois ; film/série du même ID restent distincts.
+- Un like catalogue permet des recommandations sans trois lectures.
+- L'invalidation ne sert jamais l'ancien cache et n'entraîne pas de rechargement TMDB/EPG.
+- `./gradlew testDebugUnitTest` passe.
+
+### Tâche 4 — États d'écran et observation des votes
+
+- [ ] Ajouter l'état de vote, les transitions et la gestion d'erreur aux ViewModels Film et Série.
+
+Objectif :
+Observer le vote du média sélectionné, calculer les trois transitions utilisateur, bloquer les doubles écritures et transmettre les données nécessaires à la commande atomique.
+
+Fichiers :
+
+- `presentation/vod/VodState.kt`
+- `presentation/vod/VodViewModel.kt`
+- `presentation/series/SeriesState.kt`
+- `presentation/series/SeriesViewModel.kt`
+- tests `VodViewModelTest.kt` et `SeriesViewModelTest.kt`.
+
+Validation :
+
+- Changement de média ou de profil met à jour l'état observé sans fuite de l'ancien vote.
+- Transitions neutre/like/dislike exactes, sans état optimiste.
+- Écriture en cours désactive les actions ; échec affiche un message générique et préserve l'état persisté.
+- Les nouvelles reprises de séries contiennent le `seriesId` actif.
+- `./gradlew testDebugUnitTest` passe.
+
+### Tâche 5 — Contrôles de détail et câblage navigation
+
+- [ ] Ajouter les contrôles J'aime/Je n'aime pas aux fiches Film et Série sur mobile et Android TV.
+
+Objectif :
+Créer le composant stateless partagé, l'intégrer aux quatre layouts de détail et relier les routes unifiées aux états/callbacks des ViewModels.
+
+Fichiers :
+
+- `presentation/components/MediaRatingControls.kt`
+- `presentation/vod/VodDetailsScreen.kt`
+- `presentation/series/SeriesDetailsScreen.kt`
+- `presentation/navigation/NavGraph.kt`
+- `app/src/main/res/values/strings.xml`.
+
+Validation :
+
+- Deux contrôles lisibles respectent les tokens de la maquette, sans déplacer Favori ni Lecture.
+- Mobile : boutons horizontaux ; TV : deux cibles D-pad verticales avec focus visible.
+- Les états sélectionnés, l'animation légère, l'accessibilité et le Snackbar d'erreur fonctionnent.
+- Les deux plateformes passent par les mêmes routes `vod_details` / `series_details`.
+- `./gradlew assembleDebug` et `./gradlew lintDebug` passent.
+
+### Tâche 6 — Validation fonctionnelle et non-régression
+
+- [ ] Vérifier le parcours complet, les profils et la migration avant passage en review.
+
+Objectif :
+Exécuter les vérifications finales, corriger toute régression puis consigner les résultats dans F7.
+
+Fichiers :
+
+- `ai/features/F7-ratings-exclude-recommendations.md` (notes et résultats de validation)
+- fichiers de tests ajustés par les anomalies constatées.
+
+Validation :
+
+- `./gradlew testDebugUnitTest`, `./gradlew assembleDebug` et `./gradlew lintDebug` passent.
+- Vérification manuelle mobile/TV des trois états, changement de profil, persistance, offline, exclusions et suppression favori/reprise sur dislike.
+- Migration 16 → 17 relue manuellement contre le schéma final.
+- Aucun élément hors périmètre : pas d'écran global de notes, pas d'API externe, pas de téléchargement supprimé.
