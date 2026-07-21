@@ -6,7 +6,7 @@ Type:
 Feature
 
 Status:
-SPECIFICATION
+ARCHITECTURE
 
 Created:
 2026-07-21
@@ -116,3 +116,374 @@ Permettre à chaque profil local d'exprimer une préférence explicite sur un fi
 # 5. Notes de spécification
 
 - La position exacte des boutons et leurs dimensions seront définies à l'étape 3 en s'appuyant sur les écrans de détail de `docs/design-reference/`. La maquette actuelle ne comporte pas encore de contrôle d'évaluation ; aucun nouveau token visuel n'est introduit à cette étape.
+
+---
+
+# 6. Spécification technique
+
+## Modèles métier
+
+Deux enums de domaine évitent de propager des chaînes ou entiers bruts :
+
+```kotlin
+enum class RatedMediaType(val storageValue: String) {
+    MOVIE("movie"),
+    SERIES("series")
+}
+
+enum class MediaRatingValue(val storageValue: Int) {
+    LIKE(1),
+    DISLIKE(-1)
+}
+
+data class MediaRating(
+    val mediaId: Int,
+    val mediaType: RatedMediaType,
+    val value: MediaRatingValue
+)
+```
+
+L'état neutre est représenté par l'absence de ligne (`null`), pas par une troisième valeur persistée. Cela garantit une seule source de vérité et évite d'accumuler des lignes sans préférence.
+
+## Stockage Room
+
+### Entité
+
+Une table profilée `media_ratings` est ajoutée :
+
+```kotlin
+@Entity(
+    tableName = "media_ratings",
+    primaryKeys = ["profileId", "mediaType", "mediaId"]
+)
+data class MediaRatingEntity(
+    val profileId: Int,
+    val mediaType: String,
+    val mediaId: Int,
+    val value: Int
+)
+```
+
+- La clé commence par `profileId`, car les lectures principales chargent toutes les évaluations d'un profil ou une évaluation précise de ce profil.
+- `mediaType` distingue un film et une série partageant exceptionnellement le même identifiant numérique.
+- Seules les valeurs `1` et `-1` sont produites par le mapper data ; toute valeur inconnue lue est ignorée défensivement plutôt que de faire planter la présentation.
+- Aucun lien SQLite `FOREIGN KEY` vers le catalogue n'est créé : les entrées doivent survivre à une disparition temporaire du média lors d'une synchronisation.
+
+### DAO
+
+`MediaRatingDao` fournit :
+
+- `observeRating(profileId, mediaType, mediaId): Flow<MediaRatingEntity?>` ;
+- `getAllForProfile(profileId): List<MediaRatingEntity>` ;
+- `upsert(entity)` avec `OnConflictStrategy.REPLACE` ;
+- `delete(profileId, mediaType, mediaId)` pour revenir à neutre ;
+- `deleteAllForProfile(profileId)` pour la suppression d'un profil.
+
+`VodDao` reçoit deux suppressions ciblées supplémentaires :
+
+- suppression de toutes les positions ayant un `seriesId` donné pour un profil ;
+- suppression des positions dont le `streamId` appartient à la liste d'épisodes chargée, appelée uniquement si cette liste n'est pas vide.
+
+La seconde requête couvre les positions de séries historiques ou actuellement créées avec `seriesId = null`. En parallèle, `SeriesViewModel.savePosition` transmet désormais le `seriesId` de `selectedSeriesDetails` afin que toutes les futures positions soient correctement rattachées à leur série.
+
+### Migration 16 → 17
+
+`AppDatabase` passe de la version 16 à 17 et déclare `MediaRatingEntity` ainsi que `mediaRatingDao()`.
+
+```sql
+CREATE TABLE IF NOT EXISTS media_ratings (
+    profileId INTEGER NOT NULL,
+    mediaType TEXT NOT NULL,
+    mediaId INTEGER NOT NULL,
+    value INTEGER NOT NULL,
+    PRIMARY KEY(profileId, mediaType, mediaId)
+)
+```
+
+`MIGRATION_16_17` est ajoutée à `ALL_MIGRATIONS`. Aucune donnée existante n'est transformée et aucun fallback destructif n'est introduit.
+
+## Repository et transaction métier
+
+L'interface `MediaRatingRepository` expose :
+
+```kotlin
+fun observeRating(mediaId: Int, mediaType: RatedMediaType): Flow<MediaRatingValue?>
+suspend fun getAllRatings(): List<MediaRating>
+suspend fun setRating(
+    mediaId: Int,
+    mediaType: RatedMediaType,
+    value: MediaRatingValue?,
+    seriesEpisodeIds: Set<Int> = emptySet()
+)
+```
+
+`MediaRatingRepositoryImpl` capture une seule fois le `profileId` actif au début de l'écriture, puis utilise `AppDatabase.withTransaction` :
+
+1. `value == null` : suppression de la ligne d'évaluation uniquement ;
+2. `LIKE` : upsert de l'évaluation uniquement ;
+3. `DISLIKE` : upsert, retrait du favori de même type/identifiant, puis suppression de la reprise correspondante ;
+4. pour une série : suppression par `seriesId`, complétée par les `streamId` des épisodes présents dans la fiche chargée.
+
+Le vote et ses effets `DISLIKE` sont donc atomiques : si une requête échoue, Room annule l'ensemble et les Flows conservent le dernier état persistant. Les téléchargements ne sont jamais consultés ni supprimés.
+
+`ProfileRepositoryImpl.deleteProfile` appelle également `mediaRatingDao.deleteAllForProfile(id)` avant de supprimer le profil.
+
+## Use case d'écriture
+
+`SetMediaRatingUseCase` reçoit un état cible exact (`LIKE`, `DISLIKE` ou `null`) calculé par le ViewModel. Il :
+
+1. délègue la transaction au repository ;
+2. invalide le cache de `GetRecommendationsUseCase` uniquement après succès ;
+3. émet ensuite un événement de rafraîchissement des recommandations.
+
+`GetRecommendationsUseCase.invalidateCache()` devient une opération suspendue protégée par son `Mutex`. Le use case expose un `SharedFlow<Unit>` d'invalidations. `HomeViewModel` le collecte et relance uniquement le calcul des recommandations, sans recharger les catalogues, l'EPG ou TMDB.
+
+Les boutons sont désactivés pendant une écriture. Le ViewModel accepte donc une seule transition confirmée à la fois ; l'état cible est toujours dérivé de la dernière valeur persistée :
+
+- neutre + J'aime → `LIKE` ;
+- `LIKE` + J'aime → `null` ;
+- `LIKE` + Je n'aime pas → `DISLIKE` ;
+- règles symétriques pour `DISLIKE`.
+
+## Intégration au moteur de recommandations
+
+`GetRecommendationsUseCase` injecte `MediaRatingRepository` et charge les évaluations du profil en même temps que l'historique local.
+
+Pour chaque type, il construit :
+
+- les identifiants `LIKE` ;
+- les identifiants `DISLIKE` ;
+- l'historique positif, après retrait défensif des identifiants `DISLIKE` ;
+- les identifiants exclus des résultats = historique ∪ `LIKE` ∪ `DISLIKE`.
+
+Un média évalué mais absent du catalogue est simplement ignoré lors de la construction du goût. Son identifiant reste néanmoins exclu s'il réapparaît dans le catalogue.
+
+### Pondération explicite
+
+`RecommendationEngine.buildProfileTaste` reçoit des signaux pondérés :
+
+```kotlin
+data class TasteSignal(
+    val item: RecommendableItem,
+    val weight: Double
+)
+```
+
+- historique neutre : poids `1.0` ;
+- média `LIKE` : poids `3.0` ;
+- média `DISLIKE` : aucun signal.
+
+Un média à la fois aimé et présent dans l'historique n'est ajouté qu'une fois, avec le poids `3.0`. Les dénominateurs des poids de genre, catégorie, acteurs et réalisateur deviennent des sommes de poids `Double`, et non des nombres d'items. Le scoring final des candidats conserve les coefficients existants.
+
+La protection de démarrage à froid évolue ainsi :
+
+- sans aucun `LIKE`, le seuil actuel de trois médias distincts dans l'historique reste inchangé ;
+- dès qu'au moins un `LIKE` correspond à un média du catalogue, le profil peut produire des recommandations même avec moins de trois lectures.
+
+Cela permet à un vote positif d'être utile sans historique tout en conservant le comportement antérieur pour les profils sans retour explicite.
+
+## Présentation et états ViewModel
+
+`VodState` et `SeriesState` reçoivent :
+
+```kotlin
+val mediaRating: MediaRatingValue? = null
+val isRatingSaving: Boolean = false
+val ratingError: String? = null
+```
+
+À chaque sélection de film ou série, le ViewModel annule l'observation précédente puis collecte `observeRating` pour le nouvel identifiant et le profil actif. Le repository utilise `flatMapLatest` sur `ProfileManager.activeProfileId`, ce qui remet correctement l'état à jour lors d'un changement de profil.
+
+`VodViewModel.setRating(value)` transmet l'identifiant du film. `SeriesViewModel.setRating(value)` transmet l'identifiant de série et l'ensemble des identifiants d'épisodes de `selectedSeriesDetails`. Les deux méthodes :
+
+- ignorent une action si une écriture est déjà en cours ;
+- positionnent `isRatingSaving` ;
+- exposent un message utilisateur générique en cas d'échec ;
+- ne modifient jamais optimistement `mediaRating` ; le Flow Room confirme la nouvelle valeur.
+
+## Composant Compose partagé
+
+Un composable stateless `MediaRatingControls` est créé dans `presentation/components/MediaRatingControls.kt` avec :
+
+```kotlin
+@Composable
+fun MediaRatingControls(
+    value: MediaRatingValue?,
+    isSaving: Boolean,
+    isTv: Boolean,
+    onLike: () -> Unit,
+    onDislike: () -> Unit,
+    modifier: Modifier = Modifier
+)
+```
+
+- Mobile : une `Row` de deux boutons de même largeur, icône + libellé « J'aime » / « Je n'aime pas », hauteur 48.dp et espacement 10.dp.
+- Android TV : une `Column` de deux boutons pleine largeur dans la colonne latérale, hauteur 40.dp et espacement 8.dp, afin de conserver les libellés lisibles et deux cibles D-pad stables.
+- État neutre : `Surface3`, bordure blanche à faible opacité, texte `TextPrimary`.
+- État sélectionné : fond `AccentLavande`, contenu blanc et icône remplie. Aucun rouge ou vert inédit n'est ajouté à la charte.
+- Focus TV : bordure de 2.dp avec `AccentLavande`/`AccentHover` existant ; chaque action est une cible indépendante.
+- Une animation courte via `animateColorAsState` et `animateFloatAsState` accompagne la sélection, sans nouvelle dépendance.
+- Pendant `isSaving`, les deux actions sont désactivées et un indicateur compact commun signale l'écriture en cours.
+- Les descriptions d'accessibilité indiquent l'action et l'état sélectionné.
+
+Placement :
+
+- Film TV : sous le bouton Favori dans la colonne de 220.dp, avant le contenu de droite ;
+- Série TV : sous le bouton Favori et avant la liste des saisons ;
+- Film mobile : sous les métadonnées et avant le synopsis, en conservant l'étoile Favori au niveau du titre ;
+- Série mobile : sous les métadonnées et avant le synopsis, sans modifier la hiérarchie saisons/épisodes.
+
+Ce placement réutilise les surfaces, rayons et espacements des fiches de référence. La maquette ne prévoit pas encore ces actions : elles sont ajoutées sans déplacer l'action Favori ni le bouton principal de lecture.
+
+`VodDetailsScreen` et `SeriesDetailsScreen` reçoivent l'état et les callbacks de vote. Un `SnackbarHost` local affiche `ratingError`, puis appelle un callback de consommation pour éviter une répétition après recomposition.
+
+## Navigation
+
+La navigation actuelle a été vérifiée : `AppNavGraph` est désormais commun à mobile et Android TV, malgré l'ancien avertissement de double navigation dans `AGENTS.md`. Un seul câblage est donc nécessaire dans les routes `vod_details` et `series_details` : état du ViewModel, callbacks de vote et consommation d'erreur. `MainActivity` ne reçoit aucun nouvel écran ni branche de navigation.
+
+## Dépendances, réseau et sécurité
+
+- Aucune nouvelle dépendance Gradle : Room KTX, Hilt, Compose Material/TV et les icônes sont déjà présents.
+- Aucun appel Xtream ou TMDB n'est ajouté. Les votes fonctionnent hors ligne dès que la fiche et le profil sont disponibles.
+- Aucune donnée sensible ni credential n'est stocké ou journalisé.
+- Aucune interface Retrofit ni règle ProGuard supplémentaire.
+
+---
+
+# 7. Architecture
+
+## Flux d'écriture
+
+```text
+VodViewModel / SeriesViewModel
+        │ état cible + média + épisodes éventuels
+        ▼
+SetMediaRatingUseCase
+        │
+        ▼
+MediaRatingRepositoryImpl
+        │ AppDatabase.withTransaction
+        ├── MediaRatingDao : upsert/delete
+        ├── FavoritesDao : delete si DISLIKE
+        └── VodDao : delete reprise si DISLIKE
+        │ succès
+        ▼
+GetRecommendationsUseCase.invalidateCache()
+        │ événement SharedFlow
+        ▼
+HomeViewModel.refreshRecommendations()
+```
+
+Les Flows Room mettent parallèlement à jour l'état du vote, les Favoris et « Continuer à regarder ». L'événement de recommandation ne transporte aucune donnée : la Home relit les sources locales après invalidation.
+
+## Flux de calcul
+
+```text
+historique du profil ── retrait DISLIKE ──┐
+                                         ├── TasteSignal(1.0 / 3.0)
+LIKE du profil ───────────────────────────┘            │
+                                                      ▼
+                                            RecommendationEngine
+
+candidats autorisés - historique - LIKE - DISLIKE ──> résultats
+```
+
+## Responsabilités
+
+- `MediaRatingDao` : requêtes Room sans règle métier.
+- `MediaRatingRepositoryImpl` : mapping, scoping par profil et atomicité multi-DAO.
+- `SetMediaRatingUseCase` : orchestration après persistance et invalidation des recommandations.
+- `GetRecommendationsUseCase` : assemblage des signaux par type, exclusions et cache.
+- `RecommendationEngine` : calcul pur et testable des poids et scores.
+- `VodViewModel` / `SeriesViewModel` : état écran, observation du vote, sérialisation UI et erreurs.
+- `MediaRatingControls` : rendu stateless mobile/TV et accessibilité.
+
+## Fichiers nouveaux
+
+- `domain/model/MediaRating.kt`
+- `domain/repository/MediaRatingRepository.kt`
+- `domain/usecase/SetMediaRatingUseCase.kt`
+- `data/local/entity/MediaRatingEntity.kt`
+- `data/local/dao/MediaRatingDao.kt`
+- `data/repository/MediaRatingRepositoryImpl.kt`
+- `presentation/components/MediaRatingControls.kt`
+- tests unitaires correspondants dans `app/src/test/`.
+
+## Fichiers modifiés
+
+- `data/local/db/AppDatabase.kt` : entité, DAO, version 17.
+- `data/local/db/Migrations.kt` : `MIGRATION_16_17` et `ALL_MIGRATIONS`.
+- `data/local/dao/VodDao.kt` : suppressions de reprises de série.
+- `data/repository/ProfileRepositoryImpl.kt` : nettoyage des votes du profil.
+- `di/AppModule.kt` : providers DAO/repository et dépendances de `ProfileRepositoryImpl`.
+- `domain/model/RecommendationEngine.kt` : signaux pondérés.
+- `domain/usecase/GetRecommendationsUseCase.kt` : évaluations, exclusions, invalidation observable.
+- `presentation/home/HomeViewModel.kt` : rafraîchissement ciblé après invalidation.
+- `presentation/vod/VodState.kt`, `presentation/vod/VodViewModel.kt`, `presentation/vod/VodDetailsScreen.kt`.
+- `presentation/series/SeriesState.kt`, `presentation/series/SeriesViewModel.kt`, `presentation/series/SeriesDetailsScreen.kt`.
+- `presentation/navigation/NavGraph.kt` : câblage des deux fiches commun aux plateformes.
+- `app/src/main/res/values/strings.xml` : libellés, accessibilité et erreur locale.
+
+## Décisions techniques justifiées
+
+- **Ligne absente = neutre** : stockage minimal et requêtes sans valeur sentinelle.
+- **Transaction dans le repository data** : seule couche ayant accès à tous les DAO et à `RoomDatabase`; garantit que `DISLIKE`, favori et reprise ne divergent pas.
+- **Enums au domaine, valeurs primitives en Room** : type safety sans `TypeConverter` global ni migration fragile.
+- **Poids LIKE = 3.0** : signal explicitement fort mais borné, facilement testable et ajustable sans modifier le modèle stocké.
+- **Exclusion défensive en plus de la suppression de reprise** : un résidu historique ou une future reprise ne peut jamais contourner un `DISLIKE`.
+- **Invalidation observable ciblée** : retour immédiat sur la Home sans rechargement coûteux du reste de l'écran.
+- **Composant partagé stateless** : comportement identique Film/Série, logique conservée dans les ViewModels.
+
+---
+
+# 8. Validation prévue
+
+## Tests unitaires obligatoires
+
+- Mapping `MediaRatingEntity` ↔ domaine : `LIKE`, `DISLIKE`, valeur inconnue ignorée.
+- `SetMediaRatingUseCase` : succès invalide le cache ; échec n'invalide pas et propage l'erreur au ViewModel.
+- Repository : neutre supprime uniquement le vote ; `LIKE` upsert uniquement ; `DISLIKE` film retire favori/reprise ; `DISLIKE` série retire par `seriesId` et IDs d'épisodes ; profil capturé une fois.
+- `RecommendationEngine` : poids `3.0`, normalisation pondérée et absence de contribution négative.
+- `GetRecommendationsUseCase` :
+  - `DISLIKE` exclu du goût et des résultats ;
+  - `LIKE` renforce le goût et est exclu des résultats ;
+  - un seul `LIKE` permet de sortir du cold start ;
+  - un média aimé et vu n'est pas compté deux fois ;
+  - séparation film/série pour un même identifiant ;
+  - invalidation empêche de servir l'ancien cache.
+- `VodViewModelTest` et `SeriesViewModelTest` : observation par média/profil, transitions, état saving, erreur sans état optimiste et IDs d'épisodes transmis.
+- `ProfileRepositoryImplTest` : suppression des votes lors de la suppression d'un profil.
+- Non-régression `SeriesViewModelTest` : les nouvelles positions contiennent le `seriesId` actif.
+
+Le projet ne disposant pas d'infrastructure `androidTest`, la migration 16→17 est relue manuellement contre l'entité et le SQL, conformément à `AGENTS.md`. Aucun test UI Compose n'est prioritaire pour le layout pur.
+
+## Vérifications manuelles
+
+1. Mobile et TV, film puis série : vérifier les trois états, le changement direct LIKE↔DISLIKE et la persistance après redémarrage.
+2. Changer de profil sur le même média : vérifier des états indépendants.
+3. `DISLIKE` sur un favori avec reprise : vérifier disparition immédiate des Favoris, de « Continuer à regarder » et des recommandations.
+4. Série avec plusieurs épisodes repris, dont une position ancienne sans `seriesId` : vérifier remise à zéro complète.
+5. `LIKE` sans historique suffisant : vérifier l'apparition de recommandations similaires sans réafficher le média aimé.
+6. Home déjà ouverte : voter puis revenir à la Home et vérifier les rangées recalculées sans synchronisation réseau.
+7. Hors ligne : changer et annuler un vote local.
+8. Simuler une erreur Room : vérifier rollback atomique, état précédent et message non technique.
+
+## Risques et atténuations
+
+- **Course cache/invalidation** : vider le cache sous le même `Mutex`, puis émettre l'événement.
+- **Reprises série sans `seriesId`** : supprimer aussi par IDs d'épisodes chargés et corriger les sauvegardes futures.
+- **Collision d'identifiants Film/Série** : conserver le type dans la clé Room, les ensembles d'exclusion et les appels repository.
+- **Double contribution aimé + historique** : retirer les `LIKE` de l'historique avant de créer leur signal pondéré.
+- **Échec partiel d'un DISLIKE** : transaction Room unique sur les trois DAO.
+- **Actions rapides** : désactiver les contrôles pendant l'écriture et ne refléter que le Flow persistant.
+- **Média évalué absent du catalogue** : conserver le vote, ignorer son signal tant que les métadonnées manquent.
+- **Recalcul coûteux** : collecter uniquement un événement après écriture réussie, conserver le calcul sur `Dispatchers.Default` et réutiliser le cache ensuite.
+- **Cycle DI** : `MediaRatingRepository` ne dépend pas des use cases ; seul `SetMediaRatingUseCase` dépend du repository et de `GetRecommendationsUseCase`.
+
+## Contraintes de performance
+
+- Une lecture des évaluations du profil par recalcul ; volume attendu très inférieur au catalogue.
+- Requêtes indexées par la clé primaire commençant par `profileId`.
+- Une transaction locale courte par vote, sans accès réseau ni scan du catalogue.
+- Aucun collecteur par carte : seuls les écrans de détail actifs observent un vote ; la Home observe un flux global d'invalidation.
+- Le recalcul complet n'est déclenché qu'après un changement confirmé, jamais à chaque recomposition.
