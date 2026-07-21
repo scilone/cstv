@@ -427,21 +427,15 @@ fun HomeFavoriteItemCard(
             "series" -> stringResource(R.string.home_series_badge)
             else -> "FAV"
         }
-        Box(
+        HomeMediaTypeBadge(
+            label = badgeLabel,
+            fontSize = 8.sp,
+            fontWeight = FontWeight.Bold,
+            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp),
             modifier = Modifier
                 .align(Alignment.TopStart)
                 .padding(6.dp)
-                .clip(RoundedCornerShape(4.dp))
-                .background(Color.White.copy(alpha = 0.2f))
-                .padding(horizontal = 4.dp, vertical = 2.dp)
-        ) {
-            Text(
-                text = badgeLabel,
-                color = Color.White,
-                fontSize = 8.sp,
-                fontWeight = FontWeight.Bold
-            )
-        }
+        )
     }
 }
 

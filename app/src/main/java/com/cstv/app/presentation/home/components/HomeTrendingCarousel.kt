@@ -111,23 +111,15 @@ fun HomeTrendingCarousel(
 
                     // 3. Badge type de média (haut-gauche), style neutre "sans
                     // couleur" — cohérent avec HomeFavoriteItemCard.
-                    Box(
+                    HomeMediaTypeBadge(
+                        label = if (isMovie) "FILM" else "SÉRIE",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp),
                         modifier = Modifier
                             .align(Alignment.TopStart)
                             .padding(16.dp)
-                            .background(
-                                Color.White.copy(alpha = 0.2f),
-                                shape = RoundedCornerShape(4.dp)
-                            )
-                            .padding(horizontal = 6.dp, vertical = 2.dp)
-                    ) {
-                        Text(
-                            text = if (isMovie) "FILM" else "SÉRIE",
-                            color = Color.White,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
+                    )
 
                     // 4. Titre + année accolée (bas)
                     Column(
