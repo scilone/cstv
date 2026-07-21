@@ -6,7 +6,7 @@ Type:
 Bug
 
 Status:
-SPECIFICATION
+ARCHITECTURE
 
 Created:
 2026-07-21
@@ -112,3 +112,162 @@ Restaurer, dans le mode Android TV de la catégorie « Tout », des rangées hor
 # 5. Notes de spécification
 
 - La maquette de référence ne décrit pas cette interaction Android TV spécifique. L'étape 3 détaillera l'adaptation de composant nécessaire en réutilisant les tokens de focus, de surfaces et de rayons existants dans `docs/design-reference/`.
+
+---
+
+# 6. Spécification technique
+
+## Diagnostic confirmé
+
+- `CategorySectionRow` rend les cartes Android TV dans un `LazyRow`. Dans cet axe horizontal, aucun parent ne fournit de largeur de cellule à `StreamTvCard`.
+- `StreamTvCard` impose actuellement `fillMaxWidth()` sur sa racine. Ce choix est correct dans la `LazyVerticalGrid` à trois colonnes, mais ambigu dans le `LazyRow` et produit la carte surdimensionnée observée.
+- Les deux contextes Android TV appellent le même composable sans pouvoir lui transmettre une contrainte différente.
+- L'étoile est aujourd'hui composée uniquement si `isFocused || isFavorite`. Un simple suivi de `FocusState.isFocused` sur la carte ne suffit pas pour une action enfant : lorsque l'étoile prend le focus, la carte peut perdre son focus direct et retirer l'étoile de la composition.
+- La logique métier de bascule (`FavoritesViewModel.toggleFavorite` puis observation Room) et le callback `onToggleFavorite` sont déjà partagés et fonctionnels. B4 ne nécessite pas de nouvelle donnée ni de nouvel appel réseau.
+
+## Adaptation de `StreamTvCard`
+
+La signature reçoit un modificateur de placement injecté par le parent :
+
+```kotlin
+@Composable
+fun StreamTvCard(
+    stream: LiveStream,
+    isFavorite: Boolean,
+    epgProgram: LiveEpgProgram?,
+    onLoadEpg: () -> Unit,
+    onToggleFavorite: () -> Unit,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+)
+```
+
+- La racine applique le `modifier` reçu puis la hauteur commune de `84.dp`; elle n'appelle plus elle-même `fillMaxWidth()`.
+- Un conteneur racine forme un groupe de focus regroupant la cible principale de lecture et l'`IconButton` Favori.
+- L'état visuel suit le focus de tout le sous-arbre avec `FocusState.hasFocus`, et non uniquement `isFocused`. Le contour actif et l'affichage de l'étoile restent donc présents lorsque l'étoile elle-même est focusée.
+- L'emplacement de l'étoile reste toujours réservé dans la `Row` pour empêcher tout changement de largeur du texte lors de l'entrée ou de la sortie du focus.
+- Hors focus et pour une chaîne non favorite, l'étoile est transparente et explicitement exclue de la recherche de focus. Elle devient visible et focusable dès que le groupe de la carte possède le focus, ou reste visible si `isFavorite` vaut `true`.
+- L'`IconButton` conserve son callback propre. Sa validation ne propage pas l'action vers la cible de lecture parente.
+- Le libellé d'accessibilité devient dépendant de l'état : « Ajouter aux favoris » ou « Retirer des favoris ».
+
+## Contraintes fournies par les parents
+
+- Dans `CategorySectionRow`, l'appel Android TV fournit `Modifier.width(220.dp)`. Cette règle couvre toutes les rangées construites par ce composant dans « Tout », dont la rangée synthétique `favorites`.
+- Dans la grille de catégorie spécifique de `TvLayout`, l'appel fournit explicitement `Modifier.fillMaxWidth()` afin de conserver les trois colonnes existantes.
+- La branche mobile continue d'utiliser `MobileStreamCard` et ne reçoit aucun changement de dimension ou de focus.
+- La constante de largeur est privée au fichier de composants (`TV_HORIZONTAL_STREAM_CARD_WIDTH = 220.dp`) pour éviter une valeur magique répétée, sans créer un token global qui n'aurait qu'un seul usage.
+
+## Ressources
+
+Deux chaînes localisées sont ajoutées dans `app/src/main/res/values/strings.xml` :
+
+- `live_tv_add_favorite` : « Ajouter aux favoris » ;
+- `live_tv_remove_favorite` : « Retirer des favoris ».
+
+Aucune ressource graphique n'est ajoutée : l'icône `Icons.Default.Star`, les couleurs `Surface3`, primaire et jaune, le rayon de `12.dp` et le contour de `2.dp` existants sont conservés.
+
+## Persistance et erreurs
+
+- Le flux reste `StreamTvCard` → `onToggleFavorite` → `FavoritesViewModel.toggleFavorite` → use cases Favoris → Room → `favoritesList` observée → recomposition.
+- Il n'y a pas d'état optimiste local dans la carte : l'étoile change d'état uniquement lorsque `favoritesList` reflète la donnée persistée, ce qui évite un état mensonger si l'écriture échoue.
+- B4 ne modifie pas le contrat d'erreur global des favoris. L'ajout d'un canal de Snackbar et la refonte de la gestion d'exception de `FavoritesViewModel` affecteraient tous les écrans de favoris et sortent du correctif de dimension/focus. Le composant ne doit toutefois jamais lancer la chaîne ni inverser localement l'icône en cas d'échec du callback.
+
+## Compatibilité et dépendances
+
+- Kotlin et Jetpack Compose existants uniquement ; aucune nouvelle dépendance Gradle.
+- Aucun changement de schéma Room, migration, repository, use case, navigation ou API Retrofit.
+- Min SDK 21 et Android TV restent inchangés.
+- Le correctif n'a aucun effet sur le rendu mobile, car `StreamTvCard` n'est appelé que dans les branches `isTv`.
+
+---
+
+# 7. Architecture
+
+## Responsabilités
+
+```text
+TvLayout
+├── mode Tout
+│   └── CategorySectionRow
+│       └── StreamTvCard(modifier = width(220.dp))
+│           ├── cible carte : lecture
+│           └── cible étoile : bascule favori
+└── catégorie spécifique
+    └── LazyVerticalGrid(3 colonnes)
+        └── StreamTvCard(modifier = fillMaxWidth())
+            ├── cible carte : lecture
+            └── cible étoile : bascule favori
+```
+
+- Le parent reste responsable de la taille imposée par son type de conteneur.
+- `StreamTvCard` reste responsable de sa hauteur, de son contenu, de son groupe de focus et de la séparation des actions lecture/favori.
+- `FavoritesViewModel` et les couches domaine/data restent responsables de la persistance et de la diffusion réactive de l'état favori.
+
+## Flux de focus
+
+```text
+carte chaîne ── D-pad droite ──> étoile Favori
+      │                              │
+ validation                    validation
+      │                              │
+ lecture chaîne                toggle favori
+                                     │
+                         D-pad gauche vers carte
+```
+
+Le groupe conserve `hasFocus = true` pour les deux cibles. L'étoile ne quitte donc jamais la composition ni le graphe de focus pendant le passage carte → étoile. Lorsqu'une carte disparaît de la rangée Favoris après retrait, la `LazyRow` et Compose résolvent le prochain élément disponible ; aucun `FocusRequester` persistant n'est introduit dans ce correctif.
+
+## Fichiers impactés
+
+- `app/src/main/java/com/cstv/app/presentation/livetv/components/LiveTvComponents.kt`
+  - paramètre `modifier` de `StreamTvCard` ;
+  - constante de largeur horizontale ;
+  - groupe et état de focus du sous-arbre ;
+  - étoile à emplacement stable, visibilité/focus conditionnels ;
+  - largeur `220.dp` passée depuis `CategorySectionRow`.
+- `app/src/main/java/com/cstv/app/presentation/livetv/LiveTvScreen.kt`
+  - `Modifier.fillMaxWidth()` explicite à l'appel de la grille Android TV.
+- `app/src/main/res/values/strings.xml`
+  - libellés accessibles Ajouter/Retirer des favoris.
+- `ai/bugs/B4-tv-quick-favorites-all-category.md`
+  - suivi du cycle de vie et décisions de conception.
+
+## Nouveaux composants
+
+Aucun nouveau composant d'architecture, modèle, repository ou use case. La correction étend le contrat de présentation de `StreamTvCard` et réutilise intégralement la chaîne de favoris existante.
+
+---
+
+# 8. Validation prévue
+
+## Vérifications automatisées
+
+- `./gradlew testDebugUnitTest` pour la non-régression des favoris et de la présentation existante.
+- `./gradlew assembleDebug` pour valider les signatures Compose, imports de focus et ressources.
+- `./gradlew lintDebug` pour vérifier notamment les ressources et l'accessibilité statique.
+
+Le projet ne dispose pas d'une infrastructure de tests UI Compose Android TV. Conformément à la stratégie de tests, aucun test unitaire artificiel n'est ajouté pour une contrainte `Modifier` pure ; le comportement de focus est validé manuellement sur émulateur ou appareil TV.
+
+## Scénarios manuels obligatoires
+
+1. Android TV, « Tout » : vérifier plusieurs cartes côte à côte et le défilement horizontal dans une catégorie fournisseur et dans Favoris.
+2. Carte non favorite : focus carte → étoile visible → D-pad droite → validation étoile sans lecture → état jaune.
+3. Carte favorite : retrait depuis une catégorie fournisseur puis depuis la rangée Favoris ; vérifier la mise à jour réactive et le focus restant valide.
+4. Catégorie spécifique : vérifier les trois colonnes, la largeur de cellule, la lecture et le favori.
+5. Chaîne sans logo/EPG et chaîne au nom long : vérifier absence de débordement et étoile entièrement visible.
+6. Mobile : vérifier visuellement que les cartes et l'action Favori n'ont pas changé.
+
+## Risques techniques et atténuations
+
+- **Disparition de l'étoile lors du transfert de focus** : suivre `hasFocus` sur le groupe entier et garder l'emplacement de l'action composé.
+- **Étoile invisible mais encore focusable** : coupler sa transparence à une propriété `canFocus = false`, pas seulement à `alpha(0f)`.
+- **Action favorite déclenchant aussi la lecture** : conserver deux cibles cliquables distinctes et valider le callback de chaque scénario au D-pad.
+- **Régression de la grille** : rendre le dimensionnement obligatoire et explicite aux deux appels Android TV.
+- **Troncature accrue à 220.dp** : conserver `weight(1f)`, `maxLines = 1` et `TextOverflow.Ellipsis`; le logo et l'étoile gardent des largeurs fixes.
+- **Perte de focus après retrait dans Favoris** : ne pas mémoriser un `FocusRequester` lié à une carte supprimée et vérifier le comportement sur premier, milieu, dernier et unique élément.
+
+## Contraintes de performance
+
+- Aucun nouveau collecteur, appel Room, appel réseau ou chargement d'image.
+- L'état de focus reste local à chaque carte et ne provoque que sa recomposition.
+- La largeur fixe réduit la surface composée par carte visible dans le `LazyRow`; la virtualisation paresseuse existante est conservée.
