@@ -4,6 +4,15 @@ Ce document retrace l'historique des versions, des fonctionnalités livrées, de
 
 ---
 
+## [v1.48.30] - 2026-07-21
+### 🐛 Correctifs de Bugs
+* **Correction de la vidéo partielle au lancement du Picture-in-Picture (B1)** :
+  - Ajout d'un relayout différé (`requestLayout`) de 300 ms sur le `PlayerView` et sa surface après la stabilisation de l'animation d'entrée en Picture-in-Picture.
+  - Nettoyage propre du callback différé lors du démontage (`onDispose`) de l'effet Compose pour éviter toute fuite de mémoire.
+  - Utilisation de l'annotation `@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)` pour lever les alertes d'API instables et assurer un lint vierge.
+
+---
+
 ## [v1.48.29] - 2026-07-21
 ### ⚙️ Refactoring & Améliorations Techniques
 * **Factorisation des trois lecteurs vidéo (T3)** :

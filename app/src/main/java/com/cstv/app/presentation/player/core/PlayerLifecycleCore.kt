@@ -1,6 +1,7 @@
 package com.cstv.app.presentation.player.core
 
 import android.os.Build
+import android.view.View
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.Composable
@@ -15,6 +16,7 @@ import androidx.core.util.Consumer
 import androidx.media3.common.VideoSize
 import androidx.media3.ui.PlayerView
 
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 @Composable
 fun rememberPipState(playerViewRef: PlayerView?): Boolean {
     val context = LocalContext.current
@@ -34,23 +36,41 @@ fun rememberPipState(playerViewRef: PlayerView?): Boolean {
         if (activity == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.N) {
             return@DisposableEffect onDispose {}
         }
+        val settledWindowRelayout = Runnable {
+            playerViewRef?.let { view ->
+                view.requestLayout()
+                view.videoSurfaceView?.requestLayout()
+                view.invalidate()
+            }
+        }
         val pipListener = Consumer<androidx.core.app.PictureInPictureModeChangedInfo> { info ->
             isInPipMode = info.isInPictureInPictureMode
             // Le SurfaceView interne ne se relayout pas toujours au changement
-            // de taille PiP. Le cycle est requis à l'entrée comme à la sortie.
+            // de taille PiP. Le premier cycle réagit immédiatement ; le second
+            // attend que l'animation PiP ait atteint ses dimensions finales.
             playerViewRef?.let { view ->
-                view.visibility = android.view.View.INVISIBLE
-                view.post { view.visibility = android.view.View.VISIBLE }
+                view.removeCallbacks(settledWindowRelayout)
+                view.visibility = View.INVISIBLE
+                view.requestLayout()
+                view.post {
+                    view.visibility = View.VISIBLE
+                    view.requestLayout()
+                    view.videoSurfaceView?.requestLayout()
+                    view.postDelayed(settledWindowRelayout, PIP_SETTLED_RELAYOUT_DELAY_MS)
+                }
             }
         }
         activity.addOnPictureInPictureModeChangedListener(pipListener)
         onDispose {
+            playerViewRef?.removeCallbacks(settledWindowRelayout)
             activity.removeOnPictureInPictureModeChangedListener(pipListener)
         }
     }
 
     return isInPipMode
 }
+
+private const val PIP_SETTLED_RELAYOUT_DELAY_MS = 300L
 
 fun enterPictureInPicture(activity: ComponentActivity?, videoSize: VideoSize) {
     if (activity == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return
