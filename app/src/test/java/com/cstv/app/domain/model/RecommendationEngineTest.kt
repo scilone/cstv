@@ -77,15 +77,45 @@ class RecommendationEngineTest {
         val scoreHorror = RecommendationEngine.scoreCandidate(candidateHorror, taste, currentTime)
 
         // Western should score extremely high:
-        // (0.8 * 0.30) [Genre] + (0.5 * 0.25) [Cat] + (0.9 * 0.10) [Actor] + (1.0 * 0.10) [Director] + (1.0 * 0.20) [Rating] + (1.0 * 0.05) [Fresh]
-        // = 0.24 + 0.125 + 0.09 + 0.10 + 0.20 + 0.05 = 0.805
-        assertEquals(0.805, scoreWestern, 0.01)
+        // (0.8 * 0.35) [Genre] + (0.5 * 0.25) [Cat] + (0.9 * 0.10) [Actor] + (1.0 * 0.10) [Director] + (1.0 * 0.15) [Rating] + (1.0 * 0.05) [Fresh]
+        // = 0.28 + 0.125 + 0.09 + 0.10 + 0.15 + 0.05 = 0.795
+        assertEquals(0.795, scoreWestern, 0.01)
 
         // Horror should score low:
-        // (0.0 * 0.30) + (0.0 * 0.25) + (0.0 * 0.10) + (0.0 * 0.10) + (0.5 * 0.20) + (0.0 * 0.05) = 0.10
-        assertEquals(0.10, scoreHorror, 0.01)
+        // (0.0 * 0.35) + (0.0 * 0.25) + (0.0 * 0.10) + (0.0 * 0.10) + (0.5 * 0.15) + (0.0 * 0.05) = 0.075
+        assertEquals(0.075, scoreHorror, 0.01)
 
         assertTrue(scoreWestern > scoreHorror)
+    }
+
+    @Test
+    fun test_scoreCandidate_usesDefaultRatingOfFiveWhenRatingIsMissingOrInvalid() {
+        val taste = RecommendationEngine.ProfileTaste(
+            genreWeights = emptyMap(),
+            categoryWeights = emptyMap(),
+            actorWeights = emptyMap(),
+            directorWeights = emptyMap()
+        )
+
+        val currentTime = 1000000L * 1000L
+        val oldAdded = "0" // Added a long time ago (freshness = 0.0)
+
+        // Media with null rating
+        val candidateNullRating = mockMovie("20", "Western", "cat_west", null, oldAdded)
+        // Media with blank rating
+        val candidateBlankRating = mockMovie("21", "Western", "cat_west", "  ", oldAdded)
+        // Media with invalid rating
+        val candidateInvalidRating = mockMovie("22", "Western", "cat_west", "invalid", oldAdded)
+
+        val scoreNull = RecommendationEngine.scoreCandidate(candidateNullRating, taste, currentTime)
+        val scoreBlank = RecommendationEngine.scoreCandidate(candidateBlankRating, taste, currentTime)
+        val scoreInvalid = RecommendationEngine.scoreCandidate(candidateInvalidRating, taste, currentTime)
+
+        // All should fallback to 5.0 rating, resulting in a rating score of 0.5.
+        // Score = 0.5 * 0.15 = 0.075
+        assertEquals(0.075, scoreNull, 0.01)
+        assertEquals(0.075, scoreBlank, 0.01)
+        assertEquals(0.075, scoreInvalid, 0.01)
     }
 
     @Test

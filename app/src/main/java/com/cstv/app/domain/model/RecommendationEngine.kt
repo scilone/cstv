@@ -3,11 +3,11 @@ package com.cstv.app.domain.model
 object RecommendationEngine {
     
     // Balanced weighted scoring criteria (Total: 1.00)
-    private const val WEIGHT_GENRE = 0.30
+    private const val WEIGHT_GENRE = 0.35
     private const val WEIGHT_CATEGORY = 0.25
     private const val WEIGHT_ACTORS = 0.10
     private const val WEIGHT_DIRECTOR = 0.10
-    private const val WEIGHT_RATING = 0.20
+    private const val WEIGHT_RATING = 0.15
     private const val WEIGHT_FRESHNESS = 0.05
 
     const val MAX_RECOMMENDATIONS = 100
@@ -237,8 +237,8 @@ object RecommendationEngine {
     }
 
     private fun parseRating(rating: String?): Double {
-        if (rating.isNullOrBlank()) return 0.0
-        return rating.trim().toDoubleOrNull() ?: 0.0
+        if (rating.isNullOrBlank()) return 5.0
+        return rating.trim().toDoubleOrNull() ?: 5.0
     }
 
     private fun parseAddedEpoch(added: String?): Long {
