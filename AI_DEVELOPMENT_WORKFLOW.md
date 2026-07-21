@@ -568,6 +568,27 @@ Avant livraison :
 - tous les tests passent ;
 - documentation à jour.
 
+## Actions
+
+1. Stager les fichiers modifiés et créés :
+   ```bash
+   git add <fichiers>
+   ```
+2. Créer le commit en respectant les conventions Gitmoji :
+   ```bash
+   git commit -m ":emoji: type(scope): description (ID)"
+   ```
+3. Créer le tag SemVer correspondant :
+   ```bash
+   git tag vX.Y.Z
+   ```
+4. Pousser les modifications (commits et tags) vers le dépôt distant :
+   ```bash
+   git push && git push --tags
+   ```
+5. Mettre à jour le statut dans la fiche de l'élément à `RELEASED`, avec la version, le nom du commit/tag, et la date du jour.
+6. Archiver la fiche de l'élément en la déplaçant vers son sous-dossier `archive/`.
+
 ---
 
 # Convention Git
