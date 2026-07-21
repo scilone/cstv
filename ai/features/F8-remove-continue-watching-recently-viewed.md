@@ -11,9 +11,6 @@ ARCHITECTURE
 Created:
 2026-07-21
 
-Target version:
-v1.49.0
-
 ---
 
 # 1. Description

@@ -117,8 +117,6 @@ IDEA
 Created:
 YYYY-MM-DD
 
-Target version:
-
 ---
 
 # 1. Description
