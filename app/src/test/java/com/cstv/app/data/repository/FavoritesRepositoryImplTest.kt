@@ -84,10 +84,16 @@ class FavoritesRepositoryImplTest {
             LiveStreamEntity(1, "TF1 HD", null, null, 1, "10", 0L)
         )
         val vodEntities = listOf(
-            VodStreamEntity(2, "The Fast and the Furious", null, null, null, "5", 0L)
+            VodStreamEntity(
+                2, "The Fast and the Furious", null, null, null, "5", 0L,
+                actors = "Vin Diesel", director = "Rob Cohen", genre = "Action", releaseYear = 2001
+            )
         )
         val seriesEntities = listOf(
-            SeriesStreamEntity(3, "The Flash", null, null, null, "12", 0L)
+            SeriesStreamEntity(
+                3, "The Flash", null, null, null, "12", 0L,
+                actors = "Grant Gustin", director = "Greg Berlanti", genre = "Superhero", releaseYear = 2014
+            )
         )
 
         whenever(favoritesDao.searchLiveStreams(expectedSqlQuery)).thenReturn(liveEntities)
@@ -107,10 +113,18 @@ class FavoritesRepositoryImplTest {
         // VOD results
         assertEquals(1, result.vodResults.size)
         assertEquals("The Fast and the Furious", result.vodResults[0].name)
+        assertEquals("Vin Diesel", result.vodResults[0].actors)
+        assertEquals("Rob Cohen", result.vodResults[0].director)
+        assertEquals("Action", result.vodResults[0].genre)
+        assertEquals(2001, result.vodResults[0].releaseYear)
 
         // Series results
         assertEquals(1, result.seriesResults.size)
         assertEquals("The Flash", result.seriesResults[0].name)
+        assertEquals("Grant Gustin", result.seriesResults[0].actors)
+        assertEquals("Greg Berlanti", result.seriesResults[0].director)
+        assertEquals("Superhero", result.seriesResults[0].genre)
+        assertEquals(2014, result.seriesResults[0].releaseYear)
 
         verify(favoritesDao).searchLiveStreams(expectedSqlQuery)
         verify(favoritesDao).searchVodStreams(expectedSqlQuery)
@@ -123,5 +137,22 @@ class FavoritesRepositoryImplTest {
 
         assertTrue(result.isEmpty)
         verifyNoInteractions(favoritesDao)
+    }
+
+    @Test
+    fun test_searchUnified_keepsInvalidReleaseYearAsNull() = runTest {
+        val expectedSqlQuery = "\"movie\"*"
+        whenever(favoritesDao.searchLiveStreams(expectedSqlQuery)).thenReturn(emptyList())
+        whenever(favoritesDao.searchVodStreams(expectedSqlQuery)).thenReturn(
+            listOf(VodStreamEntity(2, "Movie", null, null, null, "5", 0L, releaseYear = 0))
+        )
+        whenever(favoritesDao.searchSeriesStreams(expectedSqlQuery)).thenReturn(
+            listOf(SeriesStreamEntity(3, "Series", null, null, null, "12", 0L, releaseYear = -1))
+        )
+
+        val result = repository.searchUnified("movie")
+
+        assertNull(result.vodResults.single().releaseYear)
+        assertNull(result.seriesResults.single().releaseYear)
     }
 }

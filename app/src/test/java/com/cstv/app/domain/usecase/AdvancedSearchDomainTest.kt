@@ -216,4 +216,35 @@ class AdvancedSearchDomainTest {
         assertEquals(1, result.vodResults.size)
         assertEquals(3, result.vodResults[0].streamId)
     }
+
+    @Test
+    fun test_advancedCatalogSearch_matchesCreditsAndGenreCaseInsensitively() = runTest {
+        val vodList = listOf(
+            VodStream(1, "Title only", null, null, null, "cat1", actors = "Élodie Martin"),
+            VodStream(2, "Another title", null, null, null, "cat1", director = "Jean Dupont"),
+            VodStream(3, "Third title", null, null, null, "cat1", genre = "Science-Fiction"),
+            VodStream(4, "No metadata", null, null, null, "cat1")
+        )
+        val seriesList = listOf(
+            SeriesStream(5, "Series title", null, null, null, "cat2", actors = "ÉLODIE MARTIN"),
+            SeriesStream(6, "Other series", null, null, null, "cat2", director = "Jean Dupont"),
+            SeriesStream(7, "Genre series", null, null, null, "cat2", genre = "Science-Fiction")
+        )
+        whenever(vodRepository.getVodStreams(eq("all"), eq(false))).thenReturn(vodList)
+        whenever(seriesRepository.getSeriesStreams(eq("all"), eq(false))).thenReturn(seriesList)
+        whenever(categoryPreferenceRepository.getPreferences(any())).thenReturn(emptyMap())
+
+        val creditResult = advancedCatalogSearchUseCase("élodie martin", AdvancedSearchFilter.DEFAULT)
+        assertEquals(listOf(1), creditResult.vodResults.map { it.streamId })
+        assertEquals(listOf(5), creditResult.seriesResults.map { it.seriesId })
+
+        val directorFilter = AdvancedSearchFilter.DEFAULT.copy(mediaType = SearchMediaType.SERIE)
+        val directorResult = advancedCatalogSearchUseCase("jean dupont", directorFilter)
+        assertTrue(directorResult.vodResults.isEmpty())
+        assertEquals(listOf(6), directorResult.seriesResults.map { it.seriesId })
+
+        val genreResult = advancedCatalogSearchUseCase("science-fiction", AdvancedSearchFilter.DEFAULT)
+        assertEquals(listOf(3), genreResult.vodResults.map { it.streamId })
+        assertEquals(listOf(7), genreResult.seriesResults.map { it.seriesId })
+    }
 }

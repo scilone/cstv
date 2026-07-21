@@ -235,4 +235,33 @@ class FavoritesViewModelTest {
 
         verify(advancedCatalogSearchUseCase, atLeastOnce()).invoke(anyOrNull(), any())
     }
+
+    @Test
+    fun test_searchFromCredit_resetsFiltersAndSearchesCatalogOnly() = runTest(testDispatcher) {
+        viewModel.setFilterSheetOpen(true)
+        viewModel.setMediaType(SearchMediaType.SERIE)
+        viewModel.setCategory("cat1")
+        viewModel.setMinRating(8)
+        viewModel.toggleGenre("Action")
+        runCurrent()
+
+        viewModel.searchFromCredit("Élodie Martin")
+
+        val immediateState = viewModel.state.value
+        assertEquals("Élodie Martin", immediateState.searchQuery)
+        assertEquals(AdvancedSearchFilter.DEFAULT, immediateState.advancedFilter)
+        assertTrue(immediateState.availableCategories.isEmpty())
+        assertFalse(immediateState.isFilterSheetOpen)
+        assertTrue(immediateState.searchResult.isEmpty)
+
+        advanceTimeBy(400)
+        runCurrent()
+
+        val finalState = viewModel.state.value
+        assertTrue(finalState.searchResult.liveResults.isEmpty())
+        assertEquals(1, finalState.searchResult.vodResults.size)
+        assertEquals(1, finalState.searchResult.seriesResults.size)
+        verify(advancedCatalogSearchUseCase).invoke("Élodie Martin", AdvancedSearchFilter.DEFAULT)
+        verify(searchUnifiedUseCase, never()).invoke(any())
+    }
 }

@@ -56,8 +56,8 @@ class AdvancedCatalogSearchUseCase @Inject constructor(
 
         // Apply optional text query
         if (!query.isNullOrBlank()) {
-            vodFiltered = vodFiltered.filter { it.name.contains(query, ignoreCase = true) }
-            seriesFiltered = seriesFiltered.filter { it.name.contains(query, ignoreCase = true) }
+            vodFiltered = vodFiltered.filter { stream -> stream.matchesTextQuery(query) }
+            seriesFiltered = seriesFiltered.filter { stream -> stream.matchesTextQuery(query) }
         }
 
         // Apply categoryId (only if a type is chosen and not null and not "all")
@@ -120,4 +120,16 @@ class AdvancedCatalogSearchUseCase @Inject constructor(
             emptySet()
         }
     }
+
+    private fun com.cstv.app.domain.model.VodStream.matchesTextQuery(query: String): Boolean =
+        name.contains(query, ignoreCase = true) ||
+            actors?.contains(query, ignoreCase = true) == true ||
+            director?.contains(query, ignoreCase = true) == true ||
+            genre?.contains(query, ignoreCase = true) == true
+
+    private fun com.cstv.app.domain.model.SeriesStream.matchesTextQuery(query: String): Boolean =
+        name.contains(query, ignoreCase = true) ||
+            actors?.contains(query, ignoreCase = true) == true ||
+            director?.contains(query, ignoreCase = true) == true ||
+            genre?.contains(query, ignoreCase = true) == true
 }

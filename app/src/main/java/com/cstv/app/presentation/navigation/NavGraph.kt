@@ -435,7 +435,7 @@ fun AppNavGraph(
                             navController.popBackStack()
                         },
                         onSearchQueryTriggered = { query ->
-                            favoritesViewModel.onSearchQueryChanged(query)
+                            favoritesViewModel.searchFromCredit(query)
                             navController.navigate("search")
                         },
                         relatedStreams = state.relatedStreams,
@@ -496,7 +496,7 @@ fun AppNavGraph(
                             navController.popBackStack()
                         },
                         onSearchQueryTriggered = { query ->
-                            favoritesViewModel.onSearchQueryChanged(query)
+                            favoritesViewModel.searchFromCredit(query)
                             navController.navigate("search")
                         },
                         relatedSeries = state.relatedSeries,

@@ -59,10 +59,16 @@ class FavoritesRepositoryImpl @Inject constructor(
                 LiveStream(it.streamId, it.name, it.streamIcon, it.epgChannelId, it.num, it.categoryId)
             },
             vodResults = vodEntities.map {
-                VodStream(it.streamId, it.name, it.streamIcon, it.rating, it.added, it.categoryId, it.genre, it.releaseYear?.takeIf { y -> y > 0 })
+                VodStream(
+                    it.streamId, it.name, it.streamIcon, it.rating, it.added, it.categoryId,
+                    it.genre, it.releaseYear?.takeIf { y -> y > 0 }, it.actors, it.director
+                )
             },
             seriesResults = seriesEntities.map {
-                SeriesStream(it.seriesId, it.name, it.cover, it.rating, it.added, it.categoryId, it.genre, it.releaseYear?.takeIf { y -> y > 0 })
+                SeriesStream(
+                    it.seriesId, it.name, it.cover, it.rating, it.added, it.categoryId,
+                    it.genre, it.releaseYear?.takeIf { y -> y > 0 }, it.actors, it.director
+                )
             }
         )
     }

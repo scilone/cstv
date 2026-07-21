@@ -63,6 +63,7 @@ class FavoritesViewModel @Inject constructor(
     // qu'un résultat obsolète (requête lente) n'écrase un résultat plus récent.
     private var searchJob: Job? = null
     private var countJob: Job? = null
+    private var isCreditSearchActive = false
 
     init {
         // Phase 41 : Room ré-émet automatiquement après addFavorite/removeFavorite
@@ -95,7 +96,7 @@ class FavoritesViewModel @Inject constructor(
                 val currentQuery = _state.value.searchQuery
                 val currentFilter = _state.value.advancedFilter
                 if (currentQuery.isNotEmpty() || currentFilter.isActive || _state.value.hasBrowsedAll) {
-                    performSearch(currentQuery)
+                    performSearch(currentQuery, useAdvancedCatalogSearch = isCreditSearchActive)
                 }
             }
         }
@@ -119,8 +120,28 @@ class FavoritesViewModel @Inject constructor(
     }
 
     fun onSearchQueryChanged(query: String) {
+        isCreditSearchActive = false
         _state.update { it.copy(searchQuery = query) }
         performSearch(query)
+    }
+
+    fun searchFromCredit(query: String) {
+        searchJob?.cancel()
+        countJob?.cancel()
+        isCreditSearchActive = true
+        _state.update {
+            it.copy(
+                searchQuery = query,
+                searchResult = SearchResult(),
+                isSearching = false,
+                advancedFilter = AdvancedSearchFilter.DEFAULT,
+                isFilterSheetOpen = false,
+                availableCategories = emptyList(),
+                filteredResultCount = 0,
+                hasBrowsedAll = false
+            )
+        }
+        performSearch(query, force = true, useAdvancedCatalogSearch = true)
     }
 
     fun setFilterSheetOpen(isOpen: Boolean) {
@@ -273,7 +294,11 @@ class FavoritesViewModel @Inject constructor(
      * résultats"), où l'absence de filtre doit renvoyer tout le catalogue
      * Films+Séries plutôt que rien.
      */
-    private fun performSearch(query: String, force: Boolean = false) {
+    private fun performSearch(
+        query: String,
+        force: Boolean = false,
+        useAdvancedCatalogSearch: Boolean = false
+    ) {
         searchJob?.cancel()
         val filter = _state.value.advancedFilter
         if (!force && query.trim().isBlank() && filter.isEmpty) {
@@ -284,7 +309,7 @@ class FavoritesViewModel @Inject constructor(
             _state.update { it.copy(isSearching = true) }
             delay(SEARCH_DEBOUNCE_MILLIS)
             val result = try {
-                if (filter.isActive || query.isEmpty()) {
+                if (useAdvancedCatalogSearch || filter.isActive || query.isEmpty()) {
                     advancedCatalogSearchUseCase(query, filter)
                 } else {
                     searchUnifiedUseCase(query)
