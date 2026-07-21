@@ -4,6 +4,15 @@ Ce document retrace l'historique des versions, des fonctionnalités livrées, de
 
 ---
 
+## [v1.49.1] - 2026-07-21
+### ⚡ Performances & Optimisations
+* **Ajustements de la recommandation de médias** :
+  - Augmentation de la pondération du genre sémantique à 35 % (au lieu de 30 %) pour favoriser la pertinence thématique universelle.
+  - Diminution de la pondération de la note à 15 % (au lieu de 20 %) pour réduire l'impact des notes absentes fréquentes.
+  - Ajout d'une note par défaut de 5.0 pour tous les médias sans note, garantissant un score de départ équitable sans pénalisation arbitraire.
+
+---
+
 ## [v1.49.0] - 2026-07-21
 ### 🐛 Correctifs de Bugs
 * **Rapprochement rigoureux des médias TMDB avec l'année de sortie (B6)** :
