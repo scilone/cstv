@@ -70,6 +70,13 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.common.VideoSize
 import com.cstv.app.data.local.storage.ResizeMode
 import com.cstv.app.presentation.livetv.LiveTvViewModel
+import com.cstv.app.presentation.player.core.KeepScreenOnEffect
+import com.cstv.app.presentation.player.core.PlayerOverlayHost
+import com.cstv.app.presentation.player.core.PlayerOverlayGradients
+import com.cstv.app.presentation.player.core.PlayerOverlayTopBar
+import com.cstv.app.presentation.player.core.enterPictureInPicture
+import com.cstv.app.presentation.player.core.rememberManagedExoPlayer
+import com.cstv.app.presentation.player.core.rememberPipState
 
 private fun Context.findActivity(): Activity? {
     var currentContext = this
@@ -96,16 +103,7 @@ fun PlayerScreen(
 ) {
     val context = LocalContext.current
 
-    val exoPlayer = remember {
-        // Décodeurs FFmpeg (NextLib) préférés pour l'audio : lit EAC3/AC3/DTS
-        // même sur les appareils sans décodeur matériel de ces codecs (le
-        // décodeur HW peut s'annoncer supporté puis crasher le
-        // MediaCodecAudioRenderer, d'où le mode PREFER plutôt que fallback).
-        val renderersFactory = NextRenderersFactory(context)
-            .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
-            .setEnableDecoderFallback(true)
-        ExoPlayer.Builder(context, renderersFactory).build()
-    }
+    val exoPlayer = rememberManagedExoPlayer(useOfflineCache = false)
 
     var isPlayerVisible by remember { mutableStateOf(true) }
     var showChannelList by remember { mutableStateOf(false) }
@@ -134,15 +132,7 @@ fun PlayerScreen(
         }
     }
     
-    // Prevent screen lock during playback
-    DisposableEffect(Unit) {
-        val activity = context.findActivity()
-        val window = activity?.window
-        window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        onDispose {
-            window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        }
-    }
+    KeepScreenOnEffect()
 
     // Recherche par streamId (identité stable) et non par égalité structurelle :
     // une chaîne ouverte depuis "Récemment regardées" est reconstruite depuis
@@ -186,46 +176,9 @@ fun PlayerScreen(
 
     var playerViewRef by remember { mutableStateOf<PlayerView?>(null) }
     val componentActivity = remember(context) { context.findActivity() as? androidx.activity.ComponentActivity }
-    var isInPipMode by remember {
-        mutableStateOf(
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
-                componentActivity?.isInPictureInPictureMode == true
-            } else {
-                false
-            }
-        )
-    }
-
-    DisposableEffect(componentActivity) {
-        if (componentActivity == null) return@DisposableEffect onDispose {}
-        val listener = androidx.core.util.Consumer<androidx.core.app.PictureInPictureModeChangedInfo> { info ->
-            isInPipMode = info.isInPictureInPictureMode
-        }
-        componentActivity.addOnPictureInPictureModeChangedListener(listener)
-        onDispose {
-            componentActivity.removeOnPictureInPictureModeChangedListener(listener)
-        }
-    }
-
+    val isInPipMode = rememberPipState(playerViewRef)
     LaunchedEffect(isInPipMode) {
-        if (isInPipMode) {
-            showChannelList = false
-        }
-        // Le SurfaceView interne au PlayerView ne se relayout pas tout seul
-        // au redimensionnement de la fenêtre PIP (bug connu ExoPlayer/Media3) :
-        // un cycle invisible/visible force un vrai passage de layout.
-        playerViewRef?.let { view ->
-            view.visibility = android.view.View.INVISIBLE
-            view.post { view.visibility = android.view.View.VISIBLE }
-        }
-    }
-
-    // Auto-hide overlay after 5 seconds of inactivity
-    LaunchedEffect(showOverlay, showChannelList) {
-        if (showOverlay && !showChannelList) {
-            delay(5000)
-            showOverlay = false
-        }
+        if (isInPipMode) showChannelList = false
     }
 
     // Prepare and play the stream whenever the stream index or extension changes
@@ -272,7 +225,6 @@ fun PlayerScreen(
 
         onDispose {
             exoPlayer.removeListener(listener)
-            exoPlayer.release()
         }
     }
 
@@ -473,7 +425,13 @@ fun PlayerScreen(
         // Custom Overlay UI (Auto-hides) — refonte Phase 60. Pas de transport
         // central sur le live (flux non seekable) : la jauge reflète l'EPG et
         // n'est pas interactive.
-        if (showOverlay && playbackError == null && !isInPipMode) {
+        if (playbackError == null) PlayerOverlayHost(
+            isVisible = showOverlay,
+            isInPipMode = isInPipMode,
+            isAutoHideBlocked = showChannelList,
+            isPlaying = true,
+            onVisibilityChanged = { showOverlay = it }
+        ) {
             val epgCurrent = playerEpg?.current
             val epgNext = playerEpg?.next
             val epgFraction = epgCurrent?.let {
@@ -483,31 +441,10 @@ fun PlayerScreen(
             val hmFormat = remember { java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()) }
             val hmsFormat = remember { java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()) }
 
-            // Dégradés haut/bas.
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(120.dp)
-                    .align(Alignment.TopCenter)
-                    .background(Brush.verticalGradient(listOf(Color(0xB3000000), Color.Transparent)))
-            )
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(200.dp)
-                    .align(Alignment.BottomCenter)
-                    .background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xCC000000))))
-            )
+            PlayerOverlayGradients(topHeight = 120.dp, bottomHeight = 200.dp)
 
             // Barre supérieure : retour (gauche) — PIP + format (droite)
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .align(Alignment.TopCenter)
-                    .padding(16.dp)
-            ) {
+            PlayerOverlayTopBar {
                 PlayerTopButton(
                     icon = Icons.AutoMirrored.Filled.ArrowBack,
                     contentDescription = "Retour",
@@ -518,31 +455,7 @@ fun PlayerScreen(
                         PlayerTopButton(
                             icon = Icons.Default.PictureInPictureAlt,
                             contentDescription = "Picture-in-Picture",
-                            onClick = {
-                                val act = componentActivity ?: return@PlayerTopButton
-                                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                                    val builder = android.app.PictureInPictureParams.Builder()
-                                    val vs = exoPlayer.videoSize
-                                    if (vs.width > 0 && vs.height > 0) {
-                                        try {
-                                            val ratio = vs.width.toFloat() / vs.height.toFloat()
-                                            if (ratio in 0.4184f..2.39f) {
-                                                builder.setAspectRatio(android.util.Rational(vs.width, vs.height))
-                                            } else {
-                                                builder.setAspectRatio(android.util.Rational(16, 9))
-                                            }
-                                        } catch (e: Exception) {
-                                            builder.setAspectRatio(android.util.Rational(16, 9))
-                                        }
-                                    } else {
-                                        builder.setAspectRatio(android.util.Rational(16, 9))
-                                    }
-                                    act.enterPictureInPictureMode(builder.build())
-                                } else if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
-                                    @Suppress("DEPRECATION")
-                                    act.enterPictureInPictureMode()
-                                }
-                            }
+                            onClick = { enterPictureInPicture(componentActivity, exoPlayer.videoSize) }
                         )
                     }
                     PlayerTopButton(

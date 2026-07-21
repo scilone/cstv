@@ -4,6 +4,18 @@ Ce document retrace l'historique des versions, des fonctionnalités livrées, de
 
 ---
 
+## [v1.48.29] - 2026-07-21
+### ⚙️ Refactoring & Améliorations Techniques
+* **Factorisation des trois lecteurs vidéo (T3)** :
+  - Extraction complète de la logique technique redondante des lecteurs `PlayerScreen` (Live), `VodPlayerScreen` et `SeriesPlayerScreen` vers un socle partagé et réutilisable dans le package `presentation/player/core/`.
+  - **`ExoPlayerCore`** : cycle de vie géré unifié et robuste (`rememberManagedExoPlayer`), garantissant une libération (`release`) unique sous le contrôle du core. Option dynamique de cache de lecture (opt-in pour VOD/Séries, désactivé pour préserver le flux Live réseau).
+  - **`PlayerLifecycleCore`** : centralisation de l'état `KEEP_SCREEN_ON` et de la prise en charge du mode Picture-in-Picture (PiP) avec relayout complet à l'entrée et à la sortie de la fenêtre réduite (travaille de façon sécurisée sans planter sur TV).
+  - **`PlayerOverlayCore`** : implémentation de `PlayerOverlayHost` sous forme de conteneur à slots, unifiant le masquage automatique des contrôles après 5 secondes d'inactivité et les dégradés sans imposer de structure ou de titre particulier aux écrans appelants.
+  - **`PositionTrackerCore`** : suivi et sauvegarde de la progression (`TrackPlayerPosition`) fondés sur un temps réel monotone insensible aux à-coups des pauses/reprises. Routage unifié des flux de fin de contenu et de sauvegarde finale via le callback `onTrackerDispose`.
+  - **Gain architectural** : Économie de ~370 lignes nettes de code et réduction significative de la dette technique. Les tests automatisés et la suite de validation sont entièrement verts.
+
+---
+
 ## [v1.48.27] - 2026-07-20
 ### ⚙️ Refactoring & Améliorations Techniques
 * **Unification de la navigation (T-2)** :
