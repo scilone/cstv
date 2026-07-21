@@ -1,4 +1,4 @@
-# B4 - Impossible d'ajouter rapidement en favoris sur TV dans la liste « Tout »
+# B4 - Action Favori difficilement accessible sur mobile dans TV en direct « Tout »
 
 ## Informations générales
 
@@ -18,25 +18,24 @@ v1.48.32
 
 # 1. Description
 
-Sur l'écran **TV en Direct** (Live TV) sur Android TV, lorsque l'utilisateur est sur la catégorie globale **« Tout »** (qui liste verticalement les catégories sous forme de rangées horizontales de chaînes), il est devenu impossible de mettre rapidement une chaîne en favoris.
+Sur **mobile**, dans l'écran **TV en direct** et la catégorie globale **« Tout »**, l'action permettant d'ajouter ou de retirer rapidement une chaîne des favoris n'est pas correctement accessible depuis les cartes des rangées horizontales.
 
-La carte de chaîne s'étire sur toute la largeur de l'écran, ce qui casse la mise en page de la ligne horizontale (un seul élément visible au lieu d'un défilement de chaînes côte à côte) et rejette le bouton d'ajout rapide aux favoris (l'étoile) hors-écran ou à l'extrême droite, le rendant invisible et inaccessible à la télécommande.
+Le problème est confirmé sur mobile. Il n'est pas établi à ce stade qu'Android TV présente le même défaut : la plateforme TV doit seulement faire l'objet d'une vérification de non-régression, sans être présentée comme la source du ticket ni recevoir de modification préventive.
 
 ---
 
 # 2. Contexte
 
-Le composant de carte TV pour une chaîne est défini par `StreamTvCard` dans `LiveTvComponents.kt`.
+La catégorie « Tout » affiche, sur mobile, une liste verticale de catégories contenant chacune une rangée horizontale de chaînes. Ces rangées sont construites par `CategorySectionRow`, qui choisit le composant de carte selon la plateforme :
 
-Ce composant est réutilisé à deux endroits sur Android TV :
-1. **Dans la grille verticale d'une catégorie spécifique :** La grille comporte 3 colonnes fixes. Chaque cellule a donc une largeur restreinte. `StreamTvCard` utilise un modificateur hardcodé `Modifier.fillMaxWidth()`, ce qui fonctionne parfaitement ici car la largeur est contrainte par la colonne de la grille.
-2. **Dans le carrousel horizontal des catégories de la liste « Tout » :** Le conteneur est un `LazyRow` horizontal. N'ayant pas de contrainte de largeur de colonne, le modificateur `Modifier.fillMaxWidth()` de `StreamTvCard` force la carte à s'étirer pour prendre toute la largeur de l'écran du téléviseur.
+- mobile : `MobileStreamCard`;
+- Android TV : `StreamTvCard`.
 
-Par conséquent :
-- Le design en swimlanes (lignes de défilement horizontal) est complètement brisé visuellement : une seule chaîne énorme remplit l'écran horizontalement.
-- L'icône étoile de favoris rapide (située à l'extrémité droite de la carte) se retrouve isolée au bord de l'écran.
-- La navigation au D-pad devient confuse et imprévisible.
-- L'utilisateur ne peut plus cibler ou voir le bouton favori rapidement dans cette vue d'ensemble.
+Dans `MobileStreamCard`, toute la carte est cliquable pour lancer la chaîne. L'étoile Favori est placée dans une `Row` située après le logo, le nom et les informations EPG, au bas d'une carte dont la hauteur est fixée à `180.dp`. Sa position dépend donc de la quantité de contenu précédente et se retrouve en concurrence avec ce contenu dans un espace vertical contraint.
+
+La grille mobile d'une catégorie spécifique utilise un autre composant, `MobileChannelGridCard`, qui adopte déjà une structure plus robuste : l'étoile est superposée en haut à droite du logo, reste visible et dispose de sa propre action distincte de celle de la carte.
+
+Le diagnostic précédent de B4 analysait à tort `StreamTvCard`, `fillMaxWidth()` et la navigation D-pad Android TV. Ces éléments ne décrivent pas le défaut mobile signalé et sont retirés du périmètre confirmé.
 
 ---
 
@@ -44,230 +43,185 @@ Par conséquent :
 
 ## Objectif
 
-Restaurer, dans le mode Android TV de la catégorie « Tout », des rangées horizontales de chaînes compactes et défilables, dont chaque carte offre une action Favori immédiatement visible et utilisable au D-pad sans déclencher la lecture.
+Rendre l'action Favori immédiatement visible, stable et utilisable au tactile sur chaque carte mobile des rangées de la catégorie « Tout », sans lancer la chaîne par effet de bord et sans modifier le comportement de lecture de la carte.
 
 ## User stories
 
-- En tant qu'utilisateur Android TV, je vois plusieurs chaînes côte à côte dans chaque rangée de catégories de « Tout » afin de parcourir rapidement le catalogue.
-- En tant qu'utilisateur Android TV, je peux atteindre l'étoile d'une chaîne focusée et l'ajouter ou la retirer des favoris sans lancer cette chaîne.
-- En tant qu'utilisateur Android TV, je continue de lancer une chaîne en validant sa carte, comme avant la correction.
-- En tant qu'utilisateur, je conserve la même présentation en grille lorsque j'ouvre une catégorie précise ; la correction du mode « Tout » ne doit pas dégrader cet écran.
+- En tant qu'utilisateur mobile, je peux ajouter une chaîne aux favoris directement depuis une rangée de « Tout » sans ouvrir la chaîne ni sa catégorie.
+- En tant qu'utilisateur mobile, je peux retirer une chaîne des favoris depuis la même action rapide.
+- En tant qu'utilisateur mobile, je distingue immédiatement l'état favori ou non favori de chaque chaîne.
+- En tant qu'utilisateur mobile, je continue de lancer la chaîne en touchant le reste de sa carte.
 
 ## Parcours utilisateur
 
-1. L'utilisateur ouvre TV en direct sur Android TV et sélectionne la catégorie globale « Tout ».
-2. Chaque rangée horizontale de catégorie — y compris la rangée « Favoris » lorsqu'elle est présente — affiche des cartes de chaînes de largeur constante. Plusieurs cartes sont visibles simultanément lorsque l'espace de l'écran le permet ; les autres sont accessibles par défilement horizontal.
-3. L'utilisateur déplace le focus sur une carte. Son contour de focus et l'action étoile deviennent visibles dans les limites de cette carte.
-4. La validation sur la carte lance la chaîne, sans modifier son état de favori.
-5. Avec la flèche droite, l'utilisateur peut déplacer le focus de la carte vers l'étoile. La validation sur l'étoile ajoute la chaîne aux favoris ou la retire des favoris ; la chaîne ne se lance pas.
-6. Après bascule, l'étoile reflète immédiatement le nouvel état et conserve le focus. La flèche gauche ramène le focus à la carte de la même chaîne ; le reste de la navigation entre cartes et rangées reste naturel.
-7. Si la chaîne est retirée des favoris depuis la rangée « Favoris », elle disparaît immédiatement de cette rangée, tandis qu'elle reste disponible dans sa catégorie fournisseur. Si c'était le dernier favori, la rangée « Favoris » disparaît.
-8. Lorsque l'utilisateur sélectionne une catégorie spécifique, les chaînes restent dans la grille verticale existante à trois colonnes, avec leur comportement de focus et de favori déjà disponible.
+1. L'utilisateur ouvre **TV en direct** sur mobile et conserve ou sélectionne la catégorie « Tout ».
+2. Il parcourt horizontalement les chaînes d'une catégorie fournisseur.
+3. Chaque carte affiche une étoile dans une position fixe, en haut à droite de la zone de logo.
+4. Il touche l'étoile d'une chaîne non favorite.
+5. La chaîne n'est pas lancée; l'état est enregistré pour le profil actif et l'étoile devient jaune.
+6. La rangée « Favoris » apparaît ou se met à jour immédiatement.
+7. Un second toucher sur l'étoile retire la chaîne des favoris sans lancer la lecture.
 
-## Règles métier
+## Règles métier et d'interaction
 
-- La correction est limitée à Android TV et au rendu des cartes de chaînes dans les rangées horizontales du mode « Tout ». Le rendu mobile n'est pas modifié.
-- Une carte de chaîne dans une rangée horizontale a une largeur fixe de **220.dp** et conserve sa hauteur de 84.dp. Elle ne s'étend jamais à la largeur disponible du téléviseur.
-- Une carte de chaîne dans la grille d'une catégorie spécifique conserve son remplissage de la cellule à trois colonnes ; elle ne reçoit pas la largeur fixe destinée aux rangées.
-- L'étoile est affichée lorsque la carte est focusée ou lorsque la chaîne est déjà favorite. Elle doit rester entièrement visible dans la carte et ne pas chevaucher ni tronquer les informations principales au point de les rendre inutilisables.
-- L'étoile est une cible de focus distincte de la carte. Valider la carte exécute uniquement la lecture ; valider l'étoile exécute uniquement le basculement du favori.
-- L'action conserve les règles de favoris existantes : elle est locale au profil actif, persistante et la chaîne ne peut avoir qu'un seul état favori ou non favori.
-- Le changement de favori est immédiatement reflété dans toutes les rangées TV visibles qui utilisent le même état, sans modifier le catalogue, l'EPG, les chaînes récentes ni les favoris d'un autre profil.
+- Le cas fonctionnel confirmé concerne le rendu **mobile** des rangées horizontales de « Tout », y compris la rangée « Favoris ».
+- L'étoile est toujours visible : jaune lorsque la chaîne est favorite, claire sur fond sombre sinon.
+- La position de l'étoile ne dépend ni de la présence d'un programme EPG, ni de la longueur du nom, ni de l'état de chargement de l'image.
+- Toucher l'étoile exécute uniquement `onToggleFavorite`.
+- Toucher le reste de la carte exécute uniquement `onClick` et lance la chaîne.
+- L'état favori reste local au profil actif, persistant dans Room et réactif dans toutes les rangées concernées.
+- La correction ne modifie pas le catalogue, l'EPG, les chaînes récemment regardées ni les favoris d'un autre profil.
+- Les cartes de la grille mobile d'une catégorie spécifique conservent leur comportement actuel.
+- Android TV n'est pas modifié tant qu'un défaut équivalent n'y est pas reproduit et spécifié.
 
 ## Critères d'acceptation
 
-- Dans « Tout » sur Android TV, chaque rangée de catégories affiche plusieurs cartes de 220.dp côte à côte lorsque l'écran le permet, et se parcourt horizontalement au D-pad.
-- Aucune carte de rangée horizontale ne remplit seule la largeur de l'écran ; l'étoile n'est ni hors-écran ni inaccessible.
-- Au focus d'une carte, l'étoile est visible. Elle reste visible quand la chaîne est favorite, même si la carte n'a plus le focus.
-- Le D-pad permet d'atteindre l'étoile depuis la carte, de la valider pour basculer le favori sans lancer la chaîne, puis de revenir à la carte.
-- La validation sur la carte continue de lancer la chaîne et ne modifie pas le favori.
-- L'ajout ou le retrait met à jour immédiatement l'icône et les rangées concernées ; le retrait du dernier favori masque la rangée dédiée.
-- La grille Android TV d'une catégorie précise conserve ses trois colonnes et ses cartes occupant la largeur de leur cellule.
-- Le comportement et la présentation des cartes Live TV sur mobile restent inchangés.
+- Dans « Tout » sur mobile, toutes les cartes de chaînes affichent une étoile entièrement visible au même emplacement.
+- L'étoile reste accessible avec ou sans logo, avec ou sans EPG et avec un nom long.
+- Un toucher sur l'étoile ajoute ou retire le favori sans lancer la chaîne.
+- Un toucher hors de l'étoile continue de lancer la chaîne et ne modifie pas le favori.
+- L'icône reflète immédiatement l'état persistant observé par l'écran.
+- La rangée « Favoris » apparaît, se met à jour ou disparaît conformément à son contenu.
+- Le retrait depuis la rangée « Favoris » ne supprime pas la chaîne de sa catégorie fournisseur.
+- La grille mobile d'une catégorie spécifique ne régresse pas.
+- Android TV conserve son rendu et ses interactions actuels; son éventuel défaut analogue reste à confirmer séparément.
 
 ## Cas limites
 
-- Si une chaîne n'a ni logo ni EPG, la largeur fixe et l'étoile restent utilisables ; le contenu de substitution existant est affiché sans modifier le focus.
-- Si le nom de la chaîne ou du programme est long, il peut être tronqué selon les règles visuelles existantes mais ne pousse jamais l'étoile hors de la carte.
-- Si la liste de favoris est modifiée pendant que son étoile est focusée, la carte garde un focus valide lorsque possible ; si la carte disparaît parce qu'elle était le dernier élément de la rangée Favoris, le focus revient à un élément voisin disponible, jamais à une zone vide.
-- Si un changement de profil se produit, le nouvel état de favoris du profil est affiché ; aucun favori de l'ancien profil ne doit rester visible par erreur.
-- Les rangées sans chaînes ne sont pas affichées et ne créent pas de destination de focus vide.
+- Une chaîne sans logo affiche le visuel de substitution et conserve l'étoile au-dessus de cette zone.
+- Une chaîne sans EPG garde la même hauteur et la même position d'action qu'une chaîne avec EPG.
+- Un nom ou un programme long est tronqué sans recouvrir l'étoile.
+- Si le dernier favori est retiré depuis la rangée « Favoris », la rangée disparaît sans laisser d'espace vide ni provoquer de crash.
+- Après un changement de profil, les icônes reflètent uniquement les favoris du nouveau profil.
+- Des touchers rapides répétés ne doivent pas lancer la chaîne par propagation du geste.
 
 ## Gestion des erreurs
 
-- Le changement de favori ne requiert aucun appel réseau ; une indisponibilité Xtream ou l'absence d'Internet ne doit pas empêcher une bascule locale déjà accessible.
-- Si l'enregistrement local du favori échoue, l'étoile revient à son dernier état persistant et un message non technique invite l'utilisateur à réessayer. La chaîne ne doit pas être lancée par effet de bord.
-- Si les données de la chaîne ou le profil actif deviennent indisponibles avant validation, la cible est désactivée ou l'action est ignorée sans crash et sans état visuel incohérent.
+- La bascule Favori est locale et ne dépend pas du réseau Xtream.
+- Aucun état optimiste propre à la carte n'est introduit : l'icône reflète la liste persistée observée.
+- Si l'écriture locale échoue, la chaîne ne doit pas être lancée et l'icône doit rester ou revenir à son dernier état persistant.
+- B4 ne refond pas le canal global d'erreur de `FavoritesViewModel`; une évolution transversale de Snackbar relève d'un ticket distinct.
 
 ---
 
 # 4. Décisions de périmètre
 
-- La largeur fonctionnelle des cartes de rangées Android TV est fixée à **220.dp**.
-- L'étoile est accessible comme cible D-pad distincte ; aucun geste alternatif de clic long n'est ajouté.
-- Le correctif s'applique aux rangées du mode « Tout » — y compris « Favoris » — et préserve la grille de catégorie spécifique ainsi que le mobile.
+- **Plateforme confirmée : mobile.**
+- **Écran confirmé : TV en direct, catégorie « Tout », rangées horizontales.**
+- L'action adopte le placement superposé déjà utilisé par `MobileChannelGridCard` afin d'unifier les interactions mobiles.
+- Le composant Android TV `StreamTvCard`, ses dimensions et son focus D-pad restent inchangés dans B4.
+- Si une reproduction ultérieure confirme le même problème sur Android TV, son comportement D-pad et son architecture de focus devront être spécifiés explicitement avant modification.
 
 ---
 
-# 5. Notes de spécification
+# 5. Spécification technique
 
-- La maquette de référence ne décrit pas cette interaction Android TV spécifique. L'étape 3 détaillera l'adaptation de composant nécessaire en réutilisant les tokens de focus, de surfaces et de rayons existants dans `docs/design-reference/`.
+## Diagnostic confirmé dans le code
 
----
+- `MobileLayout` appelle `CategorySectionRow(..., isTv = false)` dans le mode « Tout ».
+- `CategorySectionRow` sélectionne alors `MobileStreamCard`, et non `StreamTvCard`.
+- `MobileStreamCard` fixe sa taille à `150.dp × 180.dp` et place l'`IconButton` Favori dans la dernière `Row`, après le contenu EPG variable.
+- La carte entière porte également un `Modifier.clickable { onClick() }`; l'action enfant doit rester une cible tactile clairement séparée et stable.
+- `MobileChannelGridCard`, utilisé dans les catégories spécifiques, possède déjà une étoile superposée en haut à droite de la zone logo. Ce pattern existant constitue la référence technique de la correction.
+- Le callback `onToggleFavorite` et la chaîne de persistance fonctionnent déjà; aucun changement de repository ou de ViewModel n'est nécessaire.
 
-# 6. Spécification technique
+## Adaptation de `MobileStreamCard`
 
-## Diagnostic confirmé
+- Conserver la largeur `150.dp`, la hauteur `180.dp` et l'action principale de la carte.
+- Déplacer l'`IconButton` Favori dans le `Box` du logo avec `Modifier.align(Alignment.TopEnd)`.
+- Utiliser un fond sombre circulaire ou fortement arrondi afin de préserver le contraste sur les logos clairs.
+- Garder une cible tactile stable et distincte, sans conditionner sa composition à l'état favori.
+- Utiliser une étoile jaune quand `isFavorite == true` et blanche atténuée sinon.
+- Employer un `contentDescription` dépendant de l'état : « Ajouter aux favoris » ou « Retirer des favoris ».
+- Supprimer l'`IconButton` de la `Row` inférieure. Le numéro de chaîne peut rester seul dans cette zone sans influencer la position de l'action.
+- Ne pas créer d'état favori local optimiste; `isFavorite` reste la source de vérité fournie par l'observation Room.
 
-- `CategorySectionRow` rend les cartes Android TV dans un `LazyRow`. Dans cet axe horizontal, aucun parent ne fournit de largeur de cellule à `StreamTvCard`.
-- `StreamTvCard` impose actuellement `fillMaxWidth()` sur sa racine. Ce choix est correct dans la `LazyVerticalGrid` à trois colonnes, mais ambigu dans le `LazyRow` et produit la carte surdimensionnée observée.
-- Les deux contextes Android TV appellent le même composable sans pouvoir lui transmettre une contrainte différente.
-- L'étoile est aujourd'hui composée uniquement si `isFocused || isFavorite`. Un simple suivi de `FocusState.isFocused` sur la carte ne suffit pas pour une action enfant : lorsque l'étoile prend le focus, la carte peut perdre son focus direct et retirer l'étoile de la composition.
-- La logique métier de bascule (`FavoritesViewModel.toggleFavorite` puis observation Room) et le callback `onToggleFavorite` sont déjà partagés et fonctionnels. B4 ne nécessite pas de nouvelle donnée ni de nouvel appel réseau.
+## Réutilisation et cohérence
 
-## Adaptation de `StreamTvCard`
-
-La signature reçoit un modificateur de placement injecté par le parent :
-
-```kotlin
-@Composable
-fun StreamTvCard(
-    stream: LiveStream,
-    isFavorite: Boolean,
-    epgProgram: LiveEpgProgram?,
-    onLoadEpg: () -> Unit,
-    onToggleFavorite: () -> Unit,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-)
-```
-
-- La racine applique le `modifier` reçu puis la hauteur commune de `84.dp`; elle n'appelle plus elle-même `fillMaxWidth()`.
-- Un conteneur racine forme un groupe de focus regroupant la cible principale de lecture et l'`IconButton` Favori.
-- L'état visuel suit le focus de tout le sous-arbre avec `FocusState.hasFocus`, et non uniquement `isFocused`. Le contour actif et l'affichage de l'étoile restent donc présents lorsque l'étoile elle-même est focusée.
-- L'emplacement de l'étoile reste toujours réservé dans la `Row` pour empêcher tout changement de largeur du texte lors de l'entrée ou de la sortie du focus.
-- Hors focus et pour une chaîne non favorite, l'étoile est transparente et explicitement exclue de la recherche de focus. Elle devient visible et focusable dès que le groupe de la carte possède le focus, ou reste visible si `isFavorite` vaut `true`.
-- L'`IconButton` conserve son callback propre. Sa validation ne propage pas l'action vers la cible de lecture parente.
-- Le libellé d'accessibilité devient dépendant de l'état : « Ajouter aux favoris » ou « Retirer des favoris ».
-
-## Contraintes fournies par les parents
-
-- Dans `CategorySectionRow`, l'appel Android TV fournit `Modifier.width(220.dp)`. Cette règle couvre toutes les rangées construites par ce composant dans « Tout », dont la rangée synthétique `favorites`.
-- Dans la grille de catégorie spécifique de `TvLayout`, l'appel fournit explicitement `Modifier.fillMaxWidth()` afin de conserver les trois colonnes existantes.
-- La branche mobile continue d'utiliser `MobileStreamCard` et ne reçoit aucun changement de dimension ou de focus.
-- La constante de largeur est privée au fichier de composants (`TV_HORIZONTAL_STREAM_CARD_WIDTH = 220.dp`) pour éviter une valeur magique répétée, sans créer un token global qui n'aurait qu'un seul usage.
+La correction reprend le pattern de `MobileChannelGridCard` sans extraire immédiatement un nouveau composant partagé : les deux cartes ont des dimensions et contenus différents, et l'extraction d'une abstraction visuelle pour une seule icône ajouterait plus de complexité que de réutilisation. Les couleurs, rayons et dimensions doivent toutefois rester cohérents entre les deux cartes mobiles.
 
 ## Ressources
 
-Deux chaînes localisées sont ajoutées dans `app/src/main/res/values/strings.xml` :
+Deux chaînes localisées sont ajoutées ou réutilisées dans `app/src/main/res/values/strings.xml` :
 
-- `live_tv_add_favorite` : « Ajouter aux favoris » ;
+- `live_tv_add_favorite` : « Ajouter aux favoris »;
 - `live_tv_remove_favorite` : « Retirer des favoris ».
 
-Aucune ressource graphique n'est ajoutée : l'icône `Icons.Default.Star`, les couleurs `Surface3`, primaire et jaune, le rayon de `12.dp` et le contour de `2.dp` existants sont conservés.
+Aucune nouvelle icône ni ressource graphique n'est requise.
 
-## Persistance et erreurs
+## Persistance et dépendances
 
-- Le flux reste `StreamTvCard` → `onToggleFavorite` → `FavoritesViewModel.toggleFavorite` → use cases Favoris → Room → `favoritesList` observée → recomposition.
-- Il n'y a pas d'état optimiste local dans la carte : l'étoile change d'état uniquement lorsque `favoritesList` reflète la donnée persistée, ce qui évite un état mensonger si l'écriture échoue.
-- B4 ne modifie pas le contrat d'erreur global des favoris. L'ajout d'un canal de Snackbar et la refonte de la gestion d'exception de `FavoritesViewModel` affecteraient tous les écrans de favoris et sortent du correctif de dimension/focus. Le composant ne doit toutefois jamais lancer la chaîne ni inverser localement l'icône en cas d'échec du callback.
+- Flux inchangé : `MobileStreamCard` → `onToggleFavorite` → `FavoritesViewModel` → use cases Favoris → Room → `favoritesList` → recomposition.
+- Aucun changement de modèle, repository, use case, base Room ou migration.
+- Aucun appel réseau, dépendance Gradle, interface Retrofit ou règle ProGuard supplémentaire.
+- Min SDK 21 inchangé.
 
-## Compatibilité et dépendances
+## Contraintes de performance
 
-- Kotlin et Jetpack Compose existants uniquement ; aucune nouvelle dépendance Gradle.
-- Aucun changement de schéma Room, migration, repository, use case, navigation ou API Retrofit.
-- Min SDK 21 et Android TV restent inchangés.
-- Le correctif n'a aucun effet sur le rendu mobile, car `StreamTvCard` n'est appelé que dans les branches `isTv`.
+- Aucun nouveau collecteur, accès Room, appel réseau ou chargement d'image.
+- Le déplacement de l'icône ne change pas la virtualisation du `LazyRow`.
+- La recomposition reste limitée aux cartes dont l'état favori change.
 
 ---
 
-# 7. Architecture
+# 6. Architecture
 
 ## Responsabilités
 
 ```text
-TvLayout
-├── mode Tout
-│   └── CategorySectionRow
-│       └── StreamTvCard(modifier = width(220.dp))
-│           ├── cible carte : lecture
-│           └── cible étoile : bascule favori
-└── catégorie spécifique
-    └── LazyVerticalGrid(3 colonnes)
-        └── StreamTvCard(modifier = fillMaxWidth())
-            ├── cible carte : lecture
-            └── cible étoile : bascule favori
+MobileLayout, mode « Tout »
+└── CategorySectionRow(isTv = false)
+    └── MobileStreamCard
+        ├── carte : lecture de la chaîne
+        └── étoile superposée : bascule du favori
+            └── FavoritesViewModel -> Room -> favoritesList
 ```
 
-- Le parent reste responsable de la taille imposée par son type de conteneur.
-- `StreamTvCard` reste responsable de sa hauteur, de son contenu, de son groupe de focus et de la séparation des actions lecture/favori.
-- `FavoritesViewModel` et les couches domaine/data restent responsables de la persistance et de la diffusion réactive de l'état favori.
-
-## Flux de focus
-
-```text
-carte chaîne ── D-pad droite ──> étoile Favori
-      │                              │
- validation                    validation
-      │                              │
- lecture chaîne                toggle favori
-                                     │
-                         D-pad gauche vers carte
-```
-
-Le groupe conserve `hasFocus = true` pour les deux cibles. L'étoile ne quitte donc jamais la composition ni le graphe de focus pendant le passage carte → étoile. Lorsqu'une carte disparaît de la rangée Favoris après retrait, la `LazyRow` et Compose résolvent le prochain élément disponible ; aucun `FocusRequester` persistant n'est introduit dans ce correctif.
+- `MobileStreamCard` gère le placement et la séparation des deux cibles tactiles.
+- `CategorySectionRow` continue de sélectionner la carte adaptée à la plateforme.
+- `FavoritesViewModel` et les couches domaine/data restent responsables de la persistance et de la diffusion réactive.
+- `StreamTvCard` reste hors du correctif tant que le problème Android TV n'est pas confirmé.
 
 ## Fichiers impactés
 
 - `app/src/main/java/com/cstv/app/presentation/livetv/components/LiveTvComponents.kt`
-  - paramètre `modifier` de `StreamTvCard` ;
-  - constante de largeur horizontale ;
-  - groupe et état de focus du sous-arbre ;
-  - étoile à emplacement stable, visibilité/focus conditionnels ;
-  - largeur `220.dp` passée depuis `CategorySectionRow`.
-- `app/src/main/java/com/cstv/app/presentation/livetv/LiveTvScreen.kt`
-  - `Modifier.fillMaxWidth()` explicite à l'appel de la grille Android TV.
+  - déplacement et accessibilité de l'étoile dans `MobileStreamCard`;
+  - aucune modification de `StreamTvCard`.
 - `app/src/main/res/values/strings.xml`
   - libellés accessibles Ajouter/Retirer des favoris.
 - `ai/bugs/B4-tv-quick-favorites-all-category.md`
-  - suivi du cycle de vie et décisions de conception.
+  - correction du périmètre, du diagnostic et de l'architecture.
 
 ## Nouveaux composants
 
-Aucun nouveau composant d'architecture, modèle, repository ou use case. La correction étend le contrat de présentation de `StreamTvCard` et réutilise intégralement la chaîne de favoris existante.
+Aucun nouveau composant d'architecture. La correction adapte uniquement le composant mobile existant et réutilise la chaîne Favoris actuelle.
 
 ---
 
-# 8. Validation prévue
+# 7. Validation prévue
 
 ## Vérifications automatisées
 
-- `./gradlew testDebugUnitTest` pour la non-régression des favoris et de la présentation existante.
-- `./gradlew assembleDebug` pour valider les signatures Compose, imports de focus et ressources.
-- `./gradlew lintDebug` pour vérifier notamment les ressources et l'accessibilité statique.
+- `./gradlew testDebugUnitTest` pour la non-régression Favoris.
+- `./gradlew assembleDebug` pour la compilation Compose et les ressources.
+- `./gradlew lintDebug` pour les ressources et contrôles statiques d'accessibilité.
 
-Le projet ne dispose pas d'une infrastructure de tests UI Compose Android TV. Conformément à la stratégie de tests, aucun test unitaire artificiel n'est ajouté pour une contrainte `Modifier` pure ; le comportement de focus est validé manuellement sur émulateur ou appareil TV.
+Le projet ne dispose pas d'une infrastructure de tests UI Compose adaptée à cette interaction tactile. Aucun test unitaire artificiel n'est ajouté pour un placement de `Modifier`; la validation fonctionnelle est manuelle sur mobile.
 
 ## Scénarios manuels obligatoires
 
-1. Android TV, « Tout » : vérifier plusieurs cartes côte à côte et le défilement horizontal dans une catégorie fournisseur et dans Favoris.
-2. Carte non favorite : focus carte → étoile visible → D-pad droite → validation étoile sans lecture → état jaune.
-3. Carte favorite : retrait depuis une catégorie fournisseur puis depuis la rangée Favoris ; vérifier la mise à jour réactive et le focus restant valide.
-4. Catégorie spécifique : vérifier les trois colonnes, la largeur de cellule, la lecture et le favori.
-5. Chaîne sans logo/EPG et chaîne au nom long : vérifier absence de débordement et étoile entièrement visible.
-6. Mobile : vérifier visuellement que les cartes et l'action Favori n'ont pas changé.
+1. Mobile, « Tout », catégorie fournisseur : ajouter puis retirer un favori depuis l'étoile sans lancer la chaîne.
+2. Mobile, rangée « Favoris » : retirer une chaîne et vérifier la mise à jour ou la disparition de la rangée.
+3. Cartes avec/sans logo, avec/sans EPG et textes longs : vérifier position, contraste et absence de recouvrement.
+4. Toucher le reste de la carte : vérifier que la lecture fonctionne sans bascule du favori.
+5. Catégorie mobile spécifique : vérifier la grille et son étoile existante.
+6. Changement de profil : vérifier l'actualisation des états favoris.
+7. Android TV, « Tout » et catégorie spécifique : contrôle de non-régression uniquement; consigner séparément tout défaut réellement observé.
 
 ## Risques techniques et atténuations
 
-- **Disparition de l'étoile lors du transfert de focus** : suivre `hasFocus` sur le groupe entier et garder l'emplacement de l'action composé.
-- **Étoile invisible mais encore focusable** : coupler sa transparence à une propriété `canFocus = false`, pas seulement à `alpha(0f)`.
-- **Action favorite déclenchant aussi la lecture** : conserver deux cibles cliquables distinctes et valider le callback de chaque scénario au D-pad.
-- **Régression de la grille** : rendre le dimensionnement obligatoire et explicite aux deux appels Android TV.
-- **Troncature accrue à 220.dp** : conserver `weight(1f)`, `maxLines = 1` et `TextOverflow.Ellipsis`; le logo et l'étoile gardent des largeurs fixes.
-- **Perte de focus après retrait dans Favoris** : ne pas mémoriser un `FocusRequester` lié à une carte supprimée et vérifier le comportement sur premier, milieu, dernier et unique élément.
-
-## Contraintes de performance
-
-- Aucun nouveau collecteur, appel Room, appel réseau ou chargement d'image.
-- L'état de focus reste local à chaque carte et ne provoque que sa recomposition.
-- La largeur fixe réduit la surface composée par carte visible dans le `LazyRow`; la virtualisation paresseuse existante est conservée.
+- **Propagation du toucher vers la carte** : conserver deux cibles cliquables distinctes et tester l'étoile sur plusieurs positions de rangée.
+- **Contraste insuffisant sur un logo clair** : fond sombre sous l'étoile.
+- **Action trop petite** : conserver une zone tactile stable sans réduire l'icône au seul glyphe visible.
+- **Chevauchement du logo** : réserver le coin supérieur droit et appliquer le même pattern que la grille mobile.
+- **Régression Android TV par composant partagé** : ne modifier ni `StreamTvCard` ni la branche `isTv`.

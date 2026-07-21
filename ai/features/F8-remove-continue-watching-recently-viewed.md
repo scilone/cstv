@@ -19,7 +19,7 @@ v1.49.0
 # 1. Description
 
 Cette fonctionnalité donne à l'utilisateur le contrôle total sur son historique de visionnage local. Elle permet de :
-1. **Retirer manuellement un film ou une série** de la section **« Continuer à regarder »** (Reprendre) sur l'écran d'Accueil, l'écran des Films et l'écran des Séries.
+1. **Retirer manuellement un film ou l'épisode de série affiché** de la section **« Continuer à regarder »** (Reprendre) sur l'écran d'Accueil, l'écran des Films et l'écran des Séries.
 2. **Retirer manuellement une chaîne de télévision** de la section **« Récemment vus »** (Chaînes récentes) sur l'écran TV en direct.
 
 La suppression doit s'effectuer de manière intuitive et homogène à l'aide d'un geste universel (appui long / clic long), avec rafraîchissement réactif instantané de l'interface graphique sur mobile et sur Android TV.
@@ -50,7 +50,7 @@ Permettre à un profil local de retirer lui-même un contenu de ses listes de re
 ## User stories
 
 - En tant qu'utilisateur, je peux retirer un film que j'ai seulement essayé de ma liste « Continuer à regarder » afin d'alléger mon Accueil.
-- En tant qu'utilisateur, je peux retirer une série de ma reprise afin de remettre à zéro la progression de tous ses épisodes et de ne plus la voir suggérée comme à terminer.
+- En tant qu'utilisateur, je peux indiquer que l'épisode de série proposé dans ma reprise n'est pas vu afin de remettre à zéro uniquement cet épisode, sans perdre la progression des autres épisodes de la série.
 - En tant qu'utilisateur TV, je peux retirer une chaîne de « Récemment regardées » afin de garder cette rangée privée et pertinente.
 - En tant qu'utilisateur de profil local, je nettoie exclusivement mon historique : les autres profils conservent le leur.
 - En tant qu'utilisateur, je dois confirmer la suppression afin de ne pas perdre une reprise par inadvertance.
@@ -61,7 +61,7 @@ Permettre à un profil local de retirer lui-même un contenu de ses listes de re
 2. Sur mobile, il effectue un appui long sur la carte. Sur Android TV, il maintient le bouton central de validation alors que la carte est focusée. L'appui court conserve son comportement actuel : ouvrir ou reprendre le média/la chaîne.
 3. L'appui long ouvre une boîte de dialogue adaptée à la plateforme, nommant le contenu et proposant **Annuler** et **Retirer de la liste**. Le choix par défaut au focus TV est **Annuler**.
 4. **Annuler**, un retour système ou la fermeture du dialogue ne modifie aucune donnée et laisse la carte visible.
-5. **Retirer de la liste** supprime l'historique du profil actif. Une fois l'opération réussie, le dialogue se ferme et la carte disparaît immédiatement de toutes les représentations visibles de la même liste.
+5. **Retirer de la liste** supprime l'historique ciblé du profil actif. Une fois l'opération réussie, le dialogue se ferme et toutes les représentations visibles se mettent immédiatement à jour ; pour une série, la carte peut afficher un autre épisode encore à reprendre.
 6. Si la suppression laisse une liste vide, son titre et son carrousel disparaissent sans laisser d'espace vide. Le focus TV est déplacé vers un élément encore disponible, sans rester sur une carte supprimée.
 7. Si l'utilisateur relance ultérieurement le média ou la chaîne, une nouvelle position ou entrée récente peut être créée selon les règles de lecture existantes.
 
@@ -69,10 +69,11 @@ Permettre à un profil local de retirer lui-même un contenu de ses listes de re
 
 - La suppression est locale à l'appareil et strictement limitée au profil actif. Elle ne modifie ni le catalogue Xtream, ni l'historique, les favoris ou les reprises d'un autre profil.
 - Pour un film, supprimer la carte supprime sa seule position de lecture du profil actif. Le film ne figure plus dans « Continuer à regarder » et une nouvelle lecture recommence sans reprise antérieure.
-- Pour une série, la carte représente la série, indépendamment du dernier épisode affiché. La suppression retire toutes les positions de lecture de ses épisodes pour le profil actif ; les jauges de progression de tous les épisodes de cette série reviennent donc à l'état non commencé.
+- Pour une série, la carte agrégée représente l'épisode de reprise affiché. La suppression retire uniquement la position de lecture de cet épisode pour le profil actif ; les positions et jauges de progression des autres épisodes de la série sont conservées.
+- Si un autre épisode de la même série possède encore une position de reprise, la carte de la série reste dans « Continuer à regarder » ou se met à jour pour représenter cet autre épisode selon les règles d'agrégation existantes. Elle disparaît uniquement lorsqu'aucun autre épisode de la série n'est à reprendre.
 - Pour une chaîne Live TV, la suppression retire uniquement l'entrée « récemment regardée » de cette chaîne pour le profil actif ; elle ne modifie pas les favoris de chaînes, les préférences de catégories ni les données EPG.
 - Retirer un contenu de « Continuer à regarder » le retire de l'historique utilisé pour le profil de goûts. Il peut redevenir éligible aux recommandations personnalisées ; un éventuel vote négatif F7 conserve toutefois son exclusion absolue.
-- Chaque suppression de film ou série invalide les recommandations personnelles mises en cache afin qu'elles reflètent le nouvel historique au prochain rendu de l'Accueil.
+- Chaque suppression de film ou d'épisode invalide les recommandations personnelles mises en cache afin qu'elles reflètent le nouvel historique au prochain rendu de l'Accueil.
 - La suppression ne supprime jamais un téléchargement hors-ligne, son fichier physique, un favori, un vote J'aime/Je n'aime pas ou une métadonnée de catalogue.
 - La fonctionnalité concerne uniquement les cartes présentes dans les listes ciblées ; elle n'ajoute pas de commande de suppression à l'historique global ni aux fiches de détail.
 
@@ -81,20 +82,20 @@ Permettre à un profil local de retirer lui-même un contenu de ses listes de re
 - Les cartes de reprise de l'Accueil, Films et Séries, y compris leur vue étendue, ainsi que les cartes « Récemment regardées » de Live TV, prennent en charge l'appui long sur mobile et Android TV.
 - Un appui court ne change aucun comportement de navigation ou de lecture existant.
 - Le dialogue de confirmation propose toujours Annuler et Retirer de la liste ; Annuler ne provoque aucune écriture locale.
-- Après confirmation, le film, la série ou la chaîne disparaît sans rechargement manuel ni changement d'onglet ; la rangée entière disparaît lorsqu'elle ne contient plus aucun élément.
-- Supprimer un film efface uniquement sa reprise du profil actif. Supprimer une série efface toutes ses positions d'épisodes du profil actif et réinitialise leurs indicateurs de progression.
+- Après confirmation, le film, l'épisode représenté ou la chaîne disparaît ou est remplacé sans rechargement manuel ni changement d'onglet ; la rangée entière disparaît lorsqu'elle ne contient plus aucun élément.
+- Supprimer un film efface uniquement sa reprise du profil actif. Indiquer qu'un épisode de série n'est pas vu efface uniquement la position de cet épisode et réinitialise son indicateur de progression ; les autres épisodes restent inchangés.
 - Après redémarrage de l'application, les éléments supprimés restent absents pour le profil concerné ; un autre profil conserve ses propres entrées.
-- Les recommandations du profil ne tiennent plus compte des films et séries supprimés de la reprise et sont invalidées après confirmation.
+- Les recommandations du profil ne tiennent plus compte de la position de film ou d'épisode supprimée et sont invalidées après confirmation ; les autres épisodes conservés continuent de contribuer à l'historique de la série.
 - Aucune suppression n'efface les téléchargements, favoris, votes F7, données EPG ou contenu catalogue.
 
 ## Cas limites
 
 - Si l'utilisateur tente un appui long sur une carte qui vient de disparaître à la suite d'une autre action ou d'un changement de profil, aucun dialogue d'action n'est présenté.
-- Si plusieurs épisodes d'une même série ont une reprise, une seule confirmation supprime toutes leurs positions ; il n'existe pas de suppression d'un seul épisode depuis la carte de série agrégée.
+- Si plusieurs épisodes d'une même série ont une reprise, une confirmation supprime seulement la position de l'épisode affiché sur la carte agrégée. Après la mise à jour réactive, un autre épisode de la série peut devenir l'épisode représentatif et maintenir la carte visible.
 - Une carte déjà supprimée dans une autre vue ne doit pas réapparaître dans une rangée encore affichée ; toutes les vues du profil reflètent la même donnée locale.
 - Si un contenu supprimé reste visible brièvement parce qu'une liste est en cours de composition, il ne doit plus être sélectionnable après la confirmation et doit disparaître dès la mise à jour d'état suivante.
 - Une lecture ultérieure du même film, épisode ou Live TV recrée normalement l'entrée de reprise/récente, sans restaurer les anciennes positions ou l'ancien ordre.
-- Une série ou un film retiré, mais marqué `DISLIKE` par F7, reste exclu des recommandations lorsqu'il est relu ; retirer la reprise ne modifie pas ce vote.
+- Un film retiré ou la série de l'épisode retiré, s'il est marqué `DISLIKE` par F7, reste exclu des recommandations lorsqu'il est relu ; retirer la reprise ne modifie pas ce vote.
 
 ## Gestion des erreurs
 
@@ -108,13 +109,14 @@ Permettre à un profil local de retirer lui-même un contenu de ses listes de re
 # 4. Décisions de périmètre
 
 - Le dialogue de confirmation est retenu pour le MVP, plutôt qu'une suppression immédiate avec action « Annuler », afin de rester fiable et accessible au D-pad.
-- La suppression d'une carte de série est globale à la série et remet à zéro les reprises de tous ses épisodes pour le profil actif.
+- La suppression d'une carte de série cible uniquement l'épisode représenté par cette carte et ne remet à zéro aucune autre reprise de la série.
 - La commande est volontairement limitée aux rangées visées, y compris la vue étendue de « Continuer à regarder » ; aucun écran de gestion d'historique supplémentaire n'est créé.
 
 ---
 
 # 5. Notes de spécification
 
+- Changement de périmètre validé le 2026-07-21 : l'action « non vu » sur une série cible désormais uniquement l'épisode affiché. La suppression globale de toutes les reprises d'une série est retirée du périmètre F8.
 - La maquette de référence ne définit pas encore de dialogue ou de geste de suppression pour ces cartes. L'étape 3 précisera les composants et l'intégration visuelle en réutilisant les tokens existants de `docs/design-reference/`, sans introduire de charte parallèle.
 
 ---
@@ -134,10 +136,10 @@ Aucune colonne, table ou clé primaire n'est ajoutée. `AppDatabase` reste en ve
 
 Les ViewModels transmettent les modèles de domaine déjà disponibles :
 
-- `PlaybackPosition` pour un film ou la position représentative d'une série ;
+- `PlaybackPosition` pour un film ou l'épisode représentatif d'une série ;
 - `LiveStream` pour une chaîne récente.
 
-Le type du `PlaybackPosition`, son `seriesId`, son `streamId` et son titre permettent au repository de déterminer la portée de suppression. Aucun DTO ou modèle Room ne remonte en présentation.
+Le type du `PlaybackPosition` et son `streamId` permettent au repository d'effectuer une suppression exacte. Le `seriesId` reste utile à l'agrégation réactive existante, mais n'élargit jamais la portée de suppression. Aucun DTO ou modèle Room ne remonte en présentation.
 
 ## Repository d'historique
 
@@ -151,15 +153,14 @@ interface ViewingHistoryRepository {
 }
 ```
 
-`ViewingHistoryRepositoryImpl` injecte `AppDatabase`, `VodDao`, `LiveTvDao` et `ProfileManager`.
+`ViewingHistoryRepositoryImpl` injecte `VodDao`, `LiveTvDao` et `ProfileManager`.
 
 - Chaque opération capture une seule fois le `profileId` actif.
-- Un film déclenche une suppression exacte `(streamId, profileId)`.
+- Un film ou un épisode de série déclenche une suppression exacte `(streamId, profileId)`.
 - Une chaîne déclenche une suppression exacte `(streamId, profileId)` dans `recently_watched_live`.
-- Une série charge les positions du profil et calcule tous les `streamId` appartenant à la même série, puis les supprime dans une transaction Room unique.
 - Une suppression déjà effectuée est idempotente : zéro ligne affectée est considérée comme un succès.
 
-`VodDao` reçoit `deletePlaybackPositions(streamIds, profileId)`. Cette requête n'est appelée que lorsque la liste est non vide afin d'éviter un `IN ()` dépendant du dialecte SQLite.
+`VodDao` reçoit ou réutilise une suppression exacte `deletePlaybackPosition(streamId, profileId)`. Aucune requête groupée par `seriesId` ou liste de `streamId` n'est ajoutée pour F8.
 
 `LiveTvDao` reçoit :
 
@@ -168,23 +169,13 @@ interface ViewingHistoryRepository {
 
 L'observation utilise la même limite de dix chaînes et le même tri `watchedAt DESC` que la lecture ponctuelle actuelle.
 
-## Regroupement robuste des séries
+## Ciblage exact des épisodes de série
 
-Un objet de domaine pur `PlaybackHistoryMatcher` détermine les épisodes à supprimer. Deux positions appartiennent à la même série lorsque :
+L'épisode affiché sur une carte de série agrégée est déjà porté par une `PlaybackPosition` possédant son propre `streamId`. F8 transmet cette position sans la remplacer par un identifiant de série, puis supprime exactement la clé composite `(streamId, profileId)`.
 
-1. leurs `seriesId` non nuls sont égaux ; ou
-2. une ligne historique a `seriesId = null` et son titre possède le même préfixe de série normalisé que la cible ;
-3. le `streamId` est celui de la position représentative, qui est toujours inclus en dernier recours.
+Aucun rapprochement par `seriesId`, titre ou préfixe textuel n'est effectué. Cette règle vaut aussi pour les anciennes lignes sans `seriesId` : leur `streamId` suffit pour remettre à zéro l'épisode sélectionné sans risque d'effacer les autres épisodes.
 
-Le préfixe historique est extrait uniquement du format produit par l'application :
-
-```text
-Nom de série - S{n}E{n} Titre de l'épisode
-```
-
-La séparation est recherchée par motif ` - S<nombre>E<nombre> ` depuis la fin du titre, ce qui préserve les tirets éventuellement présents dans le nom de la série. Si le format ne correspond pas, aucun rapprochement textuel large n'est tenté : seule la position représentative est supprimée, afin de ne jamais effacer l'historique d'une autre série.
-
-F8 partage avec F7 la correction de `SeriesViewModel.savePosition` consistant à enregistrer le `seriesId` actif. Si F8 est implémenté en premier, cette correction fait partie de F8 ; si F7 l'a déjà apportée, elle n'est pas dupliquée.
+F8 partage avec F7 la correction de `SeriesViewModel.savePosition` consistant à enregistrer le `seriesId` actif afin de préserver l'agrégation fiable de « Continuer à regarder ». Si F8 est implémenté en premier, cette correction fait partie de F8 ; si F7 l'a déjà apportée, elle n'est pas dupliquée. Ce champ n'est toutefois jamais utilisé pour étendre une suppression à la série entière.
 
 ## Use cases
 
@@ -194,7 +185,7 @@ Trois use cases explicites sont ajoutés :
 - `RemoveRecentlyWatchedUseCase(streamId)` ;
 - `ObserveRecentlyWatchedUseCase()`.
 
-Après une suppression réussie de film ou série, `RemoveFromContinueWatchingUseCase` appelle `GetRecommendationsUseCase.invalidateCache()`. Le contrat d'invalidation observable défini dans l'architecture F7 est réutilisé : `HomeViewModel` recalcule uniquement les recommandations. Si F8 est intégré avant F7, cette API d'invalidation est introduite sans logique d'évaluation puis réutilisée par F7.
+Après une suppression réussie de film ou d'épisode, `RemoveFromContinueWatchingUseCase` appelle `GetRecommendationsUseCase.invalidateCache()`. Le contrat d'invalidation observable défini dans l'architecture F7 est réutilisé : `HomeViewModel` recalcule uniquement les recommandations à partir des positions restantes. Si F8 est intégré avant F7, cette API d'invalidation est introduite sans logique d'évaluation puis réutilisée par F7.
 
 La suppression Live TV n'invalide pas les recommandations, puisque les chaînes n'entrent pas dans le profil de goûts.
 
@@ -315,9 +306,7 @@ carte -- appui long --> HistoryRemovalDialog
                               │
                               ▼
              ViewingHistoryRepositoryImpl
-                 │ AppDatabase.withTransaction
-                 ├── film : DELETE streamId
-                 └── série : matcher + DELETE streamIds
+                 └── VodDao : DELETE streamId exact
                               │
              Flow playback_positions réémis
                  ├── HomeViewModel
@@ -328,7 +317,7 @@ carte -- appui long --> HistoryRemovalDialog
                     disparition des cartes
 ```
 
-Après la transaction, le use case invalide les recommandations. Cette invalidation est secondaire : son échec ne restaure pas l'historique supprimé.
+Après la suppression, le use case invalide les recommandations. Cette invalidation est secondaire : son échec ne restaure pas l'historique supprimé.
 
 ## Flux de suppression Live TV
 
@@ -349,8 +338,7 @@ carte récente -- appui long --> dialogue --> LiveTvViewModel
 
 ## Responsabilités
 
-- `PlaybackHistoryMatcher` : regroupement pur et testable des positions d'une série.
-- `ViewingHistoryRepositoryImpl` : scoping profil, transactions Room, mapping des chaînes récentes.
+- `ViewingHistoryRepositoryImpl` : scoping profil, suppression exacte film/épisode et mapping des chaînes récentes.
 - Use cases : intention de suppression et invalidation éventuelle des recommandations.
 - ViewModels : état de progression/erreur et appel des use cases.
 - Écrans : cible temporaire, dialogue et Snackbar.
@@ -358,7 +346,6 @@ carte récente -- appui long --> dialogue --> LiveTvViewModel
 
 ## Fichiers nouveaux
 
-- `domain/model/PlaybackHistoryMatcher.kt`
 - `domain/repository/ViewingHistoryRepository.kt`
 - `domain/usecase/RemoveFromContinueWatchingUseCase.kt`
 - `domain/usecase/RemoveRecentlyWatchedUseCase.kt`
@@ -370,7 +357,7 @@ carte récente -- appui long --> dialogue --> LiveTvViewModel
 
 ## Fichiers modifiés
 
-- `data/local/dao/VodDao.kt` : suppression groupée de positions.
+- `data/local/dao/VodDao.kt` : suppression exacte d'une position par épisode ou film.
 - `data/local/dao/LiveTvDao.kt` : observation réactive et suppression ciblée.
 - `di/AppModule.kt` : provider du repository d'historique.
 - `domain/usecase/GetRecentlyWatchedUseCase.kt` : remplacé dans `LiveTvViewModel` par l'observation réactive ; conservé seulement s'il reste un consommateur.
@@ -386,8 +373,7 @@ carte récente -- appui long --> dialogue --> LiveTvViewModel
 ## Décisions techniques justifiées
 
 - **Repository dédié** : les suppressions traversent VOD, séries et Live sans mélanger cette règle utilisateur aux repositories de catalogue.
-- **Transaction série** : la sélection des épisodes et leur suppression utilisent le même profil et la même vue de la base.
-- **Fallback de titre strict** : nettoie les anciennes positions incomplètes sans suppression large par simple préfixe ambigu.
+- **Ciblage exact d'épisode** : le `streamId` de la position représentative empêche toute remise à zéro involontaire des autres épisodes, y compris pour l'historique legacy sans `seriesId`.
 - **Flow Room pour les récents** : aligne Live TV sur les reprises déjà réactives et supprime les refresh manuels.
 - **Cible de dialogue locale** : état purement visuel, tandis que l'écriture et les erreurs restent dans le ViewModel.
 - **Gestion explicite de la touche TV** : garantit qu'un long centre ne déclenche pas ensuite la lecture.
@@ -399,9 +385,8 @@ carte récente -- appui long --> dialogue --> LiveTvViewModel
 
 ## Tests unitaires
 
-- `PlaybackHistoryMatcherTest` : même `seriesId`, plusieurs épisodes, titre avec tirets, ligne legacy sans `seriesId`, format inconnu et non-collision entre deux séries proches.
-- `ViewingHistoryRepositoryImplTest` : profil capturé une fois, suppression exacte film/live, suppression groupée série, cible absente idempotente et rollback sur erreur DAO.
-- `RemoveFromContinueWatchingUseCaseTest` : invalidation après succès film/série, aucune invalidation après échec.
+- `ViewingHistoryRepositoryImplTest` : profil capturé une fois, suppression exacte film/épisode/live, conservation des autres épisodes de la même série, ligne legacy sans `seriesId`, cible absente idempotente et erreur DAO.
+- `RemoveFromContinueWatchingUseCaseTest` : invalidation après succès film/épisode, aucune invalidation après échec.
 - `RemoveRecentlyWatchedUseCaseTest` : aucune invalidation de recommandation.
 - `ObserveRecentlyWatchedUseCaseTest` : ordre, limite, mise à jour après suppression et changement de profil via Flow fake.
 - `HomeViewModelTest`, `VodViewModelTest`, `SeriesViewModelTest`, `LiveTvViewModelTest` : état loading, succès, erreur, consommation du message et listes réémises.
@@ -422,7 +407,7 @@ Les gestes Compose et le focus D-pad sont du layout/interactif pur. Le projet n'
 3. TV : maintien D-pad centre ouvre une seule fois le dialogue et ne lance jamais le média au relâchement.
 4. Annuler, retour et clic extérieur ne modifient aucune donnée ; Annuler reçoit le focus initial sur TV.
 5. Film : disparition simultanée de Home et Films, sans toucher favori/téléchargement/vote.
-6. Série multi-épisodes avec et sans `seriesId` historique : disparition Home/Séries et remise à zéro de tous les épisodes correspondants.
+6. Série multi-épisodes avec et sans `seriesId` historique : remise à zéro du seul épisode affiché ; les autres positions restent intactes et la carte se met à jour vers un autre épisode encore reprenable, ou disparaît s'il n'en reste aucun.
 7. Live : disparition immédiate de la chaîne récente, sans toucher son favori ni l'EPG.
 8. Dernier élément : disparition de la section ; vue étendue Home fermée ; focus TV replacé sur un élément valide.
 9. Changement de profil : historique indépendant et dialogue obsolète fermé.
@@ -432,7 +417,7 @@ Les gestes Compose et le focus D-pad sont du layout/interactif pur. Le projet n'
 ## Risques et atténuations
 
 - **Long press TV suivi d'un clic court** : mémoriser la consommation et intercepter le `KeyUp` associé.
-- **Suppression trop large d'une série legacy** : motif de titre strict et inclusion minimale du seul épisode cible en cas d'ambiguïté.
+- **Suppression trop large d'une série** : ne jamais supprimer par `seriesId`, titre ou liste d'épisodes ; utiliser uniquement `(streamId, profileId)`.
 - **Profil changé pendant le dialogue** : fermer la cible lorsque le Flow de liste/profil change avant confirmation ; repository capture toujours le profil courant une seule fois.
 - **Perte de focus après retrait** : clés stables, dialogue conservé jusqu'à la réémission Room et tests premier/milieu/dernier/unique.
 - **Double confirmation** : désactivation des actions pendant l'écriture et repository idempotent.
@@ -443,7 +428,7 @@ Les gestes Compose et le focus D-pad sont du layout/interactif pur. Le projet n'
 ## Contraintes de performance
 
 - Les suppressions film/live sont indexées par leurs clés primaires composites.
-- La suppression série parcourt uniquement l'historique du profil, volume réduit par rapport au catalogue, puis exécute un unique `DELETE ... IN (...)`.
+- La suppression d'un épisode exécute un unique `DELETE` indexé sur la clé composite `(streamId, profileId)`, sans parcourir l'historique ni le catalogue.
 - Aucun scan du catalogue, appel réseau, chargement d'image ou worker.
 - Un seul collecteur de chaînes récentes dans `LiveTvViewModel`, en remplacement des lectures ponctuelles répétées.
 - Aucun timer de long press par carte ; les événements natifs de touche TV sont utilisés.
