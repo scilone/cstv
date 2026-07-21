@@ -249,7 +249,8 @@ ARCHIVE
 
 ---
 
-# Étape 1 - Création et structuration
+<details>
+<summary><b>Étape 1 - Création et structuration</b></summary>
 
 ## Objectif
 
@@ -287,9 +288,12 @@ Ne pas définir d'architecture technique.
 
 Gemini 3.5 Flash / Haiku 4.5
 
+</details>
+
 ---
 
-# Étape 2 - Spécification fonctionnelle
+<details>
+<summary><b>Étape 2 - Spécification fonctionnelle</b></summary>
 
 ## Objectif
 
@@ -318,9 +322,12 @@ La spécification doit permettre à une personne externe au projet de comprendre
 
 Sonnet 5 / GPT 5.6-Terra
 
+</details>
+
 ---
 
-# Étape 3 - Spécification technique et architecture
+<details>
+<summary><b>Étape 3 - Spécification technique et architecture</b></summary>
 
 ## Objectif
 
@@ -349,9 +356,12 @@ Cette étape doit identifier :
 
 GPT 5.6-Sol / Opus 4.8
 
+</details>
+
 ---
 
-# Étape 4 - Découpage des tâches
+<details>
+<summary><b>Étape 4 - Découpage des tâches</b></summary>
 
 ## Objectif
 
@@ -388,9 +398,12 @@ Tests unitaires présents.
 
 Sonnet 5 / GPT 5.6-Terra
 
+</details>
+
 ---
 
-# Étape 5 - Implémentation
+<details>
+<summary><b>Étape 5 - Implémentation</b></summary>
 
 ## Objectif
 
@@ -420,9 +433,12 @@ Ne pas modifier le périmètre sans validation.
 
 GPT 5.6-Terra / Sonnet 5
 
+</details>
+
 ---
 
-# Étape 6 - Review technique
+<details>
+<summary><b>Étape 6 - Review technique</b></summary>
 
 ## Objectif
 
@@ -470,9 +486,12 @@ Chaque problème doit contenir :
 
 Opus 4.8 / GPT 5.6-Sol
 
+</details>
+
 ---
 
-# Étape 7 - Correction
+<details>
+<summary><b>Étape 7 - Correction</b></summary>
 
 ## Objectif
 
@@ -496,9 +515,12 @@ Status: RESOLVED
 
 GPT 5.6-Terra / Sonnet 5
 
+</details>
+
 ---
 
-# Étape 8 - Validation finale
+<details>
+<summary><b>Étape 8 - Validation finale</b></summary>
 
 ## Objectif
 
@@ -523,9 +545,12 @@ Status: VALIDATED
 
 Sonnet 5 / GPT 5.6-Sol
 
+</details>
+
 ---
 
-# Étape 9 - Documentation
+<details>
+<summary><b>Étape 9 - Documentation</b></summary>
 
 ## Objectif
 
@@ -554,9 +579,12 @@ Ajouter :
 
 Haiku 4.5 / Gemini 3.5 Flash
 
+</details>
+
 ---
 
-# Étape 10 - Livraison Git
+<details>
+<summary><b>Étape 10 - Livraison Git</b></summary>
 
 ## Objectif
 
@@ -588,6 +616,8 @@ Avant livraison :
    ```
 5. Mettre à jour le statut dans la fiche de l'élément à `RELEASED`, avec la version, le nom du commit/tag, et la date du jour.
 6. Archiver la fiche de l'élément en la déplaçant vers son sous-dossier `archive/`.
+
+</details>
 
 ---
 
