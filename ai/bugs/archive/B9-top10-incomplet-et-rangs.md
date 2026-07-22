@@ -73,6 +73,6 @@ Status: VALIDATED (automated) / DEVICE PENDING
 
 Version: v1.50.1
 
-Commit:
+Commit: 8631fe7
 
 Date: 2026-07-22
