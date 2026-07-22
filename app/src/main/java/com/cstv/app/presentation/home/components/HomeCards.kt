@@ -19,6 +19,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -582,7 +583,8 @@ fun HomeEpgProgressBar(
 @Composable
 fun HomeVodMovieCard(
     stream: VodStream,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    rank: Int? = null
 ) {
     var isFocused by remember { mutableStateOf(false) }
 
@@ -597,9 +599,8 @@ fun HomeVodMovieCard(
                 color = if (isFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
                 shape = RoundedCornerShape(14.dp)
             )
-            .clip(RoundedCornerShape(14.dp))
             .clickable { onClick() }
-            .background(Surface1),
+            .background(Surface1, RoundedCornerShape(14.dp)),
         contentAlignment = Alignment.Center
     ) {
         if (!stream.streamIcon.isNullOrBlank()) {
@@ -607,7 +608,9 @@ fun HomeVodMovieCard(
                 model = stream.streamIcon,
                 contentDescription = stream.name,
                 contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(RoundedCornerShape(14.dp))
             )
         } else {
             Icon(
@@ -617,6 +620,8 @@ fun HomeVodMovieCard(
                 modifier = Modifier.size(32.dp)
             )
         }
+
+        rank?.let { TopRankBadge(it, Modifier.align(Alignment.BottomStart)) }
 
         // Rating Badge (top right)
         val cleanRating = stream.rating?.trim()
@@ -642,7 +647,8 @@ fun HomeVodMovieCard(
 @Composable
 fun HomeSeriesShowCard(
     stream: SeriesStream,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    rank: Int? = null
 ) {
     var isFocused by remember { mutableStateOf(false) }
 
@@ -657,9 +663,8 @@ fun HomeSeriesShowCard(
                 color = if (isFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
                 shape = RoundedCornerShape(14.dp)
             )
-            .clip(RoundedCornerShape(14.dp))
             .clickable { onClick() }
-            .background(Surface1),
+            .background(Surface1, RoundedCornerShape(14.dp)),
         contentAlignment = Alignment.Center
     ) {
         if (!stream.cover.isNullOrBlank()) {
@@ -667,7 +672,9 @@ fun HomeSeriesShowCard(
                 model = stream.cover,
                 contentDescription = stream.name,
                 contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(RoundedCornerShape(14.dp))
             )
         } else {
             Icon(
@@ -677,6 +684,8 @@ fun HomeSeriesShowCard(
                 modifier = Modifier.size(32.dp)
             )
         }
+
+        rank?.let { TopRankBadge(it, Modifier.align(Alignment.BottomStart)) }
 
         // Rating Badge (top right)
         val cleanRating = stream.rating?.trim()
@@ -697,4 +706,29 @@ fun HomeSeriesShowCard(
             }
         }
     }
+}
+
+@Composable
+private fun TopRankBadge(rank: Int, modifier: Modifier = Modifier) {
+    Text(
+        text = rank.toString(),
+        color = Color.White.copy(alpha = 0.94f),
+        fontSize = 72.sp,
+        lineHeight = 72.sp,
+        fontWeight = FontWeight.Black,
+        fontFamily = BricolageGrotesque,
+        style = androidx.compose.ui.text.TextStyle(
+            shadow = Shadow(Color.Black.copy(alpha = 0.9f), blurRadius = 5f)
+        ),
+        modifier = modifier
+            .offset(x = (-10).dp, y = 10.dp)
+            .background(
+                Brush.horizontalGradient(
+                    listOf(Color.Black.copy(alpha = 0.68f), Color.Transparent)
+                ),
+                RoundedCornerShape(5.dp)
+            )
+            .border(1.dp, Color.White.copy(alpha = 0.65f), RoundedCornerShape(5.dp))
+            .padding(horizontal = 4.dp)
+    )
 }

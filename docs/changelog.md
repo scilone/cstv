@@ -4,6 +4,18 @@ Ce document retrace l'historique des versions, des fonctionnalités livrées, de
 
 ---
 
+## [v1.50.0] - 2026-07-22
+### ✨ Nouvelles Fonctionnalités
+* **Refonte du Top 10 Films & Séries sur l'Accueil avec l'API TMDB (F9)** :
+  - **Endpoints populaires TMDB** : Ajout des routes de récupération de la page 1 pour les films (`/movie/popular`) et les séries (`/tv/popular`) populaires mondiaux dans `TmdbApiService.kt`.
+  - **PopularRepository & Caches Persistants** : Création de l'interface `PopularRepository` et de son implémentation `PopularRepositoryImpl` gérant des caches persistants distincts pour les films et les séries sous le namespace `tmdb_popular_cache`, avec un TTL de 24 heures et une invalidation granulaire par synchronisation de catalogue (`getVodAllStreamsSyncedAt` et `getSeriesAllStreamsSyncedAt`).
+  - **Use Case de Matching Parallèle** : Implémentation de `GetPopularTop10InCatalogUseCase` orchestrant en parallèle le fetching TMDB, le matching de titres par similarité sémantique et année (`TmdbCatalogMatcher` à +/- 1 an), le filtrage par profil (catégories masquées) et la résolution dynamique des médias locaux pour renvoyer deux branches indépendantes et limitées à 10 éléments, sans mélange de logiques.
+  - **Intégration Découplée sans Course** : Mise à jour de `HomeViewModel` pour charger les Top 10 Popular asynchrones de façon indépendante du spinner principal (`isLoading`), avec réinitialisation avant rechargement et timeout global de sécurité à 15 secondes.
+  - **Composant Badge de Rang Stylisé** : Création de `TopRankBadge` et mise à jour de `HomeVodMovieCard` et `HomeSeriesShowCard` pour accepter un paramètre optionnel `rank: Int?`. Affichage en surimpression d'un grand chiffre de rang stylisé (1 à 10, style Netflix) débordant sur le bord gauche du poster, avec fond translucide et liseré clair pour une lisibilité parfaite.
+  - **Tests Unitaires Riches** : Couverture complète de la couche données, du cas d'usage (y compris l'exécution concurrente) et du ViewModel.
+
+---
+
 ## [v1.49.2] - 2026-07-22
 ### 🐛 Correctifs de Bugs
 * **Filtrage de recherche par acteur / crédit (B7)** :

@@ -1,0 +1,124 @@
+package com.cstv.app.data.repository
+
+import android.content.Context
+import com.cstv.app.data.remote.api.TmdbApiService
+import com.cstv.app.di.IptvLog
+import com.cstv.app.di.TmdbApiKey
+import com.cstv.app.domain.model.PopularCatalogItem
+import com.cstv.app.domain.model.ReleaseYearParser
+import com.cstv.app.domain.model.TrendingTitle
+import com.cstv.app.domain.repository.PopularRepository
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import javax.inject.Inject
+import javax.inject.Singleton
+
+@Singleton
+class PopularRepositoryImpl @Inject constructor(
+    private val context: Context,
+    private val tmdbApiService: TmdbApiService,
+    @TmdbApiKey private val apiKey: String,
+    private val gson: Gson
+) : PopularRepository {
+
+    private val sharedPrefs by lazy {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    }
+    private val mutex = Mutex()
+
+    override suspend fun getPopularMovies(): List<TrendingTitle> =
+        getPopular(isMovie = true)
+
+    override suspend fun getPopularSeries(): List<TrendingTitle> =
+        getPopular(isMovie = false)
+
+    override suspend fun getCachedMatchedMovies(lastVodCatalogSyncTime: Long): List<PopularCatalogItem>? =
+        getCached(MOVIES_DATA_KEY, MOVIES_TIME_KEY, lastVodCatalogSyncTime)
+
+    override suspend fun getCachedMatchedSeries(lastSeriesCatalogSyncTime: Long): List<PopularCatalogItem>? =
+        getCached(SERIES_DATA_KEY, SERIES_TIME_KEY, lastSeriesCatalogSyncTime)
+
+    override suspend fun saveMatchedMovies(items: List<PopularCatalogItem>) {
+        save(MOVIES_DATA_KEY, MOVIES_TIME_KEY, items)
+    }
+
+    override suspend fun saveMatchedSeries(items: List<PopularCatalogItem>) {
+        save(SERIES_DATA_KEY, SERIES_TIME_KEY, items)
+    }
+
+    private suspend fun getPopular(isMovie: Boolean): List<TrendingTitle> {
+        if (apiKey.isBlank()) return emptyList()
+
+        return try {
+            val response = if (isMovie) {
+                tmdbApiService.getPopularMovies(apiKey)
+            } else {
+                tmdbApiService.getPopularSeries(apiKey)
+            }
+            response.results.orEmpty().mapNotNull { item ->
+                val id = when (val rawId = item.id) {
+                    is Number -> rawId.toInt()
+                    is String -> rawId.toIntOrNull()
+                    else -> null
+                } ?: return@mapNotNull null
+                val title = if (isMovie) item.title else item.name
+                if (title.isNullOrBlank()) return@mapNotNull null
+                val date = if (isMovie) item.releaseDate else item.firstAirDate
+                TrendingTitle(
+                    tmdbId = id,
+                    title = title,
+                    isMovie = isMovie,
+                    year = ReleaseYearParser.parseYear(date),
+                    posterUrl = item.posterPath?.let { "https://image.tmdb.org/t/p/w500$it" }
+                )
+            }
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            IptvLog.e("TMDB", "Impossible de charger les populaires TMDB", e)
+            emptyList()
+        }
+    }
+
+    private suspend fun getCached(
+        dataKey: String,
+        timeKey: String,
+        lastCatalogSyncTime: Long
+    ): List<PopularCatalogItem>? = mutex.withLock {
+        val savedAt = sharedPrefs.getLong(timeKey, 0L)
+        if (savedAt == 0L || System.currentTimeMillis() - savedAt >= CACHE_DURATION_MS || savedAt < lastCatalogSyncTime) {
+            return null
+        }
+        val json = sharedPrefs.getString(dataKey, null) ?: return null
+        return try {
+            gson.fromJson<List<PopularCatalogItem>>(
+                json,
+                object : TypeToken<List<PopularCatalogItem>>() {}.type
+            ).takeIf { it.isNotEmpty() }
+        } catch (e: Exception) {
+            IptvLog.e("TMDB", "Cache Popular TMDB illisible", e)
+            null
+        }
+    }
+
+    private suspend fun save(dataKey: String, timeKey: String, items: List<PopularCatalogItem>) {
+        if (items.isEmpty()) return
+        mutex.withLock {
+            sharedPrefs.edit()
+                .putString(dataKey, gson.toJson(items))
+                .putLong(timeKey, System.currentTimeMillis())
+                .apply()
+        }
+    }
+
+    private companion object {
+        const val PREFS_NAME = "tmdb_popular_cache"
+        const val CACHE_DURATION_MS = 24 * 60 * 60 * 1000L
+        const val MOVIES_DATA_KEY = "movies_data_v1"
+        const val MOVIES_TIME_KEY = "movies_time_v1"
+        const val SERIES_DATA_KEY = "series_data_v1"
+        const val SERIES_TIME_KEY = "series_time_v1"
+    }
+}

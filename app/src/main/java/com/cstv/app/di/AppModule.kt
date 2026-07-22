@@ -361,6 +361,17 @@ object AppModule {
     ): com.cstv.app.domain.repository.TrendingRepository {
         return com.cstv.app.data.repository.TrendingRepositoryImpl(context, tmdbApiService, apiKey, gson)
     }
+
+    @Provides
+    @Singleton
+    fun providePopularRepository(
+        @ApplicationContext context: Context,
+        tmdbApiService: com.cstv.app.data.remote.api.TmdbApiService,
+        @TmdbApiKey apiKey: String,
+        gson: Gson
+    ): com.cstv.app.domain.repository.PopularRepository {
+        return com.cstv.app.data.repository.PopularRepositoryImpl(context, tmdbApiService, apiKey, gson)
+    }
 }
 
 @javax.inject.Qualifier

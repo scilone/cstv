@@ -28,6 +28,7 @@ import javax.inject.Inject
 import com.cstv.app.domain.model.LiveEpgProgram
 import com.cstv.app.domain.usecase.GetLiveEpgUseCase
 import com.cstv.app.domain.usecase.GetRecommendationsUseCase
+import com.cstv.app.domain.usecase.GetPopularTop10InCatalogUseCase
 import com.cstv.app.domain.model.TopRatedSelector
 
 private const val EPG_POLL_INTERVAL_MILLIS = 60_000L
@@ -46,6 +47,8 @@ data class HomeState(
     
     val topVodStreams: List<VodStream> = emptyList(),
     val topSeriesStreams: List<SeriesStream> = emptyList(),
+    val popularTopVodStreams: List<VodStream>? = null,
+    val popularTopSeriesStreams: List<SeriesStream>? = null,
     
     val recommendedMovies: List<VodStream> = emptyList(),
     val recommendedSeries: List<SeriesStream> = emptyList(),
@@ -64,7 +67,8 @@ class HomeViewModel @Inject constructor(
     private val getLiveCategoriesUseCase: GetLiveCategoriesUseCase,
     private val categoryPreferenceRepository: CategoryPreferenceRepository,
     private val getTrendingInCatalogUseCase: com.cstv.app.domain.usecase.GetTrendingInCatalogUseCase,
-    private val getRecommendationsUseCase: GetRecommendationsUseCase
+    private val getRecommendationsUseCase: GetRecommendationsUseCase,
+    private val getPopularTop10InCatalogUseCase: GetPopularTop10InCatalogUseCase
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(HomeState())
@@ -248,6 +252,29 @@ class HomeViewModel @Inject constructor(
     }
 
     fun loadHomeData() {
+        _state.update { it.copy(popularTopVodStreams = null, popularTopSeriesStreams = null) }
+
+        // F9 : Popular est isolé du chargement local afin que le fallback soit
+        // immédiatement disponible et que TMDB ne puisse jamais bloquer Home.
+        viewModelScope.launch {
+            val result = try {
+                kotlinx.coroutines.withTimeoutOrNull(15_000L) {
+                    getPopularTop10InCatalogUseCase()
+                }
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                null
+            }
+            if (result != null) {
+                _state.update {
+                    it.copy(
+                        popularTopVodStreams = result.movies,
+                        popularTopSeriesStreams = result.series
+                    )
+                }
+            }
+        }
+
         // Tendances TMDB (F1) : appel réseau externe potentiellement lent/instable
         // (DNS, timeout). Découplé du chargement principal (Live/VOD/Séries, tout
         // local) pour ne JAMAIS bloquer le reste de la Home ni le spinner

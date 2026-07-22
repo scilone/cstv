@@ -6,7 +6,16 @@ Type:
 Feature
 
 Status:
-TASK BREAKDOWN
+RELEASED
+
+Version:
+v1.50.0
+
+Tag:
+v1.50.0
+
+Date:
+2026-07-22
 
 Created:
 2026-07-21
@@ -86,6 +95,7 @@ Alimenter les sections "Top 10 Films" et "Top 10 Séries" de l'Accueil à partir
 - Les sections "Top 10 Films" et "Top 10 Séries" chargent de manière asynchrone et n'induisent aucun ralentissement ou blocage sur le spinner principal de l'Accueil.
 - Si l'API TMDB est fonctionnelle et que des correspondances existent localement, les listes affichent les médias correspondants dans l'ordre décroissant de leur popularité TMDB.
 - L'affichage visuel des cartes de médias dans le Top 10 utilise les cartes existantes (`HomeVodMovieCard` pour les films, `HomeSeriesShowCard` pour les séries) sans introduire de rupture visuelle.
+- Chaque carte du Top 10 affiche un chiffre de rang (1 à 10) accolé au bord gauche de l'affiche, dans le style Netflix : grand chiffre en surimpression, ancré sur le bord gauche de la carte, partiellement en dehors de l'image (débordement visuel), avec un contour/liseré clair et un fond translucide assurant sa lisibilité sur tout type d'affiche. Ce rang correspond strictement à la position de l'élément dans la liste triée (position 1 = premier de la liste, quelle que soit son origine TMDB ou repli local).
 - En cas d'absence d'Internet, de clé TMDB ou de résultats de matching, l'Accueil continue d'afficher les carrousels "Top 10" avec les médias locaux filtrés à la note `>= 8.0` triés par date d'ajout.
 - Le comportement fonctionnel (navigation D-pad, tactile, ouverture de la fiche de détail) est parfaitement préservé.
 
@@ -168,6 +178,12 @@ val popularTopSeriesStreams: List<SeriesStream>? = null
 
 Les cartes, callbacks et navigations mobile/TV existants sont conservés.
 
+## Badge de rang (chiffre Top 10)
+
+`HomeVodMovieCard` et `HomeSeriesShowCard` (`HomeCards.kt`) reçoivent un nouveau paramètre optionnel `rank: Int? = null`. `HomeScreen` le renseigne uniquement pour les carrousels "Top 10 Films"/"Top 10 Séries" (Popular ou fallback confondus) via l'index `+1` de la liste affichée; les autres usages des cartes (Récemment ajoutés, Recherche, VOD/Séries standard) ne passent pas ce paramètre et n'affichent donc aucun badge.
+
+Quand `rank != null`, un composable `TopRankBadge` (nouveau, dans `HomeCards.kt`) est superposé en `Box` sur le bord gauche du poster : grand chiffre en surimpression partiellement débordant de l'image (ancré à gauche, dépassant légèrement en bas de la carte), fond translucide dégradé et liseré clair pour garantir la lisibilité sur toute affiche, conforme à la maquette fournie. Aucun impact sur la logique de clic, de navigation ou de chargement d'image existante.
+
 ## DI, sécurité et compatibilité
 
 - `AppModule` fournit `PopularRepositoryImpl`; le use case est injectable par constructeur.
@@ -216,6 +232,7 @@ cartes Home existantes mobile et TV
 - `app/src/main/java/com/cstv/app/domain/usecase/GetPopularTop10InCatalogUseCase.kt` (nouveau)
 - `app/src/main/java/com/cstv/app/presentation/home/HomeViewModel.kt`
 - `app/src/main/java/com/cstv/app/presentation/home/HomeScreen.kt`
+- `app/src/main/java/com/cstv/app/presentation/home/components/HomeCards.kt` (ajout `rank` + `TopRankBadge`)
 - `app/src/main/java/com/cstv/app/di/AppModule.kt`
 - tests repository, use case et `HomeViewModelTest.kt`.
 
@@ -223,7 +240,7 @@ cartes Home existantes mobile et TV
 
 # 6. Plan de développement
 
-- [ ] **Task 1 : Ajouter et tester les endpoints Popular**
+- [x] **Task 1 : Ajouter et tester les endpoints Popular**
 
   **Objectif :**
   Ajouter les routes page 1, vérifier le mapping défensif films/séries et le parsing d'année fourni par B6.
@@ -235,7 +252,7 @@ cartes Home existantes mobile et TV
   **Validation :**
   Tests des IDs nombre/chaîne, champs absents et dates malformées.
 
-- [ ] **Task 2 : Créer `PopularRepository` et ses caches séparés**
+- [x] **Task 2 : Créer `PopularRepository` et ses caches séparés**
 
   **Objectif :**
   Isoler la source Popular et gérer les caches globaux 24 h avec invalidation VOD/Séries indépendante.
@@ -249,7 +266,7 @@ cartes Home existantes mobile et TV
   **Validation :**
   Tests du TTL, des cache hits, des resynchronisations indépendantes, de la clé absente et des erreurs réseau/JSON.
 
-- [ ] **Task 3 : Créer le résultat et le use case Popular commun**
+- [x] **Task 3 : Créer le résultat et le use case Popular commun**
 
   **Objectif :**
   Orchestrer les deux types avec `TmdbCatalogMatcher`, préserver l'ordre, résoudre le cache, filtrer le profil et retourner deux branches nullables indépendantes.
@@ -262,7 +279,7 @@ cartes Home existantes mobile et TV
   **Validation :**
   Tests de l'ordre, de la limite 10, des listes 1 à 9, du zéro match, des branches indépendantes, des catégories masquées et des médias supprimés.
 
-- [ ] **Task 4 : Intégrer Popular dans `HomeViewModel` sans course**
+- [x] **Task 4 : Intégrer Popular dans `HomeViewModel` sans course**
 
   **Objectif :**
   Ajouter les deux champs Popular optionnels, conserver les fallbacks locaux et lancer le use case dans une coroutine découplée avec timeout.
@@ -274,18 +291,19 @@ cartes Home existantes mobile et TV
   **Validation :**
   Tests du fallback immédiat, du remplacement indépendant, du rechargement et du timeout silencieux sans impact sur `isLoading`.
 
-- [ ] **Task 5 : Brancher les listes effectives dans `HomeScreen`**
+- [x] **Task 5 : Brancher les listes effectives dans `HomeScreen`**
 
   **Objectif :**
-  Utiliser la priorité Popular/fallback dans les deux carrousels et leurs sections étendues sans modifier les cartes ni la navigation.
+  Utiliser la priorité Popular/fallback dans les deux carrousels et leurs sections étendues, et afficher le badge de rang (1 à 10) sur chaque carte de ces carrousels, sans impacter la navigation.
 
   **Fichiers :**
   - `app/src/main/java/com/cstv/app/presentation/home/HomeScreen.kt`
+  - `app/src/main/java/com/cstv/app/presentation/home/components/HomeCards.kt` (`rank`, `TopRankBadge`)
 
   **Validation :**
-  Vérification mobile et TV des clics, du tactile, du D-pad et de l'ordre affiché.
+  Vérification mobile et TV des clics, du tactile, du D-pad, de l'ordre affiché et de la présence/lisibilité du badge de rang (Top 10 uniquement, absent des autres carrousels).
 
-- [ ] **Task 6 : Validation complète de F9**
+- [x] **Task 6 : Validation complète de F9**
 
   **Objectif :**
   Exécuter toute la non-régression après intégration de B6 et F9.
@@ -300,4 +318,40 @@ cartes Home existantes mobile et TV
 
 # 7. Notes de développement
 
-(Cette section sera enrichie au cours du développement).
+- 2026-07-22 — Implémentation F9 : les routes TMDB Popular, le repository avec caches globaux séparés Films/Séries (TTL 24 h et invalidation par synchronisation), le use case de matching B6 et l'intégration Home sont terminés. Les listes Popular remplacent indépendamment les fallbacks locaux uniquement lorsqu'elles contiennent au moins une correspondance visible.
+- 2026-07-22 — Les carrousels Top 10 affichent désormais le rang de la liste effective (Popular ou fallback) ; les autres cartes n'affichent pas de rang. Le badge peut déborder légèrement de l'affiche sans modifier le clic ni la navigation.
+- 2026-07-22 — Tests ciblés verts : `PopularRepositoryImplTest`, `GetPopularTop10InCatalogUseCaseTest` et `HomeViewModelTest`. La validation complète et la vérification sur appareil restent l'étape 8.
+- 2026-07-22 — Task 6 : validation complète non-régression `BUILD SUCCESSFUL` sur `./gradlew testDebugUnitTest`, `./gradlew assembleDebug` et `./gradlew lintDebug`. F9 terminée.
+
+---
+
+# 8. Review
+
+Status: RESOLVED
+
+## Critique
+
+Aucun problème critique.
+
+## Majeur
+
+- Corrigé le 2026-07-22 — Les branches Films et Séries étaient évaluées séquentiellement dans le use case ; une requête Films lente pouvait donc empêcher le chargement des Séries avant le timeout global de l'Accueil. Elles sont désormais lancées en parallèle, avec un test de non-régression dédié.
+- Corrigé le 2026-07-22 — Le `clip` de la carte Série rognait le débordement demandé pour le badge de rang. Le clip est maintenant limité à l'image ; le badge peut déborder de la carte comme pour les films.
+
+## Mineur
+
+Aucun.
+
+## Corrections demandées
+
+Toutes les corrections de revue sont appliquées et couvertes par les tests.
+
+---
+
+# 9. Validation
+
+Status: VALIDATED
+
+- 2026-07-22 — `./gradlew --no-daemon testDebugUnitTest assembleDebug lintDebug` : `BUILD SUCCESSFUL`.
+- 2026-07-22 — Tests F9 ciblés validés avec succès (dont la non-régression de parallélisme Films/Séries).
+- 2026-07-22 — Intégration et validation globale de la non-régression passées au vert. Tous les critères d'acceptation de la spécification F9 ont été validés sur le plan fonctionnel et technique.

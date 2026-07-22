@@ -50,6 +50,9 @@ class HomeViewModelTest {
     @Mock
     private lateinit var getRecommendationsUseCase: com.cstv.app.domain.usecase.GetRecommendationsUseCase
 
+    @Mock
+    private lateinit var getPopularTop10InCatalogUseCase: com.cstv.app.domain.usecase.GetPopularTop10InCatalogUseCase
+
     // Phase 42 : StandardTestDispatcher (et non Unconfined) + runCurrent() après
     // construction. HomeViewModel lance désormais un ticker EPG infini
     // (while(true) { delay(60s); ... }) dans son init : avec un dispatcher
@@ -85,7 +88,8 @@ class HomeViewModelTest {
             getLiveCategoriesUseCase,
             categoryPreferenceRepository,
             getTrendingInCatalogUseCase,
-            getRecommendationsUseCase
+            getRecommendationsUseCase,
+            getPopularTop10InCatalogUseCase
         )
         testDispatcher.scheduler.runCurrent()
         return vm
@@ -96,7 +100,8 @@ class HomeViewModelTest {
     // ponctuel dans loadHomeData ; ce helper les stub par défaut à vide.
     private suspend fun stubReactiveSources(
         positions: List<PlaybackPosition> = emptyList(),
-        favorites: List<FavoriteItem> = emptyList()
+        favorites: List<FavoriteItem> = emptyList(),
+        popular: PopularTop10Result = PopularTop10Result(null, null)
     ) {
         doReturn(flowOf(positions)).whenever(vodRepository).observeAllPlaybackPositions()
         doReturn(flowOf(favorites)).whenever(favoritesRepository).observeFavorites()
@@ -107,6 +112,7 @@ class HomeViewModelTest {
         whenever(getRecommendationsUseCase.invoke(any())).thenReturn(
             com.cstv.app.domain.usecase.GetRecommendationsUseCase.RecommendationResult(emptyList(), emptyList())
         )
+        whenever(getPopularTop10InCatalogUseCase.invoke()).thenReturn(popular)
     }
 
     private suspend fun stubEmptyCategoryPreferences() {
@@ -154,6 +160,25 @@ class HomeViewModelTest {
         assertEquals("Movie A", state.firstVodStreams[0].name)
         assertEquals(1, state.firstSeriesStreams.size)
         assertEquals("Series X", state.firstSeriesStreams[0].name)
+
+        viewModel.viewModelScope.cancel()
+    }
+
+    @Test
+    fun test_loadHomeData_keepsLocalTop10AndPublishesIndependentPopularReplacement() = runTest {
+        val popularMovie = VodStream(999, "Popular movie", null, null, null, "movies")
+        val fallbackMovie = VodStream(100, "Fallback movie", null, "9.0", "1", "movies")
+        stubReactiveSources(popular = PopularTop10Result(listOf(popularMovie), null))
+        stubEmptyCategoryPreferences()
+        whenever(getLiveCategoriesUseCase(false)).thenReturn(emptyList())
+        whenever(vodRepository.getVodStreams("all", false)).thenReturn(listOf(fallbackMovie))
+        whenever(seriesRepository.getSeriesStreams("all", false)).thenReturn(emptyList())
+
+        viewModel = createViewModel()
+
+        assertEquals(listOf(fallbackMovie), viewModel.state.value.topVodStreams)
+        assertEquals(listOf(popularMovie), viewModel.state.value.popularTopVodStreams)
+        assertNull(viewModel.state.value.popularTopSeriesStreams)
 
         viewModel.viewModelScope.cancel()
     }

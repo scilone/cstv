@@ -14,9 +14,11 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items as gridItems
+import androidx.compose.foundation.lazy.grid.itemsIndexed as gridItemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -85,6 +87,8 @@ fun HomeScreen(
     lazyListState: LazyListState = rememberLazyListState()
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val displayedTopVodStreams = state.popularTopVodStreams ?: state.topVodStreams
+    val displayedTopSeriesStreams = state.popularTopSeriesStreams ?: state.topSeriesStreams
 
     // Section affichée en grille verticale ("Voir tout"). null = accueil normal.
     var expandedSection by remember { mutableStateOf<HomeExpandedSection?>(null) }
@@ -157,7 +161,7 @@ fun HomeScreen(
                     section = section,
                     resumeList = state.resumeWatchingList,
                     favoritesList = state.favoritesList,
-                    topVodStreams = state.topVodStreams,
+                    topVodStreams = displayedTopVodStreams,
                     recommendedMovies = state.recommendedMovies,
                     recommendedSeries = state.recommendedSeries,
                     onResumeClick = handleResumeClick,
@@ -472,7 +476,7 @@ fun HomeScreen(
                 }
 
                 // 6. Section: Top 10 Films (Trending/Top Rated)
-                if (state.topVodStreams.isNotEmpty()) {
+                if (displayedTopVodStreams.isNotEmpty()) {
                     item {
                         HomeSectionRow(
                             title = stringResource(R.string.home_top_movies),
@@ -484,10 +488,11 @@ fun HomeScreen(
                                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                                 modifier = Modifier.fillMaxWidth().focusGroup()
                             ) {
-                                items(state.topVodStreams) { stream ->
+                                itemsIndexed(displayedTopVodStreams) { index, stream ->
                                     HomeVodMovieCard(
                                         stream = stream,
-                                        onClick = { onSelectMovieDetail(stream) }
+                                        onClick = { onSelectMovieDetail(stream) },
+                                        rank = index + 1
                                     )
                                 }
                             }
@@ -544,7 +549,7 @@ fun HomeScreen(
                 }
 
                 // 9. Section: Top 10 Séries
-                if (state.topSeriesStreams.isNotEmpty()) {
+                if (displayedTopSeriesStreams.isNotEmpty()) {
                     item {
                         HomeSectionRow(
                             title = stringResource(R.string.home_top_series),
@@ -556,10 +561,11 @@ fun HomeScreen(
                                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                                 modifier = Modifier.fillMaxWidth().focusGroup()
                             ) {
-                                items(state.topSeriesStreams) { stream ->
+                                itemsIndexed(displayedTopSeriesStreams) { index, stream ->
                                     HomeSeriesShowCard(
                                         stream = stream,
-                                        onClick = { onSelectSeriesDetail(stream) }
+                                        onClick = { onSelectSeriesDetail(stream) },
+                                        rank = index + 1
                                     )
                                 }
                             }
@@ -673,10 +679,11 @@ private fun HomeExpandedGrid(
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
-                HomeExpandedSection.TOP_MOVIES -> gridItems(topVodStreams) { stream ->
+                HomeExpandedSection.TOP_MOVIES -> gridItemsIndexed(topVodStreams) { index, stream ->
                     HomeVodMovieCard(
                         stream = stream,
-                        onClick = { onMovieClick(stream) }
+                        onClick = { onMovieClick(stream) },
+                        rank = index + 1
                     )
                 }
                 HomeExpandedSection.RECOMMENDED_MOVIES -> gridItems(recommendedMovies) { stream ->
@@ -759,4 +766,3 @@ private fun HomeSectionRow(
         content()
     }
 }
-
