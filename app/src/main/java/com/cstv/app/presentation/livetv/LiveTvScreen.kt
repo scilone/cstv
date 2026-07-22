@@ -4,6 +4,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.paging.filter
 import com.cstv.app.presentation.livetv.components.*
+import com.cstv.app.presentation.components.HistoryRemovalDialog
 
 import com.cstv.app.presentation.rememberForeverLazyListState
 import com.cstv.app.presentation.rememberForeverLazyGridState
@@ -70,6 +71,14 @@ fun LiveTvScreen(
     modifier: Modifier = Modifier
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    var pendingRemoval by remember { mutableStateOf<LiveStream?>(null) }
+    val historySnackbarHost = remember { SnackbarHostState() }
+    LaunchedEffect(state.historyRemovalError) {
+        state.historyRemovalError?.let { historySnackbarHost.showSnackbar(it); viewModel.consumeHistoryRemovalError(); pendingRemoval = null }
+    }
+    LaunchedEffect(state.recentlyWatched, pendingRemoval) {
+        pendingRemoval?.takeIf { pending -> state.recentlyWatched.none { it.streamId == pending.streamId } }?.let { pendingRemoval = null }
+    }
 
     var searchQuery by remember { mutableStateOf("") }
     
@@ -104,11 +113,6 @@ fun LiveTvScreen(
         }
     }.collectAsLazyPagingItems()
 
-    // Refresh recently watched when returning from the player (the ViewModel outlives this screen)
-    LaunchedEffect(Unit) {
-        viewModel.loadRecentlyWatched()
-    }
-
     val getScroll: (String) -> Pair<Int, Int> = { viewModel.getScrollPosition(it) }
     val saveScroll: (String, Int, Int) -> Unit = { k, i, o -> viewModel.saveScrollPosition(k, i, o) }
 
@@ -132,6 +136,7 @@ fun LiveTvScreen(
                 isSpecificCategory = isSpecificCategory,
                 epgPrograms = state.epgPrograms,
                 onLoadEpg = { viewModel.loadEpgForStream(it) },
+                onHistoryRemove = { pendingRemoval = it },
                 getScroll = getScroll,
                 saveScroll = saveScroll
             )
@@ -150,10 +155,13 @@ fun LiveTvScreen(
                 isSpecificCategory = isSpecificCategory,
                 epgPrograms = state.epgPrograms,
                 onLoadEpg = { viewModel.loadEpgForStream(it) },
+                onHistoryRemove = { pendingRemoval = it },
                 getScroll = getScroll,
                 saveScroll = saveScroll
             )
         }
+        SnackbarHost(historySnackbarHost, Modifier.align(Alignment.BottomCenter))
+        pendingRemoval?.let { stream -> HistoryRemovalDialog(stream.name, isTv, state.isRemovingHistory, { viewModel.removeRecentlyWatched(stream) }, { if (!state.isRemovingHistory) pendingRemoval = null }) }
     }
 }
 
@@ -172,6 +180,7 @@ private fun TvLayout(
     isSpecificCategory: Boolean,
     epgPrograms: Map<Int, LiveEpgProgram>,
     onLoadEpg: (Int) -> Unit,
+    onHistoryRemove: (LiveStream) -> Unit,
     getScroll: (String) -> Pair<Int, Int>,
     saveScroll: (String, Int, Int) -> Unit
 ) {
@@ -242,6 +251,7 @@ private fun TvLayout(
                             isTv = true,
                             epgPrograms = epgPrograms,
                             onLoadEpg = onLoadEpg,
+                            onLongClick = onHistoryRemove,
                             getScroll = getScroll,
                             saveScroll = saveScroll
                         )
@@ -367,6 +377,7 @@ private fun MobileLayout(
     isSpecificCategory: Boolean,
     epgPrograms: Map<Int, LiveEpgProgram>,
     onLoadEpg: (Int) -> Unit,
+    onHistoryRemove: (LiveStream) -> Unit,
     getScroll: (String) -> Pair<Int, Int>,
     saveScroll: (String, Int, Int) -> Unit
 ) {
@@ -456,6 +467,7 @@ private fun MobileLayout(
                             isTv = false,
                             epgPrograms = epgPrograms,
                             onLoadEpg = onLoadEpg,
+                            onLongClick = onHistoryRemove,
                             getScroll = getScroll,
                             saveScroll = saveScroll
                         )
@@ -550,4 +562,3 @@ private fun MobileLayout(
         }
     }
 }
-

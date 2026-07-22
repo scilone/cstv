@@ -74,6 +74,17 @@ Introduits en Phase 27, les profils locaux permettent un partage personnalisé d
 
 ---
 
+## 9. Gestion de l'historique de visionnage local (F8)
+Permet à l'utilisateur de nettoyer et de contrôler manuellement son historique local, assurant réactivité de l'interface et confidentialité par profil.
+* **Suppression unifiée et réactive** : Possibilité de retirer manuellement un film ou un épisode de série de la section **« Continuer à regarder »** (Accueil, Films, Séries) et une chaîne de télévision de la section **« Récemment vus »** (Live TV). La disparition du contenu est instantanée grâce aux flux Room réactifs, sans rechargement manuel requis.
+* **Ciblage exact d'un épisode** : La suppression d'une carte de série cible uniquement l'épisode représenté (son `streamId` exact), sans réinitialiser la progression des autres épisodes. Si d'autres épisodes sont en cours de lecture, la carte se met à jour pour afficher le prochain épisode à reprendre ; sinon, elle disparaît.
+* **Geste universel** : Déclenchement intuitif via un appui long sur support tactile (mobile) ou un maintien prolongé du bouton de validation central (télécommande Android TV). Le geste sur TV est entièrement sécurisé pour consommer l'événement de touche relâchée (`KeyUp`) afin d'éviter tout lancement accidentel du lecteur.
+* **Dialogue de confirmation sécurisé** : L'appui long ouvre un dialogue de confirmation stateless commun proposant de *Retirer de la liste* ou d'*Annuler*. Sur Android TV, le focus initial est placé de façon sécurisée sur le bouton *Annuler* pour prévenir toute suppression involontaire.
+* **Invalidation dynamique des recommandations** : Retirer un film ou un épisode de la liste « Continuer à regarder » invalide immédiatement le cache des recommandations du profil de goûts pour refléter instantanément la modification sur l'écran d'Accueil.
+* **Isolation complète** : La suppression est locale à l'appareil et strictement restreinte au profil actif.
+
+---
+
 ## 🚫 Fonctionnalités hors périmètre (Exclusions validées)
 Pour des raisons de performance, de stabilité ou d'expérience utilisateur, les fonctionnalités suivantes sont **strictement hors périmètre** :
 * **Multi-comptes Xtream** : L'application gère un seul compte Xtream Codes actif à la fois (les profils sont purement locaux et rattachés à ce compte unique).

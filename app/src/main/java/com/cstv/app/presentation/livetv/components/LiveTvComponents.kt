@@ -43,6 +43,7 @@ import com.cstv.app.presentation.theme.AccentLavande
 import com.cstv.app.presentation.theme.DarkBackground
 import com.cstv.app.presentation.theme.FavoriteGold
 import com.cstv.app.presentation.theme.Surface1
+import com.cstv.app.presentation.components.historyItemActions
 import com.cstv.app.presentation.theme.Surface2
 import com.cstv.app.presentation.theme.Surface3
 import com.cstv.app.presentation.theme.BricolageGrotesque
@@ -321,6 +322,7 @@ fun RecentlyWatchedRow(
     isTv: Boolean,
     epgPrograms: Map<Int, LiveEpgProgram>,
     onLoadEpg: (Int) -> Unit,
+    onLongClick: (LiveStream) -> Unit,
     getScroll: (String) -> Pair<Int, Int>,
     saveScroll: (String, Int, Int) -> Unit
 ) {
@@ -350,14 +352,16 @@ fun RecentlyWatchedRow(
                         stream = stream,
                         epgProgram = epgPrograms[stream.streamId],
                         onLoadEpg = { onLoadEpg(stream.streamId) },
-                        onClick = { onStreamSelected(stream) }
+                        onClick = { onStreamSelected(stream) },
+                        onLongClick = { onLongClick(stream) }
                     )
                 } else {
                     MobileRecentlyWatchedItem(
                         stream = stream,
                         epgProgram = epgPrograms[stream.streamId],
                         onLoadEpg = { onLoadEpg(stream.streamId) },
-                        onClick = { onStreamSelected(stream) }
+                        onClick = { onStreamSelected(stream) },
+                        onLongClick = { onLongClick(stream) }
                     )
                 }
             }
@@ -375,7 +379,8 @@ fun MobileRecentlyWatchedItem(
     stream: LiveStream,
     epgProgram: LiveEpgProgram?,
     onLoadEpg: () -> Unit,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onLongClick: (() -> Unit)? = null
 ) {
     LaunchedEffect(stream.streamId) {
         while (true) {
@@ -391,7 +396,7 @@ fun MobileRecentlyWatchedItem(
             .clip(RoundedCornerShape(16.dp))
             .background(Surface3)
             .border(1.dp, Color.White.copy(alpha = 0.06f), RoundedCornerShape(16.dp))
-            .clickable { onClick() }
+            .historyItemActions(isTv = false, onClick = onClick, onLongClick = onLongClick)
             .padding(horizontal = 10.dp, vertical = 7.dp)
     ) {
         Box(
@@ -609,7 +614,8 @@ fun RecentlyWatchedTvItem(
     stream: LiveStream,
     epgProgram: LiveEpgProgram?,
     onLoadEpg: () -> Unit,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onLongClick: (() -> Unit)? = null
 ) {
     var isFocused by remember { mutableStateOf(false) }
 
@@ -634,7 +640,7 @@ fun RecentlyWatchedTvItem(
                 shape = RoundedCornerShape(8.dp)
             )
             .clip(RoundedCornerShape(8.dp))
-            .clickable { onClick() }
+            .historyItemActions(isTv = true, onClick = onClick, onLongClick = onLongClick)
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,

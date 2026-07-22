@@ -53,6 +53,9 @@ class HomeViewModelTest {
     @Mock
     private lateinit var getPopularTop10InCatalogUseCase: com.cstv.app.domain.usecase.GetPopularTop10InCatalogUseCase
 
+    @Mock
+    private lateinit var removeFromContinueWatchingUseCase: com.cstv.app.domain.usecase.RemoveFromContinueWatchingUseCase
+
     // Phase 42 : StandardTestDispatcher (et non Unconfined) + runCurrent() après
     // construction. HomeViewModel lance désormais un ticker EPG infini
     // (while(true) { delay(60s); ... }) dans son init : avec un dispatcher
@@ -89,7 +92,8 @@ class HomeViewModelTest {
             categoryPreferenceRepository,
             getTrendingInCatalogUseCase,
             getRecommendationsUseCase,
-            getPopularTop10InCatalogUseCase
+            getPopularTop10InCatalogUseCase,
+            removeFromContinueWatchingUseCase
         )
         testDispatcher.scheduler.runCurrent()
         return vm

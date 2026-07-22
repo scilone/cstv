@@ -57,6 +57,8 @@ import com.cstv.app.presentation.components.CategorySheetEntry
 import com.cstv.app.presentation.components.CategorySelectorTrigger
 import com.cstv.app.presentation.components.CategorySearchField
 import com.cstv.app.presentation.home.components.HomeSeriesShowCard
+import com.cstv.app.presentation.components.HistoryRemovalDialog
+import com.cstv.app.presentation.components.historyItemActions
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -71,6 +73,14 @@ fun SeriesScreen(
     modifier: Modifier = Modifier
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    var pendingRemoval by remember { mutableStateOf<com.cstv.app.domain.model.PlaybackPosition?>(null) }
+    val historySnackbarHost = remember { SnackbarHostState() }
+    LaunchedEffect(state.historyRemovalError) {
+        state.historyRemovalError?.let { historySnackbarHost.showSnackbar(it); viewModel.consumeHistoryRemovalError(); pendingRemoval = null }
+    }
+    LaunchedEffect(state.resumeSeries, pendingRemoval) {
+        pendingRemoval?.takeIf { pending -> state.resumeSeries.none { it.streamId == pending.streamId } }?.let { pendingRemoval = null }
+    }
 
     var searchQuery by remember { mutableStateOf("") }
     
@@ -129,6 +139,7 @@ fun SeriesScreen(
                 searchQuery = searchQuery,
                 onSearchQueryChanged = { searchQuery = it },
                 isSpecificCategory = isSpecificCategory,
+                onHistoryRemove = { stream -> pendingRemoval = state.resumeSeries.firstOrNull { (it.seriesId ?: it.streamId) == stream.seriesId } },
                 getScroll = getScroll,
                 saveScroll = saveScroll
             )
@@ -144,11 +155,14 @@ fun SeriesScreen(
                 searchQuery = searchQuery,
                 onSearchQueryChanged = { searchQuery = it },
                 isSpecificCategory = isSpecificCategory,
+                onHistoryRemove = { stream -> pendingRemoval = state.resumeSeries.firstOrNull { (it.seriesId ?: it.streamId) == stream.seriesId } },
                 onNavigateToFavorites = onNavigateToFavorites,
                 getScroll = getScroll,
                 saveScroll = saveScroll
             )
         }
+        SnackbarHost(historySnackbarHost, Modifier.align(Alignment.BottomCenter))
+        pendingRemoval?.let { position -> HistoryRemovalDialog(position.title.orEmpty(), isTv, state.isRemovingHistory, { viewModel.removeFromContinueWatching(position) }, { if (!state.isRemovingHistory) pendingRemoval = null }) }
     }
 }
 
@@ -164,6 +178,7 @@ private fun TvLayout(
     searchQuery: String,
     onSearchQueryChanged: (String) -> Unit,
     isSpecificCategory: Boolean,
+    onHistoryRemove: (SeriesStream) -> Unit,
     getScroll: (String) -> Pair<Int, Int>,
     saveScroll: (String, Int, Int) -> Unit
 ) {
@@ -244,6 +259,7 @@ private fun TvLayout(
                             series = resumeSeriesStreams,
                             onSeriesSelected = onSeriesSelected,
                             isTv = true,
+                            onLongClick = onHistoryRemove,
                             getScroll = getScroll,
                             saveScroll = saveScroll
                         )
@@ -350,6 +366,7 @@ private fun MobileLayout(
     searchQuery: String,
     onSearchQueryChanged: (String) -> Unit,
     isSpecificCategory: Boolean,
+    onHistoryRemove: (SeriesStream) -> Unit,
     onNavigateToFavorites: () -> Unit,
     getScroll: (String) -> Pair<Int, Int>,
     saveScroll: (String, Int, Int) -> Unit
@@ -451,6 +468,7 @@ private fun MobileLayout(
                             series = resumeSeriesStreams,
                             onSeriesSelected = onSeriesSelected,
                             isTv = false,
+                            onLongClick = onHistoryRemove,
                             getScroll = getScroll,
                             saveScroll = saveScroll
                         )
@@ -601,7 +619,8 @@ private fun CategorySectionRow(
     isTv: Boolean,
     getScroll: (String) -> Pair<Int, Int>,
     saveScroll: (String, Int, Int) -> Unit,
-    onSeeAll: (() -> Unit)? = null
+    onSeeAll: (() -> Unit)? = null,
+    onLongClick: ((SeriesStream) -> Unit)? = null
 ) {
     Column(
         modifier = Modifier
@@ -648,14 +667,17 @@ private fun CategorySectionRow(
                 if (isTv) {
                     SeriesTvCard(
                         stream = stream,
-                        onClick = { onSeriesSelected(stream) }
+                        onClick = { onSeriesSelected(stream) },
+                        onLongClick = onLongClick?.let { { it(stream) } }
                     )
                 } else {
                     // Phase 57 : carte unifiée avec celle de la Home (même taille,
                     // note de notation intégrée).
                     HomeSeriesShowCard(
                         stream = stream,
-                        onClick = { onSeriesSelected(stream) }
+                        onClick = { onSeriesSelected(stream) },
+                        onLongClick = onLongClick?.let { { it(stream) } },
+                        isTv = false
                     )
                 }
             }
@@ -702,7 +724,8 @@ private fun CategoryFilterChip(
 @Composable
 private fun SeriesTvCard(
     stream: SeriesStream,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onLongClick: (() -> Unit)? = null
 ) {
     var isFocused by remember { mutableStateOf(false) }
 
@@ -719,7 +742,7 @@ private fun SeriesTvCard(
                 shape = RoundedCornerShape(12.dp)
             )
             .clip(RoundedCornerShape(12.dp))
-            .clickable { onClick() }
+            .historyItemActions(isTv = true, onClick = onClick, onLongClick = onLongClick)
     ) {
         Column {
             Box(

@@ -31,6 +31,8 @@ import com.cstv.app.domain.repository.LiveTvRepository
 import com.cstv.app.domain.repository.VodRepository
 import com.cstv.app.domain.repository.SeriesRepository
 import com.cstv.app.domain.repository.FavoritesRepository
+import com.cstv.app.domain.repository.ViewingHistoryRepository
+import com.cstv.app.data.repository.ViewingHistoryRepositoryImpl
 import com.cstv.app.data.local.dao.SeriesDao
 import com.cstv.app.data.local.dao.FavoritesDao
 import dagger.Module
@@ -154,6 +156,14 @@ object AppModule {
     ): ProfileRepository {
         return ProfileRepositoryImpl(profileDao, profileManager, favoritesDao, vodDao, liveTvDao, trackPreferenceDao, categoryPreferenceDao)
     }
+
+    @Provides
+    @Singleton
+    fun provideViewingHistoryRepository(
+        vodDao: VodDao,
+        liveTvDao: LiveTvDao,
+        profileManager: ProfileManager
+    ): ViewingHistoryRepository = ViewingHistoryRepositoryImpl(vodDao, liveTvDao, profileManager)
 
     @Provides
     @Singleton

@@ -88,3 +88,25 @@ Si vous cherchez un contenu spécifique dans le catalogue volumineux de votre ab
 * **Langues par défaut** : Définissez vos préférences de pistes audio et de sous-titres (ex: Français par défaut). Le lecteur ExoPlayer tentera systématiquement de sélectionner ces pistes en priorité lors du démarrage d'une vidéo.
 * **Filtrage des catégories** : Si certaines catégories de chaînes ou de VOD ne vous intéressent pas (ex : langues étrangères, chaînes thématiques inutilisées), vous pouvez les masquer complètement dans les paramètres afin d'épurer l'interface de l'application.
 * **Synchronisation** : Vous pouvez forcer manuellement la mise à jour du catalogue de votre serveur IPTV ou régler la fréquence de mise à jour automatique en arrière-plan.
+
+---
+
+## 9. Gestion de l'historique de visionnage local (F8)
+
+Vous pouvez à tout moment nettoyer et contrôler vos listes de reprise et vos chaînes récentes. Chaque suppression est entièrement privée et isolée sur votre profil de visionnage local.
+
+### 📱 Sur smartphone et tablette (Tactile)
+1. **Geste** : Effectuez un **appui long** sur la carte du contenu que vous souhaitez retirer de la liste :
+   - *Continuer à regarder* sur les écrans Accueil, Films et Séries (y compris la vue étendue).
+   - *Chaînes récentes (Récemment vus)* sur l'écran TV en direct.
+2. **Dialogue de confirmation** : Une boîte de dialogue apparaît. Cliquez sur **Retirer de la liste** pour confirmer, ou sur **Annuler** pour laisser l'élément inchangé.
+3. Le contenu disparaît instantanément de l'interface graphique.
+
+### 📺 Sur Android TV / Fire TV (Télécommande)
+1. **Geste** : Positionnez le focus de votre télécommande sur la carte du média à retirer, puis **maintenez enfoncé le bouton central de validation (OK/Entrée)** pendant environ 1 seconde.
+2. **Dialogue de confirmation** : La boîte de dialogue s'affiche avec le focus par défaut sur le bouton **Annuler** afin de prévenir tout clic accidentel. Naviguez vers la droite pour sélectionner **Retirer de la liste** et validez.
+3. Lorsque vous validez la suppression, l'interface graphique se rafraîchit immédiatement, et l'application s'assure qu'au relâchement de la touche, le lecteur vidéo ne soit pas démarré par erreur.
+
+### 💡 Comportements spécifiques
+* **Gestion des séries** : Lorsque vous retirez une série de la liste « Continuer à regarder », vous indiquez que l'épisode représenté (affiché sur la carte) n'est pas vu. Seule la position de lecture de cet épisode spécifique est effacée. Si vous avez d'autres épisodes en cours de lecture pour cette même série, la carte s'actualisera automatiquement pour afficher le prochain épisode à reprendre. Elle disparaîtra définitivement s'il n'en reste aucun autre.
+* **Recommandations** : La suppression d'un film ou d'un épisode de série invalide automatiquement le cache des recommandations personnalisées sur la page d'Accueil afin d'adapter instantanément les suggestions à vos goûts mis à jour.

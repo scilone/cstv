@@ -19,5 +19,7 @@ data class SeriesState(
     val error: String? = null,
     // Compteur de séries par categoryId (cache local), pour la bottom sheet.
     val categoryCounts: Map<String, Int> = emptyMap(),
-    val resumeSeries: List<PlaybackPosition> = emptyList()
+    val resumeSeries: List<PlaybackPosition> = emptyList(),
+    val isRemovingHistory: Boolean = false,
+    val historyRemovalError: String? = null
 )

@@ -4,6 +4,19 @@ Ce document retrace l'historique des versions, des fonctionnalités livrées, de
 
 ---
 
+## [v1.51.0] - 2026-07-22
+### ✨ Nouvelles Fonctionnalités
+* **Gestion de l'historique de visionnage local et retrait des reprises (F8)** :
+  - **Repository dédié d'historique** : Création de `ViewingHistoryRepository` et `ViewingHistoryRepositoryImpl` pour encapsuler et isoler les suppressions d'historiques (VOD/Séries et Live TV) par rapport aux repositories de catalogues, tout en capturant dynamiquement le `profileId` actif depuis `ProfileManager`.
+  - **Ciblage exact d'un épisode** : Conception d'une suppression chirurgicale par `(streamId, profileId)` pour la VOD et les Séries. Retirer une carte de série de la liste « Continuer à regarder » efface uniquement la position de l'épisode affiché sur la carte, sans toucher à la progression des autres épisodes de la série. Si d'autres épisodes sont en cours, la carte agrégée s'actualise automatiquement ; sinon, elle disparaît.
+  - **Flux Room Réactifs pour TV Récente** : Remplacement des chargements ponctuels des chaînes Live TV récentes par une observation en flux continu (`Flow`) de la base de données Room. Tout retrait d'une chaîne récente depuis l'écran Live TV est ainsi répercuté instantanément sans aucun rechargement ou appel manuel.
+  - **Geste universel Mobile & Android TV** : Implémentation du helper de présentation `historyItemActions` pour centraliser le geste d'appui long : tactile `combinedClickable` sur Mobile et maintien du bouton de validation central via interception de clés (`onPreviewKeyEvent`) sur Android TV. Mémorisation et consommation de l'événement `KeyUp` associé pour empêcher tout lancement indésirable du lecteur vidéo au relâchement de la touche.
+  - **Dialogue partagé stateless** : Création du composable unifié `HistoryRemovalDialog` avec boutons TV dédiés et placement du focus initial de sécurité sur le bouton **Annuler** sur Android TV. Indicateur de chargement compact pour éviter les sauts de hauteur pendant la suppression.
+  - **Invalidation dynamique des recommandations** : Après toute suppression réussie de VOD ou de Série, le cas d'usage invalide automatiquement le cache des recommandations du profil pour recalculer l'écran d'Accueil en temps réel.
+  - **Tests unitaires riches** : Couverture totale de la logique de suppression du repository, des flux réactifs de cas d'usage, de la gestion d'état ViewModel, ainsi que des tests de non-régression (enregistrement de `seriesId`).
+
+---
+
 ## [v1.50.0] - 2026-07-22
 ### ✨ Nouvelles Fonctionnalités
 * **Refonte du Top 10 Films & Séries sur l'Accueil avec l'API TMDB (F9)** :

@@ -34,6 +34,7 @@ class VodViewModelTest {
     @Mock private lateinit var trackPreferenceRepository: TrackPreferenceRepository
     @Mock private lateinit var categoryPreferenceRepository: CategoryPreferenceRepository
     @Mock private lateinit var vodRepository: VodRepository
+    @Mock private lateinit var removeFromContinueWatchingUseCase: RemoveFromContinueWatchingUseCase
 
     private val testDispatcher = StandardTestDispatcher()
     private lateinit var viewModel: VodViewModel
@@ -75,7 +76,8 @@ class VodViewModelTest {
             settingsManager,
             trackPreferenceRepository,
             categoryPreferenceRepository,
-            vodRepository
+            vodRepository,
+            removeFromContinueWatchingUseCase
         )
         runCurrent()
 

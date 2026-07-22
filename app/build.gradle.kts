@@ -34,7 +34,7 @@ android {
         }
         resourceConfigurations.addAll(setOf("fr", "en"))
         ndk {
-            abiFilters.addAll(setOf("armeabi-v7a", "arm64-v8a"))
+            abiFilters.addAll(setOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64"))
         }
         buildConfigField("String", "TMDB_API_KEY", "\"$tmdbApiKey\"")
     }

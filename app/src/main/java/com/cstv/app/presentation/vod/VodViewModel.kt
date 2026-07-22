@@ -15,6 +15,8 @@ import com.cstv.app.domain.usecase.GetVodDetailsUseCase
 import com.cstv.app.domain.usecase.GetRelatedMoviesUseCase
 import com.cstv.app.domain.usecase.GetVodStreamsUseCase
 import com.cstv.app.domain.usecase.SavePlaybackPositionUseCase
+import com.cstv.app.domain.usecase.RemoveFromContinueWatchingUseCase
+import com.cstv.app.domain.model.PlaybackPosition
 import dagger.hilt.android.lifecycle.HiltViewModel
 import androidx.paging.PagingData
 import androidx.paging.cachedIn
@@ -43,7 +45,8 @@ class VodViewModel @Inject constructor(
     private val settingsManager: SettingsManager,
     private val trackPreferenceRepository: com.cstv.app.domain.repository.TrackPreferenceRepository,
     private val categoryPreferenceRepository: com.cstv.app.domain.repository.CategoryPreferenceRepository,
-    private val vodRepository: com.cstv.app.domain.repository.VodRepository
+    private val vodRepository: com.cstv.app.domain.repository.VodRepository,
+    private val removeFromContinueWatchingUseCase: RemoveFromContinueWatchingUseCase
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(VodState())
@@ -58,6 +61,20 @@ class VodViewModel @Inject constructor(
     fun getScrollPosition(key: String): Pair<Int, Int> {
         return scrollPositions[key] ?: Pair(0, 0)
     }
+
+    fun removeFromContinueWatching(position: PlaybackPosition) = viewModelScope.launch {
+        _state.update { it.copy(isRemovingHistory = true, historyRemovalError = null) }
+        try {
+            removeFromContinueWatchingUseCase(position)
+        } catch (error: Exception) {
+            if (error is kotlinx.coroutines.CancellationException) throw error
+            _state.update { it.copy(historyRemovalError = "Impossible de retirer cet élément. Réessayez.") }
+        } finally {
+            _state.update { it.copy(isRemovingHistory = false) }
+        }
+    }
+
+    fun consumeHistoryRemovalError() { _state.update { it.copy(historyRemovalError = null) } }
 
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     val pagedStreams: Flow<PagingData<VodStream>> = state

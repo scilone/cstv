@@ -8,12 +8,14 @@ import com.cstv.app.domain.model.SeriesCategory
 import com.cstv.app.domain.model.SeriesDetails
 import com.cstv.app.domain.model.SeriesEpisode
 import com.cstv.app.domain.model.SeriesStream
+import com.cstv.app.domain.model.PlaybackPosition
 import com.cstv.app.domain.usecase.GetSeriesCategoriesUseCase
 import com.cstv.app.domain.usecase.GetSeriesCategoryCountsUseCase
 import com.cstv.app.domain.usecase.GetSeriesDetailsUseCase
 import com.cstv.app.domain.usecase.GetRelatedSeriesUseCase
 import com.cstv.app.domain.usecase.GetSeriesStreamsUseCase
 import com.cstv.app.domain.usecase.SavePlaybackPositionUseCase
+import com.cstv.app.domain.usecase.RemoveFromContinueWatchingUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import androidx.paging.PagingData
 import androidx.paging.cachedIn
@@ -46,7 +48,8 @@ class SeriesViewModel @Inject constructor(
     private val trackPreferenceRepository: com.cstv.app.domain.repository.TrackPreferenceRepository,
     private val categoryPreferenceRepository: com.cstv.app.domain.repository.CategoryPreferenceRepository,
     private val vodRepository: com.cstv.app.domain.repository.VodRepository,
-    private val seriesRepository: com.cstv.app.domain.repository.SeriesRepository
+    private val seriesRepository: com.cstv.app.domain.repository.SeriesRepository,
+    private val removeFromContinueWatchingUseCase: RemoveFromContinueWatchingUseCase
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(SeriesState())
@@ -61,6 +64,20 @@ class SeriesViewModel @Inject constructor(
     fun getScrollPosition(key: String): Pair<Int, Int> {
         return scrollPositions[key] ?: Pair(0, 0)
     }
+
+    fun removeFromContinueWatching(position: PlaybackPosition) = viewModelScope.launch {
+        _state.update { it.copy(isRemovingHistory = true, historyRemovalError = null) }
+        try {
+            removeFromContinueWatchingUseCase(position)
+        } catch (error: Exception) {
+            if (error is kotlinx.coroutines.CancellationException) throw error
+            _state.update { it.copy(historyRemovalError = "Impossible de retirer cet élément. Réessayez.") }
+        } finally {
+            _state.update { it.copy(isRemovingHistory = false) }
+        }
+    }
+
+    fun consumeHistoryRemovalError() { _state.update { it.copy(historyRemovalError = null) } }
 
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     val pagedStreams: Flow<PagingData<SeriesStream>> = state
@@ -284,7 +301,7 @@ class SeriesViewModel @Inject constructor(
                 coverUrl = coverUrl,
                 type = type,
                 containerExtension = containerExtension,
-                seriesId = null,
+                seriesId = _state.value.selectedSeriesDetails?.seriesId,
                 episodeNum = episode.episodeNum,
                 seasonNum = episode.seasonNum,
                 plot = episode.plot,

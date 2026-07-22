@@ -36,6 +36,7 @@ class SeriesViewModelTest {
     @Mock private lateinit var categoryPreferenceRepository: CategoryPreferenceRepository
     @Mock private lateinit var vodRepository: VodRepository
     @Mock private lateinit var seriesRepository: SeriesRepository
+    @Mock private lateinit var removeFromContinueWatchingUseCase: RemoveFromContinueWatchingUseCase
 
     private val testDispatcher = StandardTestDispatcher()
     private lateinit var viewModel: SeriesViewModel
@@ -78,7 +79,8 @@ class SeriesViewModelTest {
             trackPreferenceRepository,
             categoryPreferenceRepository,
             vodRepository,
-            seriesRepository
+            seriesRepository,
+            removeFromContinueWatchingUseCase
         )
         runCurrent()
 

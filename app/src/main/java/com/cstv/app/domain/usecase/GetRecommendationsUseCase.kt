@@ -146,11 +146,13 @@ class GetRecommendationsUseCase @Inject constructor(
         cachedResult = result
     }
 
-    // Visible for testing to force cache invalidation
-    internal fun clearCache() {
+    fun invalidateCache() {
         cachedProfileId = -1
         cachedResult = null
     }
+
+    // Visible for existing tests.
+    internal fun clearCache() = invalidateCache()
 
     private suspend fun getHiddenCategories(type: CategoryType): Set<String> {
         return try {

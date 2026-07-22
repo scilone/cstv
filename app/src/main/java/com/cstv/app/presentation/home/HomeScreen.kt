@@ -55,6 +55,7 @@ import com.cstv.app.presentation.theme.BricolageGrotesque
 import com.cstv.app.presentation.theme.HankenGrotesk
 import com.cstv.app.presentation.theme.Surface1
 import com.cstv.app.presentation.theme.Surface3
+import com.cstv.app.presentation.components.HistoryRemovalDialog
 import androidx.compose.ui.text.font.FontFamily
 import com.cstv.app.domain.model.PlaybackPosition
 import com.cstv.app.domain.model.FavoriteItem
@@ -92,6 +93,24 @@ fun HomeScreen(
 
     // Section affichée en grille verticale ("Voir tout"). null = accueil normal.
     var expandedSection by remember { mutableStateOf<HomeExpandedSection?>(null) }
+    var pendingRemoval by remember { mutableStateOf<PlaybackPosition?>(null) }
+    val historySnackbarHost = remember { SnackbarHostState() }
+
+    LaunchedEffect(state.historyRemovalError) {
+        state.historyRemovalError?.let {
+            historySnackbarHost.showSnackbar(it)
+            viewModel.consumeHistoryRemovalError()
+            pendingRemoval = null
+        }
+    }
+    LaunchedEffect(state.resumeWatchingList, pendingRemoval) {
+        pendingRemoval?.takeIf { pending -> state.resumeWatchingList.none { it.streamId == pending.streamId } }?.let { pendingRemoval = null }
+    }
+    LaunchedEffect(state.resumeWatchingList) {
+        if (expandedSection == HomeExpandedSection.RESUME && state.resumeWatchingList.isEmpty()) {
+            expandedSection = null
+        }
+    }
 
     // Refresh home data when entering screen
     LaunchedEffect(Unit) {
@@ -165,6 +184,7 @@ fun HomeScreen(
                     recommendedMovies = state.recommendedMovies,
                     recommendedSeries = state.recommendedSeries,
                     onResumeClick = handleResumeClick,
+                    onResumeLongClick = { pendingRemoval = it },
                     onFavoriteClick = handleFavoriteClick,
                     onMovieClick = onSelectMovieDetail,
                     onSeriesClick = onSelectSeriesDetail,
@@ -394,7 +414,9 @@ fun HomeScreen(
                                 items(state.resumeWatchingList) { position ->
                                     HomeResumeWatchingCard(
                                         position = position,
-                                        onClick = { handleResumeClick(position) }
+                                        onClick = { handleResumeClick(position) },
+                                        onLongClick = { pendingRemoval = position },
+                                        isTv = isTv
                                     )
                                 }
                             }
@@ -599,6 +621,16 @@ fun HomeScreen(
                 }
             }
         }
+        SnackbarHost(hostState = historySnackbarHost, modifier = Modifier.align(Alignment.BottomCenter))
+        pendingRemoval?.let { position ->
+            HistoryRemovalDialog(
+                contentName = position.title.orEmpty(),
+                isTv = isTv,
+                isRemoving = state.isRemovingHistory,
+                onConfirm = { viewModel.removeFromContinueWatching(position) },
+                onDismiss = { if (!state.isRemovingHistory) pendingRemoval = null }
+            )
+        }
     }
 }
 
@@ -614,6 +646,7 @@ private fun HomeExpandedGrid(
     recommendedMovies: List<VodStream>,
     recommendedSeries: List<SeriesStream>,
     onResumeClick: (PlaybackPosition) -> Unit,
+    onResumeLongClick: (PlaybackPosition) -> Unit,
     onFavoriteClick: (FavoriteItem) -> Unit,
     onMovieClick: (VodStream) -> Unit,
     onSeriesClick: (SeriesStream) -> Unit,
@@ -669,6 +702,7 @@ private fun HomeExpandedGrid(
                     HomeResumeWatchingCard(
                         position = position,
                         onClick = { onResumeClick(position) },
+                        onLongClick = { onResumeLongClick(position) },
                         modifier = Modifier.fillMaxWidth()
                     )
                 }

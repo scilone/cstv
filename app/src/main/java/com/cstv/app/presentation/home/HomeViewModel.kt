@@ -54,7 +54,9 @@ data class HomeState(
     val recommendedSeries: List<SeriesStream> = emptyList(),
     
     val error: String? = null,
-    val epgPrograms: Map<Int, LiveEpgProgram> = emptyMap()
+    val epgPrograms: Map<Int, LiveEpgProgram> = emptyMap(),
+    val isRemovingHistory: Boolean = false,
+    val historyRemovalError: String? = null
 )
 
 @HiltViewModel
@@ -68,7 +70,8 @@ class HomeViewModel @Inject constructor(
     private val categoryPreferenceRepository: CategoryPreferenceRepository,
     private val getTrendingInCatalogUseCase: com.cstv.app.domain.usecase.GetTrendingInCatalogUseCase,
     private val getRecommendationsUseCase: GetRecommendationsUseCase,
-    private val getPopularTop10InCatalogUseCase: GetPopularTop10InCatalogUseCase
+    private val getPopularTop10InCatalogUseCase: GetPopularTop10InCatalogUseCase,
+    private val removeFromContinueWatchingUseCase: com.cstv.app.domain.usecase.RemoveFromContinueWatchingUseCase
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(HomeState())
@@ -83,6 +86,20 @@ class HomeViewModel @Inject constructor(
     fun getScrollPosition(key: String): Pair<Int, Int> {
         return scrollPositions[key] ?: Pair(0, 0)
     }
+
+    fun removeFromContinueWatching(position: PlaybackPosition) = viewModelScope.launch {
+        _state.update { it.copy(isRemovingHistory = true, historyRemovalError = null) }
+        try {
+            removeFromContinueWatchingUseCase(position)
+        } catch (error: Exception) {
+            if (error is kotlinx.coroutines.CancellationException) throw error
+            _state.update { it.copy(historyRemovalError = "Impossible de retirer cet élément. Réessayez.") }
+        } finally {
+            _state.update { it.copy(isRemovingHistory = false) }
+        }
+    }
+
+    fun consumeHistoryRemovalError() { _state.update { it.copy(historyRemovalError = null) } }
 
     // Guards against duplicate concurrent fetches and hammering channels without EPG data.
     // Doivent être initialisés AVANT le bloc init{} : viewModelScope utilise

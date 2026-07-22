@@ -12,7 +12,8 @@ import com.cstv.app.domain.usecase.GetLiveEpgUseCase
 import com.cstv.app.domain.usecase.GetLiveEpgNowNextUseCase
 import com.cstv.app.domain.model.LiveEpgNowNext
 import com.cstv.app.domain.usecase.GetLiveStreamsUseCase
-import com.cstv.app.domain.usecase.GetRecentlyWatchedUseCase
+import com.cstv.app.domain.usecase.ObserveRecentlyWatchedUseCase
+import com.cstv.app.domain.usecase.RemoveRecentlyWatchedUseCase
 import com.cstv.app.domain.usecase.SaveRecentlyWatchedUseCase
 import com.cstv.app.data.local.storage.SettingsManager
 import com.cstv.app.data.local.storage.ResizeMode
@@ -36,7 +37,8 @@ class LiveTvViewModel @Inject constructor(
     private val getLiveCategoriesUseCase: GetLiveCategoriesUseCase,
     private val getLiveCategoryCountsUseCase: GetLiveCategoryCountsUseCase,
     private val getLiveStreamsUseCase: GetLiveStreamsUseCase,
-    private val getRecentlyWatchedUseCase: GetRecentlyWatchedUseCase,
+    private val observeRecentlyWatchedUseCase: ObserveRecentlyWatchedUseCase,
+    private val removeRecentlyWatchedUseCase: RemoveRecentlyWatchedUseCase,
     private val saveRecentlyWatchedUseCase: SaveRecentlyWatchedUseCase,
     private val getLiveEpgUseCase: GetLiveEpgUseCase,
     private val getLiveEpgNowNextUseCase: GetLiveEpgNowNextUseCase,
@@ -97,7 +99,11 @@ class LiveTvViewModel @Inject constructor(
 
     init {
         loadCategories()
-        loadRecentlyWatched()
+        viewModelScope.launch {
+            observeRecentlyWatchedUseCase().collect { list ->
+                _state.update { it.copy(recentlyWatched = list) }
+            }
+        }
         // Recharge les catégories quand les préférences (masquage/ordre, Phase 58)
         // changent : ce ViewModel survit en backstack pendant le passage par les
         // Paramètres, l'init seul ne suffit pas.
@@ -136,29 +142,30 @@ class LiveTvViewModel @Inject constructor(
         }
     }
 
-    fun loadRecentlyWatched() {
-        viewModelScope.launch {
-            try {
-                val list = getRecentlyWatchedUseCase()
-                _state.update { it.copy(recentlyWatched = list) }
-            } catch (e: Exception) {
-                if (e is kotlinx.coroutines.CancellationException) throw e
-                // Ignore gracefully for recently watched
-            }
-        }
-    }
-
     fun saveRecentlyWatched(stream: LiveStream) {
         viewModelScope.launch {
             try {
                 saveRecentlyWatchedUseCase(stream)
-                loadRecentlyWatched() // refresh state after saving
             } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException) throw e
                 // Ignore gracefully
             }
         }
     }
+
+    fun removeRecentlyWatched(stream: LiveStream) = viewModelScope.launch {
+        _state.update { it.copy(isRemovingHistory = true, historyRemovalError = null) }
+        try {
+            removeRecentlyWatchedUseCase(stream.streamId)
+        } catch (error: Exception) {
+            if (error is kotlinx.coroutines.CancellationException) throw error
+            _state.update { it.copy(historyRemovalError = "Impossible de retirer cet élément. Réessayez.") }
+        } finally {
+            _state.update { it.copy(isRemovingHistory = false) }
+        }
+    }
+
+    fun consumeHistoryRemovalError() { _state.update { it.copy(historyRemovalError = null) } }
 
     fun loadCategories(forceRefresh: Boolean = false) {
         viewModelScope.launch {

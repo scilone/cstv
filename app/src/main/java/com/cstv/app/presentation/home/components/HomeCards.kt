@@ -37,6 +37,7 @@ import com.cstv.app.domain.model.SeriesStream
 import com.cstv.app.presentation.theme.AccentLavande
 import com.cstv.app.presentation.theme.DarkBackground
 import com.cstv.app.presentation.theme.Surface1
+import com.cstv.app.presentation.components.historyItemActions
 import com.cstv.app.presentation.theme.Surface2
 import com.cstv.app.presentation.theme.Surface3
 import com.cstv.app.presentation.theme.BricolageGrotesque
@@ -246,6 +247,8 @@ fun HomeHeroCard(
 fun HomeResumeWatchingCard(
     position: PlaybackPosition,
     onClick: () -> Unit,
+    onLongClick: (() -> Unit)? = null,
+    isTv: Boolean = false,
     modifier: Modifier = Modifier.width(220.dp)
 ) {
     var isFocused by remember { mutableStateOf(false) }
@@ -274,7 +277,7 @@ fun HomeResumeWatchingCard(
                 shape = RoundedCornerShape(12.dp)
             )
             .clip(RoundedCornerShape(12.dp))
-            .clickable { onClick() }
+            .historyItemActions(isTv, onClick, onLongClick)
             .background(Surface3)
     ) {
         Box(
@@ -584,7 +587,9 @@ fun HomeEpgProgressBar(
 fun HomeVodMovieCard(
     stream: VodStream,
     onClick: () -> Unit,
-    rank: Int? = null
+    rank: Int? = null,
+    onLongClick: (() -> Unit)? = null,
+    isTv: Boolean = false
 ) {
     var isFocused by remember { mutableStateOf(false) }
 
@@ -606,7 +611,7 @@ fun HomeVodMovieCard(
             .width(cardWidth)
             .height(195.dp) // standard 2:3 ratio
             .onFocusChanged { isFocused = it.isFocused }
-            .clickable { onClick() },
+            .historyItemActions(isTv, onClick, onLongClick),
         contentAlignment = Alignment.Center
     ) {
         rank?.let { TopRankBadge(it, Modifier.align(Alignment.BottomStart)) }
@@ -653,7 +658,9 @@ fun HomeVodMovieCard(
 fun HomeSeriesShowCard(
     stream: SeriesStream,
     onClick: () -> Unit,
-    rank: Int? = null
+    rank: Int? = null,
+    onLongClick: (() -> Unit)? = null,
+    isTv: Boolean = false
 ) {
     var isFocused by remember { mutableStateOf(false) }
 
@@ -675,7 +682,7 @@ fun HomeSeriesShowCard(
             .width(cardWidth)
             .height(195.dp) // standard 2:3 ratio
             .onFocusChanged { isFocused = it.isFocused }
-            .clickable { onClick() },
+            .historyItemActions(isTv, onClick, onLongClick),
         contentAlignment = Alignment.Center
     ) {
         rank?.let { TopRankBadge(it, Modifier.align(Alignment.BottomStart)) }

@@ -14,6 +14,10 @@
     <string name="login_button">CONNEXION</string>
     <string name="common_back">Retour</string>
     <string name="common_clear">Effacer</string>
+    <string name="history_removal_title">Retirer de la liste ?</string>
+    <string name="history_removal_message">La progression ou l’entrée récente de « %1$s » sera effacée.</string>
+    <string name="history_removal_confirm">Retirer de la liste</string>
+    <string name="history_removal_cancel">Annuler</string>
     <string name="favorites_title">MES FAVORIS</string>
     <string name="favorites_empty">Aucun favori enregistré.</string>
     <string name="favorites_category_live">LIVE TV</string>

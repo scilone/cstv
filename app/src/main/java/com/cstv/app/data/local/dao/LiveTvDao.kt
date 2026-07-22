@@ -9,6 +9,7 @@ import com.cstv.app.data.local.entity.EpgCacheEntity
 import com.cstv.app.data.local.entity.LiveCategoryEntity
 import com.cstv.app.data.local.entity.LiveStreamEntity
 import com.cstv.app.data.local.entity.RecentlyWatchedLiveEntity
+import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface LiveTvDao {
@@ -71,6 +72,12 @@ interface LiveTvDao {
 
     @Query("SELECT * FROM recently_watched_live WHERE profileId = :profileId ORDER BY watchedAt DESC LIMIT :limit")
     suspend fun getRecentlyWatched(profileId: Int, limit: Int): List<RecentlyWatchedLiveEntity>
+
+    @Query("SELECT * FROM recently_watched_live WHERE profileId = :profileId ORDER BY watchedAt DESC LIMIT :limit")
+    fun observeRecentlyWatched(profileId: Int, limit: Int): Flow<List<RecentlyWatchedLiveEntity>>
+
+    @Query("DELETE FROM recently_watched_live WHERE streamId = :streamId AND profileId = :profileId")
+    suspend fun deleteRecentlyWatched(streamId: Int, profileId: Int)
 
     @Query("DELETE FROM recently_watched_live WHERE profileId = :profileId")
     suspend fun deleteRecentlyWatchedForProfile(profileId: Int)

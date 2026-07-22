@@ -19,5 +19,7 @@ data class VodState(
     val error: String? = null,
     // Compteur de films par categoryId (cache local), pour la bottom sheet.
     val categoryCounts: Map<String, Int> = emptyMap(),
-    val resumeMovies: List<PlaybackPosition> = emptyList()
+    val resumeMovies: List<PlaybackPosition> = emptyList(),
+    val isRemovingHistory: Boolean = false,
+    val historyRemovalError: String? = null
 )
