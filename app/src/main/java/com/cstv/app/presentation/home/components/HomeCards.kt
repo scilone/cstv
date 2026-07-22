@@ -19,7 +19,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -588,56 +588,61 @@ fun HomeVodMovieCard(
 ) {
     var isFocused by remember { mutableStateOf(false) }
 
-    // Phase 55 : titre en overlay dans la vignette (maquette), plus en dessous.
+    val rankWidth = if (rank == 10) 112.dp else 74.dp
+    val cardWidth = if (rank == null) 130.dp else 130.dp + rankWidth - 30.dp
+    val posterModifier = Modifier
+        .width(130.dp)
+        .fillMaxHeight()
+        .border(
+            width = 2.dp,
+            color = if (isFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
+            shape = RoundedCornerShape(14.dp)
+        )
+        .clip(RoundedCornerShape(14.dp))
+        .background(Surface1)
+
     Box(
         modifier = Modifier
-            .width(130.dp)
+            .width(cardWidth)
             .height(195.dp) // standard 2:3 ratio
             .onFocusChanged { isFocused = it.isFocused }
-            .border(
-                width = 2.dp,
-                color = if (isFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
-                shape = RoundedCornerShape(14.dp)
-            )
-            .clickable { onClick() }
-            .background(Surface1, RoundedCornerShape(14.dp)),
+            .clickable { onClick() },
         contentAlignment = Alignment.Center
     ) {
-        if (!stream.streamIcon.isNullOrBlank()) {
-            AsyncImage(
-                model = stream.streamIcon,
-                contentDescription = stream.name,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .clip(RoundedCornerShape(14.dp))
-            )
-        } else {
-            Icon(
-                imageVector = Icons.Default.Warning,
-                contentDescription = null,
-                tint = Color.DarkGray,
-                modifier = Modifier.size(32.dp)
-            )
-        }
-
         rank?.let { TopRankBadge(it, Modifier.align(Alignment.BottomStart)) }
 
-        // Rating Badge (top right)
-        val cleanRating = stream.rating?.trim()
-        if (!cleanRating.isNullOrBlank() && cleanRating != "0" && cleanRating != "0.0") {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(6.dp)
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(Color(0xCC000000))
-                    .padding(horizontal = 4.dp, vertical = 2.dp)
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Star, contentDescription = null, tint = Color.Yellow, modifier = Modifier.size(10.dp))
-                    Spacer(modifier = Modifier.width(2.dp))
-                    Text(cleanRating, color = Color.White, fontSize = 8.sp, fontWeight = FontWeight.Bold)
+        Box(modifier = posterModifier.align(Alignment.CenterEnd)) {
+            if (!stream.streamIcon.isNullOrBlank()) {
+                AsyncImage(
+                    model = stream.streamIcon,
+                    contentDescription = stream.name,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            } else {
+                Icon(
+                    imageVector = Icons.Default.Warning,
+                    contentDescription = null,
+                    tint = Color.DarkGray,
+                    modifier = Modifier.size(32.dp).align(Alignment.Center)
+                )
+            }
+
+            val cleanRating = stream.rating?.trim()
+            if (!cleanRating.isNullOrBlank() && cleanRating != "0" && cleanRating != "0.0") {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(6.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(Color(0xCC000000))
+                        .padding(horizontal = 4.dp, vertical = 2.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Star, contentDescription = null, tint = Color.Yellow, modifier = Modifier.size(10.dp))
+                        Spacer(modifier = Modifier.width(2.dp))
+                        Text(cleanRating, color = Color.White, fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                    }
                 }
             }
         }
@@ -652,56 +657,61 @@ fun HomeSeriesShowCard(
 ) {
     var isFocused by remember { mutableStateOf(false) }
 
-    // Phase 55 : titre en overlay dans la vignette (maquette), plus en dessous.
+    val rankWidth = if (rank == 10) 112.dp else 74.dp
+    val cardWidth = if (rank == null) 130.dp else 130.dp + rankWidth - 30.dp
+    val posterModifier = Modifier
+        .width(130.dp)
+        .fillMaxHeight()
+        .border(
+            width = 2.dp,
+            color = if (isFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
+            shape = RoundedCornerShape(14.dp)
+        )
+        .clip(RoundedCornerShape(14.dp))
+        .background(Surface1)
+
     Box(
         modifier = Modifier
-            .width(130.dp)
+            .width(cardWidth)
             .height(195.dp) // standard 2:3 ratio
             .onFocusChanged { isFocused = it.isFocused }
-            .border(
-                width = 2.dp,
-                color = if (isFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
-                shape = RoundedCornerShape(14.dp)
-            )
-            .clickable { onClick() }
-            .background(Surface1, RoundedCornerShape(14.dp)),
+            .clickable { onClick() },
         contentAlignment = Alignment.Center
     ) {
-        if (!stream.cover.isNullOrBlank()) {
-            AsyncImage(
-                model = stream.cover,
-                contentDescription = stream.name,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .clip(RoundedCornerShape(14.dp))
-            )
-        } else {
-            Icon(
-                imageVector = Icons.Default.Warning,
-                contentDescription = null,
-                tint = Color.DarkGray,
-                modifier = Modifier.size(32.dp)
-            )
-        }
-
         rank?.let { TopRankBadge(it, Modifier.align(Alignment.BottomStart)) }
 
-        // Rating Badge (top right)
-        val cleanRating = stream.rating?.trim()
-        if (!cleanRating.isNullOrBlank() && cleanRating != "0" && cleanRating != "0.0") {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(6.dp)
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(Color(0xCC000000))
-                    .padding(horizontal = 4.dp, vertical = 2.dp)
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Star, contentDescription = null, tint = Color.Yellow, modifier = Modifier.size(10.dp))
-                    Spacer(modifier = Modifier.width(2.dp))
-                    Text(cleanRating, color = Color.White, fontSize = 8.sp, fontWeight = FontWeight.Bold)
+        Box(modifier = posterModifier.align(Alignment.CenterEnd)) {
+            if (!stream.cover.isNullOrBlank()) {
+                AsyncImage(
+                    model = stream.cover,
+                    contentDescription = stream.name,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            } else {
+                Icon(
+                    imageVector = Icons.Default.Warning,
+                    contentDescription = null,
+                    tint = Color.DarkGray,
+                    modifier = Modifier.size(32.dp).align(Alignment.Center)
+                )
+            }
+
+            val cleanRating = stream.rating?.trim()
+            if (!cleanRating.isNullOrBlank() && cleanRating != "0" && cleanRating != "0.0") {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(6.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(Color(0xCC000000))
+                        .padding(horizontal = 4.dp, vertical = 2.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Star, contentDescription = null, tint = Color.Yellow, modifier = Modifier.size(10.dp))
+                        Spacer(modifier = Modifier.width(2.dp))
+                        Text(cleanRating, color = Color.White, fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                    }
                 }
             }
         }
@@ -710,25 +720,30 @@ fun HomeSeriesShowCard(
 
 @Composable
 private fun TopRankBadge(rank: Int, modifier: Modifier = Modifier) {
-    Text(
-        text = rank.toString(),
-        color = Color.White.copy(alpha = 0.94f),
-        fontSize = 72.sp,
-        lineHeight = 72.sp,
-        fontWeight = FontWeight.Black,
-        fontFamily = BricolageGrotesque,
-        style = androidx.compose.ui.text.TextStyle(
-            shadow = Shadow(Color.Black.copy(alpha = 0.9f), blurRadius = 5f)
-        ),
-        modifier = modifier
-            .offset(x = (-10).dp, y = 10.dp)
-            .background(
-                Brush.horizontalGradient(
-                    listOf(Color.Black.copy(alpha = 0.68f), Color.Transparent)
-                ),
-                RoundedCornerShape(5.dp)
-            )
-            .border(1.dp, Color.White.copy(alpha = 0.65f), RoundedCornerShape(5.dp))
-            .padding(horizontal = 4.dp)
-    )
+    val width = if (rank == 10) 112.dp else 74.dp
+    val fontSize = if (rank == 10) 104.sp else 138.sp
+    Box(modifier = modifier.width(width).height(158.dp)) {
+        val text = rank.toString()
+        Text(
+            text = text,
+            color = Color.White,
+            fontSize = fontSize,
+            lineHeight = fontSize,
+            fontWeight = FontWeight.Black,
+            fontFamily = BricolageGrotesque,
+            style = androidx.compose.ui.text.TextStyle(drawStyle = Stroke(width = 5f)),
+            maxLines = 1,
+            modifier = Modifier.align(Alignment.BottomStart)
+        )
+        Text(
+            text = text,
+            color = Color.Black.copy(alpha = 0.82f),
+            fontSize = fontSize,
+            lineHeight = fontSize,
+            fontWeight = FontWeight.Black,
+            fontFamily = BricolageGrotesque,
+            maxLines = 1,
+            modifier = Modifier.align(Alignment.BottomStart)
+        )
+    }
 }

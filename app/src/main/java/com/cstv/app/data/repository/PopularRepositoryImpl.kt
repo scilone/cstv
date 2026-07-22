@@ -11,6 +11,8 @@ import com.cstv.app.domain.repository.PopularRepository
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import javax.inject.Inject
@@ -53,12 +55,18 @@ class PopularRepositoryImpl @Inject constructor(
         if (apiKey.isBlank()) return emptyList()
 
         return try {
-            val response = if (isMovie) {
-                tmdbApiService.getPopularMovies(apiKey)
-            } else {
-                tmdbApiService.getPopularSeries(apiKey)
-            }
-            response.results.orEmpty().mapNotNull { item ->
+            val items = coroutineScope {
+                (1..POPULAR_PAGE_COUNT).map { page ->
+                    async {
+                        if (isMovie) {
+                            tmdbApiService.getPopularMovies(apiKey, page = page)
+                        } else {
+                            tmdbApiService.getPopularSeries(apiKey, page = page)
+                        }
+                    }
+                }.flatMap { it.await().results.orEmpty() }
+            }.take(POPULAR_CANDIDATE_LIMIT)
+            items.mapNotNull { item ->
                 val id = when (val rawId = item.id) {
                     is Number -> rawId.toInt()
                     is String -> rawId.toIntOrNull()
@@ -116,9 +124,11 @@ class PopularRepositoryImpl @Inject constructor(
     private companion object {
         const val PREFS_NAME = "tmdb_popular_cache"
         const val CACHE_DURATION_MS = 24 * 60 * 60 * 1000L
-        const val MOVIES_DATA_KEY = "movies_data_v1"
-        const val MOVIES_TIME_KEY = "movies_time_v1"
-        const val SERIES_DATA_KEY = "series_data_v1"
-        const val SERIES_TIME_KEY = "series_time_v1"
+        const val POPULAR_PAGE_COUNT = 3
+        const val POPULAR_CANDIDATE_LIMIT = 50
+        const val MOVIES_DATA_KEY = "movies_data_v2"
+        const val MOVIES_TIME_KEY = "movies_time_v2"
+        const val SERIES_DATA_KEY = "series_data_v2"
+        const val SERIES_TIME_KEY = "series_time_v2"
     }
 }
