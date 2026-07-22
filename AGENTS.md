@@ -29,7 +29,7 @@ Pour éviter la surcharge cognitive et de contexte, respecte scrupuleusement le 
 - App Android/Android TV native Kotlin uniquement.
 - Connexion **API Xtream Codes uniquement** (`player_api.php`) source IPTV. Zéro support M3U/M3U8 brut source, zéro Stalker Portal, zéro autre protocole IPTV.
 - Fonctionnalités couvertes : Live TV (avec EPG), VOD Films, Séries, Favoris, Recherche locale (FTS + avancée), Téléchargements hors-ligne, Profils locaux, Paramètres.
-- **Exception validée** : API **TMDB** (tendances Accueil, Feature F1) seule API réseau externe autorisée en plus Xtream. Clé dans `local.properties` (jamais versionnée), repli silencieux si absente/hors-ligne.
+- **Exceptions réseau validées** en plus de Xtream : **TMDB** (tendances Accueil, Feature F1) et **YouTube** (API, métadonnées, intégration du lecteur et lecture de contenus). Leur usage n'est pas limité aux trailers afin de permettre les évolutions futures. Toute clé éventuelle reste dans `local.properties` ou les secrets CI (jamais versionnée), avec repli silencieux si elle est absente ou si le service est indisponible.
 - Explicitement hors périmètre, jamais ajouter sans demande explicite PO : catch-up/timeshift, multi-comptes Xtream (plusieurs identifiants distincts), enregistrement (PVR), autre protocole IPTV, code PIN/restriction parentale par profil.
 - **Chromecast : tenté (F4) puis retiré définitivement** (revert complet v1.47.10) : Default Media Receiver Google Cast décode pas AC3/EAC3/DTS, codecs fréquents ce catalogue (raison d'être NextLib côté local) → cast vidéo sans son, non corrigeable côté app. Pas re-proposer sans transcoding serveur.
 - Depuis Phase 27 : profils **locaux** multiples (type Netflix) sur **un seul** compte Xtream dans périmètre (favoris/historique/reprise lecture séparés par profil ; catalogue/cache Room toujours partagé, non dupliqué). Pas confondre avec multi-comptes Xtream, hors périmètre.
@@ -41,7 +41,7 @@ Pour éviter la surcharge cognitive et de contexte, respecte scrupuleusement le 
 - UI : Jetpack Compose (mobile) + Compose for TV (`androidx.tv:tv-material`, `tv-foundation`) Android TV.
 - Architecture : Clean Architecture (`data` / `domain` / `presentation`) + MVVM.
 - DI : Hilt.
-- Réseau : Retrofit + OkHttp (instances séparées Xtream / TMDB).
+- Réseau : Retrofit + OkHttp (instances séparées Xtream / TMDB / éventuelle API YouTube) ; lecteur YouTube intégré via l'API IFrame ou une bibliothèque Android dédiée validée.
 - Lecteur vidéo : ExoPlayer / Media3 (support HLS) + NextLib (`nextlib-media3ext`, décodeurs FFmpeg logiciels EAC3/AC3/DTS — version alignée media3).
 - Persistance : Room (cache API) + DataStore chiffré ou EncryptedSharedPreferences (identifiants Xtream).
 - Tâches fond : WorkManager (sync planifiée catalogue).
@@ -83,7 +83,7 @@ Avant considérer phase terminée, exécute `assembleDebug` + `lintDebug`, corri
 ```
 app/src/main/java/com/cstv/app/
 ├── data/
-│   ├── remote/        (Retrofit API Xtream + TMDB, DTOs, TypeAdapters Gson)
+│   ├── remote/        (Retrofit API Xtream + TMDB + éventuelle API YouTube, DTOs, TypeAdapters Gson)
 │   ├── local/          (Room entities/DAO/migrations, DataStore)
 │   ├── download/      (téléchargements hors-ligne, cache Media3)
 │   ├── worker/        (WorkManager : sync planifiée)
