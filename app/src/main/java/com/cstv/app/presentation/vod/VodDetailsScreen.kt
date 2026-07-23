@@ -152,6 +152,11 @@ fun VodDetailsScreen(
                 onRemove = onRemoveDownload
             )
 
+            if (!isTv) {
+                Spacer(modifier = Modifier.height(12.dp))
+                MediaRatingControls(mediaRating, false, onLike, onDislike)
+            }
+
             if (relatedStreams.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(28.dp))
                 com.cstv.app.presentation.components.RelatedTitlesRow(
@@ -437,9 +442,6 @@ private fun MobileLayoutDetails(
             onResumePlayback = { onResumePlayback(details.resumePositionMs) },
             isTv = false
         )
-
-        Spacer(modifier = Modifier.height(12.dp))
-        MediaRatingControls(mediaRating, false, onLike, onDislike)
     }
 }
 
