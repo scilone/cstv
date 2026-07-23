@@ -31,6 +31,7 @@ import com.cstv.app.R
 import com.cstv.app.domain.model.MediaRatingValue
 import com.cstv.app.presentation.theme.RatingDislike
 import com.cstv.app.presentation.theme.RatingLike
+import com.cstv.app.presentation.theme.Surface3
 
 @Composable
 fun MediaRatingControls(
@@ -70,9 +71,10 @@ private fun RatingButton(value: MediaRatingValue, selected: Boolean, isTv: Boole
         Text(label, modifier = Modifier.padding(start = 8.dp))
     }
     // Instant, silent toggle: no loader, no disabled state while the rating persists in the background.
+    // Unselected: discreet chip look (grey border, dark grey fill, light grey text) matching credit chips.
     if (selected) {
         Button(onClick = onClick, modifier = modifier, colors = ButtonDefaults.buttonColors(containerColor = color, contentColor = Color.White)) { content() }
     } else {
-        OutlinedButton(onClick = onClick, modifier = modifier, border = BorderStroke(1.dp, Color.White), colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)) { content() }
+        OutlinedButton(onClick = onClick, modifier = modifier, border = BorderStroke(1.dp, Color.DarkGray), colors = ButtonDefaults.outlinedButtonColors(containerColor = Surface3, contentColor = Color.LightGray)) { content() }
     }
 }

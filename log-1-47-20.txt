@@ -1,0 +1,437 @@
+2026-07-19T14:16:37.0899560Z Current runner version: '2.335.1'
+2026-07-19T14:16:37.0939025Z ##[group]Runner Image Provisioner
+2026-07-19T14:16:37.0940415Z Hosted Compute Agent
+2026-07-19T14:16:37.0941384Z Version: 20260707.563
+2026-07-19T14:16:37.0942614Z Commit: 02667638d2b423fbc733a8e32a88b44996a3ba6e
+2026-07-19T14:16:37.0943966Z Build Date: 2026-07-07T19:33:50Z
+2026-07-19T14:16:37.0945631Z Worker ID: {2481eaf2-ced5-4ea4-8273-86901872117a}
+2026-07-19T14:16:37.0946904Z Azure Region: westus
+2026-07-19T14:16:37.0947877Z ##[endgroup]
+2026-07-19T14:16:37.0950530Z ##[group]Operating System
+2026-07-19T14:16:37.0951743Z Ubuntu
+2026-07-19T14:16:37.0952892Z 24.04.4
+2026-07-19T14:16:37.0953861Z LTS
+2026-07-19T14:16:37.0955718Z ##[endgroup]
+2026-07-19T14:16:37.0956958Z ##[group]Runner Image
+2026-07-19T14:16:37.0958209Z Image: ubuntu-24.04
+2026-07-19T14:16:37.0959315Z Version: 20260714.240.1
+2026-07-19T14:16:37.0961525Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20260714.240/images/ubuntu/Ubuntu2404-Readme.md
+2026-07-19T14:16:37.0968356Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20260714.240
+2026-07-19T14:16:37.0970296Z ##[endgroup]
+2026-07-19T14:16:37.0972622Z ##[group]GITHUB_TOKEN Permissions
+2026-07-19T14:16:37.0986519Z Contents: write
+2026-07-19T14:16:37.0987822Z Metadata: read
+2026-07-19T14:16:37.0988827Z ##[endgroup]
+2026-07-19T14:16:37.0992046Z Secret source: Actions
+2026-07-19T14:16:37.0993438Z Prepare workflow directory
+2026-07-19T14:16:37.1532456Z Prepare all required actions
+2026-07-19T14:16:37.1583286Z Getting action download info
+2026-07-19T14:16:37.4831962Z Download action repository 'actions/checkout@v4' (SHA:34e114876b0b11c390a56381ad16ebd13914f8d5)
+2026-07-19T14:16:37.6338871Z Download action repository 'actions/setup-java@v4' (SHA:c1e323688fd81a25caa38c78aa6df2d33d3e20d9)
+2026-07-19T14:16:38.1841916Z Download action repository 'gradle/actions@v4' (SHA:ed408507eac070d1f99cc633dbcf757c94c7933a)
+2026-07-19T14:16:39.2801487Z Download action repository 'softprops/action-gh-release@v2' (SHA:3bb12739c298aeb8a4eeaf626c5b8d85266b0e65)
+2026-07-19T14:16:39.7051454Z Complete job name: Build and Release
+2026-07-19T14:16:39.7795351Z Node 20 is being deprecated. This workflow is running with Node 24 by default. If you need to temporarily use Node 20, you can set the ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION=true environment variable. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+2026-07-19T14:16:39.7803958Z ##[group]Run actions/checkout@v4
+2026-07-19T14:16:39.7804858Z with:
+2026-07-19T14:16:39.7805338Z   repository: scilone/cstv
+2026-07-19T14:16:39.7808121Z   token: ***
+2026-07-19T14:16:39.7808548Z   ssh-strict: true
+2026-07-19T14:16:39.7808970Z   ssh-user: git
+2026-07-19T14:16:39.7809335Z   persist-credentials: true
+2026-07-19T14:16:39.7809765Z   clean: true
+2026-07-19T14:16:39.7810173Z   sparse-checkout-cone-mode: true
+2026-07-19T14:16:39.7810619Z   fetch-depth: 1
+2026-07-19T14:16:39.7811029Z   fetch-tags: false
+2026-07-19T14:16:39.7811421Z   show-progress: true
+2026-07-19T14:16:39.7811887Z   lfs: false
+2026-07-19T14:16:39.7812292Z   submodules: false
+2026-07-19T14:16:39.7812790Z   set-safe-directory: true
+2026-07-19T14:16:39.7813519Z ##[endgroup]
+2026-07-19T14:16:39.8982467Z Syncing repository: scilone/cstv
+2026-07-19T14:16:39.8984716Z ##[group]Getting Git version info
+2026-07-19T14:16:39.8985432Z Working directory is '/home/runner/work/cstv/cstv'
+2026-07-19T14:16:39.8986896Z [command]/usr/bin/git version
+2026-07-19T14:16:39.9039685Z git version 2.54.0
+2026-07-19T14:16:39.9109764Z ##[endgroup]
+2026-07-19T14:16:39.9123685Z Temporarily overriding HOME='/home/runner/work/_temp/53e79d60-b3ff-419a-b28e-d602f154831a' before making global git config changes
+2026-07-19T14:16:39.9127225Z Adding repository directory to the temporary git global config as a safe directory
+2026-07-19T14:16:39.9130512Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/cstv/cstv
+2026-07-19T14:16:39.9181635Z Deleting the contents of '/home/runner/work/cstv/cstv'
+2026-07-19T14:16:39.9187826Z ##[group]Initializing the repository
+2026-07-19T14:16:39.9193646Z [command]/usr/bin/git init /home/runner/work/cstv/cstv
+2026-07-19T14:16:39.9347891Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-07-19T14:16:39.9431692Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2026-07-19T14:16:39.9446232Z hint: to use in all of your new repositories, which will suppress this warning,
+2026-07-19T14:16:39.9447329Z hint: call:
+2026-07-19T14:16:39.9447988Z hint:
+2026-07-19T14:16:39.9448979Z hint: 	git config --global init.defaultBranch <name>
+2026-07-19T14:16:39.9450077Z hint:
+2026-07-19T14:16:39.9451138Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-07-19T14:16:39.9452224Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-07-19T14:16:39.9453009Z hint:
+2026-07-19T14:16:39.9453467Z hint: 	git branch -m <name>
+2026-07-19T14:16:39.9453980Z hint:
+2026-07-19T14:16:39.9454957Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-07-19T14:16:39.9455999Z Initialized empty Git repository in /home/runner/work/cstv/cstv/.git/
+2026-07-19T14:16:39.9457477Z [command]/usr/bin/git remote add origin https://github.com/scilone/cstv
+2026-07-19T14:16:39.9458459Z ##[endgroup]
+2026-07-19T14:16:39.9458911Z ##[group]Disabling automatic garbage collection
+2026-07-19T14:16:39.9459295Z [command]/usr/bin/git config --local gc.auto 0
+2026-07-19T14:16:39.9494447Z ##[endgroup]
+2026-07-19T14:16:39.9496411Z ##[group]Setting up auth
+2026-07-19T14:16:39.9503154Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-07-19T14:16:39.9542423Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-07-19T14:16:39.9928625Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-07-19T14:16:39.9964845Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-07-19T14:16:40.0201837Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-07-19T14:16:40.0238449Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-07-19T14:16:40.0525060Z [command]/usr/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-07-19T14:16:40.0562552Z ##[endgroup]
+2026-07-19T14:16:40.0563925Z ##[group]Fetching the repository
+2026-07-19T14:16:40.0573720Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +9b55b4eea9ee5a849e6e360202dd27164eeb394b:refs/tags/v1.47.20
+2026-07-19T14:16:41.0365153Z From https://github.com/scilone/cstv
+2026-07-19T14:16:41.0375614Z  * [new ref]         9b55b4eea9ee5a849e6e360202dd27164eeb394b -> v1.47.20
+2026-07-19T14:16:41.0447739Z ##[endgroup]
+2026-07-19T14:16:41.0461637Z ##[group]Determining the checkout info
+2026-07-19T14:16:41.0462676Z ##[endgroup]
+2026-07-19T14:16:41.0463452Z [command]/usr/bin/git sparse-checkout disable
+2026-07-19T14:16:41.0529080Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+2026-07-19T14:16:41.0579190Z ##[group]Checking out the ref
+2026-07-19T14:16:41.0580467Z [command]/usr/bin/git checkout --progress --force refs/tags/v1.47.20
+2026-07-19T14:16:41.1107929Z Note: switching to 'refs/tags/v1.47.20'.
+2026-07-19T14:16:41.1124115Z 
+2026-07-19T14:16:41.1145599Z You are in 'detached HEAD' state. You can look around, make experimental
+2026-07-19T14:16:41.1167851Z changes and commit them, and you can discard any commits you make in this
+2026-07-19T14:16:41.1169066Z state without impacting any branches by switching back to a branch.
+2026-07-19T14:16:41.1170128Z 
+2026-07-19T14:16:41.1170848Z If you want to create a new branch to retain commits you create, you may
+2026-07-19T14:16:41.1195628Z do so (now or later) by using -c with the switch command. Example:
+2026-07-19T14:16:41.1209830Z 
+2026-07-19T14:16:41.1218597Z   git switch -c <new-branch-name>
+2026-07-19T14:16:41.1219156Z 
+2026-07-19T14:16:41.1219490Z Or undo this operation with:
+2026-07-19T14:16:41.1219914Z 
+2026-07-19T14:16:41.1220195Z   git switch -
+2026-07-19T14:16:41.1220658Z 
+2026-07-19T14:16:41.1221177Z Turn off this advice by setting config variable advice.detachedHead to false
+2026-07-19T14:16:41.1221870Z 
+2026-07-19T14:16:41.1222422Z HEAD is now at 9b55b4e ci(release): retirer le declenchement sur main et PR (v1.47.20)
+2026-07-19T14:16:41.1225033Z ##[endgroup]
+2026-07-19T14:16:41.1226757Z [command]/usr/bin/git log -1 --format=%H
+2026-07-19T14:16:41.1249366Z 9b55b4eea9ee5a849e6e360202dd27164eeb394b
+2026-07-19T14:16:41.1552758Z Node 20 is being deprecated. This workflow is running with Node 24 by default. If you need to temporarily use Node 20, you can set the ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION=true environment variable. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+2026-07-19T14:16:41.1554688Z ##[group]Run actions/setup-java@v4
+2026-07-19T14:16:41.1554975Z with:
+2026-07-19T14:16:41.1555183Z   distribution: zulu
+2026-07-19T14:16:41.1555411Z   java-version: 17
+2026-07-19T14:16:41.1555626Z   java-package: jdk
+2026-07-19T14:16:41.1555846Z   check-latest: false
+2026-07-19T14:16:41.1556059Z   server-id: github
+2026-07-19T14:16:41.1556270Z   server-username: GITHUB_ACTOR
+2026-07-19T14:16:41.1556535Z   server-password: GITHUB_TOKEN
+2026-07-19T14:16:41.1556790Z   overwrite-settings: true
+2026-07-19T14:16:41.1557026Z   job-status: success
+2026-07-19T14:16:41.1559495Z   token: ***
+2026-07-19T14:16:41.1559711Z ##[endgroup]
+2026-07-19T14:16:41.3293499Z ##[group]Installed distributions
+2026-07-19T14:16:41.3335586Z Trying to resolve the latest version from remote
+2026-07-19T14:16:41.3506600Z (node:2089) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-07-19T14:16:41.3518729Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-07-19T14:16:41.4261506Z Resolved latest version as 17.0.19+10
+2026-07-19T14:16:41.4275647Z Trying to download...
+2026-07-19T14:16:41.4291873Z Downloading Java 17.0.19+10 (Zulu) from https://cdn.azul.com/zulu/bin/zulu17.66.19-ca-crac-jdk17.0.19-linux_x64.tar.gz ...
+2026-07-19T14:16:44.2473355Z Extracting Java archive...
+2026-07-19T14:16:44.2643886Z [command]/usr/bin/tar xz --warning=no-unknown-keyword --overwrite -C /home/runner/work/_temp/8f2be094-336a-4abd-a229-5e139ceccc6d -f /home/runner/work/_temp/2eddab29-7a70-4d63-b382-17a183fff70d
+2026-07-19T14:16:47.3937294Z Java 17.0.19+10 was downloaded
+2026-07-19T14:16:47.3938264Z Setting Java 17.0.19+10 as the default
+2026-07-19T14:16:47.3940870Z Creating toolchains.xml for JDK version 17 from zulu
+2026-07-19T14:16:47.4036061Z Writing to /home/runner/.m2/toolchains.xml
+2026-07-19T14:16:47.4036762Z 
+2026-07-19T14:16:47.4037285Z Java configuration:
+2026-07-19T14:16:47.4038152Z   Distribution: zulu
+2026-07-19T14:16:47.4038905Z   Version: 17.0.19+10
+2026-07-19T14:16:47.4039782Z   Path: /opt/hostedtoolcache/Java_Zulu_jdk/17.0.19-10/x64
+2026-07-19T14:16:47.4040567Z 
+2026-07-19T14:16:47.4041921Z ##[endgroup]
+2026-07-19T14:16:47.4059139Z Creating settings.xml with server-id: github
+2026-07-19T14:16:47.4075808Z Writing to /home/runner/.m2/settings.xml
+2026-07-19T14:16:47.4380846Z Node 20 is being deprecated. This workflow is running with Node 24 by default. If you need to temporarily use Node 20, you can set the ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION=true environment variable. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+2026-07-19T14:16:47.4382181Z ##[group]Run gradle/actions/setup-gradle@v4
+2026-07-19T14:16:47.4382654Z with:
+2026-07-19T14:16:47.4382854Z   cache-read-only: true
+2026-07-19T14:16:47.4383089Z   cache-disabled: false
+2026-07-19T14:16:47.4383321Z   cache-write-only: false
+2026-07-19T14:16:47.4383574Z   cache-overwrite-existing: false
+2026-07-19T14:16:47.4383845Z   cache-cleanup: on-success
+2026-07-19T14:16:47.4384135Z   gradle-home-cache-includes: caches
+notifications
+
+2026-07-19T14:16:47.4384803Z   add-job-summary: always
+2026-07-19T14:16:47.4385180Z   add-job-summary-as-pr-comment: never
+2026-07-19T14:16:47.4385503Z   dependency-graph: disabled
+2026-07-19T14:16:47.4385878Z   dependency-graph-report-dir: dependency-graph-reports
+2026-07-19T14:16:47.4386255Z   dependency-graph-continue-on-failure: true
+2026-07-19T14:16:47.4386592Z   build-scan-publish: false
+2026-07-19T14:16:47.4386848Z   validate-wrappers: true
+2026-07-19T14:16:47.4387096Z   allow-snapshot-wrappers: false
+2026-07-19T14:16:47.4387375Z   gradle-home-cache-strict-match: false
+2026-07-19T14:16:47.4387659Z   workflow-job-context: null
+2026-07-19T14:16:47.4390182Z   github-token: ***
+2026-07-19T14:16:47.4390401Z env:
+2026-07-19T14:16:47.4390674Z   JAVA_HOME: /opt/hostedtoolcache/Java_Zulu_jdk/17.0.19-10/x64
+2026-07-19T14:16:47.4391104Z   JAVA_HOME_17_X64: /opt/hostedtoolcache/Java_Zulu_jdk/17.0.19-10/x64
+2026-07-19T14:16:47.4391467Z ##[endgroup]
+2026-07-19T14:16:48.2565313Z Merged default JDK locations into /home/runner/.m2/toolchains.xml
+2026-07-19T14:16:48.2578771Z ##[group]Restore Gradle state from cache
+2026-07-19T14:16:48.5116275Z Cache hit for restore-key: gradle-home-v1|Linux-X64|build[44aa87535beb926c080c264530ea7d38]-5ea95dfab48262b08f4d28e54dc5e07472fe9e2b
+2026-07-19T14:16:49.1907307Z Received 69966 of 69966 (100.0%), 0.2 MBs/sec
+2026-07-19T14:16:49.1922159Z Cache Size: ~0 MB (69966 B)
+2026-07-19T14:16:49.1950020Z [command]/usr/bin/tar -xf /home/runner/work/_temp/22d78a63-9955-41e0-b94e-2e87348dc948/cache.tzst -P -C /home/runner/work/cstv/cstv --use-compress-program unzstd
+2026-07-19T14:16:49.2047049Z Cache restored successfully
+2026-07-19T14:16:49.2059937Z Restored cache entry with key gradle-home-v1|Linux-X64|build[44aa87535beb926c080c264530ea7d38]-9b55b4eea9ee5a849e6e360202dd27164eeb394b to /home/runner/.gradle/caches,/home/runner/.gradle/notifications,/home/runner/.gradle/.setup-gradle in 946ms
+2026-07-19T14:16:49.4371761Z Cache hit for: gradle-wrapper-zips-v1-ffeb4a2ba659779670a5133436ff6d73
+2026-07-19T14:16:49.4466342Z Cache hit for: gradle-instrumented-jars-v1-8bbe4890e6cf66fe9bd894d974e56768
+2026-07-19T14:16:49.4572914Z Cache hit for: gradle-groovy-dsl-v1-160c432acf52cd5052f6a68573e96ad8
+2026-07-19T14:16:50.1186532Z Received 59207 of 59207 (100.0%), 0.1 MBs/sec
+2026-07-19T14:16:50.1187834Z Cache Size: ~0 MB (59207 B)
+2026-07-19T14:16:50.1212124Z [command]/usr/bin/tar -xf /home/runner/work/_temp/f26b1f12-185f-4af6-8f07-a920697059c3/cache.tzst -P -C /home/runner/work/cstv/cstv --use-compress-program unzstd
+2026-07-19T14:16:50.1262625Z Received 92824 of 92824 (100.0%), 0.2 MBs/sec
+2026-07-19T14:16:50.1263551Z Cache Size: ~0 MB (92824 B)
+2026-07-19T14:16:50.1316134Z [command]/usr/bin/tar -xf /home/runner/work/_temp/6959eec1-2637-437a-b6c5-4567c1413eb5/cache.tzst -P -C /home/runner/work/cstv/cstv --use-compress-program unzstd
+2026-07-19T14:16:50.1367845Z Cache restored successfully
+2026-07-19T14:16:50.1369667Z Restored cache entry with key gradle-instrumented-jars-v1-8bbe4890e6cf66fe9bd894d974e56768 to /home/runner/.gradle/caches/jars-*/*/ in 931ms
+2026-07-19T14:16:50.1532152Z Cache restored successfully
+2026-07-19T14:16:50.1535263Z Restored cache entry with key gradle-groovy-dsl-v1-160c432acf52cd5052f6a68573e96ad8 to /home/runner/.gradle/caches/*/groovy-dsl/*/ in 947ms
+2026-07-19T14:16:50.7471636Z Received 0 of 136039117 (0.0%), 0.0 MBs/sec
+2026-07-19T14:16:51.7477554Z Received 92274688 of 136039117 (67.8%), 44.0 MBs/sec
+2026-07-19T14:16:52.2148315Z Received 136039117 of 136039117 (100.0%), 52.6 MBs/sec
+2026-07-19T14:16:52.2152574Z Cache Size: ~130 MB (136039117 B)
+2026-07-19T14:16:52.2196027Z [command]/usr/bin/tar -xf /home/runner/work/_temp/2615f7fa-a1a9-4ba8-9d7d-ef9c6908ddf6/cache.tzst -P -C /home/runner/work/cstv/cstv --use-compress-program unzstd
+2026-07-19T14:16:52.5005280Z Cache restored successfully
+2026-07-19T14:16:52.5061645Z Restored cache entry with key gradle-wrapper-zips-v1-ffeb4a2ba659779670a5133436ff6d73 to /home/runner/.gradle/wrapper/dists/gradle-8.10.2-bin/a04bxjujx95o3nb99gddekhwo in 3300ms
+2026-07-19T14:16:52.5415899Z ##[endgroup]
+2026-07-19T14:16:52.5560766Z ##[group]All Gradle Wrapper jars are valid
+2026-07-19T14:16:52.5562063Z ✓ Found known Gradle Wrapper JAR files:
+2026-07-19T14:16:52.5583859Z   cb0da6751c2b753a16ac168bb354870ebb1e162e9083f116729cec9c781156b8 gradle/wrapper/gradle-wrapper.jar
+2026-07-19T14:16:52.5585418Z ##[endgroup]
+2026-07-19T14:16:52.6476220Z ##[group]Run chmod +x gradlew
+2026-07-19T14:16:52.6476605Z [36;1mchmod +x gradlew[0m
+2026-07-19T14:16:52.9251006Z shell: /usr/bin/bash -e {0}
+2026-07-19T14:16:52.9251748Z env:
+2026-07-19T14:16:52.9252533Z   JAVA_HOME: /opt/hostedtoolcache/Java_Zulu_jdk/17.0.19-10/x64
+2026-07-19T14:16:52.9253827Z   JAVA_HOME_17_X64: /opt/hostedtoolcache/Java_Zulu_jdk/17.0.19-10/x64
+2026-07-19T14:16:52.9255021Z   GRADLE_ACTION_ID: gradle/actions/setup-gradle
+2026-07-19T14:16:52.9255690Z   GRADLE_USER_HOME: /home/runner/.gradle
+2026-07-19T14:16:52.9256306Z   GRADLE_BUILD_ACTION_SETUP_COMPLETED: true
+2026-07-19T14:16:52.9256937Z   GRADLE_BUILD_ACTION_CACHE_RESTORED: true
+2026-07-19T14:16:52.9257855Z   DEVELOCITY_INJECTION_INIT_SCRIPT_NAME: gradle-actions.inject-develocity.init.gradle
+2026-07-19T14:16:52.9258610Z   DEVELOCITY_INJECTION_CUSTOM_VALUE: gradle-actions
+2026-07-19T14:16:52.9259047Z   GITHUB_DEPENDENCY_GRAPH_ENABLED: false
+2026-07-19T14:16:52.9259415Z ##[endgroup]
+2026-07-19T14:16:52.9419416Z ##[group]Run import os
+2026-07-19T14:16:52.9419781Z [36;1mimport os[0m
+2026-07-19T14:16:52.9420046Z [36;1mimport base64[0m
+2026-07-19T14:16:52.9420302Z [36;1m[0m
+2026-07-19T14:16:52.9420661Z [36;1mencoded = os.environ.get('KEYSTORE_BASE64', '')[0m
+2026-07-19T14:16:52.9421064Z [36;1mif not encoded:[0m
+2026-07-19T14:16:52.9421486Z [36;1m    print("Warning: KEYSTORE_BASE64 is empty, keystore file not created.")[0m
+2026-07-19T14:16:52.9421968Z [36;1m    exit(0)[0m
+2026-07-19T14:16:52.9422208Z [36;1m    [0m
+2026-07-19T14:16:52.9422444Z [36;1mif ',' in encoded:[0m
+2026-07-19T14:16:52.9422754Z [36;1m    encoded = encoded.split(',')[-1][0m
+2026-07-19T14:16:52.9423080Z [36;1m    [0m
+2026-07-19T14:16:52.9423542Z [36;1mencoded = encoded.replace('\\n', '').replace('\n', '').replace('\r', '').replace(' ', '').replace('\t', '')[0m
+2026-07-19T14:16:52.9424085Z [36;1m[0m
+2026-07-19T14:16:52.9424324Z [36;1mtry:[0m
+2026-07-19T14:16:52.9424942Z [36;1m    # Try strict decoding first[0m
+2026-07-19T14:16:52.9425559Z [36;1m    decoded_data = base64.b64decode(encoded, validate=True)[0m
+2026-07-19T14:16:52.9426066Z [36;1m    with open('app/release-keystore.jks', 'wb') as f:[0m
+2026-07-19T14:16:52.9426457Z [36;1m        f.write(decoded_data)[0m
+2026-07-19T14:16:52.9426919Z [36;1m    print("Keystore file successfully decoded and saved in strict mode.")[0m
+2026-07-19T14:16:52.9427393Z [36;1mexcept Exception as e:[0m
+2026-07-19T14:16:52.9427820Z [36;1m    print(f"Strict mode decoding failed: {e}. Trying non-strict mode...")[0m
+2026-07-19T14:16:52.9428265Z [36;1m    try:[0m
+2026-07-19T14:16:52.9428558Z [36;1m        decoded_data = base64.b64decode(encoded)[0m
+2026-07-19T14:16:52.9428995Z [36;1m        with open('app/release-keystore.jks', 'wb') as f:[0m
+2026-07-19T14:16:52.9429415Z [36;1m            f.write(decoded_data)[0m
+2026-07-19T14:16:52.9429911Z [36;1m        print("Keystore file successfully decoded and saved in non-strict mode.")[0m
+2026-07-19T14:16:52.9430415Z [36;1m    except Exception as e2:[0m
+2026-07-19T14:16:52.9430978Z [36;1m        print(f"Error: Keystore base64 decoding failed completely in both strict and non-strict modes.")[0m
+2026-07-19T14:16:52.9431581Z [36;1m        print(f"Error details: {e2}")[0m
+2026-07-19T14:16:52.9432102Z [36;1m        exit(1)[0m
+2026-07-19T14:16:52.9483323Z shell: /usr/bin/python {0}
+2026-07-19T14:16:52.9483620Z env:
+2026-07-19T14:16:52.9483931Z   JAVA_HOME: /opt/hostedtoolcache/Java_Zulu_jdk/17.0.19-10/x64
+2026-07-19T14:16:52.9484683Z   JAVA_HOME_17_X64: /opt/hostedtoolcache/Java_Zulu_jdk/17.0.19-10/x64
+2026-07-19T14:16:52.9485257Z   GRADLE_ACTION_ID: gradle/actions/setup-gradle
+2026-07-19T14:16:52.9485642Z   GRADLE_USER_HOME: /home/runner/.gradle
+2026-07-19T14:16:52.9485984Z   GRADLE_BUILD_ACTION_SETUP_COMPLETED: true
+2026-07-19T14:16:52.9486323Z   GRADLE_BUILD_ACTION_CACHE_RESTORED: true
+2026-07-19T14:16:52.9486859Z   DEVELOCITY_INJECTION_INIT_SCRIPT_NAME: gradle-actions.inject-develocity.init.gradle
+2026-07-19T14:16:52.9487428Z   DEVELOCITY_INJECTION_CUSTOM_VALUE: gradle-actions
+2026-07-19T14:16:52.9487804Z   GITHUB_DEPENDENCY_GRAPH_ENABLED: false
+2026-07-19T14:16:52.9510628Z   KEYSTORE_BASE64: ***
+2026-07-19T14:16:52.9510897Z ##[endgroup]
+2026-07-19T14:16:52.9746414Z Strict mode decoding failed: Excess data after padding. Trying non-strict mode...
+2026-07-19T14:16:52.9747856Z Keystore file successfully decoded and saved in non-strict mode.
+2026-07-19T14:16:52.9812005Z ##[group]Run ./gradlew :app:assembleRelease --no-daemon
+2026-07-19T14:16:52.9812532Z [36;1m./gradlew :app:assembleRelease --no-daemon[0m
+2026-07-19T14:16:52.9869120Z shell: /usr/bin/bash -e {0}
+2026-07-19T14:16:52.9869468Z env:
+2026-07-19T14:16:52.9869861Z   JAVA_HOME: /opt/hostedtoolcache/Java_Zulu_jdk/17.0.19-10/x64
+2026-07-19T14:16:52.9870476Z   JAVA_HOME_17_X64: /opt/hostedtoolcache/Java_Zulu_jdk/17.0.19-10/x64
+2026-07-19T14:16:52.9871035Z   GRADLE_ACTION_ID: gradle/actions/setup-gradle
+2026-07-19T14:16:52.9871478Z   GRADLE_USER_HOME: /home/runner/.gradle
+2026-07-19T14:16:52.9871901Z   GRADLE_BUILD_ACTION_SETUP_COMPLETED: true
+2026-07-19T14:16:52.9872332Z   GRADLE_BUILD_ACTION_CACHE_RESTORED: true
+2026-07-19T14:16:52.9872969Z   DEVELOCITY_INJECTION_INIT_SCRIPT_NAME: gradle-actions.inject-develocity.init.gradle
+2026-07-19T14:16:52.9873678Z   DEVELOCITY_INJECTION_CUSTOM_VALUE: gradle-actions
+2026-07-19T14:16:52.9874137Z   GITHUB_DEPENDENCY_GRAPH_ENABLED: false
+2026-07-19T14:16:52.9874891Z   KEYSTORE_FILE: release-keystore.jks
+2026-07-19T14:16:52.9875400Z   KEYSTORE_PASSWORD: ***
+2026-07-19T14:16:52.9875762Z   KEY_ALIAS: ***
+2026-07-19T14:16:52.9876070Z   KEY_PASSWORD: ***
+2026-07-19T14:16:52.9876368Z ##[endgroup]
+2026-07-19T14:16:53.9345748Z To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.10.2/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+2026-07-19T14:16:55.6245018Z Daemon will be stopped at the end of the build 
+2026-07-19T14:16:57.3238640Z Calculating task graph as no cached configuration is available for tasks: :app:assembleRelease
+2026-07-19T14:18:50.0306082Z > Task :app:preBuild UP-TO-DATE
+2026-07-19T14:18:50.0335542Z > Task :app:preReleaseBuild UP-TO-DATE
+2026-07-19T14:18:50.1235441Z > Task :app:buildKotlinToolingMetadata
+2026-07-19T14:18:55.9216995Z > Task :app:checkReleaseDuplicateClasses
+2026-07-19T14:18:55.9225206Z > Task :app:mergeReleaseJniLibFolders
+2026-07-19T14:19:02.0225329Z > Task :app:mergeReleaseArtProfile
+2026-07-19T14:19:02.0267806Z > Task :app:checkKotlinGradlePluginConfigurationErrors
+2026-07-19T14:19:02.0315046Z > Task :app:generateReleaseBuildConfig
+2026-07-19T14:19:02.3245684Z > Task :app:checkReleaseAarMetadata
+2026-07-19T14:19:02.3246383Z > Task :app:mergeReleaseNativeLibs
+2026-07-19T14:19:02.3272582Z > Task :app:generateReleaseResValues
+2026-07-19T14:19:02.6235706Z > Task :app:mapReleaseSourceSetPaths
+2026-07-19T14:19:02.6275139Z > Task :app:generateReleaseResources
+2026-07-19T14:19:02.7255448Z 
+2026-07-19T14:19:02.7256728Z > Task :app:stripReleaseDebugSymbols
+2026-07-19T14:19:02.7296458Z Unable to strip the following libraries, packaging them as they are: libavcodec.so, libavutil.so, libdatastore_shared_counter.so, libmedia3ext.so, libswresample.so, libswscale.so.
+2026-07-19T14:19:02.8248579Z 
+2026-07-19T14:19:02.8249457Z > Task :app:extractReleaseNativeSymbolTables
+2026-07-19T14:19:02.8259213Z > Task :app:mergeReleaseNativeDebugMetadata NO-SOURCE
+2026-07-19T14:19:03.0235658Z > Task :app:packageReleaseResources
+2026-07-19T14:19:04.7219473Z > Task :app:parseReleaseLocalResources
+2026-07-19T14:19:04.7255741Z > Task :app:createReleaseCompatibleScreenManifests
+2026-07-19T14:19:04.8219349Z > Task :app:extractDeepLinksRelease
+2026-07-19T14:19:07.6235821Z > Task :app:processReleaseMainManifest
+2026-07-19T14:19:07.8235313Z > Task :app:processReleaseManifest
+2026-07-19T14:19:07.8245808Z > Task :app:processReleaseManifestForPackage
+2026-07-19T14:19:09.0245501Z > Task :app:javaPreCompileRelease
+2026-07-19T14:19:09.0251034Z > Task :app:extractProguardFiles
+2026-07-19T14:19:09.0275129Z > Task :app:mergeReleaseShaders FROM-CACHE
+2026-07-19T14:19:09.0311946Z > Task :app:compileReleaseShaders NO-SOURCE
+2026-07-19T14:19:09.0313001Z > Task :app:generateReleaseAssets UP-TO-DATE
+2026-07-19T14:19:09.4236444Z > Task :app:mergeReleaseAssets FROM-CACHE
+2026-07-19T14:19:09.4255474Z > Task :app:compressReleaseAssets
+2026-07-19T14:19:09.4285769Z > Task :app:processApplicationManifestReleaseForBundle
+2026-07-19T14:19:09.7225904Z > Task :app:collectReleaseDependencies
+2026-07-19T14:19:10.0216932Z > Task :app:sdkReleaseDependencyData
+2026-07-19T14:19:10.0249710Z > Task :app:validateSigningRelease
+2026-07-19T14:19:10.0263159Z > Task :app:writeReleaseAppMetadata
+2026-07-19T14:19:10.1226097Z > Task :app:writeReleaseSigningConfigVersions
+2026-07-19T14:19:10.4245871Z > Task :app:mergeReleaseResources
+2026-07-19T14:19:11.4235630Z > Task :app:processReleaseResources
+2026-07-19T14:19:12.0235605Z > Task :app:bundleReleaseResources
+2026-07-19T14:19:41.4216067Z > Task :app:kspReleaseKotlin
+2026-07-19T14:19:46.6217014Z w: Class androidx.media3.common.util.UnstableApi is not an opt-in requirement marker
+2026-07-19T14:20:16.8225433Z 
+2026-07-19T14:20:16.8256908Z > Task :app:compileReleaseKotlin
+2026-07-19T14:21:02.1237963Z w: Class androidx.media3.common.util.UnstableApi is not an opt-in requirement marker
+2026-07-19T14:21:02.1248705Z w: file:///home/runner/work/cstv/cstv/app/src/main/java/com/cstv/app/presentation/downloads/DownloadsScreen.kt:51:5 Parameter 'isTv' is never used
+2026-07-19T14:21:02.1277316Z w: file:///home/runner/work/cstv/cstv/app/src/main/java/com/cstv/app/presentation/favorites/FavoritesScreen.kt:139:5 Parameter 'isTv' is never used
+2026-07-19T14:21:02.1297204Z w: file:///home/runner/work/cstv/cstv/app/src/main/java/com/cstv/app/presentation/livetv/LiveTvScreen.kt:339:5 Parameter 'onRefresh' is never used
+2026-07-19T14:21:02.1300704Z w: file:///home/runner/work/cstv/cstv/app/src/main/java/com/cstv/app/presentation/search/SearchScreen.kt:387:9 Variable 'title' is never used
+2026-07-19T14:21:02.1328050Z w: file:///home/runner/work/cstv/cstv/app/src/main/java/com/cstv/app/presentation/series/SeriesDetailsScreen.kt:840:21 'LinearProgressIndicator(Float, Modifier = ..., Color = ..., Color = ..., StrokeCap = ...): Unit' is deprecated. Use the overload that takes `progress` as a lambda
+2026-07-19T14:21:02.1357203Z w: file:///home/runner/work/cstv/cstv/app/src/main/java/com/cstv/app/presentation/series/SeriesScreen.kt:327:5 Parameter 'onRefresh' is never used
+2026-07-19T14:21:02.1360477Z w: file:///home/runner/work/cstv/cstv/app/src/main/java/com/cstv/app/presentation/vod/VodScreen.kt:327:5 Parameter 'onRefresh' is never used
+2026-07-19T14:21:18.4215058Z 
+2026-07-19T14:21:18.4240275Z > Task :app:compileReleaseJavaWithJavac
+2026-07-19T14:21:21.1218942Z > Task :app:hiltAggregateDepsRelease
+2026-07-19T14:21:27.2235474Z > Task :app:hiltJavaCompileRelease
+2026-07-19T14:21:27.3218355Z > Task :app:processReleaseJavaRes
+2026-07-19T14:21:29.0215321Z > Task :app:transformReleaseClassesWithAsm
+2026-07-19T14:21:31.7225449Z > Task :app:mergeReleaseJavaResource
+2026-07-19T14:21:31.7235095Z > Task :app:mergeReleaseGeneratedProguardFiles
+2026-07-19T14:21:31.8218294Z > Task :app:expandReleaseArtProfileWildcards
+2026-07-19T14:22:01.8225457Z > Task :app:minifyReleaseWithR8
+2026-07-19T14:25:02.3235569Z > Task :app:compileReleaseArtProfile
+2026-07-19T14:25:04.4224285Z > Task :app:shrinkReleaseRes
+2026-07-19T14:25:04.7228563Z > Task :app:optimizeReleaseResources
+2026-07-19T14:25:06.0225650Z > Task :app:packageRelease
+2026-07-19T14:25:06.0289396Z > Task :app:assembleRelease
+2026-07-19T14:25:06.0305229Z > Task :app:createReleaseApkListingFileRedirect
+2026-07-19T14:25:06.0335713Z gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/__run_3-1784470621456.json
+2026-07-19T14:25:06.1231165Z 
+2026-07-19T14:25:06.1235900Z Deprecated Gradle features were used in this build, making it incompatible with Gradle 9.0.
+2026-07-19T14:25:06.1259010Z 
+2026-07-19T14:25:06.1263667Z You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+2026-07-19T14:25:06.1265954Z 
+2026-07-19T14:25:06.1267091Z For more on this, please refer to https://docs.gradle.org/8.10.2/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+2026-07-19T14:25:06.1268503Z 
+2026-07-19T14:25:06.1269268Z BUILD SUCCESSFUL in 8m 13s
+2026-07-19T14:25:06.1269953Z 49 actionable tasks: 47 executed, 2 from cache
+2026-07-19T14:25:06.2096699Z Configuration cache entry stored.
+2026-07-19T14:25:06.5575689Z Node 20 is being deprecated. This workflow is running with Node 24 by default. If you need to temporarily use Node 20, you can set the ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION=true environment variable. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+2026-07-19T14:25:06.5577112Z ##[group]Run softprops/action-gh-release@v2
+2026-07-19T14:25:06.5577432Z with:
+2026-07-19T14:25:06.5577660Z   name: Release v1.47.20
+2026-07-19T14:25:06.5577922Z   draft: false
+2026-07-19T14:25:06.5578159Z   prerelease: false
+2026-07-19T14:25:06.5578419Z   generate_release_notes: true
+2026-07-19T14:25:06.5578782Z   files: app/build/outputs/apk/release/app-release.apk
+
+2026-07-19T14:25:06.5579180Z   overwrite_files: true
+2026-07-19T14:25:06.5582066Z   token: ***
+2026-07-19T14:25:06.5582304Z env:
+2026-07-19T14:25:06.5582614Z   JAVA_HOME: /opt/hostedtoolcache/Java_Zulu_jdk/17.0.19-10/x64
+2026-07-19T14:25:06.5583129Z   JAVA_HOME_17_X64: /opt/hostedtoolcache/Java_Zulu_jdk/17.0.19-10/x64
+2026-07-19T14:25:06.5583574Z   GRADLE_ACTION_ID: gradle/actions/setup-gradle
+2026-07-19T14:25:06.5583926Z   GRADLE_USER_HOME: /home/runner/.gradle
+2026-07-19T14:25:06.5584262Z   GRADLE_BUILD_ACTION_SETUP_COMPLETED: true
+2026-07-19T14:25:06.5584786Z   GRADLE_BUILD_ACTION_CACHE_RESTORED: true
+2026-07-19T14:25:06.5585299Z   DEVELOCITY_INJECTION_INIT_SCRIPT_NAME: gradle-actions.inject-develocity.init.gradle
+2026-07-19T14:25:06.5585871Z   DEVELOCITY_INJECTION_CUSTOM_VALUE: gradle-actions
+2026-07-19T14:25:06.5586251Z   GITHUB_DEPENDENCY_GRAPH_ENABLED: false
+2026-07-19T14:25:06.5589390Z   GITHUB_TOKEN: ***
+2026-07-19T14:25:06.5589650Z ##[endgroup]
+2026-07-19T14:25:07.1783393Z 👩‍🏭 Creating new GitHub release for tag v1.47.20...
+2026-07-19T14:25:09.1768313Z Release 356358369 is not yet discoverable by tag v1.47.20, retrying... (2 retries remaining)
+2026-07-19T14:25:11.2944347Z Release 356358369 is not yet discoverable by tag v1.47.20, retrying... (1 retries remaining)
+2026-07-19T14:25:13.5224967Z ⬆️ Uploading app-release.apk...
+2026-07-19T14:25:14.5166107Z ✅ Uploaded app-release.apk
+2026-07-19T14:25:14.5167170Z Finalizing release...
+2026-07-19T14:25:15.0180402Z Getting assets list...
+2026-07-19T14:25:15.2048477Z 🎉 Release ready at https://github.com/scilone/cstv/releases/tag/v1.47.20
+2026-07-19T14:25:15.2296124Z Node 20 is being deprecated. This workflow is running with Node 24 by default. If you need to temporarily use Node 20, you can set the ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION=true environment variable. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+2026-07-19T14:25:15.2297444Z Post job cleanup.
+2026-07-19T14:25:15.5116640Z In post-action step
+2026-07-19T14:25:15.5129121Z Cache is read-only: will not save state for use in subsequent builds.
+2026-07-19T14:25:15.5137563Z Generating Job Summary
+2026-07-19T14:25:15.5155927Z Completed post-action step
+2026-07-19T14:25:15.5343847Z Node 20 is being deprecated. This workflow is running with Node 24 by default. If you need to temporarily use Node 20, you can set the ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION=true environment variable. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+2026-07-19T14:25:15.5398462Z Post job cleanup.
+2026-07-19T14:25:15.6800610Z (node:2600) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-07-19T14:25:15.6802385Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-07-19T14:25:15.6987449Z Node 20 is being deprecated. This workflow is running with Node 24 by default. If you need to temporarily use Node 20, you can set the ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION=true environment variable. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+2026-07-19T14:25:15.6988757Z Post job cleanup.
+2026-07-19T14:25:15.8221010Z [command]/usr/bin/git version
+2026-07-19T14:25:15.8270280Z git version 2.54.0
+2026-07-19T14:25:15.8322869Z Temporarily overriding HOME='/home/runner/work/_temp/2f1e0dad-aca4-4de6-ae98-dc57b7d8d206' before making global git config changes
+2026-07-19T14:25:15.8324072Z Adding repository directory to the temporary git global config as a safe directory
+2026-07-19T14:25:15.8325395Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/cstv/cstv
+2026-07-19T14:25:15.8368129Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-07-19T14:25:15.8409705Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-07-19T14:25:15.8686955Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-07-19T14:25:15.8716171Z http.https://github.com/.extraheader
+2026-07-19T14:25:15.8728792Z [command]/usr/bin/git config --local --unset-all http.https://github.com/.extraheader
+2026-07-19T14:25:15.8764265Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-07-19T14:25:15.9002851Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-07-19T14:25:15.9037368Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-07-19T14:25:15.9439232Z Cleaning up orphan processes
+2026-07-19T14:25:15.9818209Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-java@v4, gradle/actions/setup-gradle@v4, softprops/action-gh-release@v2. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
