@@ -4,6 +4,7 @@ import com.cstv.app.domain.model.PlaybackPosition
 import com.cstv.app.domain.model.SeriesCategory
 import com.cstv.app.domain.model.SeriesDetails
 import com.cstv.app.domain.model.SeriesStream
+import com.cstv.app.domain.model.MediaRatingValue
 
 data class SeriesState(
     val categories: List<SeriesCategory> = emptyList(),
@@ -21,5 +22,8 @@ data class SeriesState(
     val categoryCounts: Map<String, Int> = emptyMap(),
     val resumeSeries: List<PlaybackPosition> = emptyList(),
     val isRemovingHistory: Boolean = false,
-    val historyRemovalError: String? = null
+    val historyRemovalError: String? = null,
+    val mediaRating: MediaRatingValue? = null,
+    val isRatingSaving: Boolean = false,
+    val ratingError: String? = null
 )

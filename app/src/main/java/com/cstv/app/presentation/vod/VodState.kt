@@ -4,6 +4,7 @@ import com.cstv.app.domain.model.PlaybackPosition
 import com.cstv.app.domain.model.VodCategory
 import com.cstv.app.domain.model.VodDetails
 import com.cstv.app.domain.model.VodStream
+import com.cstv.app.domain.model.MediaRatingValue
 
 data class VodState(
     val categories: List<VodCategory> = emptyList(),
@@ -21,5 +22,8 @@ data class VodState(
     val categoryCounts: Map<String, Int> = emptyMap(),
     val resumeMovies: List<PlaybackPosition> = emptyList(),
     val isRemovingHistory: Boolean = false,
-    val historyRemovalError: String? = null
+    val historyRemovalError: String? = null,
+    val mediaRating: MediaRatingValue? = null,
+    val isRatingSaving: Boolean = false,
+    val ratingError: String? = null
 )

@@ -112,6 +112,7 @@ class HomeViewModelTest {
         // Phase 58 : flux de changements de préférences collecté dans init{},
         // et préférences vides par défaut (aucune catégorie masquée).
         doReturn(flowOf(Unit)).whenever(categoryPreferenceRepository).changes
+        doReturn(kotlinx.coroutines.flow.MutableSharedFlow<Unit>()).whenever(getRecommendationsUseCase).invalidations
         whenever(getTrendingInCatalogUseCase.invoke()).thenReturn(emptyList())
         whenever(getRecommendationsUseCase.invoke(any())).thenReturn(
             com.cstv.app.domain.usecase.GetRecommendationsUseCase.RecommendationResult(emptyList(), emptyList())

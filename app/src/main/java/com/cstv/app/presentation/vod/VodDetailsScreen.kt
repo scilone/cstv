@@ -50,6 +50,8 @@ import androidx.compose.ui.res.stringResource
 import com.cstv.app.R
 import com.cstv.app.domain.model.VodDetails
 import com.cstv.app.domain.model.VodStream
+import com.cstv.app.domain.model.MediaRatingValue
+import com.cstv.app.presentation.components.MediaRatingControls
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
@@ -68,7 +70,15 @@ fun VodDetailsScreen(
     downloadItem: com.cstv.app.domain.model.DownloadedItem? = null,
     onDownload: () -> Unit = {},
     onRemoveDownload: () -> Unit = {}
+    ,mediaRating: MediaRatingValue? = null,
+    isRatingSaving: Boolean = false,
+    ratingError: String? = null,
+    onLike: () -> Unit = {},
+    onDislike: () -> Unit = {},
+    onConsumeRatingError: () -> Unit = {}
 ) {
+    val snackbarHostState = remember { SnackbarHostState() }
+    LaunchedEffect(ratingError) { ratingError?.let { snackbarHostState.showSnackbar(it); onConsumeRatingError() } }
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -107,8 +117,6 @@ fun VodDetailsScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
-
             if (isTv) {
                 TvLayoutDetails(
                     details = details,
@@ -116,7 +124,11 @@ fun VodDetailsScreen(
                     onToggleFavorite = onToggleFavorite,
                     onPlayFromBeginning = onPlayFromBeginning,
                     onResumePlayback = onResumePlayback,
-                    onSearchQueryTriggered = onSearchQueryTriggered
+                    onSearchQueryTriggered = onSearchQueryTriggered,
+                    mediaRating = mediaRating,
+                    isRatingSaving = isRatingSaving,
+                    onLike = onLike,
+                    onDislike = onDislike
                 )
             } else {
                 MobileLayoutDetails(
@@ -125,7 +137,11 @@ fun VodDetailsScreen(
                     onToggleFavorite = onToggleFavorite,
                     onPlayFromBeginning = onPlayFromBeginning,
                     onResumePlayback = onResumePlayback,
-                    onSearchQueryTriggered = onSearchQueryTriggered
+                    onSearchQueryTriggered = onSearchQueryTriggered,
+                    mediaRating = mediaRating,
+                    isRatingSaving = isRatingSaving,
+                    onLike = onLike,
+                    onDislike = onDislike
                 )
             }
 
@@ -147,6 +163,7 @@ fun VodDetailsScreen(
                 )
             }
         }
+        SnackbarHost(hostState = snackbarHostState, modifier = Modifier.align(Alignment.BottomCenter))
     }
 }
 
@@ -158,7 +175,11 @@ private fun TvLayoutDetails(
     onToggleFavorite: () -> Unit,
     onPlayFromBeginning: () -> Unit,
     onResumePlayback: (Long) -> Unit,
-    onSearchQueryTriggered: (String) -> Unit
+    onSearchQueryTriggered: (String) -> Unit,
+    mediaRating: MediaRatingValue?,
+    isRatingSaving: Boolean,
+    onLike: () -> Unit,
+    onDislike: () -> Unit
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -221,6 +242,9 @@ private fun TvLayoutDetails(
                     )
                 }
             }
+
+            Spacer(modifier = Modifier.height(8.dp))
+            MediaRatingControls(mediaRating, isRatingSaving, true, onLike, onDislike)
         }
 
         // Right Column: Full description, metadata, play options, and cast
@@ -294,7 +318,11 @@ private fun MobileLayoutDetails(
     onToggleFavorite: () -> Unit,
     onPlayFromBeginning: () -> Unit,
     onResumePlayback: (Long) -> Unit,
-    onSearchQueryTriggered: (String) -> Unit
+    onSearchQueryTriggered: (String) -> Unit,
+    mediaRating: MediaRatingValue?,
+    isRatingSaving: Boolean,
+    onLike: () -> Unit,
+    onDislike: () -> Unit
 ) {
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -381,6 +409,9 @@ private fun MobileLayoutDetails(
                 Text(details.rating, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
             }
         }
+
+        Spacer(modifier = Modifier.height(16.dp))
+        MediaRatingControls(mediaRating, isRatingSaving, false, onLike, onDislike)
 
         Spacer(modifier = Modifier.height(16.dp))
 

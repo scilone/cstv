@@ -56,6 +56,22 @@ class RecommendationEngineTest {
     }
 
     @Test
+    fun test_weightedTaste_likeSignalHasThreeTimesTheInfluenceOfHistory() {
+        val history = mockMovie("history", "Action", "action", null, null)
+        val liked = mockMovie("liked", "Comédie", "comedy", null, null)
+
+        val taste = RecommendationEngine.buildWeightedProfileTaste(
+            listOf(
+                RecommendationEngine.TasteSignal(history, 1.0),
+                RecommendationEngine.TasteSignal(liked, 3.0)
+            )
+        )
+
+        assertEquals(0.25, taste.genreWeights["action"] ?: 0.0, 0.001)
+        assertEquals(0.75, taste.genreWeights["comédie"] ?: 0.0, 0.001)
+    }
+
+    @Test
     fun test_scoreCandidate_respectsWeights_includingActorsAndDirectors() {
         val taste = RecommendationEngine.ProfileTaste(
             genreWeights = mapOf("western" to 0.8),

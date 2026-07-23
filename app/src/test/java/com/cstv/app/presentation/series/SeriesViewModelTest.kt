@@ -37,6 +37,8 @@ class SeriesViewModelTest {
     @Mock private lateinit var vodRepository: VodRepository
     @Mock private lateinit var seriesRepository: SeriesRepository
     @Mock private lateinit var removeFromContinueWatchingUseCase: RemoveFromContinueWatchingUseCase
+    @Mock private lateinit var mediaRatingRepository: com.cstv.app.domain.repository.MediaRatingRepository
+    @Mock private lateinit var setMediaRatingUseCase: com.cstv.app.domain.usecase.SetMediaRatingUseCase
 
     private val testDispatcher = StandardTestDispatcher()
     private lateinit var viewModel: SeriesViewModel
@@ -80,7 +82,9 @@ class SeriesViewModelTest {
             categoryPreferenceRepository,
             vodRepository,
             seriesRepository,
-            removeFromContinueWatchingUseCase
+            removeFromContinueWatchingUseCase,
+            mediaRatingRepository,
+            setMediaRatingUseCase
         )
         runCurrent()
 

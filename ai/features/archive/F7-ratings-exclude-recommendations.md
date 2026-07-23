@@ -6,7 +6,7 @@ Type:
 Feature
 
 Status:
-TASK BREAKDOWN
+RELEASED
 
 Created:
 2026-07-21
@@ -495,7 +495,7 @@ Les tâches 1 à 3 construisent le contrat de données et de recommandations. Le
 
 ### Tâche 1 — Modèle d'évaluation et migration Room
 
-- [ ] Créer le stockage profilé des évaluations et sa migration non destructive 16 → 17.
+- [x] Créer le stockage profilé des évaluations et sa migration non destructive 16 → 17.
 
 Objectif :
 Ajouter les modèles domaine/data, le DAO, l'entité `media_ratings`, la migration et le nettoyage des votes lors de la suppression d'un profil, sans changer le comportement de l'UI.
@@ -521,7 +521,7 @@ Validation :
 
 ### Tâche 2 — Repository atomique et commande de vote
 
-- [ ] Implémenter l'écriture/lecture d'évaluation et les effets atomiques d'un `DISLIKE`.
+- [x] Implémenter l'écriture/lecture d'évaluation et les effets atomiques d'un `DISLIKE`.
 
 Objectif :
 Créer `MediaRatingRepository` et `SetMediaRatingUseCase`. Un vote négatif doit, dans une unique transaction, enregistrer le vote, retirer le favori et supprimer la reprise du profil ; un vote neutre ou positif ne modifie que l'évaluation.
@@ -547,7 +547,7 @@ Validation :
 
 ### Tâche 3 — Recommandations pondérées et invalidation réactive
 
-- [ ] Intégrer les évaluations au moteur de recommandations et exposer un rafraîchissement ciblé de la Home.
+- [x] Intégrer les évaluations au moteur de recommandations et exposer un rafraîchissement ciblé de la Home.
 
 Objectif :
 Appliquer les exclusions absolues, le poids `LIKE = 3.0`, la sortie du cold start par like et l'invalidation observable du cache, sans recharger le reste de la Home.
@@ -571,7 +571,7 @@ Validation :
 
 ### Tâche 4 — États d'écran et observation des votes
 
-- [ ] Ajouter l'état de vote, les transitions et la gestion d'erreur aux ViewModels Film et Série.
+- [x] Ajouter l'état de vote, les transitions et la gestion d'erreur aux ViewModels Film et Série.
 
 Objectif :
 Observer le vote du média sélectionné, calculer les trois transitions utilisateur, bloquer les doubles écritures et transmettre les données nécessaires à la commande atomique.
@@ -594,7 +594,7 @@ Validation :
 
 ### Tâche 5 — Contrôles de détail et câblage navigation
 
-- [ ] Ajouter les contrôles J'aime/Je n'aime pas aux fiches Film et Série sur mobile et Android TV.
+- [x] Ajouter les contrôles J'aime/Je n'aime pas aux fiches Film et Série sur mobile et Android TV.
 
 Objectif :
 Créer le composant stateless partagé, l'intégrer aux quatre layouts de détail et relier les routes unifiées aux états/callbacks des ViewModels.
@@ -617,7 +617,7 @@ Validation :
 
 ### Tâche 6 — Validation fonctionnelle et non-régression
 
-- [ ] Vérifier le parcours complet, les profils et la migration avant passage en review.
+- [x] Vérifier le parcours complet, les profils et la migration avant passage en review.
 
 Objectif :
 Exécuter les vérifications finales, corriger toute régression puis consigner les résultats dans F7.
@@ -633,3 +633,69 @@ Validation :
 - Vérification manuelle mobile/TV des trois états, changement de profil, persistance, offline, exclusions et suppression favori/reprise sur dislike.
 - Migration 16 → 17 relue manuellement contre le schéma final.
 - Aucun élément hors périmètre : pas d'écran global de notes, pas d'API externe, pas de téléchargement supprimé.
+
+---
+
+# 10. Notes de développement
+
+## Étape 5 — Implémentation (2026-07-23)
+
+- Ajout de `media_ratings`, clé primaire `(profileId, mediaType, mediaId)`, migration Room non destructive `16 → 17`, et suppression des votes lors de la suppression d'un profil.
+- `DISLIKE` est enregistré transactionnellement avec le retrait ciblé du favori et des reprises ; les téléchargements ne sont pas touchés.
+- Les recommandations excluent les médias aimés et rejetés, ignorent les rejets dans le goût et pondèrent les likes à `3.0`. Une invalidation réactive rafraîchit uniquement les recommandations de l'Accueil.
+- Les fiches Film et Série reçoivent des contrôles partagés, persistants par profil, avec état d'écriture, accessibilité et message d'erreur local.
+- Vérification automatisée effectuée : `./gradlew testDebugUnitTest` réussi (302 tests). La validation manuelle mobile/TV, la migration sur appareil et la revue restent réservées aux étapes suivantes.
+
+## Étape 6 — Validation finale (2026-07-23)
+
+Vérifications automatisées (toutes vertes) :
+
+- `./gradlew testDebugUnitTest` : BUILD SUCCESSFUL, 302 tests, 0 échec.
+- `./gradlew assembleDebug` : BUILD SUCCESSFUL.
+- `./gradlew lintDebug` : BUILD SUCCESSFUL, aucune erreur lint.
+
+Revue manuelle du schéma :
+
+- `MIGRATION_16_17` relue contre `MediaRatingEntity` : colonnes `profileId, mediaType, mediaId, value` et `PRIMARY KEY(profileId, mediaType, mediaId)` identiques ; présente dans `ALL_MIGRATIONS` ; aucun fallback destructif, aucune donnée transformée.
+
+Périmètre : conforme. Pas d'écran global de notes, aucune API externe, aucun téléchargement supprimé par un `DISLIKE`.
+
+Reste réservé au test sur appareil (hors CI automatisée) : parcours manuel mobile/TV des trois états, changement de profil, persistance après redémarrage, mode hors ligne, exclusions de recommandations et retrait favori/reprise sur `DISLIKE`.
+
+## Étape 7 — Review (2026-07-23)
+
+- Revue de l'implémentation et du diff effectuée, incluant le stockage Room, la migration `16 → 17`, les transactions de vote, les exclusions/pondérations de recommandations, les ViewModels et le câblage Compose.
+- Deux écarts de placement ont été corrigés : les contrôles sont maintenant sous **Favori** dans les colonnes TV Film/Série et sous les métadonnées sur mobile, avant le synopsis.
+- La hauteur est maintenant constante par plateforme : `48.dp` pour chaque bouton mobile, `40.dp` pour chaque bouton TV, indépendamment de l'état sélectionné.
+- Aucune autre correction critique, majeure ou mineure n'est requise par la revue.
+
+## Étape 8 — Validation (2026-07-23)
+
+Vérifications automatisées réussies après les corrections de review :
+
+- `./gradlew --no-daemon testDebugUnitTest` : réussi ;
+- `./gradlew --no-daemon assembleDebug` : réussi, APK debug généré ;
+- `./gradlew --no-daemon lintDebug` : réussi, sans erreur lint bloquante.
+- `git diff --check` : réussi.
+
+Validation manuelle : non réalisable dans cet environnement. Le binaire ADB du SDK est présent, mais le sandbox empêche le démarrage de son serveur (`could not install smartsocket listener: Operation not permitted`). Restent donc à confirmer sur appareil/émulateur les parcours mobile et TV listés à la section 8, notamment persistance par profil, fonctionnement hors ligne et retrait immédiat des favoris/reprises après `DISLIKE`.
+
+## Étape 9 — Documentation (2026-07-23)
+
+- Mise à jour de la documentation globale du projet dans le dossier `docs/` :
+  - `docs/changelog.md` : Ajout de la section `[v1.52.0] - 2026-07-23` listant l'implémentation de la fonctionnalité d'évaluation (F7).
+  - `docs/features.md` : Insertion de la section `10. Système d'évaluation J'aime / Je n'aime pas (F7)` recensant les spécifications du système et ses exclusions automatiques.
+  - `docs/architecture.md` : Ajout de la conception technique détaillée du système (stockage, transactions multi-DAO, pondérations, invalidation asynchrone par `Mutex` et `SharedFlow`). Mise à jour de la version de base de données à **17**.
+  - `docs/user-guide.md` : Ajout de la section `10. Évaluation des films et séries (F7)` pour expliquer aux utilisateurs le cycle de vote et les effets collatéraux du bouton « Je n'aime pas » sur les favoris et l'historique.
+
+## Étape 10 — Release (2026-07-23)
+
+- Mise à jour de `app/build.gradle.kts` :
+  - `versionName` positionné à `"1.52.0"`
+  - `versionCode` positionné à `15_200` (dérivé de `1 * 10_000 + 52 * 100 + 0`)
+- Préparation de la livraison Git :
+  - Commits des modifications avec les conventions Gitmoji.
+  - Création du tag SemVer `v1.52.0`.
+  - Push du commit et du tag vers le dépôt distant.
+  - Archivage de la fiche en la déplaçant vers `ai/features/archive/`.
+

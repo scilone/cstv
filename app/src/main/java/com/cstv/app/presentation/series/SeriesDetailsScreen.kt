@@ -55,6 +55,8 @@ import com.cstv.app.presentation.theme.Surface2
 import com.cstv.app.presentation.theme.Surface3
 import com.cstv.app.domain.model.SeriesEpisode
 import com.cstv.app.domain.model.SeriesSeason
+import com.cstv.app.domain.model.MediaRatingValue
+import com.cstv.app.presentation.components.MediaRatingControls
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
@@ -72,7 +74,15 @@ fun SeriesDetailsScreen(
     episodeDownloads: Map<Int, com.cstv.app.domain.model.DownloadedItem> = emptyMap(),
     onDownloadEpisode: (SeriesEpisode) -> Unit = {},
     onRemoveEpisodeDownload: (Int) -> Unit = {}
+    ,mediaRating: MediaRatingValue? = null,
+    isRatingSaving: Boolean = false,
+    ratingError: String? = null,
+    onLike: () -> Unit = {},
+    onDislike: () -> Unit = {},
+    onConsumeRatingError: () -> Unit = {}
 ) {
+    val snackbarHostState = remember { SnackbarHostState() }
+    LaunchedEffect(ratingError) { ratingError?.let { snackbarHostState.showSnackbar(it); onConsumeRatingError() } }
     var selectedSeasonNumber by remember { mutableStateOf(details.seasons.firstOrNull()?.seasonNumber ?: 1) }
     val currentEpisodes = remember(selectedSeasonNumber, details.episodes) {
         details.episodes[selectedSeasonNumber] ?: emptyList()
@@ -131,7 +141,11 @@ fun SeriesDetailsScreen(
                     onSelectRelated = onSelectRelated,
                     episodeDownloads = episodeDownloads,
                     onDownloadEpisode = onDownloadEpisode,
-                    onRemoveEpisodeDownload = onRemoveEpisodeDownload
+                    onRemoveEpisodeDownload = onRemoveEpisodeDownload,
+                    mediaRating = mediaRating,
+                    isRatingSaving = isRatingSaving,
+                    onLike = onLike,
+                    onDislike = onDislike
                 )
             } else {
                 MobileLayout(
@@ -147,10 +161,15 @@ fun SeriesDetailsScreen(
                     onSelectRelated = onSelectRelated,
                     episodeDownloads = episodeDownloads,
                     onDownloadEpisode = onDownloadEpisode,
-                    onRemoveEpisodeDownload = onRemoveEpisodeDownload
+                    onRemoveEpisodeDownload = onRemoveEpisodeDownload,
+                    mediaRating = mediaRating,
+                    isRatingSaving = isRatingSaving,
+                    onLike = onLike,
+                    onDislike = onDislike
                 )
             }
         }
+        SnackbarHost(hostState = snackbarHostState, modifier = Modifier.align(Alignment.BottomCenter))
     }
 }
 
@@ -169,7 +188,11 @@ private fun TvLayout(
     onSelectRelated: (SeriesStream) -> Unit = {},
     episodeDownloads: Map<Int, com.cstv.app.domain.model.DownloadedItem> = emptyMap(),
     onDownloadEpisode: (SeriesEpisode) -> Unit = {},
-    onRemoveEpisodeDownload: (Int) -> Unit = {}
+    onRemoveEpisodeDownload: (Int) -> Unit = {},
+    mediaRating: MediaRatingValue?,
+    isRatingSaving: Boolean,
+    onLike: () -> Unit,
+    onDislike: () -> Unit
 ) {
     val allEpisodes = details.episodes.values.flatten()
     val incompleteEpisodes = allEpisodes.filter { ep ->
@@ -243,6 +266,9 @@ private fun TvLayout(
                     )
                 }
             }
+
+            Spacer(modifier = Modifier.height(8.dp))
+            MediaRatingControls(mediaRating, isRatingSaving, true, onLike, onDislike)
 
             Spacer(modifier = Modifier.height(12.dp))
 
@@ -425,7 +451,11 @@ private fun MobileLayout(
     onSelectRelated: (SeriesStream) -> Unit = {},
     episodeDownloads: Map<Int, com.cstv.app.domain.model.DownloadedItem> = emptyMap(),
     onDownloadEpisode: (SeriesEpisode) -> Unit = {},
-    onRemoveEpisodeDownload: (Int) -> Unit = {}
+    onRemoveEpisodeDownload: (Int) -> Unit = {},
+    mediaRating: MediaRatingValue?,
+    isRatingSaving: Boolean,
+    onLike: () -> Unit,
+    onDislike: () -> Unit
 ) {
     val allEpisodes = details.episodes.values.flatten()
     val incompleteEpisodes = allEpisodes.filter { ep ->
@@ -521,6 +551,9 @@ private fun MobileLayout(
                 Text(details.rating ?: "0.0", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
             }
         }
+
+        MediaRatingControls(mediaRating, isRatingSaving, false, onLike, onDislike)
+        Spacer(modifier = Modifier.height(16.dp))
 
         // Plot
         ExpandableText(

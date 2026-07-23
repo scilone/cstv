@@ -35,6 +35,7 @@ import com.cstv.app.domain.repository.ViewingHistoryRepository
 import com.cstv.app.data.repository.ViewingHistoryRepositoryImpl
 import com.cstv.app.data.local.dao.SeriesDao
 import com.cstv.app.data.local.dao.FavoritesDao
+import com.cstv.app.data.local.dao.MediaRatingDao
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -107,6 +108,10 @@ object AppModule {
 
     @Provides
     @Singleton
+    fun provideMediaRatingDao(database: AppDatabase): MediaRatingDao = database.mediaRatingDao()
+
+    @Provides
+    @Singleton
     fun provideTrackPreferenceDao(database: AppDatabase): com.cstv.app.data.local.dao.TrackPreferenceDao {
         return database.trackPreferenceDao()
     }
@@ -152,10 +157,22 @@ object AppModule {
         vodDao: VodDao,
         liveTvDao: LiveTvDao,
         trackPreferenceDao: com.cstv.app.data.local.dao.TrackPreferenceDao,
-        categoryPreferenceDao: com.cstv.app.data.local.dao.CategoryPreferenceDao
+        categoryPreferenceDao: com.cstv.app.data.local.dao.CategoryPreferenceDao,
+        mediaRatingDao: MediaRatingDao
     ): ProfileRepository {
-        return ProfileRepositoryImpl(profileDao, profileManager, favoritesDao, vodDao, liveTvDao, trackPreferenceDao, categoryPreferenceDao)
+        return ProfileRepositoryImpl(profileDao, profileManager, favoritesDao, vodDao, liveTvDao, trackPreferenceDao, categoryPreferenceDao, mediaRatingDao)
     }
+
+    @Provides
+    @Singleton
+    fun provideMediaRatingRepository(
+        database: AppDatabase,
+        mediaRatingDao: MediaRatingDao,
+        favoritesDao: FavoritesDao,
+        vodDao: VodDao,
+        profileManager: ProfileManager
+    ): com.cstv.app.domain.repository.MediaRatingRepository =
+        com.cstv.app.data.repository.MediaRatingRepositoryImpl(database, mediaRatingDao, favoritesDao, vodDao, profileManager)
 
     @Provides
     @Singleton

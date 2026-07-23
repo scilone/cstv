@@ -271,4 +271,18 @@ val MIGRATION_15_16 = object : Migration(15, 16) {
     }
 }
 
-val ALL_MIGRATIONS = arrayOf(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16)
+val MIGRATION_16_17 = object : Migration(16, 17) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS media_ratings (
+                profileId INTEGER NOT NULL,
+                mediaType TEXT NOT NULL,
+                mediaId INTEGER NOT NULL,
+                value INTEGER NOT NULL,
+                PRIMARY KEY(profileId, mediaType, mediaId)
+            )
+        """.trimIndent())
+    }
+}
+
+val ALL_MIGRATIONS = arrayOf(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17)

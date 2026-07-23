@@ -110,3 +110,27 @@ Vous pouvez à tout moment nettoyer et contrôler vos listes de reprise et vos c
 ### 💡 Comportements spécifiques
 * **Gestion des séries** : Lorsque vous retirez une série de la liste « Continuer à regarder », vous indiquez que l'épisode représenté (affiché sur la carte) n'est pas vu. Seule la position de lecture de cet épisode spécifique est effacée. Si vous avez d'autres épisodes en cours de lecture pour cette même série, la carte s'actualisera automatiquement pour afficher le prochain épisode à reprendre. Elle disparaîtra définitivement s'il n'en reste aucun autre.
 * **Recommandations** : La suppression d'un film ou d'un épisode de série invalide automatiquement le cache des recommandations personnalisées sur la page d'Accueil afin d'adapter instantanément les suggestions à vos goûts mis à jour.
+
+---
+
+## 10. Évaluation des films et séries (F7)
+
+Pour vous aider à personnaliser l'application et à sculpter vos recommandations, vous pouvez émettre un avis explicite sur n'importe quel film (VOD) ou série de votre catalogue. Tout comme l'historique et les favoris, les votes sont strictement privés et isolés par profil.
+
+### 📝 Exprimer ses préférences
+Sur la fiche détaillée d'un film ou d'une série, vous disposez de deux boutons d'action : **J'aime** et **Je n'aime pas** :
+* **Aucun vote (neutre)** : Les deux boutons sont affichés dans un état inactif (contours fins).
+* **Voter J'aime** : Le bouton « J'aime » s'illumine en violet (`AccentLavande`) tandis que « Je n'aime pas » reste neutre. Un média aimé contribue fortement (poids multiplié par 3) à vos goûts pour vous proposer des contenus similaires, mais il est masqué des recommandations pour privilégier la découverte de nouveaux contenus.
+* **Voter Je n'aime pas** : Le bouton « Je n'aime pas » s'illumine en violet. Le média rejeté est définitivement banni de toutes vos recommandations et de vos calculs de goûts.
+* **Annuler son vote** : Appuyez à nouveau sur le bouton actuellement actif pour le faire revenir à l'état neutre.
+* **Changer son vote** : Cliquez directement sur l'autre bouton pour intervertir instantanément votre avis.
+
+### ⚠️ Effets collatéraux d'un rejet (DISLIKE)
+Marquer un contenu comme **Je n'aime pas** entraîne immédiatement les actions de nettoyage suivantes pour votre profil actif :
+1. Le média est **retiré de vos Favoris** s'il y figurait.
+2. Le média est **retiré de la liste « Continuer à regarder »** (votre progression de lecture ou celle de tous les épisodes de la série est supprimée).
+*Note : Ces suppressions sont définitives. Si vous annulez ultérieurement votre vote négatif, le favori et la progression ne seront pas restaurés automatiquement.*
+
+### 💡 Rafraîchissement en temps réel
+Dès que vous validez un vote (positif, négatif ou neutre), l'application recalcule instantanément vos suggestions personnalisées. Si vous retournez sur la page d'Accueil, les carrousels de recommandations reflètent immédiatement vos préférences fraîchement exprimées.
+

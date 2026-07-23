@@ -4,6 +4,18 @@ Ce document retrace l'historique des versions, des fonctionnalités livrées, de
 
 ---
 
+## [v1.52.0] - 2026-07-23
+### ✨ Nouvelles Fonctionnalités
+* **Système d'évaluation J'aime / Je n'aime pas et exclusion des recommandations (F7)** :
+  - **Table Room `media_ratings` & Migration 16 → 17** : Ajout d'une table profilée pour la persistance locale des votes par profil, type de média ("movie" ou "series") et ID stable, raccordée dans la version 17 de `AppDatabase` via la migration SQL non destructive `MIGRATION_16_17`.
+  - **Transaction atomique de vote négatif** : Implémentation de `MediaRatingRepository` effectuant de manière atomique sous transaction Room l'enregistrement du rejet, le retrait du favori de même type/identifiant et l'effacement complet des reprises de lecture (films ou épisodes de séries par `seriesId` et stream IDs) du profil actif.
+  - **Moteur de recommandation pondéré** : Intégration des signaux d'évaluation explicites dans `RecommendationEngine` avec application d'une pondération à `3.0` pour les likes, d'une exclusion absolue pour les dislikes et d'un déblocage réactif du cold start dès le premier like catalogue.
+  - **Invalidation réactive ciblée** : Câblage de l'invalidation asynchrone sécurisée par `Mutex` et émission d'un `SharedFlow` d'invalidation collecté par `HomeViewModel` pour actualiser instantanément les carrousels de suggestions de l'Accueil sans rechargement réseau.
+  - **Contrôles Compose stateless & Accessibilité** : Création du composant `MediaRatingControls` unifié et adapté aux contraintes graphiques mobile (horizontal, hauteur 48dp) et Android TV (vertical, hauteur 40dp, compatible focus D-pad), gérant les animations de transition, l'état de sauvegarde (`isSaving`) et les descriptions vocales d'accessibilité.
+  - **Tests unitaires robustes** : Couverture complète de la logique de mapping, du repository, du cas d'usage d'écriture, du moteur de scoring, du cas d'usage de recommandations, ainsi que des états ViewModels, garantissant une non-régression absolue.
+
+---
+
 ## [v1.51.0] - 2026-07-22
 ### ✨ Nouvelles Fonctionnalités
 * **Gestion de l'historique de visionnage local et retrait des reprises (F8)** :

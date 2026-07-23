@@ -30,6 +30,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
+import com.cstv.app.domain.model.MediaRatingValue
+import com.cstv.app.domain.model.RatedMediaType
 import javax.inject.Inject
 
 import com.cstv.app.data.local.storage.SettingsManager
@@ -49,13 +52,16 @@ class SeriesViewModel @Inject constructor(
     private val categoryPreferenceRepository: com.cstv.app.domain.repository.CategoryPreferenceRepository,
     private val vodRepository: com.cstv.app.domain.repository.VodRepository,
     private val seriesRepository: com.cstv.app.domain.repository.SeriesRepository,
-    private val removeFromContinueWatchingUseCase: RemoveFromContinueWatchingUseCase
+    private val removeFromContinueWatchingUseCase: RemoveFromContinueWatchingUseCase,
+    private val mediaRatingRepository: com.cstv.app.domain.repository.MediaRatingRepository,
+    private val setMediaRatingUseCase: com.cstv.app.domain.usecase.SetMediaRatingUseCase
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(SeriesState())
     val state: StateFlow<SeriesState> = _state.asStateFlow()
 
     private val scrollPositions = mutableMapOf<String, Pair<Int, Int>>()
+    private var ratingObservation: Job? = null
 
     fun saveScrollPosition(key: String, index: Int, offset: Int) {
         scrollPositions[key] = Pair(index, offset)
@@ -244,11 +250,33 @@ class SeriesViewModel @Inject constructor(
     }
 
     fun selectStream(stream: SeriesStream?) {
-        _state.update { it.copy(selectedStream = stream, selectedSeriesDetails = null, relatedSeries = emptyList()) }
+        ratingObservation?.cancel()
+        _state.update { it.copy(selectedStream = stream, selectedSeriesDetails = null, relatedSeries = emptyList(), mediaRating = null, ratingError = null) }
         if (stream != null) {
+            ratingObservation = viewModelScope.launch {
+                mediaRatingRepository.observeRating(stream.seriesId, RatedMediaType.SERIES).collect { rating ->
+                    _state.update { current -> if (current.selectedStream?.seriesId == stream.seriesId) current.copy(mediaRating = rating) else current }
+                }
+            }
             loadSeriesDetails(stream.seriesId)
         }
     }
+
+    fun setRating(value: MediaRatingValue?) = viewModelScope.launch {
+        val details = _state.value.selectedSeriesDetails ?: return@launch
+        if (_state.value.isRatingSaving) return@launch
+        _state.update { it.copy(isRatingSaving = true, ratingError = null) }
+        try {
+            setMediaRatingUseCase(details.seriesId, RatedMediaType.SERIES, value, details.episodes.values.flatten().map { it.id }.toSet())
+        } catch (error: Exception) {
+            if (error is kotlinx.coroutines.CancellationException) throw error
+            _state.update { it.copy(ratingError = "Impossible d'enregistrer votre évaluation. Réessayez.") }
+        } finally {
+            _state.update { it.copy(isRatingSaving = false) }
+        }
+    }
+
+    fun consumeRatingError() { _state.update { it.copy(ratingError = null) } }
 
     fun loadSeriesDetails(seriesId: Int) {
         viewModelScope.launch {

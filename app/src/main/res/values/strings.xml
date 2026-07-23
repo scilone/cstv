@@ -132,6 +132,10 @@
     <string name="settings_subtitle_color_mobile">Couleur du texte</string>
     <string name="settings_subtitle_background_mobile">Fond</string>
     <string name="vod_details_resume_playback">REPRENDRE LA LECTURE</string>
+    <string name="media_rating_like">J\'aime</string>
+    <string name="media_rating_dislike">Je n\'aime pas</string>
+    <string name="media_rating_selected_description">%1$s, sélectionné</string>
+    <string name="media_rating_action_description">%1$s</string>
     <string name="vod_search_placeholder">Rechercher dans cette catégorie...</string>
     
     <!-- Recommendations F-6 -->

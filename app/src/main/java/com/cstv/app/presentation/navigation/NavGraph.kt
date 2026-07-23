@@ -449,7 +449,13 @@ fun AppNavGraph(
                         onDownload = { downloadsViewModel.downloadMovie(details) },
                         onRemoveDownload = {
                             downloadsViewModel.remove(com.cstv.app.domain.model.DownloadedItem.movieContentId(details.streamId))
-                        }
+                        },
+                        mediaRating = state.mediaRating,
+                        isRatingSaving = state.isRatingSaving,
+                        ratingError = state.ratingError,
+                        onLike = { vodViewModel.setRating(if (state.mediaRating == com.cstv.app.domain.model.MediaRatingValue.LIKE) null else com.cstv.app.domain.model.MediaRatingValue.LIKE) },
+                        onDislike = { vodViewModel.setRating(if (state.mediaRating == com.cstv.app.domain.model.MediaRatingValue.DISLIKE) null else com.cstv.app.domain.model.MediaRatingValue.DISLIKE) },
+                        onConsumeRatingError = vodViewModel::consumeRatingError
                     )
                 } ?: Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
@@ -512,7 +518,13 @@ fun AppNavGraph(
                         },
                         onRemoveEpisodeDownload = { episodeId ->
                             downloadsViewModel.remove(com.cstv.app.domain.model.DownloadedItem.episodeContentId(episodeId))
-                        }
+                        },
+                        mediaRating = state.mediaRating,
+                        isRatingSaving = state.isRatingSaving,
+                        ratingError = state.ratingError,
+                        onLike = { seriesViewModel.setRating(if (state.mediaRating == com.cstv.app.domain.model.MediaRatingValue.LIKE) null else com.cstv.app.domain.model.MediaRatingValue.LIKE) },
+                        onDislike = { seriesViewModel.setRating(if (state.mediaRating == com.cstv.app.domain.model.MediaRatingValue.DISLIKE) null else com.cstv.app.domain.model.MediaRatingValue.DISLIKE) },
+                        onConsumeRatingError = seriesViewModel::consumeRatingError
                     )
                 } ?: Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)

@@ -113,4 +113,10 @@ interface VodDao {
 
     @Query("DELETE FROM playback_positions WHERE profileId = :profileId")
     suspend fun deleteAllPlaybackForProfile(profileId: Int)
+
+    @Query("DELETE FROM playback_positions WHERE seriesId = :seriesId AND profileId = :profileId")
+    suspend fun deletePlaybackPositionsBySeriesId(seriesId: Int, profileId: Int)
+
+    @Query("DELETE FROM playback_positions WHERE streamId IN (:streamIds) AND profileId = :profileId")
+    suspend fun deletePlaybackPositionsByStreamIds(streamIds: Set<Int>, profileId: Int)
 }

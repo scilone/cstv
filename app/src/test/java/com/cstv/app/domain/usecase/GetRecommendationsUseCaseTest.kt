@@ -28,6 +28,8 @@ class GetRecommendationsUseCaseTest {
         val seriesRepository = mock<SeriesRepository>()
         val categoryPreferenceRepository = mock<CategoryPreferenceRepository>()
         val profileManager = mock<ProfileManager>()
+        val mediaRatingRepository = mock<com.cstv.app.domain.repository.MediaRatingRepository>()
+        whenever(mediaRatingRepository.getAllRatings()).thenReturn(emptyList())
 
         whenever(profileManager.currentProfileId()).thenReturn(1)
         
@@ -38,7 +40,7 @@ class GetRecommendationsUseCaseTest {
         )
         whenever(vodRepository.getAllPlaybackPositions()).thenReturn(history)
 
-        val useCase = GetRecommendationsUseCase(vodRepository, seriesRepository, categoryPreferenceRepository, profileManager)
+        val useCase = GetRecommendationsUseCase(vodRepository, seriesRepository, categoryPreferenceRepository, profileManager, mediaRatingRepository)
 
         val result = useCase(currentTimeMs = 1000L)
 
@@ -54,6 +56,8 @@ class GetRecommendationsUseCaseTest {
         val seriesRepository = mock<SeriesRepository>()
         val categoryPreferenceRepository = mock<CategoryPreferenceRepository>()
         val profileManager = mock<ProfileManager>()
+        val mediaRatingRepository = mock<com.cstv.app.domain.repository.MediaRatingRepository>()
+        whenever(mediaRatingRepository.getAllRatings()).thenReturn(emptyList())
 
         // 3 items in history to pass cold start
         val history = listOf(
@@ -66,7 +70,7 @@ class GetRecommendationsUseCaseTest {
         whenever(seriesRepository.getSeriesStreams("all", false)).thenReturn(emptyList())
         whenever(categoryPreferenceRepository.getPreferences(any())).thenReturn(emptyMap())
 
-        val useCase = GetRecommendationsUseCase(vodRepository, seriesRepository, categoryPreferenceRepository, profileManager)
+        val useCase = GetRecommendationsUseCase(vodRepository, seriesRepository, categoryPreferenceRepository, profileManager, mediaRatingRepository)
 
         // 1st call for Profile 1
         whenever(profileManager.currentProfileId()).thenReturn(1)
@@ -94,6 +98,8 @@ class GetRecommendationsUseCaseTest {
         val seriesRepository = mock<SeriesRepository>()
         val categoryPreferenceRepository = mock<CategoryPreferenceRepository>()
         val profileManager = mock<ProfileManager>()
+        val mediaRatingRepository = mock<com.cstv.app.domain.repository.MediaRatingRepository>()
+        whenever(mediaRatingRepository.getAllRatings()).thenReturn(emptyList())
 
         whenever(profileManager.currentProfileId()).thenReturn(1)
         
@@ -117,7 +123,7 @@ class GetRecommendationsUseCaseTest {
         )
         whenever(categoryPreferenceRepository.getPreferences(CategoryType.SERIES)).thenReturn(emptyMap())
 
-        val useCase = GetRecommendationsUseCase(vodRepository, seriesRepository, categoryPreferenceRepository, profileManager)
+        val useCase = GetRecommendationsUseCase(vodRepository, seriesRepository, categoryPreferenceRepository, profileManager, mediaRatingRepository)
         val result = useCase(currentTimeMs = 1000L)
 
         // The hidden movie should not be recommended

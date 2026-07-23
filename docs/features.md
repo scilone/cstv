@@ -85,6 +85,17 @@ Permet à l'utilisateur de nettoyer et de contrôler manuellement son historique
 
 ---
 
+## 10. Système d'évaluation J'aime / Je n'aime pas (F7)
+Permet à chaque profil local d'exprimer des préférences explicites sur les films et les séries pour personnaliser et contrôler activement ses recommandations.
+* **Évaluation explicite** : Intégration de boutons « J'aime » et « Je n'aime pas » sur les fiches détails des films et séries (mobile et Android TV). Les deux actions sont inactives par défaut et s'excluent mutuellement avec un état sélectionné visuellement clair.
+* **Exclusion absolue du Rejet (DISLIKE)** : Marquer un média comme « Je n'aime pas » l'exclut immédiatement des sections de recommandation (« Recommandé pour vous ») et de son profil de goûts. De plus, cela retire automatiquement le média des Favoris et de la section « Continuer à regarder ».
+* **Renforcement de l'Appréciation (LIKE)** : Un vote « J'aime » apporte un signal positif très fort (pondération x3.0) au profil de goûts de l'utilisateur, ce qui permet de générer des recommandations pertinentes, y compris pour les profils en démarrage à froid (cold start). Afin de privilégier la découverte de nouveaux contenus, les contenus aimés sont également exclus des carrousels de recommandations.
+* **Gestion et Transaction Locale** : Tout le système de vote et ses effets collatéraux (`DISLIKE` entraînant le retrait des favoris et reprises) s'exécutent de façon atomique via une unique transaction Room locale, sans aucun appel réseau Xtream Codes ou TMDB externe, assurant un fonctionnement hors ligne complet.
+* **Invalidation et Réactivité instantanée** : Toute modification d'évaluation invalide immédiatement le cache local de recommandations du profil, propageant un événement réactif à l'écran d'Accueil pour actualiser instantanément les carrousels de suggestions en cours de visionnage.
+* **Isolation complète** : Les évaluations sont strictement liées au profil local actif de l'appareil ; les votes d'un profil n'ont aucune influence sur ceux des autres profils.
+
+---
+
 ## 🚫 Fonctionnalités hors périmètre (Exclusions validées)
 Pour des raisons de performance, de stabilité ou d'expérience utilisateur, les fonctionnalités suivantes sont **strictement hors périmètre** :
 * **Multi-comptes Xtream** : L'application gère un seul compte Xtream Codes actif à la fois (les profils sont purement locaux et rattachés à ce compte unique).

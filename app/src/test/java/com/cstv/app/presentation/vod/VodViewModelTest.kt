@@ -35,6 +35,8 @@ class VodViewModelTest {
     @Mock private lateinit var categoryPreferenceRepository: CategoryPreferenceRepository
     @Mock private lateinit var vodRepository: VodRepository
     @Mock private lateinit var removeFromContinueWatchingUseCase: RemoveFromContinueWatchingUseCase
+    @Mock private lateinit var mediaRatingRepository: com.cstv.app.domain.repository.MediaRatingRepository
+    @Mock private lateinit var setMediaRatingUseCase: com.cstv.app.domain.usecase.SetMediaRatingUseCase
 
     private val testDispatcher = StandardTestDispatcher()
     private lateinit var viewModel: VodViewModel
@@ -77,7 +79,9 @@ class VodViewModelTest {
             trackPreferenceRepository,
             categoryPreferenceRepository,
             vodRepository,
-            removeFromContinueWatchingUseCase
+            removeFromContinueWatchingUseCase,
+            mediaRatingRepository,
+            setMediaRatingUseCase
         )
         runCurrent()
 

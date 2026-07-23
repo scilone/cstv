@@ -115,6 +115,9 @@ class HomeViewModel @Inject constructor(
     private val epgLastAttempt = mutableMapOf<Int, Long>()
 
     init {
+        viewModelScope.launch {
+            getRecommendationsUseCase.invalidations.collect { refreshRecommendations() }
+        }
         loadHomeData()
         // Phase 58 : recharge la Home quand les préférences de catégories
         // (masquage/ordre) changent — le ViewModel est partagé au niveau app.
@@ -312,20 +315,7 @@ class HomeViewModel @Inject constructor(
 
         // Recommandations F-6 : calcul intensif (parsing genres sur des milliers d'entrées)
         // Découplé de la Home pour un affichage asynchrone progressif, comme TMDB.
-        viewModelScope.launch {
-            try {
-                val recos = getRecommendationsUseCase()
-                _state.update { 
-                    it.copy(
-                        recommendedMovies = recos.movies,
-                        recommendedSeries = recos.series
-                    ) 
-                }
-            } catch (e: Exception) {
-                if (e is kotlinx.coroutines.CancellationException) throw e
-                // Fail silently for recommendations
-            }
-        }
+        refreshRecommendations()
 
         viewModelScope.launch {
             val isCurrentStateEmpty = _state.value.firstLiveStreams.isEmpty() &&
@@ -414,6 +404,15 @@ class HomeViewModel @Inject constructor(
                     )
                 }
             }
+        }
+    }
+
+    private fun refreshRecommendations() = viewModelScope.launch {
+        try {
+            val recos = getRecommendationsUseCase()
+            _state.update { it.copy(recommendedMovies = recos.movies, recommendedSeries = recos.series) }
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
         }
     }
 }

@@ -4,6 +4,7 @@ import androidx.room.Database
 import androidx.room.RoomDatabase
 import com.cstv.app.data.local.dao.LiveTvDao
 import com.cstv.app.data.local.dao.SeriesDao
+import com.cstv.app.data.local.dao.MediaRatingDao
 import com.cstv.app.data.local.dao.VodDao
 import com.cstv.app.data.local.dao.FavoritesDao
 import com.cstv.app.data.local.dao.ProfileDao
@@ -27,6 +28,7 @@ import com.cstv.app.data.local.entity.EpgCacheEntity
 import com.cstv.app.data.local.entity.LiveStreamFtsEntity
 import com.cstv.app.data.local.entity.VodStreamFtsEntity
 import com.cstv.app.data.local.entity.SeriesStreamFtsEntity
+import com.cstv.app.data.local.entity.MediaRatingEntity
 
 @Database(
     entities = [
@@ -46,9 +48,10 @@ import com.cstv.app.data.local.entity.SeriesStreamFtsEntity
         VodStreamFtsEntity::class,
         SeriesStreamFtsEntity::class,
         CategoryPreferenceEntity::class,
-        DownloadedMediaEntity::class
+        DownloadedMediaEntity::class,
+        MediaRatingEntity::class
     ],
-    version = 16,
+    version = 17,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -60,4 +63,5 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun trackPreferenceDao(): TrackPreferenceDao
     abstract fun categoryPreferenceDao(): CategoryPreferenceDao
     abstract fun downloadDao(): DownloadDao
+    abstract fun mediaRatingDao(): MediaRatingDao
 }

@@ -23,6 +23,8 @@ object RecommendationEngine {
         val directorWeights: Map<String, Double>
     )
 
+    data class TasteSignal(val item: RecommendableItem, val weight: Double)
+
     interface RecommendableItem {
         val uniqueId: String
         val genres: String?
@@ -59,31 +61,34 @@ object RecommendationEngine {
     /**
      * Construit le profil de goûts de l'utilisateur à partir des médias distincts qu'il a regardés.
      */
-    fun buildProfileTaste(watchedItems: List<RecommendableItem>): ProfileTaste {
-        if (watchedItems.isEmpty()) return ProfileTaste(emptyMap(), emptyMap(), emptyMap(), emptyMap())
+    fun buildProfileTaste(watchedItems: List<RecommendableItem>): ProfileTaste =
+        buildWeightedProfileTaste(watchedItems.map { TasteSignal(it, 1.0) })
 
-        val genreCounts = mutableMapOf<String, Int>()
-        val categoryCounts = mutableMapOf<String, Int>()
-        val actorCounts = mutableMapOf<String, Int>()
-        val directorCounts = mutableMapOf<String, Int>()
+    fun buildWeightedProfileTaste(signals: List<TasteSignal>): ProfileTaste {
+        if (signals.isEmpty()) return ProfileTaste(emptyMap(), emptyMap(), emptyMap(), emptyMap())
 
-        var totalItemsWithGenres = 0
-        var totalItemsWithActors = 0
-        var totalItemsWithDirector = 0
-        val totalItems = watchedItems.size
+        val genreCounts = mutableMapOf<String, Double>()
+        val categoryCounts = mutableMapOf<String, Double>()
+        val actorCounts = mutableMapOf<String, Double>()
+        val directorCounts = mutableMapOf<String, Double>()
 
-        for (item in watchedItems) {
+        var totalItemsWithGenres = 0.0
+        var totalItemsWithActors = 0.0
+        var totalItemsWithDirector = 0.0
+        val totalItems = signals.sumOf { it.weight }
+
+        for ((item, weight) in signals) {
             // Count category
-            categoryCounts[item.categoryId] = (categoryCounts[item.categoryId] ?: 0) + 1
+            categoryCounts[item.categoryId] = (categoryCounts[item.categoryId] ?: 0.0) + weight
 
             // Count genres
             val itemGenres = GenreParser.parseGenres(item.genres)
             if (itemGenres.isNotEmpty()) {
-                totalItemsWithGenres++
+                totalItemsWithGenres += weight
                 for (g in itemGenres) {
                     val normalized = GenreParser.normalize(g)
                     if (normalized.isNotBlank()) {
-                        genreCounts[normalized] = (genreCounts[normalized] ?: 0) + 1
+                        genreCounts[normalized] = (genreCounts[normalized] ?: 0.0) + weight
                     }
                 }
             }
@@ -91,33 +96,33 @@ object RecommendationEngine {
             // Count actors (parsing comma-separated values)
             val itemActors = parseNamesList(item.actors)
             if (itemActors.isNotEmpty()) {
-                totalItemsWithActors++
+                totalItemsWithActors += weight
                 for (actor in itemActors) {
-                    actorCounts[actor] = (actorCounts[actor] ?: 0) + 1
+                    actorCounts[actor] = (actorCounts[actor] ?: 0.0) + weight
                 }
             }
 
             // Count director
             val director = item.director?.trim()?.lowercase()
             if (!director.isNullOrBlank() && director !in EXCLUDED_NAMES) {
-                totalItemsWithDirector++
-                directorCounts[director] = (directorCounts[director] ?: 0) + 1
+                totalItemsWithDirector += weight
+                directorCounts[director] = (directorCounts[director] ?: 0.0) + weight
             }
         }
 
         // Calculate relative weights (0.0 to 1.0)
-        val categoryWeights = categoryCounts.mapValues { it.value.toDouble() / totalItems }
+        val categoryWeights = categoryCounts.mapValues { it.value / totalItems }
 
         val genreWeights = genreCounts.mapValues { 
-            if (totalItemsWithGenres > 0) it.value.toDouble() / totalItemsWithGenres else 0.0 
+            if (totalItemsWithGenres > 0) it.value / totalItemsWithGenres else 0.0
         }
 
         val actorWeights = actorCounts.mapValues {
-            if (totalItemsWithActors > 0) it.value.toDouble() / totalItemsWithActors else 0.0
+            if (totalItemsWithActors > 0) it.value / totalItemsWithActors else 0.0
         }
 
         val directorWeights = directorCounts.mapValues {
-            if (totalItemsWithDirector > 0) it.value.toDouble() / totalItemsWithDirector else 0.0
+            if (totalItemsWithDirector > 0) it.value / totalItemsWithDirector else 0.0
         }
 
         return ProfileTaste(genreWeights, categoryWeights, actorWeights, directorWeights)
