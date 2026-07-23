@@ -444,6 +444,8 @@ class HomeViewModelTest {
 
         assertEquals(TrailerPreviewUiState.Poster, viewModel.state.value.trailerPreview)
         verify(getTrailerPreviewUseCase).invoke(TrailerMedia.Movie(10, 100))
+
+        viewModel.viewModelScope.cancel()
     }
 
     @Test
@@ -467,6 +469,8 @@ class HomeViewModelTest {
 
         assertEquals(TrailerPreviewUiState.Playing(secondPreview), viewModel.state.value.trailerPreview)
         assertEquals(TrailerPreviewUiState.Playing(secondPreview), viewModel.state.value.trailerPreview)
+
+        viewModel.viewModelScope.cancel()
     }
 
     @Test
@@ -490,6 +494,8 @@ class HomeViewModelTest {
         assertEquals(TrailerPreviewUiState.Failed, viewModel.state.value.trailerPreview)
         viewModel.cancelTrendingPreview()
         assertEquals(TrailerPreviewUiState.Poster, viewModel.state.value.trailerPreview)
+
+        viewModel.viewModelScope.cancel()
     }
 
     private fun trendingMovie(streamId: Int, tmdbId: Int) = TrendingCatalogItem(
