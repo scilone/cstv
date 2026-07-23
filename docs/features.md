@@ -106,6 +106,17 @@ Cette fonctionnalité rétablit l'affichage de la barre de statut système penda
 
 ---
 
+## 12. Lecture automatique du trailer sur l'accueil (F10)
+Cette fonctionnalité apporte du mouvement et de l'interactivité à l'Accueil en remplaçant l'affiche statique (poster) du média vedette du carrousel par la lecture automatique en boucle de sa bande-annonce YouTube.
+* **Lancement temporisé stable** : La lecture ne démarre qu'après 5 secondes d'arrêt continu et stable sur une page du carrousel de Tendances. Un changement rapide de page annule immédiatement le chargement.
+* **Intégration YouTube sécurisée** : Utilise l'API IFrame YouTube officielle embarquée sans exiger de services Google Play ou de clés d'API tierces, garantissant la légalité et la robustesse de la lecture.
+* **Gestion du cycle de vie rigoureuse** : Le lecteur vidéo YouTube est libéré instantanément dès un changement de page, un clic de carte, un changement d'onglet, une mise en arrière-plan ou si l'Accueil devient invisible.
+* **Coupure sonore par défaut & Contrôle d'accessibilité** : Tout nouvel aperçu démarre silencieusement (muet) pour respecter le confort de navigation de l'utilisateur. Un bouton sonore sous forme d'icône d'accès rapide (avec descriptions d'accessibilité) permet d'activer ou de couper le son pour l'aperçu courant, sans impacter les paramètres globaux du lecteur principal.
+* **Résilience & Repli transparent** : En cas d'erreur de chargement, d'échec du lecteur ou si aucun trailer n'est disponible (champ Xtream absent ou invalide, et échec du repli asynchrone TMDB `/{movie|tv}/{id}/videos`), le poster statique reste visible de façon transparente sans perturber l'utilisateur.
+* **Préservation Android TV & Reprises** : La fonctionnalité est volontairement limitée à l'accueil tactile mobile. Android TV (navigation par focus D-pad) et le carrousel « Continuer à regarder » conservent intact leur fonctionnement d'origine.
+
+---
+
 ## 🚫 Fonctionnalités hors périmètre (Exclusions validées)
 Pour des raisons de performance, de stabilité ou d'expérience utilisateur, les fonctionnalités suivantes sont **strictement hors périmètre** :
 * **Multi-comptes Xtream** : L'application gère un seul compte Xtream Codes actif à la fois (les profils sont purement locaux et rattachés à ce compte unique).

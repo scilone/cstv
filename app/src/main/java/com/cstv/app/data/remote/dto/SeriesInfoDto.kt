@@ -20,7 +20,8 @@ data class SeriesInfoMetadataDto(
     @SerializedName("releasedate") val releaseDate2: String?,
     @SerializedName("genre") val genre: String?,
     @SerializedName("rating") val rating: String?,
-    @SerializedName("rating_5") val rating5: String?
+    @SerializedName("rating_5") val rating5: String?,
+    @SerializedName("youtube_trailer") val youtubeTrailer: String? = null
 )
 
 data class SeriesSeasonDto(

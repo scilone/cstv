@@ -148,3 +148,29 @@ L'application améliore votre confort de navigation sur les smartphones et table
 ### 📺 Version Android TV
 * Sur Android TV, le concept de barre de statut ou de poinçon n'existe pas. L'affichage en plein écran constant et la navigation à la télécommande restent parfaitement préservés sans aucun changement visuel.
 
+---
+
+## 12. Lecture automatique du trailer sur l'accueil (F10)
+
+L'écran d'Accueil mobile propose une lecture automatique dynamique et interactive des bandes-annonces YouTube (si disponibles) pour le média actuellement à l'affiche dans le carrousel des **Tendances du moment**.
+
+### 📱 Fonctionnement sur smartphone et tablette
+1. **Délai de démarrage** : Lorsque vous ouvrez l'écran d'Accueil ou faites défiler le carrousel des tendances, le poster statique s'affiche normalement. Si vous restez immobile sur la même page pendant **5 secondes consécutives**, la lecture de la bande-annonce commence automatiquement en arrière-plan de la carte.
+2. **Autoplay silencieux** : Afin d'éviter de perturber votre navigation, la vidéo démarre systématiquement en mode **muet**.
+3. **Contrôle sonore (Sourdine)** : Une icône de haut-parleur s'affiche discrètement en bas à droite de la carte. Cliquez dessus pour activer ou couper le son du trailer. Ce choix est temporaire et propre à l'aperçu en cours (tout nouveau trailer démarrera muet).
+4. **Navigation conservée** : Cliquer n'importe où ailleurs sur la carte de tendance conserve son comportement habituel et ouvre instantanément la fiche détaillée du film ou de la série, en stoppant proprement le trailer en cours.
+
+### 🔄 Interruption immédiate du trailer
+Pour ne pas gaspiller vos données mobiles ni consommer de ressources CPU, la vidéo s'interrompt de force et le poster réapparaît instantanément dans les cas suivants :
+* Vous faites défiler le carrousel vers un autre média.
+* Vous quittez l'écran d'Accueil (changement d'onglet dans la barre de navigation).
+* Vous ouvrez une fiche de détails.
+* Vous quittez l'application ou la mettez en arrière-plan.
+
+### 💡 Résilience automatique
+Si aucun trailer n'est configuré par votre fournisseur IPTV ou trouvé sur TMDB, ou si une erreur réseau survient lors du chargement du lecteur, l'application reste sur l'affiche statique (poster) d'origine de manière transparente, sans aucun message d'erreur gênant.
+
+### 📺 Version Android TV
+Afin de préserver la navigation par focus au bouton (D-pad) caractéristique des téléviseurs, l'autoplay des trailers est **désactivé** sur Android TV. Le carrousel y reste statique et fidèle à l'expérience d'origine.
+
+

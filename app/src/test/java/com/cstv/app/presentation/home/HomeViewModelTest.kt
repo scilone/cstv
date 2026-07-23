@@ -56,6 +56,9 @@ class HomeViewModelTest {
     @Mock
     private lateinit var removeFromContinueWatchingUseCase: com.cstv.app.domain.usecase.RemoveFromContinueWatchingUseCase
 
+    @Mock
+    private lateinit var getTrailerPreviewUseCase: com.cstv.app.domain.usecase.GetTrailerPreviewUseCase
+
     // Phase 42 : StandardTestDispatcher (et non Unconfined) + runCurrent() après
     // construction. HomeViewModel lance désormais un ticker EPG infini
     // (while(true) { delay(60s); ... }) dans son init : avec un dispatcher
@@ -93,7 +96,8 @@ class HomeViewModelTest {
             getTrendingInCatalogUseCase,
             getRecommendationsUseCase,
             getPopularTop10InCatalogUseCase,
-            removeFromContinueWatchingUseCase
+            removeFromContinueWatchingUseCase,
+            getTrailerPreviewUseCase
         )
         testDispatcher.scheduler.runCurrent()
         return vm
@@ -423,4 +427,73 @@ class HomeViewModelTest {
 
         viewModel.viewModelScope.cancel()
     }
+
+    @Test
+    fun trailerPreview_selectsActiveMediaAndKeepsPosterWhenUnavailable() = runTest {
+        stubReactiveSources()
+        stubEmptyCategoryPreferences()
+        whenever(getLiveCategoriesUseCase(false)).thenReturn(emptyList())
+        whenever(vodRepository.getVodStreams("all", false)).thenReturn(emptyList())
+        whenever(seriesRepository.getSeriesStreams("all", false)).thenReturn(emptyList())
+        val item = trendingMovie(10, 100)
+        whenever(getTrailerPreviewUseCase.invoke(TrailerMedia.Movie(10, 100))).thenReturn(null)
+        viewModel = createViewModel()
+
+        viewModel.selectTrendingPreview(item)
+        testDispatcher.scheduler.runCurrent()
+
+        assertEquals(TrailerPreviewUiState.Poster, viewModel.state.value.trailerPreview)
+        verify(getTrailerPreviewUseCase).invoke(TrailerMedia.Movie(10, 100))
+    }
+
+    @Test
+    fun trailerPreview_ignoresCancelledStaleResponseAndResetsForNewMedia() = runTest {
+        stubReactiveSources()
+        stubEmptyCategoryPreferences()
+        whenever(getLiveCategoriesUseCase(false)).thenReturn(emptyList())
+        whenever(vodRepository.getVodStreams("all", false)).thenReturn(emptyList())
+        whenever(seriesRepository.getSeriesStreams("all", false)).thenReturn(emptyList())
+        val first = trendingMovie(10, 100)
+        val second = trendingMovie(11, 101)
+        val firstPreview = TrailerPreview(TrailerMedia.Movie(10, 100), TrailerSource.YouTube("dQw4w9WgXcQ"))
+        val secondPreview = TrailerPreview(TrailerMedia.Movie(11, 101), TrailerSource.YouTube("9bZkp7q19f0"))
+        whenever(getTrailerPreviewUseCase.invoke(TrailerMedia.Movie(10, 100))).thenReturn(firstPreview)
+        whenever(getTrailerPreviewUseCase.invoke(TrailerMedia.Movie(11, 101))).thenReturn(secondPreview)
+        viewModel = createViewModel()
+
+        viewModel.selectTrendingPreview(first)
+        viewModel.selectTrendingPreview(second)
+        testDispatcher.scheduler.runCurrent()
+
+        assertEquals(TrailerPreviewUiState.Playing(secondPreview), viewModel.state.value.trailerPreview)
+        assertEquals(TrailerPreviewUiState.Playing(secondPreview), viewModel.state.value.trailerPreview)
+    }
+
+    @Test
+    fun trailerPreview_playbackFailureOnlyAppliesToCurrentMediaAndCancelsToPoster() = runTest {
+        stubReactiveSources()
+        stubEmptyCategoryPreferences()
+        whenever(getLiveCategoriesUseCase(false)).thenReturn(emptyList())
+        whenever(vodRepository.getVodStreams("all", false)).thenReturn(emptyList())
+        whenever(seriesRepository.getSeriesStreams("all", false)).thenReturn(emptyList())
+        val item = trendingMovie(10, 100)
+        val media = TrailerMedia.Movie(10, 100)
+        val preview = TrailerPreview(media, TrailerSource.YouTube("dQw4w9WgXcQ"))
+        whenever(getTrailerPreviewUseCase.invoke(media)).thenReturn(preview)
+        viewModel = createViewModel()
+        viewModel.selectTrendingPreview(item)
+        testDispatcher.scheduler.runCurrent()
+
+        viewModel.reportTrailerPlaybackFailure(TrailerMedia.Movie(99, 999))
+        assertEquals(TrailerPreviewUiState.Playing(preview), viewModel.state.value.trailerPreview)
+        viewModel.reportTrailerPlaybackFailure(media)
+        assertEquals(TrailerPreviewUiState.Failed, viewModel.state.value.trailerPreview)
+        viewModel.cancelTrendingPreview()
+        assertEquals(TrailerPreviewUiState.Poster, viewModel.state.value.trailerPreview)
+    }
+
+    private fun trendingMovie(streamId: Int, tmdbId: Int) = TrendingCatalogItem(
+        trendingTitle = TrendingTitle(tmdbId, "Movie $streamId", true, 2026, null),
+        matchedMovie = VodStream(streamId, "Movie $streamId", null, null, null, "movies")
+    )
 }

@@ -20,7 +20,8 @@ data class VodInfoDto(
     @SerializedName("rating_5") val rating5: String?,
     @SerializedName("cover_big") val coverBig: String?,
     @SerializedName("movie_image") val movieImage: String?,
-    @SerializedName("duration") val duration: JsonElement?
+    @SerializedName("duration") val duration: JsonElement?,
+    @SerializedName("youtube_trailer") val youtubeTrailer: String? = null
 )
 
 data class VodMovieDataDto(

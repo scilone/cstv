@@ -345,6 +345,10 @@ fun HomeScreen(
                         item {
                             HomeTrendingCarousel(
                                 trendingItems = state.trendingList,
+                                trailerPreview = state.trailerPreview,
+                                onActiveItemChanged = viewModel::selectTrendingPreview,
+                                onPreviewContextEnded = viewModel::cancelTrendingPreview,
+                                onPreviewPlaybackFailed = viewModel::reportTrailerPlaybackFailure,
                                 onMovieClick = { streamId ->
                                     state.trendingList.find { it.matchedMovie?.streamId == streamId }?.matchedMovie?.let {
                                         onSelectMovieDetail(it)

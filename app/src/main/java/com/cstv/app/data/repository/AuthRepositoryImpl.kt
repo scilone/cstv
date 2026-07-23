@@ -6,6 +6,7 @@ import com.cstv.app.data.remote.api.XtreamApiService
 import com.cstv.app.data.remote.api.XtreamRequestGate
 import com.cstv.app.domain.model.*
 import com.cstv.app.domain.repository.AuthRepository
+import com.cstv.app.domain.repository.TrailerRepository
 import java.io.IOException
 import java.net.ConnectException
 import java.net.SocketTimeoutException
@@ -18,7 +19,8 @@ class AuthRepositoryImpl @Inject constructor(
     private val apiService: XtreamApiService,
     private val credentialsManager: CredentialsManager,
     private val baseUrlInterceptor: DynamicBaseUrlInterceptor,
-    private val requestGate: XtreamRequestGate
+    private val requestGate: XtreamRequestGate,
+    private val trailerRepository: TrailerRepository
 ) : AuthRepository {
 
     override suspend fun login(credentials: Credentials): UserInfo {
@@ -70,6 +72,7 @@ class AuthRepositoryImpl @Inject constructor(
     }
 
     override fun saveCredentials(credentials: Credentials) {
+        trailerRepository.clearSessionCache()
         credentialsManager.saveCredentials(credentials)
     }
 
@@ -78,6 +81,7 @@ class AuthRepositoryImpl @Inject constructor(
     }
 
     override fun clearCredentials() {
+        trailerRepository.clearSessionCache()
         credentialsManager.clearCredentials()
     }
 

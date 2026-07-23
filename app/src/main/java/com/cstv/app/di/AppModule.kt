@@ -277,9 +277,10 @@ object AppModule {
         apiService: XtreamApiService,
         credentialsManager: CredentialsManager,
         baseUrlInterceptor: DynamicBaseUrlInterceptor,
-        requestGate: XtreamRequestGate
+        requestGate: XtreamRequestGate,
+        trailerRepository: com.cstv.app.domain.repository.TrailerRepository
     ): AuthRepository {
-        return AuthRepositoryImpl(apiService, credentialsManager, baseUrlInterceptor, requestGate)
+        return AuthRepositoryImpl(apiService, credentialsManager, baseUrlInterceptor, requestGate, trailerRepository)
     }
 
     @Provides
@@ -399,6 +400,17 @@ object AppModule {
     ): com.cstv.app.domain.repository.PopularRepository {
         return com.cstv.app.data.repository.PopularRepositoryImpl(context, tmdbApiService, apiKey, gson)
     }
+
+    @Provides
+    @Singleton
+    fun provideTrailerRepository(
+        xtreamApiService: XtreamApiService,
+        tmdbApiService: com.cstv.app.data.remote.api.TmdbApiService,
+        credentialsManager: CredentialsManager,
+        requestGate: XtreamRequestGate,
+        @TmdbApiKey apiKey: String
+    ): com.cstv.app.domain.repository.TrailerRepository =
+        com.cstv.app.data.repository.TrailerRepositoryImpl(xtreamApiService, tmdbApiService, credentialsManager, requestGate, apiKey)
 }
 
 @javax.inject.Qualifier

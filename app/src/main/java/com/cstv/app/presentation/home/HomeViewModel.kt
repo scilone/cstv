@@ -29,9 +29,21 @@ import com.cstv.app.domain.model.LiveEpgProgram
 import com.cstv.app.domain.usecase.GetLiveEpgUseCase
 import com.cstv.app.domain.usecase.GetRecommendationsUseCase
 import com.cstv.app.domain.usecase.GetPopularTop10InCatalogUseCase
+import com.cstv.app.domain.usecase.GetTrailerPreviewUseCase
+import com.cstv.app.domain.model.TrailerMedia
+import com.cstv.app.domain.model.TrailerPreview
+import com.cstv.app.domain.model.TrendingCatalogItem
+import kotlinx.coroutines.Job
 import com.cstv.app.domain.model.TopRatedSelector
 
 private const val EPG_POLL_INTERVAL_MILLIS = 60_000L
+
+sealed interface TrailerPreviewUiState {
+    data object Poster : TrailerPreviewUiState
+    data object Preparing : TrailerPreviewUiState
+    data class Playing(val preview: TrailerPreview) : TrailerPreviewUiState
+    data object Failed : TrailerPreviewUiState
+}
 
 data class HomeState(
     val isLoading: Boolean = false,
@@ -56,7 +68,8 @@ data class HomeState(
     val error: String? = null,
     val epgPrograms: Map<Int, LiveEpgProgram> = emptyMap(),
     val isRemovingHistory: Boolean = false,
-    val historyRemovalError: String? = null
+    val historyRemovalError: String? = null,
+    val trailerPreview: TrailerPreviewUiState = TrailerPreviewUiState.Poster
 )
 
 @HiltViewModel
@@ -71,13 +84,62 @@ class HomeViewModel @Inject constructor(
     private val getTrendingInCatalogUseCase: com.cstv.app.domain.usecase.GetTrendingInCatalogUseCase,
     private val getRecommendationsUseCase: GetRecommendationsUseCase,
     private val getPopularTop10InCatalogUseCase: GetPopularTop10InCatalogUseCase,
-    private val removeFromContinueWatchingUseCase: com.cstv.app.domain.usecase.RemoveFromContinueWatchingUseCase
+    private val removeFromContinueWatchingUseCase: com.cstv.app.domain.usecase.RemoveFromContinueWatchingUseCase,
+    private val getTrailerPreviewUseCase: GetTrailerPreviewUseCase
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(HomeState())
     val state: StateFlow<HomeState> = _state.asStateFlow()
 
     private val scrollPositions = mutableMapOf<String, Pair<Int, Int>>()
+    private var trailerJob: Job? = null
+    private var activeTrailerMedia: TrailerMedia? = null
+
+    fun selectTrendingPreview(item: TrendingCatalogItem?) {
+        val media = item?.toTrailerMedia()
+        if (media == activeTrailerMedia) return
+        trailerJob?.cancel()
+        activeTrailerMedia = media
+        if (media == null) {
+            _state.update { it.copy(trailerPreview = TrailerPreviewUiState.Poster) }
+            return
+        }
+        _state.update { it.copy(trailerPreview = TrailerPreviewUiState.Preparing) }
+        trailerJob = viewModelScope.launch {
+            val preview = try {
+                getTrailerPreviewUseCase(media)
+            } catch (error: Exception) {
+                if (error is kotlinx.coroutines.CancellationException) throw error
+                null
+            }
+            // A stale response must never replace the newly active pager item.
+            if (activeTrailerMedia == media) {
+                _state.update {
+                    it.copy(trailerPreview = preview?.let(TrailerPreviewUiState::Playing) ?: TrailerPreviewUiState.Poster)
+                }
+            }
+        }
+    }
+
+    fun cancelTrendingPreview() {
+        trailerJob?.cancel()
+        trailerJob = null
+        activeTrailerMedia = null
+        _state.update { it.copy(trailerPreview = TrailerPreviewUiState.Poster) }
+    }
+
+    /** The embedded player failed after a source was resolved: keep the poster silently. */
+    fun reportTrailerPlaybackFailure(media: TrailerMedia) {
+        if (activeTrailerMedia == media) {
+            _state.update { it.copy(trailerPreview = TrailerPreviewUiState.Failed) }
+        }
+    }
+
+    private fun TrendingCatalogItem.toTrailerMedia(): TrailerMedia? = when {
+        matchedMovie != null -> TrailerMedia.Movie(matchedMovie.streamId, trendingTitle.tmdbId)
+        matchedSeries != null -> TrailerMedia.Series(matchedSeries.seriesId, trendingTitle.tmdbId)
+        else -> null
+    }
 
     fun saveScrollPosition(key: String, index: Int, offset: Int) {
         scrollPositions[key] = Pair(index, offset)

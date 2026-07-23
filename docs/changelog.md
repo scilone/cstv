@@ -4,6 +4,20 @@ Ce document retrace l'historique des versions, des fonctionnalités livrées, de
 
 ---
 
+## [v1.54.0] - 2026-07-23
+### ✨ Nouvelles Fonctionnalités
+* **Lecture automatique du trailer sur la Hero Card / Carrousel de l'accueil (F10)** :
+  - **Wrapper API IFrame YouTube** : Intégration de la dépendance `com.pierfrancescosoffritti.androidyoutubeplayer:core:12.1.0` (compatible Kotlin 1.9/AGP 8.2) pour la lecture autonome sans clé API ni services Google Play, s'adossant à l'API IFrame officielle intégrée via `AndroidView`.
+  - **Modèle de Domaine & Découplage** : Création de `TrailerPreview` et `TrailerSource` pour découpler proprement les détails bruts fournis par le panel Xtream ou TMDB de l'interface de présentation.
+  - **Résolution Séquentielle Résiliente & Cache de Session** : Implémentation de `TrailerRepositoryImpl` raccordant d'abord le champ `youtube_trailer` de Xtream (avec normalisation robuste des URL et ID YouTube), puis interrogeant en repli asynchrone l'API TMDB (`/{movie|tv}/{id}/videos`). Les appels Xtream sont sécurisés par `XtreamRequestGate` pour ne pas saturer les connexions limitées du panel. Les résolutions (positives ou négatives) sont stockées dans un cache mémoire de session, automatiquement invalidé lors d'un changement ou d'une déconnexion de compte Xtream.
+  - **Gestion d'État ViewModel & Annulation Course** : Introduction de l'état `TrailerPreviewUiState` (`Poster`, `Preparing`, `Playing`, `Failed`) dans `HomeViewModel`, orchestrant les sélections et annulations asynchrones sécurisées via `mapLatest` pour garantir qu'un défilement rapide n'affiche jamais une vidéo obsolète.
+  - **Composant UI Mobile & Cycle de vie** : Conception de `HomeTrendingCarousel` avec un délai stable de 5 secondes de focus pour déclencher l'aperçu. Intégration de `HomeYouTubeTrailerPreview` qui gère de manière réactive l'autoplay muet, la boucle vidéo et s'assure via `DisposableEffect` et observation du lifecycle de libérer complètement le player (évitant les fuites CPU/réseau/audio) lors d'un swipe, d'un clic de fiche, d'un changement d'onglet ou d'une mise en arrière-plan.
+  - **Bouton de Contrôle Sonore d'Accessibilité** : Ajout d'un bouton de coupure du son (mute/unmute) sous forme d'icône accessible avec descriptions textuelles de retranscription (`contentDescription`) indépendantes du lecteur principal et stateless pour chaque média.
+  - **Préservation Android TV & Hero Card "Reprendre"** : Préservation totale de la navigation au D-pad existante sur Android TV et de la Hero Card de reprise de lecture, sans aucun déclenchement de trailer intempestif.
+  - **Couverture de Tests Unitaires Complète** : Écriture de tests unitaires exhaustifs pour le parseur d'ID YouTube, la résolution multi-source du repository avec fakes d'API, le cache de session, ainsi que les transitions d'état du ViewModel (annulation, failed, sélection).
+
+---
+
 ## [v1.53.0] - 2026-07-23
 ### ✨ Nouvelles Fonctionnalités
 * **Visibilité de la barre de statut sur Mobile & Gestion du poinçon (F11)** :

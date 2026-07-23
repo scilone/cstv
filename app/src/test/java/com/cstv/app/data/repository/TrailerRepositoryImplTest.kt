@@ -1,0 +1,118 @@
+package com.cstv.app.data.repository
+
+import com.cstv.app.data.local.storage.CredentialsManager
+import com.cstv.app.data.remote.api.TmdbApiService
+import com.cstv.app.data.remote.api.XtreamApiService
+import com.cstv.app.data.remote.api.XtreamRequestGate
+import com.cstv.app.data.remote.dto.TmdbVideoDto
+import com.cstv.app.data.remote.dto.TmdbVideosResponseDto
+import com.cstv.app.data.remote.dto.VodInfoResponseDto
+import com.cstv.app.domain.model.Credentials
+import com.cstv.app.domain.model.TrailerMedia
+import com.cstv.app.domain.model.TrailerSource
+import kotlinx.coroutines.runBlocking
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
+import org.junit.Test
+import org.mockito.kotlin.doReturn
+import org.mockito.kotlin.mock
+import org.mockito.kotlin.times
+import org.mockito.kotlin.verify
+import org.mockito.kotlin.whenever
+
+class TrailerRepositoryImplTest {
+    private val credentials = Credentials("https://panel.example", 443, "user", "password", true)
+    private val xtream: XtreamApiService = mock()
+    private val tmdb: TmdbApiService = mock()
+    private val credentialsManager: CredentialsManager = mock()
+    private val repository = TrailerRepositoryImpl(
+        xtream, tmdb, credentialsManager, XtreamRequestGate(), "tmdb-key"
+    )
+
+    @Test
+    fun normalizeYouTubeId_acceptsOnlySupportedForms() {
+        assertEquals("dQw4w9WgXcQ", TrailerRepositoryImpl.normalizeYouTubeId("dQw4w9WgXcQ"))
+        assertEquals("dQw4w9WgXcQ", TrailerRepositoryImpl.normalizeYouTubeId("https://www.youtube.com/watch?v=dQw4w9WgXcQ"))
+        assertEquals("dQw4w9WgXcQ", TrailerRepositoryImpl.normalizeYouTubeId("https://youtu.be/dQw4w9WgXcQ"))
+        assertNull(TrailerRepositoryImpl.normalizeYouTubeId("https://example.org/trailer"))
+        assertNull(TrailerRepositoryImpl.normalizeYouTubeId("not a video id"))
+    }
+
+    @Test
+    fun getTrailerPreview_prefersXtreamAndCachesResult() {
+        runBlocking {
+        doReturn(credentials).whenever(credentialsManager).getCredentials()
+        val response: VodInfoResponseDto = mock()
+        val info = mock<com.cstv.app.data.remote.dto.VodInfoDto>()
+        doReturn(info).whenever(response).info
+        doReturn("dQw4w9WgXcQ").whenever(info).youtubeTrailer
+        whenever(xtream.getVodInfo("user", "password", 7)).thenReturn(response)
+        val media = TrailerMedia.Movie(7, 42)
+
+        val first = repository.getTrailerPreview(media)
+        val second = repository.getTrailerPreview(media)
+
+        assertEquals(TrailerSource.YouTube("dQw4w9WgXcQ"), first?.source)
+        assertEquals(first, second)
+        verify(xtream, times(1)).getVodInfo("user", "password", 7)
+        verify(tmdb, times(0)).getMovieVideos(42, "tmdb-key")
+        Unit
+        }
+    }
+
+    @Test
+    fun getTrailerPreview_fallsBackToTmdbForMovieAndSeries() {
+        runBlocking {
+        doReturn(credentials).whenever(credentialsManager).getCredentials()
+        val noTrailerMovie: VodInfoResponseDto = mock()
+        doReturn(null).whenever(noTrailerMovie).info
+        whenever(xtream.getVodInfo("user", "password", 1)).thenReturn(noTrailerMovie)
+        val noTrailerSeries: com.cstv.app.data.remote.dto.SeriesInfoResponseDto = mock()
+        doReturn(null).whenever(noTrailerSeries).info
+        whenever(xtream.getSeriesInfo("user", "password", 2)).thenReturn(noTrailerSeries)
+        val videos = TmdbVideosResponseDto(listOf(TmdbVideoDto("YouTube", "dQw4w9WgXcQ", "Trailer", true)))
+        whenever(tmdb.getMovieVideos(10, "tmdb-key")).thenReturn(videos)
+        whenever(tmdb.getSeriesVideos(20, "tmdb-key")).thenReturn(videos)
+
+        assertEquals(TrailerSource.YouTube("dQw4w9WgXcQ"), repository.getTrailerPreview(TrailerMedia.Movie(1, 10))?.source)
+        assertEquals(TrailerSource.YouTube("dQw4w9WgXcQ"), repository.getTrailerPreview(TrailerMedia.Series(2, 20))?.source)
+        Unit
+        }
+    }
+
+    @Test
+    fun getTrailerPreview_rejectsInvalidSourceAndReturnsNullOnNetworkError() {
+        runBlocking {
+        doReturn(credentials).whenever(credentialsManager).getCredentials()
+        val response: VodInfoResponseDto = mock()
+        val info = mock<com.cstv.app.data.remote.dto.VodInfoDto>()
+        doReturn(info).whenever(response).info
+        doReturn("https://example.org/not-youtube").whenever(info).youtubeTrailer
+        whenever(xtream.getVodInfo("user", "password", 8)).thenReturn(response)
+        whenever(tmdb.getMovieVideos(43, "tmdb-key")).thenThrow(IllegalStateException("offline"))
+
+        assertNull(repository.getTrailerPreview(TrailerMedia.Movie(8, 43)))
+        Unit
+        }
+    }
+
+    @Test
+    fun clearSessionCache_forcesFreshResolutionIncludingNegativeEntries() {
+        runBlocking {
+        doReturn(credentials).whenever(credentialsManager).getCredentials()
+        val response: VodInfoResponseDto = mock()
+        doReturn(null).whenever(response).info
+        whenever(xtream.getVodInfo("user", "password", 9)).thenReturn(response)
+        whenever(tmdb.getMovieVideos(44, "tmdb-key")).thenReturn(TmdbVideosResponseDto(emptyList()))
+        val media = TrailerMedia.Movie(9, 44)
+
+        assertNull(repository.getTrailerPreview(media))
+        assertNull(repository.getTrailerPreview(media))
+        verify(xtream, times(1)).getVodInfo("user", "password", 9)
+        repository.clearSessionCache()
+        assertNull(repository.getTrailerPreview(media))
+        verify(xtream, times(2)).getVodInfo("user", "password", 9)
+        Unit
+        }
+    }
+}

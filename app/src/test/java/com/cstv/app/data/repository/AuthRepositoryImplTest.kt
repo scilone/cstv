@@ -15,6 +15,7 @@ import com.cstv.app.data.remote.dto.SeriesCategoryDto
 import com.cstv.app.data.remote.dto.SeriesStreamDto
 import com.cstv.app.data.remote.dto.SeriesInfoResponseDto
 import com.cstv.app.domain.model.*
+import com.cstv.app.domain.repository.TrailerRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
@@ -39,6 +40,9 @@ class AuthRepositoryImplTest {
     @Mock
     private lateinit var baseUrlInterceptor: DynamicBaseUrlInterceptor
 
+    @Mock
+    private lateinit var trailerRepository: TrailerRepository
+
     private lateinit var authRepository: AuthRepositoryImpl
 
     private val credentials = Credentials("test.com", 80, "username", "password", true)
@@ -49,7 +53,7 @@ class AuthRepositoryImplTest {
         // Set TimeZone to UTC to make date parsing tests deterministic across all machines
         TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
         apiService = FakeXtreamApiService()
-        authRepository = AuthRepositoryImpl(apiService, credentialsManager, baseUrlInterceptor, com.cstv.app.data.remote.api.XtreamRequestGate())
+        authRepository = AuthRepositoryImpl(apiService, credentialsManager, baseUrlInterceptor, com.cstv.app.data.remote.api.XtreamRequestGate(), trailerRepository)
     }
 
     @Test
