@@ -22,3 +22,7 @@ val AccentBlue = Color(0xFF0070F3)
 val AccentTeal = Color(0xFF2BB8A6)
 val AccentAmber = Color(0xFFE5A13A)
 val FavoriteGold = Color(0xFFFFB300)
+
+// Rating (F7) - sober red/green. Red reused from Settings (logout/danger) for homogeneity.
+val RatingLike = Color(0xFF66BB6A)
+val RatingDislike = Color(0xFFCF6679)

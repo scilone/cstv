@@ -244,7 +244,7 @@ private fun TvLayoutDetails(
             }
 
             Spacer(modifier = Modifier.height(8.dp))
-            MediaRatingControls(mediaRating, isRatingSaving, true, onLike, onDislike)
+            MediaRatingControls(mediaRating, true, onLike, onDislike)
         }
 
         // Right Column: Full description, metadata, play options, and cast
@@ -411,9 +411,6 @@ private fun MobileLayoutDetails(
         }
 
         Spacer(modifier = Modifier.height(16.dp))
-        MediaRatingControls(mediaRating, isRatingSaving, false, onLike, onDislike)
-
-        Spacer(modifier = Modifier.height(16.dp))
 
         ExpandableText(
             text = details.plot,
@@ -440,6 +437,9 @@ private fun MobileLayoutDetails(
             onResumePlayback = { onResumePlayback(details.resumePositionMs) },
             isTv = false
         )
+
+        Spacer(modifier = Modifier.height(12.dp))
+        MediaRatingControls(mediaRating, false, onLike, onDislike)
     }
 }
 

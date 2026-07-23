@@ -268,7 +268,7 @@ private fun TvLayout(
             }
 
             Spacer(modifier = Modifier.height(8.dp))
-            MediaRatingControls(mediaRating, isRatingSaving, true, onLike, onDislike)
+            MediaRatingControls(mediaRating, true, onLike, onDislike)
 
             Spacer(modifier = Modifier.height(12.dp))
 
@@ -552,9 +552,6 @@ private fun MobileLayout(
             }
         }
 
-        MediaRatingControls(mediaRating, isRatingSaving, false, onLike, onDislike)
-        Spacer(modifier = Modifier.height(16.dp))
-
         // Plot
         ExpandableText(
             text = details.plot ?: "Aucun résumé disponible.",
@@ -597,6 +594,9 @@ private fun MobileLayout(
             }
             Spacer(modifier = Modifier.height(20.dp))
         }
+
+        MediaRatingControls(mediaRating, false, onLike, onDislike)
+        Spacer(modifier = Modifier.height(20.dp))
 
         // Seasons lazy row
         Text(
