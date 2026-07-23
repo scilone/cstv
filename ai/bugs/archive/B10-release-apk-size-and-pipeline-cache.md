@@ -6,7 +6,7 @@ Type:
 Bug
 
 Status:
-VALIDATION
+RELEASED
 
 Created:
 2026-07-23
@@ -111,6 +111,6 @@ Aucune après contrôle du diff et de l'APK généré.
 
 Version : v1.53.2
 
-Commit :
+Commit : 58a7078
 
 Date : 2026-07-23
