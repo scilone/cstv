@@ -29,12 +29,38 @@ jobs:
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
-        with:
-          # Only write to the cache on the main branch to establish a baseline
-          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
 
       - name: Grant Execute Permission for Gradlew
         run: chmod +x gradlew
+
+      - name: Validate Release Version
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          expected_version="${GITHUB_REF_NAME#v}"
+          if [[ ! "$expected_version" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+            echo "::error::Release tag must use vMAJOR.MINOR.PATCH."
+            exit 1
+          fi
+          major="${BASH_REMATCH[1]}"
+          minor="${BASH_REMATCH[2]}"
+          patch="${BASH_REMATCH[3]}"
+
+          actual_version="$(sed -nE 's/^[[:space:]]*versionName = "([^"]+)".*/\1/p' app/build.gradle.kts | head -n 1)"
+          actual_code="$(sed -nE 's/^[[:space:]]*versionCode = ([0-9_]+).*/\1/p' app/build.gradle.kts | head -n 1 | tr -d '_')"
+          expected_code="$((10#$major * 10000 + 10#$minor * 100 + 10#$patch))"
+
+          if [[ "$actual_version" != "$expected_version" ]]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match versionName $actual_version."
+            exit 1
+          fi
+
+          if [[ "$actual_code" != "$expected_code" ]]; then
+            echo "::error::versionCode $actual_code does not match expected value $expected_code."
+            exit 1
+          fi
 
       - name: Decode Keystore File
         if: startsWith(github.ref, 'refs/tags/v')

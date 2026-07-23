@@ -25,17 +25,14 @@ android {
         // Phase 39 : synchronisés avec le dernier tag git poussé (voir AGENTS.md,
         // section "Checklist avant de conclure une tâche"). versionCode dérivé du
         // SemVer : major*10_000 + minor*100 + patch (marge de 0-99 par segment).
-        versionCode = 15_301
-        versionName = "1.53.1"
+        versionCode = 15_302
+        versionName = "1.53.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
             useSupportLibrary = true
         }
         resourceConfigurations.addAll(setOf("fr", "en"))
-        ndk {
-            abiFilters.addAll(setOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64"))
-        }
         buildConfigField("String", "TMDB_API_KEY", "\"$tmdbApiKey\"")
     }
 
@@ -50,9 +47,19 @@ android {
     }
 
     buildTypes {
+        debug {
+            // Les ABI x86 servent aux émulateurs locaux, sans alourdir l'APK
+            // universel de production avec une seconde copie des bibliothèques FFmpeg.
+            ndk {
+                abiFilters.addAll(setOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64"))
+            }
+        }
         release {
             isMinifyEnabled = true
             isShrinkResources = true
+            ndk {
+                abiFilters.addAll(setOf("armeabi-v7a", "arm64-v8a"))
+            }
             signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
