@@ -4,6 +4,17 @@ Ce document retrace l'historique des versions, des fonctionnalités livrées, de
 
 ---
 
+## [v1.53.0] - 2026-07-23
+### ✨ Nouvelles Fonctionnalités
+* **Visibilité de la barre de statut sur Mobile & Gestion du poinçon (F11)** :
+  - **Thème compatible runtime** : Modification du thème de l'application pour hériter de `Theme.Material.NoActionBar` afin de permettre de piloter dynamiquement la visibilité des barres système au runtime. Déclaration de `windowLayoutInDisplayCutoutMode` à `shortEdges` pour autoriser le plein écran paysage immersif sous le poinçon de la caméra.
+  - **Contrôleur de barres réactif `SystemBarsController`** : Création d'un effet Compose réutilisable encapsulant `WindowInsetsControllerCompat` pour piloter la visibilité des barres système (toujours masquées sur TV, masquées uniquement lors de la lecture sur mobile, affichées avec texte contrasté sombre/clair lors de la navigation sur mobile).
+  - **Activation Edge-to-Edge** : Configuration de `WindowCompat.setDecorFitsSystemWindows(window, false)` dans `MainActivity.onCreate` pour laisser Jetpack Compose gérer les zones d'affichage.
+  - **Intégration des zones de sécurité (Insets)** : Câblage des paddings Compose (`statusBarsPadding()`, `safeDrawingPadding()`) sur les différents écrans de navigation mobile (connexion, profils, catalogues, etc.) pour protéger l'UI des poinçons physiques sans impacter le layout ou le focus Android TV.
+  - **Tests de non-régression** : Ajout de tests unitaires pour valider les décisions de routes immersives par rapport aux routes standards.
+
+---
+
 ## [v1.52.0] - 2026-07-23
 ### ✨ Nouvelles Fonctionnalités
 * **Système d'évaluation J'aime / Je n'aime pas et exclusion des recommandations (F7)** :

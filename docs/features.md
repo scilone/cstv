@@ -96,6 +96,16 @@ Permet à chaque profil local d'exprimer des préférences explicites sur les fi
 
 ---
 
+## 11. Visibilité de la barre de statut sur Mobile & Gestion du poinçon (F11)
+Cette fonctionnalité rétablit l'affichage de la barre de statut système pendant la navigation sur mobile, tout en préservant l'immersion plein écran pendant la lecture vidéo.
+* **Barre d'état visible hors lecture** : Permet à l'utilisateur de consulter l'heure, la batterie et les notifications système pendant la navigation (Connexion, Profils, Accueil, Catalogues, Détails, Paramètres) avec une apparence esthétique harmonieuse.
+* **Mode immersif dynamique** : Masque automatiquement et de force les barres système supérieure (statut) et inférieure (navigation) dès le lancement de la lecture vidéo dans les 3 lecteurs (Live TV, VOD, Séries) pour garantir un plein écran complet.
+* **Respect des zones sûres (Insets)** : Intégration de paddings de sécurité (`statusBarsPadding()`, `safeDrawingPadding()`, etc.) sur tous les écrans de navigation mobile pour éviter que les contrôles ou les titres cliquables ne soient masqués par l'encoche (notch) ou le poinçon de la caméra frontale.
+* **Support du mode Cutout "shortEdges"** : Autorise le contenu vidéo des lecteurs à s'étendre derrière l'encoche en mode paysage pour utiliser 100 % de l'écran, tout en protégeant les contrôles tactiles.
+* **Isolation complète de la TV** : Aucune incidence sur Android TV, où les barres système restent toujours invisibles et où le focus et la navigation existants sont préservés.
+
+---
+
 ## 🚫 Fonctionnalités hors périmètre (Exclusions validées)
 Pour des raisons de performance, de stabilité ou d'expérience utilisateur, les fonctionnalités suivantes sont **strictement hors périmètre** :
 * **Multi-comptes Xtream** : L'application gère un seul compte Xtream Codes actif à la fois (les profils sont purement locaux et rattachés à ce compte unique).

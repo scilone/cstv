@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.unit.dp
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
@@ -56,6 +57,7 @@ import androidx.compose.foundation.lazy.LazyListState
 fun AppNavGraph(
     navController: NavHostController,
     paddingValues: PaddingValues,
+    isPlayerRoute: Boolean,
     loggedInUser: UserInfo?,
     onUserChanged: (UserInfo?) -> Unit,
     loginViewModel: LoginViewModel,
@@ -94,7 +96,8 @@ fun AppNavGraph(
     NavHost(
         navController = navController,
         startDestination = if (loggedInUser == null) "login" else "home",
-        modifier = Modifier.padding(paddingValues)
+        // Player routes intentionally ignore system insets so their video can fill the display.
+        modifier = Modifier.padding(if (isPlayerRoute) PaddingValues(0.dp) else paddingValues)
     ) {
         composable("login") {
             LoginScreen(
@@ -365,6 +368,7 @@ fun AppNavGraph(
         composable("profile_selection") {
             com.cstv.app.presentation.profile.ProfileSelectionScreen(
                 profiles = profileState.profiles,
+                isTv = isTv,
                 onProfileSelected = { profile ->
                     profileViewModel.selectProfile(profile.id)
                     navController.popBackStack()

@@ -17,11 +17,13 @@ import com.cstv.app.presentation.theme.Surface1
 
 @Composable
 fun SplashScreen(
+    isTv: Boolean,
     modifier: Modifier = Modifier
 ) {
     Box(
         modifier = modifier
             .fillMaxSize()
+            .then(if (isTv) Modifier else Modifier.safeDrawingPadding())
             .background(Surface1), // Matches the LoginScreen dark background
         contentAlignment = Alignment.Center
     ) {

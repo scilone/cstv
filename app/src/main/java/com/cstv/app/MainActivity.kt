@@ -7,6 +7,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
+import androidx.core.view.WindowCompat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -52,6 +53,8 @@ import com.cstv.app.presentation.profile.ProfileSelectionScreen
 import com.cstv.app.presentation.navigation.AppNavGraph
 import com.cstv.app.presentation.theme.IptvXtreamTheme
 import com.cstv.app.presentation.theme.mobileBackground
+import com.cstv.app.presentation.theme.SystemBarsController
+import com.cstv.app.presentation.theme.isImmersivePlayerRoute
 import androidx.compose.ui.unit.dp
 import dagger.hilt.android.AndroidEntryPoint
 
@@ -67,10 +70,13 @@ enum class MobileTab(val route: String, val title: String, val icon: androidx.co
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        WindowCompat.setDecorFitsSystemWindows(window, false)
         setContent {
             val context = LocalContext.current
             val isTv = remember { isTvDevice(context) }
-            
+
+            // Covers splash and profile-gate states, which are rendered outside the NavHost.
+            SystemBarsController(isTv = isTv, isPlayerRoute = false)
             Surface(modifier = Modifier.fillMaxSize()) {
                 val loginViewModel: LoginViewModel = hiltViewModel()
                 val favoritesViewModel: FavoritesViewModel = hiltViewModel()
@@ -142,7 +148,7 @@ class MainActivity : ComponentActivity() {
                     profileSelectionNeeded && !profileGateResolved
 
                 if (showSplash) {
-                    SplashScreen()
+                    SplashScreen(isTv = isTv)
                 } else if (showProfileSelection && showManagementFromGate) {
                     com.cstv.app.presentation.profile.ProfileManagementScreen(
                         viewModel = profileViewModel,
@@ -152,6 +158,7 @@ class MainActivity : ComponentActivity() {
                 } else if (showProfileSelection) {
                     ProfileSelectionScreen(
                         profiles = profileState.profiles,
+                        isTv = isTv,
                         onProfileSelected = { profile ->
                             profileViewModel.selectProfile(profile.id)
                             profileGateResolved = true
@@ -168,10 +175,12 @@ class MainActivity : ComponentActivity() {
                         val navController = rememberNavController()
                         val navBackStackEntry by navController.currentBackStackEntryAsState()
                         val currentRoute = navBackStackEntry?.destination?.route
+                        val isPlayerRoute = isImmersivePlayerRoute(currentRoute)
+                        SystemBarsController(isTv = isTv, isPlayerRoute = isPlayerRoute)
 
                         // Bottom navigation bar is visible only on mobile, when user is logged in
                         // AND we are not on the login screen or in a full screen player
-                        val showBottomBar = !isTv && loggedInUser != null && currentRoute !in listOf("login", "live_player", "vod_player", "series_player")
+                        val showBottomBar = !isTv && loggedInUser != null && !isPlayerRoute && currentRoute != "login"
 
                         // Android TV Safe Back Button Handler for Dashboard
                         BackHandler(enabled = isTv && currentRoute == "home") {
@@ -231,6 +240,7 @@ class MainActivity : ComponentActivity() {
                                 AppNavGraph(
                                     navController = navController,
                                     paddingValues = paddingValues,
+                                    isPlayerRoute = isPlayerRoute,
                                     loggedInUser = loggedInUser,
                                     onUserChanged = { loggedInUser = it },
                                     loginViewModel = loginViewModel,

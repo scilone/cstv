@@ -45,6 +45,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 @Composable
 fun ProfileSelectionScreen(
     profiles: List<Profile>,
+    isTv: Boolean,
     onProfileSelected: (Profile) -> Unit,
     onManageProfiles: () -> Unit,
     onLogout: () -> Unit,
@@ -53,6 +54,7 @@ fun ProfileSelectionScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
+            .then(if (isTv) Modifier else Modifier.safeDrawingPadding())
             .mobileBackground(),
         contentAlignment = Alignment.Center
     ) {

@@ -497,6 +497,8 @@ Appliquer les corrections issues de la review.
 
 ## Actions
 
+Il est impératif de traiter et corriger l'ensemble des retours listés dans la review de l'étape 6, y compris ceux classés en **Mineur**.
+
 Pour chaque problème :
 
 - corriger ;

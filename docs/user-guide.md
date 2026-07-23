@@ -134,3 +134,17 @@ Marquer un contenu comme **Je n'aime pas** entraîne immédiatement les actions 
 ### 💡 Rafraîchissement en temps réel
 Dès que vous validez un vote (positif, négatif ou neutre), l'application recalcule instantanément vos suggestions personnalisées. Si vous retournez sur la page d'Accueil, les carrousels de recommandations reflètent immédiatement vos préférences fraîchement exprimées.
 
+---
+
+## 11. Visibilité de la barre de statut sur Mobile (F11)
+
+L'application améliore votre confort de navigation sur les smartphones et tablettes en affichant l'heure, l'état de la batterie et vos notifications tout en protégeant les contrôles d'interface.
+
+### 📱 Affichage de la barre de statut
+* **En navigation** : Lorsque vous parcourez les catalogues de films, de séries ou d'accueil, la barre d'état Android reste visible en haut de l'écran avec une couleur de texte claire parfaitement lisible sur le thème sombre de l'application.
+* **Sécurité visuelle (Pas d'obstruction)** : Tous les écrans et en-têtes de l'application s'adaptent automatiquement aux dimensions physiques de votre appareil. Les boutons de retour, les titres d'écrans et les menus ne passent jamais sous l'encoche (notch) ou le poinçon de la caméra frontale de votre téléphone.
+* **En lecture vidéo (Mode Immersif)** : Dès que vous lancez un film, une série ou un flux de télévision en direct (Live TV), l'application masque automatiquement toutes les barres système. Vous bénéficiez ainsi d'une expérience plein écran totale sans distraction visuelle. Les barres réapparaissent instantanément dès que vous quittez la lecture.
+
+### 📺 Version Android TV
+* Sur Android TV, le concept de barre de statut ou de poinçon n'existe pas. L'affichage en plein écran constant et la navigation à la télécommande restent parfaitement préservés sans aucun changement visuel.
+

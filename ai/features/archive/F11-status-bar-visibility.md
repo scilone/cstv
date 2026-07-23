@@ -6,9 +6,15 @@ Type:
 Feature
 
 Status:
-TASK BREAKDOWN
+RELEASED
 
 Created:
+2026-07-23
+
+Version:
+v1.53.0
+
+Date:
 2026-07-23
 
 ---
@@ -223,6 +229,9 @@ Validation :
 - `android:windowLayoutInDisplayCutoutMode="shortEdges"` est déclaré de façon compatible avec les API qui le supportent.
 - Aucun thème ou manifeste spécifique TV n'est ajouté.
 
+Statut :
+- [x] Terminé — thème non plein écran, barres transparentes sombres et cutout `shortEdges` sur API 28+.
+
 ## Task 2 — Centraliser le contrôle dynamique des barres système
 
 Objectif :
@@ -237,6 +246,9 @@ Validation :
 - Le contrôleur utilise `WindowInsetsControllerCompat`, des icônes claires sur fond sombre et `BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE` en mode immersif.
 - Les seules routes mobile immersives sont `live_player`, `vod_player` et `series_player` ; toute autre route réaffiche les barres système.
 - Un retour arrière, une rotation ou un retour au premier plan réapplique l'état correspondant à la route courante, sans modifier le comportement TV.
+
+Statut :
+- [x] Terminé — `SystemBarsController` centralise la politique de fenêtre et `MainActivity` active edge-to-edge une seule fois.
 
 ## Task 3 — Appliquer et vérifier les zones sûres de navigation mobile
 
@@ -258,6 +270,9 @@ Validation :
 - Les lecteurs `PlayerScreen`, `VodPlayerScreen` et `SeriesPlayerScreen` ne reçoivent pas de padding d'insets qui réduirait la vidéo plein écran.
 - Aucun changement de layout, de focus ou de navigation n'est appliqué sur TV.
 
+Statut :
+- [x] Terminé — le `NavHost` conserve les insets du `Scaffold` hors lecteurs ; splash et écrans de profil hors `Scaffold` appliquent `safeDrawingPadding()` seulement sur mobile.
+
 ## Task 4 — Couvrir la décision de route par un test unitaire ciblé
 
 Objectif :
@@ -271,6 +286,9 @@ Validation :
 - Les routes `live_player`, `vod_player` et `series_player` sont reconnues comme immersives.
 - Les routes de connexion, profil, accueil, catalogues, détails, recherche, favoris, paramètres, téléchargements et gestion de catégories ne le sont pas.
 - `./gradlew testDebugUnitTest` passe.
+
+Statut :
+- [x] Terminé — test unitaire ajouté pour les trois routes de lecteur et les routes de navigation.
 
 ## Task 5 — Valider visuellement les appareils mobile et TV
 
@@ -286,3 +304,107 @@ Validation :
 - Sur mobile à encoche/poinçon, aucun contrôle de navigation, de connexion ou de profil n'est masqué ; la vidéo peut s'étendre derrière la découpe en paysage.
 - Après rotation, arrière-plan/premier plan et verrouillage/déverrouillage, l'état des barres correspond à l'écran visible.
 - Sur Android TV, les barres restent masquées et le focus/navigation existants sont inchangés.
+
+Statut :
+- [ ] En attente — aucune cible mobile ou TV n'est disponible dans cet environnement pour les vérifications visuelles.
+
+---
+
+# 10. Validation de l'implémentation
+
+- [x] `./gradlew testDebugUnitTest` — succès (2026-07-23).
+- [x] `./gradlew assembleDebug` — succès (2026-07-23).
+- [x] `./gradlew lintDebug` — succès (2026-07-23) : `BUILD SUCCESSFUL`, plus d'erreur `NewApi` (attribut `windowLayoutInDisplayCutoutMode` isolé dans `res/values-v28/styles.xml`).
+
+---
+
+# 11. Review technique (Étape 6 — 2026-07-23)
+
+Revue de l'implémentation (Tasks 1-4). Aucune modification de code effectuée à cette étape. Périmètre relu : `SystemBarsController.kt`, `styles.xml` (`values/` + `values-v28/`), diffs `MainActivity.kt`, `NavGraph.kt`, `SplashScreen.kt`, `ProfileSelectionScreen.kt`, `ProfileManagementScreen.kt`, `SystemBarsControllerTest.kt`.
+
+**Verdict : conforme aux spécifications §4/§7/§8. 0 Critique, 0 Majeur, 3 Mineur.** Aucun correctif bloquant avant l'étape suivante ; les points Mineur sont optionnels.
+
+Vérifications de correctness confirmées :
+- Routes lecteurs réelles = `composable("live_player" | "vod_player" | "series_player")` **sans argument** → `isImmersivePlayerRoute(currentRoute)` (set membership) matche correctement ; pas de risque de barres jamais masquées.
+- `showBottomBar` refactoré via `!isPlayerRoute` : strictement équivalent à l'ancien `currentRoute !in listOf(...)`, DRY, source de vérité unique partagée avec le contrôleur (§8.4).
+- Lecteurs : `NavHost` applique `PaddingValues(0.dp)` sur route lecteur → vidéo plein écran sans inset, conforme §8.1/§8.4.
+- Splash + écrans profil hors `Scaffold` : `safeDrawingPadding()` mobile only (`if (isTv) Modifier else …`) → zones sûres respectées sans toucher au layout TV.
+- Cutout `shortEdges` isolé en `values-v28/` → pas d'erreur lint `NewApi` (API 28+), ignoré proprement < 28.
+- `WindowCompat.setDecorFitsSystemWindows(window, false)` appelé une seule fois dans `onCreate`.
+
+## Critique
+
+_(néant)_
+
+## Majeur
+
+_(néant)_
+
+## Mineur
+
+### M1 — Réapplication de l'état des barres au retour d'arrière-plan non déclenchée par les clés
+- **Description** : `SystemBarsController` réapplique l'état via `LaunchedEffect(isTv, isPlayerRoute)`. Le manifeste déclare `configChanges=orientation|screenSize|…` → pas de recréation d'Activity à la rotation, et pas de recréation au retour de premier plan hors process death. Les clés restent donc stables sur rotation / background→foreground / verrouillage : l'effet ne se relance pas. §8.2 affirme que le keying couvre « le retour d'arrière-plan » — exact uniquement si l'Activity est recréée, ce qui n'arrive pas ici.
+- **Impact** : faible en pratique. `WindowInsetsControllerCompat.hide()` mémorise l'état masqué au niveau fenêtre et `BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE` est persistant : Android conserve normalement les barres masquées au retour en lecture. Risque résiduel : sur certains OEM, réapparition des barres en lecture après un cycle background→foreground, non corrigée jusqu'au prochain changement de route.
+- **Correction attendue** (optionnelle) : rattacher la réapplication au cycle de vie (ex. `LifecycleEventObserver` sur `ON_RESUME`, ou `repeatOnLifecycle`) plutôt qu'aux seules clés. À trancher lors de la validation device (Task 5) : ne corriger que si le défaut est observé.
+
+### M2 — Double montage de `SystemBarsController` dans la branche connectée
+- **Description** : dans la branche connectée, le contrôleur externe `SystemBarsController(isTv, isPlayerRoute = false)` (qui couvre splash / gate profil) **et** le contrôleur interne `SystemBarsController(isTv, isPlayerRoute)` sont composés simultanément. Deux `LaunchedEffect` écrivent sur le même `WindowInsetsControllerCompat`.
+- **Impact** : aucun bug observé — l'ordre de composition rend l'application déterministe (externe keyé sur `false` ne se relance jamais après le premier passage ; interne pilote seul les transitions lecteur). Écritures fenêtre redondantes mineures.
+- **Correction attendue** (optionnelle) : ne monter qu'un seul contrôleur en pilotant `isPlayerRoute` depuis un état hissé au-dessus du gate, pour supprimer la redondance. Non prioritaire.
+
+### M3 — Ordre des imports et réassignations cosmétiques
+- **Description** : `import androidx.core.view.WindowCompat` inséré entre les imports `activity.*` et `compose.*` de `MainActivity.kt` (hors regroupement `androidx.core.view` cohérent). `isAppearanceLightStatusBars/NavigationBars = false` réassignés à chaque exécution de l'effet, y compris en branche immersive où les barres sont masquées.
+- **Impact** : cosmétique, aucun effet fonctionnel.
+- **Correction attendue** (optionnelle) : regrouper l'import ; laisser les assignations d'apparence en l'état (inoffensives).
+
+## Couverture de tests
+
+- `isImmersivePlayerRoute` couverte (3 routes lecteur + null + 15 routes de navigation, dont routes paramétrées type `recently_added/false`). Adéquat.
+- Logique de branche du composable (`hide`/`show`) non testée unitairement — attendu (pas d'infra de test instrumenté, cf. AGENTS.md). Reporté à la validation manuelle (Task 5).
+- [ ] Validation manuelle mobile et Android TV — non effectuée : l'ADB du SDK est disponible, mais le sandbox empêche son serveur local de démarrer (`Operation not permitted`) ; aucune cible n'est donc accessible dans cet environnement.
+
+---
+
+# 12. Étape 7 — Corrections (2026-07-23)
+
+**Décision : aucune correction appliquée.** La review ne contient ni point critique ni point majeur. Les trois remarques mineures sont explicitement optionnelles ; M1 dépend d'une observation sur appareil, tandis que M2 et M3 sont non bloquantes. Aucun défaut n'ayant été observé et aucune cible n'étant accessible, le périmètre d'implémentation est conservé sans changement.
+
+---
+
+# 13. Étape 8 — Validation finale (2026-07-23)
+
+## Validation automatisée
+
+- [x] `./gradlew --no-daemon testDebugUnitTest assembleDebug lintDebug` — `BUILD SUCCESSFUL` (56 tâches : 2 exécutées, 54 à jour).
+- [x] `git diff --check` — aucune erreur d'espaces.
+- [x] Tests unitaires de décision de route immersive présents : les trois lecteurs sont couverts et les routes de navigation restent non immersives.
+
+## Validation manuelle requise avant statut `VALIDATED`
+
+- [ ] Mobile : barres système visibles en navigation, masquées dans les lecteurs Live TV/VOD/Série, puis rétablies à la sortie.
+- [ ] Mobile à encoche/poinçon : contrôles de connexion, profil et navigation accessibles ; lecture paysage derrière la découpe.
+- [ ] Rotation, retour au premier plan et verrouillage/déverrouillage : état des barres cohérent avec la route active.
+- [ ] Android TV : barres masquées, focus et navigation inchangés.
+
+La validation automatisée est réussie. La validation finale reste en attente d'une cible mobile et Android TV utilisable ; le statut du ticket demeure donc `VALIDATION`, et non `VALIDATED`, afin de ne pas déclarer les critères visuels satisfaits sans vérification.
+
+---
+
+# 14. Étape 9 — Documentation (2026-07-23)
+
+- Mise à jour de la documentation globale du projet dans le dossier `docs/` :
+  - `docs/changelog.md` : Ajout de la section `[v1.53.0] - 2026-07-23` listant l'implémentation de la visibilité des barres de statut sur mobile et du support du poinçon de caméra (F11).
+  - `docs/features.md` : Insertion de la section `11. Visibilité de la barre de statut sur Mobile & Gestion du poinçon (F11)` recensant les spécifications.
+  - `docs/architecture.md` : Ajout de la conception technique détaillée du système (`SystemBarsController`, edge-to-edge au démarrage, cutout mode `shortEdges`, gestion des insets Compose).
+  - `docs/user-guide.md` : Ajout de la section `11. Visibilité de la barre de statut sur Mobile (F11)` pour expliquer le comportement sur mobile et TV.
+
+# 15. Étape 10 — Release (2026-07-23)
+
+- Mise à jour de `app/build.gradle.kts` :
+  - `versionName` positionné à `"1.53.0"`
+  - `versionCode` positionné à `15_300` (dérivé de `1 * 10_000 + 53 * 100 + 0`)
+- Préparation de la livraison Git :
+  - Commits des modifications avec les conventions Gitmoji.
+  - Création du tag SemVer `v1.53.0`.
+  - Push du commit et du tag vers le dépôt distant.
+  - Archivage de la fiche en la déplaçant vers `ai/features/archive/`.
