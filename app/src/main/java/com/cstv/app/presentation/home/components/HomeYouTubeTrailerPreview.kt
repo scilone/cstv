@@ -19,13 +19,14 @@ import androidx.compose.ui.viewinterop.AndroidView
 import com.cstv.app.presentation.debug.DebugLog
 
 /**
- * Aperçu trailer via l'IFrame YouTube chargée DIRECTEMENT comme page (origine
- * réelle youtube.com), à la manière d'un `<iframe src="youtube.com/embed/…">`
- * sur le web. On n'utilise plus `android-youtube-player` : cette lib injecte
- * l'IFrame API dans un document `loadDataWithBaseURL` à origine opaque, sans
- * Referer -> l'IFrame renvoie l'erreur 153 (« missing HTTP referer », affichée
- * UNKNOWN) depuis le durcissement YouTube de fin 2025. Charger l'URL embed en
- * vraie page https envoie un Referer valide et débloque la lecture.
+ * Aperçu trailer répliquant EXACTEMENT une intégration web :
+ * une page wrapper (servie depuis un baseUrl https réel, non-youtube) contenant
+ * un `<iframe src="youtube.com/embed/…">`. C'est la combinaison qui manquait :
+ * l'IFrame API de `android-youtube-player` (abandonnée ici) tournait dans un
+ * document à origine opaque -> pas de Referer -> erreur 153 ; charger l'URL embed
+ * en navigation top-level est aussi refusé par YouTube (« erreur de configuration
+ * du lecteur »). Ici l'iframe émet un `Referer: <baseUrl>` externe valide, comme
+ * un `<iframe>` sur un vrai site, ce qui débloque la lecture.
  */
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
@@ -64,25 +65,24 @@ internal fun HomeYouTubeTrailerPreview(
                             request: WebResourceRequest?,
                             error: WebResourceError?
                         ) {
-                            // Ne remonte que l'échec du document principal (embed), pas
-                            // celui d'une sous-ressource annexe.
                             if (request?.isForMainFrame == true) {
                                 DebugLog.log("F10Trailer", "webview onReceivedError ${error?.errorCode} ${error?.description}")
                                 onPlaybackError()
                             }
                         }
                     }
-                    loadUrl(buildEmbedUrl(videoId, muted))
+                    loadDataWithBaseURL(REFERER_BASE_URL, buildWrapperHtml(videoId, muted), "text/html", "utf-8", null)
                 }
             },
             update = { view ->
-                // Bascule muet/son sans recharger : agit sur l'élément <video> de la page.
-                val js = if (muted) {
-                    "(function(){var v=document.querySelector('video');if(v)v.muted=true;})()"
-                } else {
-                    "(function(){var v=document.querySelector('video');if(v){v.muted=false;v.play();}})()"
-                }
-                view.evaluateJavascript(js, null)
+                // Bascule muet/son via l'IFrame API (postMessage vers l'iframe embed).
+                val func = if (muted) "mute" else "unMute"
+                view.evaluateJavascript(
+                    "(function(){var f=document.querySelector('iframe');" +
+                        "if(f&&f.contentWindow){f.contentWindow.postMessage(" +
+                        "JSON.stringify({event:'command',func:'$func',args:[]}),'*');}})()",
+                    null
+                )
             },
             modifier = Modifier.fillMaxSize()
         )
@@ -98,13 +98,34 @@ internal fun HomeYouTubeTrailerPreview(
     }
 }
 
+// Referer externe (non-youtube) présenté à l'IFrame embed. YouTube exige un
+// Referer valide depuis fin 2025 ; toute origine https externe convient pour une
+// vidéo dont l'intégration n'est pas restreinte.
+private const val REFERER_BASE_URL = "https://cstv.app"
+
 /**
- * URL d'embed YouTube équivalente à l'iframe web : autoplay muet, sans contrôles,
- * en boucle (loop nécessite playlist=<id> pour une vidéo seule), inline sur mobile.
+ * Page wrapper minimale : un `<iframe>` YouTube plein écran, autoplay muet, sans
+ * contrôles, en boucle (loop impose playlist=<id> pour une vidéo seule), inline.
+ * `enablejsapi=1` permet le contrôle du son par postMessage.
  */
-private fun buildEmbedUrl(videoId: String, muted: Boolean): String {
+private fun buildWrapperHtml(videoId: String, muted: Boolean): String {
     val muteParam = if (muted) 1 else 0
-    return "https://www.youtube.com/embed/$videoId" +
+    val src = "https://www.youtube.com/embed/$videoId" +
         "?autoplay=1&mute=$muteParam&controls=0&playsinline=1&rel=0&fs=0" +
-        "&modestbranding=1&iv_load_policy=3&loop=1&playlist=$videoId"
+        "&modestbranding=1&iv_load_policy=3&loop=1&playlist=$videoId&enablejsapi=1"
+    return """
+        <!DOCTYPE html>
+        <html>
+        <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+        <style>html,body{margin:0;padding:0;height:100%;width:100%;background:#000;overflow:hidden}iframe{border:0;width:100%;height:100%;display:block}</style>
+        </head>
+        <body>
+        <iframe src="$src"
+          allow="autoplay; encrypted-media; picture-in-picture"
+          referrerpolicy="unsafe-url"
+          allowfullscreen></iframe>
+        </body>
+        </html>
+    """.trimIndent()
 }
