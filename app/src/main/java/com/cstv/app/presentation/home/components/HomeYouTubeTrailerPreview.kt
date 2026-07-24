@@ -1,6 +1,12 @@
 package com.cstv.app.presentation.home.components
 
+import android.annotation.SuppressLint
 import android.view.ViewGroup
+import android.webkit.WebResourceError
+import android.webkit.WebResourceRequest
+import android.webkit.WebView
+import android.webkit.WebChromeClient
+import android.webkit.WebViewClient
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -9,16 +15,19 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.viewinterop.AndroidView
-import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.YouTubePlayer
-import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.views.YouTubePlayerView
-import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.listeners.AbstractYouTubePlayerListener
-import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.PlayerConstants
-import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.options.IFramePlayerOptions
 import com.cstv.app.presentation.debug.DebugLog
 
-/** Un player seulement, possédé par la page mobile active et libéré à sa sortie. */
+/**
+ * Aperçu trailer via l'IFrame YouTube chargée DIRECTEMENT comme page (origine
+ * réelle youtube.com), à la manière d'un `<iframe src="youtube.com/embed/…">`
+ * sur le web. On n'utilise plus `android-youtube-player` : cette lib injecte
+ * l'IFrame API dans un document `loadDataWithBaseURL` à origine opaque, sans
+ * Referer -> l'IFrame renvoie l'erreur 153 (« missing HTTP referer », affichée
+ * UNKNOWN) depuis le durcissement YouTube de fin 2025. Charger l'URL embed en
+ * vraie page https envoie un Referer valide et débloque la lecture.
+ */
+@SuppressLint("SetJavaScriptEnabled")
 @Composable
 internal fun HomeYouTubeTrailerPreview(
     videoId: String,
@@ -26,67 +35,76 @@ internal fun HomeYouTubeTrailerPreview(
     onPlaybackError: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val lifecycleOwner = LocalLifecycleOwner.current
     androidx.compose.runtime.key(videoId) {
-        var player by remember { mutableStateOf<YouTubePlayer?>(null) }
-        var playerView by remember { mutableStateOf<YouTubePlayerView?>(null) }
+        var webView by remember { mutableStateOf<WebView?>(null) }
         AndroidView(
             factory = { context ->
-                YouTubePlayerView(context).apply {
-                    playerView = this
-                    layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
-                    // Pattern canonique de la lib : la vue observe le lifecycle et
-                    // s'initialise via celui-ci. L'init manuelle sans lifecycle est la
-                    // cause fréquente d'un onError instantané après onReady (WebView dans
-                    // un état incohérent). controls(0) = aperçu sans contrôles ; l'origine
-                    // par défaut (https://www.youtube.com) est requise par l'IFrame API.
-                    enableAutomaticInitialization = false
-                    lifecycleOwner.lifecycle.addObserver(this)
-                    val options = IFramePlayerOptions.Builder()
-                        .controls(0)
-                        .rel(0)
-                        .build()
-                    initialize(object : AbstractYouTubePlayerListener() {
-                        override fun onReady(youTubePlayer: YouTubePlayer) {
-                            DebugLog.log("F10Trailer", "onReady videoId=$videoId")
-                            player = youTubePlayer
-                            youTubePlayer.mute()
-                            youTubePlayer.loadVideo(videoId, 0f)
+                WebView(context).apply {
+                    webView = this
+                    layoutParams = ViewGroup.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT
+                    )
+                    setBackgroundColor(android.graphics.Color.BLACK)
+                    with(settings) {
+                        javaScriptEnabled = true
+                        // Autorise l'autoplay muet sans geste utilisateur.
+                        mediaPlaybackRequiresUserGesture = false
+                        domStorageEnabled = true
+                    }
+                    // WebChromeClient requis pour la lecture vidéo HTML5.
+                    webChromeClient = WebChromeClient()
+                    webViewClient = object : WebViewClient() {
+                        override fun onPageFinished(view: WebView?, url: String?) {
+                            DebugLog.log("F10Trailer", "webview onPageFinished")
                         }
 
-                        override fun onStateChange(youTubePlayer: YouTubePlayer, state: PlayerConstants.PlayerState) {
-                            // Boucle : relance en fin de vidéo. Reprend aussi sur une
-                            // pause non sollicitée (l'aperçu n'a aucun contrôle play/pause,
-                            // seulement le son) : sur certaines WebView l'autoplay muet
-                            // passe en PAUSED après ~1 s, ce qui figeait l'aperçu.
-                            DebugLog.log("F10Trailer", "onStateChange videoId=$videoId state=$state")
-                            when (state) {
-                                PlayerConstants.PlayerState.ENDED -> youTubePlayer.loadVideo(videoId, 0f)
-                                PlayerConstants.PlayerState.PAUSED -> youTubePlayer.play()
-                                else -> Unit
+                        override fun onReceivedError(
+                            view: WebView?,
+                            request: WebResourceRequest?,
+                            error: WebResourceError?
+                        ) {
+                            // Ne remonte que l'échec du document principal (embed), pas
+                            // celui d'une sous-ressource annexe.
+                            if (request?.isForMainFrame == true) {
+                                DebugLog.log("F10Trailer", "webview onReceivedError ${error?.errorCode} ${error?.description}")
+                                onPlaybackError()
                             }
                         }
-
-                        override fun onError(youTubePlayer: YouTubePlayer, error: PlayerConstants.PlayerError) {
-                            DebugLog.log("F10Trailer", "onError videoId=$videoId error=$error")
-                            onPlaybackError()
-                        }
-                    }, true, options)
+                    }
+                    loadUrl(buildEmbedUrl(videoId, muted))
                 }
             },
-            update = {
-                if (muted) player?.mute() else player?.unMute()
+            update = { view ->
+                // Bascule muet/son sans recharger : agit sur l'élément <video> de la page.
+                val js = if (muted) {
+                    "(function(){var v=document.querySelector('video');if(v)v.muted=true;})()"
+                } else {
+                    "(function(){var v=document.querySelector('video');if(v){v.muted=false;v.play();}})()"
+                }
+                view.evaluateJavascript(js, null)
             },
             modifier = Modifier.fillMaxSize()
         )
         DisposableEffect(Unit) {
             onDispose {
-                player?.pause()
-                playerView?.let { view ->
-                    lifecycleOwner.lifecycle.removeObserver(view)
-                    view.release()
+                webView?.apply {
+                    loadUrl("about:blank")
+                    stopLoading()
+                    destroy()
                 }
             }
         }
     }
+}
+
+/**
+ * URL d'embed YouTube équivalente à l'iframe web : autoplay muet, sans contrôles,
+ * en boucle (loop nécessite playlist=<id> pour une vidéo seule), inline sur mobile.
+ */
+private fun buildEmbedUrl(videoId: String, muted: Boolean): String {
+    val muteParam = if (muted) 1 else 0
+    return "https://www.youtube.com/embed/$videoId" +
+        "?autoplay=1&mute=$muteParam&controls=0&playsinline=1&rel=0&fs=0" +
+        "&modestbranding=1&iv_load_policy=3&loop=1&playlist=$videoId"
 }
