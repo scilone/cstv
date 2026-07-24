@@ -76,7 +76,7 @@ fun HomeTrendingCarousel(
             return@LaunchedEffect
         }
         onActiveItemChanged(activeItem)
-        delay(5_000)
+        delay(3_000)
         pageStableForPreview = true
     }
     DisposableEffect(lifecycleOwner) {

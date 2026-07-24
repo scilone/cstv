@@ -40,7 +40,15 @@ internal fun HomeYouTubeTrailerPreview(
                         }
 
                         override fun onStateChange(youTubePlayer: YouTubePlayer, state: PlayerConstants.PlayerState) {
-                            if (state == PlayerConstants.PlayerState.ENDED) youTubePlayer.loadVideo(videoId, 0f)
+                            // Boucle : relance en fin de vidéo. Reprend aussi sur une
+                            // pause non sollicitée (l'aperçu n'a aucun contrôle play/pause,
+                            // seulement le son) : sur certaines WebView l'autoplay muet
+                            // passe en PAUSED après ~1 s, ce qui figeait l'aperçu.
+                            when (state) {
+                                PlayerConstants.PlayerState.ENDED -> youTubePlayer.loadVideo(videoId, 0f)
+                                PlayerConstants.PlayerState.PAUSED -> youTubePlayer.play()
+                                else -> Unit
+                            }
                         }
 
                         override fun onError(youTubePlayer: YouTubePlayer, error: PlayerConstants.PlayerError) {
