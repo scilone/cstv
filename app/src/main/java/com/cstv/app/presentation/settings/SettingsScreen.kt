@@ -47,6 +47,7 @@ fun SettingsScreen(
     onLogout: () -> Unit,
     onManageCategories: () -> Unit,
     onManageDownloads: () -> Unit = {},
+    onOpenDebugLog: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -75,6 +76,7 @@ fun SettingsScreen(
                 state = state,
                 onManageCategories = onManageCategories,
                 onManageDownloads = onManageDownloads,
+                onOpenDebugLog = onOpenDebugLog,
                 onSyncFrequencyChanged = { viewModel.updateSyncFrequency(it) },
                 onForceSyncNow = { viewModel.forceSyncNow() },
                 onSubtitleSizeChanged = { viewModel.updateSubtitleSize(it) },
@@ -298,6 +300,7 @@ private fun MobileSettingsLayout(
     state: SettingsState,
     onManageCategories: () -> Unit,
     onManageDownloads: () -> Unit,
+    onOpenDebugLog: () -> Unit,
     onSyncFrequencyChanged: (SyncFrequency) -> Unit,
     onForceSyncNow: () -> Unit,
     onSubtitleSizeChanged: (SubtitleTextSize) -> Unit,
@@ -365,6 +368,9 @@ private fun MobileSettingsLayout(
             onColorChanged = onSubtitleColorChanged,
             onBackgroundChanged = onSubtitleBackgroundChanged
         )
+
+        // Journal de debug (diagnostic F10 sans adb)
+        MobileDebugLogCard(onOpenDebugLog = onOpenDebugLog)
 
         // Profiles (Phase 27)
         Spacer(modifier = Modifier.height(24.dp))
@@ -461,6 +467,42 @@ private fun MobileManageDownloadsCard(onManageDownloads: () -> Unit) {
                 modifier = Modifier.fillMaxWidth().height(40.dp)
             ) {
                 Text(stringResource(R.string.downloads_settings_card_button), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            }
+        }
+    }
+}
+
+@Composable
+private fun MobileDebugLogCard(onOpenDebugLog: () -> Unit) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = Surface3),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Column {
+                Text(
+                    text = "Journal de debug",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp
+                )
+                Text(
+                    text = "Affiche les traces internes (diagnostic de l'aperçu trailer). Copiable pour partage.",
+                    color = Color.Gray,
+                    fontSize = 12.sp
+                )
+            }
+
+            Button(
+                onClick = onOpenDebugLog,
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                shape = RoundedCornerShape(8.dp),
+                modifier = Modifier.fillMaxWidth().height(40.dp)
+            ) {
+                Text("Ouvrir le journal", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
             }
         }
     }

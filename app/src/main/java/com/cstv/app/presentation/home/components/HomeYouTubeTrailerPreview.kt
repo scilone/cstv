@@ -14,6 +14,7 @@ import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.YouTubePlayer
 import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.views.YouTubePlayerView
 import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.listeners.AbstractYouTubePlayerListener
 import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.PlayerConstants
+import com.cstv.app.presentation.debug.DebugLog
 
 /** Un player seulement, possédé par la page mobile active et libéré à sa sortie. */
 @Composable
@@ -34,6 +35,7 @@ internal fun HomeYouTubeTrailerPreview(
                     enableAutomaticInitialization = false
                     initialize(object : AbstractYouTubePlayerListener() {
                         override fun onReady(youTubePlayer: YouTubePlayer) {
+                            DebugLog.log("F10Trailer", "onReady videoId=$videoId")
                             player = youTubePlayer
                             youTubePlayer.mute()
                             youTubePlayer.loadVideo(videoId, 0f)
@@ -44,6 +46,7 @@ internal fun HomeYouTubeTrailerPreview(
                             // pause non sollicitée (l'aperçu n'a aucun contrôle play/pause,
                             // seulement le son) : sur certaines WebView l'autoplay muet
                             // passe en PAUSED après ~1 s, ce qui figeait l'aperçu.
+                            DebugLog.log("F10Trailer", "onStateChange videoId=$videoId state=$state")
                             when (state) {
                                 PlayerConstants.PlayerState.ENDED -> youTubePlayer.loadVideo(videoId, 0f)
                                 PlayerConstants.PlayerState.PAUSED -> youTubePlayer.play()
@@ -52,6 +55,7 @@ internal fun HomeYouTubeTrailerPreview(
                         }
 
                         override fun onError(youTubePlayer: YouTubePlayer, error: PlayerConstants.PlayerError) {
+                            DebugLog.log("F10Trailer", "onError videoId=$videoId error=$error")
                             onPlaybackError()
                         }
                     }, true)

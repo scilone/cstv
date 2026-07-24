@@ -1,0 +1,43 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__plugin_context-mode_context-mode__ctx_execute",
+      "Bash(git add *)",
+      "Bash(git commit -m 'Review Phase 16 - Restore D-pad seek keys, proper pause icon, remove unused code *)",
+      "Bash(git push *)",
+      "Bash(git rm *)",
+      "Bash(git commit *)",
+      "Bash(sed -n 28/,45p app/src/main/java/com/poc/iptvxtream/presentation/livetv/LiveTvViewModel.kt)",
+      "Bash(awk 'NR>=28 && NR<=48' app/src/main/java/com/poc/iptvxtream/presentation/livetv/LiveTvViewModel.kt)",
+      "Bash(awk 'NR>=240 && NR<=300' app/src/main/java/com/poc/iptvxtream/MainActivity.kt)",
+      "Bash(grep -n \"LinearProgressIndicator\\\\|^    Box\\($\\\\|val state by viewModel\" app/src/main/java/com/poc/iptvxtream/presentation/livetv/LiveTvScreen.kt app/src/main/java/com/poc/iptvxtream/presentation/home/HomeScreen.kt)",
+      "mcp__plugin_context-mode_context-mode__ctx_execute_file",
+      "Bash(git reset *)",
+      "Bash(git tag *)",
+      "Bash(git rev-list *)",
+      "Bash(adb devices *)",
+      "Read(//home/nnobre/Android/Sdk/platform-tools/**)",
+      "Bash(/home/nnobre/Android/Sdk/platform-tools/adb devices *)",
+      "Bash(/home/nnobre/Android/Sdk/platform-tools/adb kill-server *)",
+      "Bash(/home/nnobre/Android/Sdk/platform-tools/adb start-server *)",
+      "Bash(java -version)",
+      "Bash(python3 *)",
+      "Read(//home/nnobre/Android/Sdk/emulator/**)",
+      "Bash(/home/nnobre/Android/Sdk/emulator/emulator -list-avds)",
+      "Bash(git ls-remote *)",
+      "Bash(git checkout *)",
+      "Bash(awk '/fun HomeVodMovieCard/,/^}/' app/src/main/java/com/cstv/app/presentation/home/components/HomeCards.kt)",
+      "Bash(xargs -I{} sh -c 'echo \"=== {} ===\"; cat {}')",
+      "Bash(git *)",
+      "Bash(kill %1)",
+      "Bash(pkill -f 'GradleWorkerMain')",
+      "Bash(pkill -f 'gradlew testDebug')",
+      "Bash(rm -f app/build/test-results/testDebugUnitTest/*.xml)",
+      "Bash(awk -F'\"' '{t+=$2;s+=$4;f+=$6;e+=$8} END{print \"tests=\"t\" skipped=\"s\" failures=\"f\" errors=\"e}')",
+      "Bash(kill 7411 32766 9363)",
+      "Bash(pkill -f 'gradle.*testDebug')",
+      "Bash(pkill -f 'until \\\\[')",
+      "Bash(echo \"commit rc=$?\")"
+    ]
+  }
+}

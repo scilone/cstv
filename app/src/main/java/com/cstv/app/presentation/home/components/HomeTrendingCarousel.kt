@@ -47,6 +47,7 @@ import com.cstv.app.domain.model.TrendingCatalogItem
 import com.cstv.app.domain.model.TrailerSource
 import com.cstv.app.domain.model.TrailerMedia
 import com.cstv.app.presentation.home.TrailerPreviewUiState
+import com.cstv.app.presentation.debug.DebugLog
 import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -71,12 +72,15 @@ fun HomeTrendingCarousel(
 
     LaunchedEffect(activeItem?.trendingTitle?.tmdbId, pagerState.isScrollInProgress, lifecycleStarted) {
         pageStableForPreview = false
+        DebugLog.log("F10Trailer", "carousel effect tmdb=${activeItem?.trendingTitle?.tmdbId} scroll=${pagerState.isScrollInProgress} started=$lifecycleStarted")
         if (activeItem == null || pagerState.isScrollInProgress || !lifecycleStarted) {
+            DebugLog.log("F10Trailer", "carousel contexte terminé (null/scroll/stopped)")
             onPreviewContextEnded()
             return@LaunchedEffect
         }
         onActiveItemChanged(activeItem)
         delay(3_000)
+        DebugLog.log("F10Trailer", "carousel 3s écoulées -> stable tmdb=${activeItem.trendingTitle.tmdbId}")
         pageStableForPreview = true
     }
     DisposableEffect(lifecycleOwner) {
@@ -132,6 +136,11 @@ fun HomeTrendingCarousel(
                 ?.source
                 ?.let { source -> (source as? TrailerSource.YouTube)?.videoId }
             var muted by remember(videoId) { mutableStateOf(true) }
+            if (isActive) {
+                LaunchedEffect(videoId, trailerPreview) {
+                    DebugLog.log("F10Trailer", "page active videoId=${videoId ?: "null"} uiState=${trailerPreview::class.simpleName}")
+                }
+            }
 
             Card(
                 shape = RoundedCornerShape(16.dp),

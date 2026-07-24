@@ -334,7 +334,15 @@ fun AppNavGraph(
                 },
                 onManageDownloads = {
                     navController.navigate("downloads")
+                },
+                onOpenDebugLog = {
+                    navController.navigate("debug_logs")
                 }
+            )
+        }
+        composable("debug_logs") {
+            com.cstv.app.presentation.debug.DebugLogScreen(
+                onBack = { navController.popBackStack() }
             )
         }
         composable("downloads") {

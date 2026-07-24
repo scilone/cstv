@@ -104,24 +104,30 @@ class HomeViewModel @Inject constructor(
             _state.update { it.copy(trailerPreview = TrailerPreviewUiState.Poster) }
             return
         }
+        com.cstv.app.presentation.debug.DebugLog.log("F10Trailer", "selectPreview media=$media")
         _state.update { it.copy(trailerPreview = TrailerPreviewUiState.Preparing) }
         trailerJob = viewModelScope.launch {
             val preview = try {
                 getTrailerPreviewUseCase(media)
             } catch (error: Exception) {
                 if (error is kotlinx.coroutines.CancellationException) throw error
+                com.cstv.app.presentation.debug.DebugLog.log("F10Trailer", "resolve ERROR ${error.javaClass.simpleName}: ${error.message}")
                 null
             }
+            com.cstv.app.presentation.debug.DebugLog.log("F10Trailer", "resolved media=$media -> ${preview?.source ?: "null (aucune source)"}")
             // A stale response must never replace the newly active pager item.
             if (activeTrailerMedia == media) {
                 _state.update {
                     it.copy(trailerPreview = preview?.let(TrailerPreviewUiState::Playing) ?: TrailerPreviewUiState.Poster)
                 }
+            } else {
+                com.cstv.app.presentation.debug.DebugLog.log("F10Trailer", "resolved STALE ignoré (active=$activeTrailerMedia)")
             }
         }
     }
 
     fun cancelTrendingPreview() {
+        com.cstv.app.presentation.debug.DebugLog.log("F10Trailer", "cancelPreview (contexte terminé) active=$activeTrailerMedia")
         trailerJob?.cancel()
         trailerJob = null
         activeTrailerMedia = null
@@ -130,6 +136,7 @@ class HomeViewModel @Inject constructor(
 
     /** The embedded player failed after a source was resolved: keep the poster silently. */
     fun reportTrailerPlaybackFailure(media: TrailerMedia) {
+        com.cstv.app.presentation.debug.DebugLog.log("F10Trailer", "reportPlaybackFailure media=$media active=$activeTrailerMedia")
         if (activeTrailerMedia == media) {
             _state.update { it.copy(trailerPreview = TrailerPreviewUiState.Failed) }
         }
