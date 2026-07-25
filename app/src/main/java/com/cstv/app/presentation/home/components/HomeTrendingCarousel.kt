@@ -48,7 +48,6 @@ import com.cstv.app.domain.model.TrailerSource
 import com.cstv.app.domain.model.TrailerMedia
 import com.cstv.app.presentation.home.TrailerPreviewUiState
 import com.cstv.app.presentation.debug.DebugLog
-import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -79,8 +78,7 @@ fun HomeTrendingCarousel(
             return@LaunchedEffect
         }
         onActiveItemChanged(activeItem)
-        delay(3_000)
-        DebugLog.log("F10Trailer", "carousel 3s écoulées -> stable tmdb=${activeItem.trendingTitle.tmdbId}")
+        DebugLog.log("F10Trailer", "carousel page stable (sans délai) tmdb=${activeItem.trendingTitle.tmdbId}")
         pageStableForPreview = true
     }
     DisposableEffect(lifecycleOwner) {
@@ -136,6 +134,10 @@ fun HomeTrendingCarousel(
                 ?.source
                 ?.let { source -> (source as? TrailerSource.YouTube)?.videoId }
             var muted by remember(videoId) { mutableStateOf(true) }
+            // Vrai une fois l'aperçu réellement révélé (poster de cover retiré) :
+            // gate le bouton son pour qu'il apparaisse AVEC la vidéo, pas pendant
+            // la phase de cover.
+            var previewVisible by remember(videoId) { mutableStateOf(false) }
             if (isActive) {
                 LaunchedEffect(videoId, trailerPreview) {
                     DebugLog.log("F10Trailer", "page active videoId=${videoId ?: "null"} uiState=${trailerPreview::class.simpleName}")
@@ -164,6 +166,7 @@ fun HomeTrendingCarousel(
                             muted = muted,
                             onPlaybackError = { onPreviewPlaybackFailed(preview.media) },
                             posterUrl = item.trendingTitle.posterUrl,
+                            onRevealed = { previewVisible = true },
                             modifier = Modifier.fillMaxSize()
                         )
                     }
@@ -223,7 +226,7 @@ fun HomeTrendingCarousel(
                         )
                     }
 
-                    if (videoId != null) {
+                    if (videoId != null && previewVisible) {
                         IconButton(
                             onClick = { muted = !muted },
                             modifier = Modifier

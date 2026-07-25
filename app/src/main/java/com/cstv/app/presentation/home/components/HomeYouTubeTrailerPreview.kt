@@ -43,6 +43,7 @@ internal fun HomeYouTubeTrailerPreview(
     muted: Boolean,
     onPlaybackError: () -> Unit,
     posterUrl: String? = null,
+    onRevealed: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     androidx.compose.runtime.key(videoId) {
@@ -55,6 +56,7 @@ internal fun HomeYouTubeTrailerPreview(
         LaunchedEffect(videoId) {
             delay(REVEAL_DELAY_MS)
             revealed = true
+            onRevealed()
         }
         val coverAlpha by animateFloatAsState(
             targetValue = if (revealed) 0f else 1f,
@@ -148,7 +150,7 @@ private const val DESKTOP_USER_AGENT =
 // Court cover poster au démarrage : masque juste le flash de chargement/buffering
 // avant que l'image vidéo n'apparaisse. Les contrôles sont déjà supprimés par l'UA
 // desktop + controls=0, donc plus besoin d'attendre leur disparition.
-private const val REVEAL_DELAY_MS = 1500L
+private const val REVEAL_DELAY_MS = 2000L
 
 // Referer externe (non-youtube) présenté à l'IFrame embed. YouTube exige un
 // Referer valide depuis fin 2025 ; toute origine https externe convient pour une
