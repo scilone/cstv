@@ -76,6 +76,10 @@ internal fun HomeYouTubeTrailerPreview(
                         // Autorise l'autoplay muet sans geste utilisateur.
                         mediaPlaybackRequiresUserGesture = false
                         domStorageEnabled = true
+                        // UA desktop : YouTube sert alors le lecteur desktop, qui
+                        // respecte réellement controls=0 (pas de gros boutons centraux
+                        // play/seek du lecteur mobile, non supprimables autrement).
+                        userAgentString = DESKTOP_USER_AGENT
                     }
                     // WebChromeClient requis pour la lecture vidéo HTML5.
                     webChromeClient = WebChromeClient()
@@ -136,9 +140,15 @@ internal fun HomeYouTubeTrailerPreview(
     }
 }
 
-// Durée pendant laquelle le poster couvre la WebView au démarrage, le temps que
-// les boutons centraux du lecteur mobile YouTube s'estompent (~3-4 s).
-private const val REVEAL_DELAY_MS = 4000L
+// UA desktop pour obtenir le lecteur YouTube desktop (respecte controls=0).
+private const val DESKTOP_USER_AGENT =
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
+        "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+
+// Court cover poster au démarrage : masque juste le flash de chargement/buffering
+// avant que l'image vidéo n'apparaisse. Les contrôles sont déjà supprimés par l'UA
+// desktop + controls=0, donc plus besoin d'attendre leur disparition.
+private const val REVEAL_DELAY_MS = 1500L
 
 // Referer externe (non-youtube) présenté à l'IFrame embed. YouTube exige un
 // Referer valide depuis fin 2025 ; toute origine https externe convient pour une
