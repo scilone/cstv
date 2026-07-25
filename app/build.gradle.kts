@@ -25,8 +25,8 @@ android {
         // Phase 39 : synchronisés avec le dernier tag git poussé (voir AGENTS.md,
         // section "Checklist avant de conclure une tâche"). versionCode dérivé du
         // SemVer : major*10_000 + minor*100 + patch (marge de 0-99 par segment).
-        versionCode = 15_414
-        versionName = "1.54.14"
+        versionCode = 15_415
+        versionName = "1.54.15"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -148,11 +148,6 @@ dependencies {
     
     // Coil (Image loading)
     implementation("io.coil-kt:coil-compose:2.6.0")
-
-    // Lecteur IFrame YouTube officiel embarqué pour les aperçus F10.
-    // 13.0.0 est compilée en Kotlin 2.1, incompatible avec Kotlin 1.9/AGP
-    // 8.2 du projet. 12.1.0 expose la même API IFrame requise par F10.
-    implementation("com.pierfrancescosoffritti.androidyoutubeplayer:core:12.1.0")
 
     // WorkManager
     implementation("androidx.work:work-runtime-ktx:2.9.0")

@@ -23,7 +23,6 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.viewinterop.AndroidView
 import coil.compose.AsyncImage
-import com.cstv.app.presentation.debug.DebugLog
 import kotlinx.coroutines.delay
 
 /**
@@ -86,17 +85,13 @@ internal fun HomeYouTubeTrailerPreview(
                     // WebChromeClient requis pour la lecture vidéo HTML5.
                     webChromeClient = WebChromeClient()
                     webViewClient = object : WebViewClient() {
-                        override fun onPageFinished(view: WebView?, url: String?) {
-                            DebugLog.log("F10Trailer", "webview onPageFinished")
-                        }
-
                         override fun onReceivedError(
                             view: WebView?,
                             request: WebResourceRequest?,
                             error: WebResourceError?
                         ) {
+                            // Seul l'échec du document principal (embed) restaure le poster.
                             if (request?.isForMainFrame == true) {
-                                DebugLog.log("F10Trailer", "webview onReceivedError ${error?.errorCode} ${error?.description}")
                                 onPlaybackError()
                             }
                         }
