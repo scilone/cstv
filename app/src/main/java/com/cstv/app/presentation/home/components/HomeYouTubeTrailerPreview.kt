@@ -103,6 +103,11 @@ internal fun HomeYouTubeTrailerPreview(
 // vidéo dont l'intégration n'est pas restreinte.
 private const val REFERER_BASE_URL = "https://cstv.app"
 
+// Débordement (px CSS) haut/bas de l'iframe pour clipper le chrome YouTube
+// (titre en haut, contrôles en bas). ~72px couvre le bandeau de titre sur les
+// tailles usuelles de l'aperçu tout en gardant le crop invisible sous le scrim.
+private const val OVERSCAN_PX = 72
+
 /**
  * Page wrapper minimale : un `<iframe>` YouTube plein écran, autoplay muet, sans
  * contrôles, en boucle (loop impose playlist=<id> pour une vidéo seule), inline.
@@ -113,18 +118,30 @@ private fun buildWrapperHtml(videoId: String, muted: Boolean): String {
     val src = "https://www.youtube.com/embed/$videoId" +
         "?autoplay=1&mute=$muteParam&controls=0&playsinline=1&rel=0&fs=0" +
         "&modestbranding=1&iv_load_policy=3&loop=1&playlist=$videoId&enablejsapi=1"
+    // Overscan vertical : l'iframe déborde de OVERSCAN_PX en haut et en bas, le
+    // conteneur clippe (overflow:hidden). Cache le bandeau de titre/partage (haut)
+    // et toute barre de contrôle (bas) que `controls=0` ne suffit pas à masquer.
+    // pointer-events:none empêche toute interaction avec le lecteur (la navigation
+    // vers la fiche est gérée par un overlay du carrousel).
+    val overscan = OVERSCAN_PX
     return """
         <!DOCTYPE html>
         <html>
         <head>
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-        <style>html,body{margin:0;padding:0;height:100%;width:100%;background:#000;overflow:hidden}iframe{border:0;width:100%;height:100%;display:block}</style>
+        <style>
+          html,body{margin:0;padding:0;height:100%;width:100%;background:#000;overflow:hidden}
+          .wrap{position:fixed;top:0;left:0;right:0;bottom:0;overflow:hidden}
+          iframe{position:absolute;left:0;width:100%;top:-${overscan}px;height:calc(100% + ${overscan * 2}px);border:0;display:block;pointer-events:none}
+        </style>
         </head>
         <body>
+        <div class="wrap">
         <iframe src="$src"
           allow="autoplay; encrypted-media; picture-in-picture"
           referrerpolicy="unsafe-url"
           allowfullscreen></iframe>
+        </div>
         </body>
         </html>
     """.trimIndent()
