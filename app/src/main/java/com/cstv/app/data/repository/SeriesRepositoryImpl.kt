@@ -407,7 +407,12 @@ class SeriesRepositoryImpl @Inject constructor(
 
         // 2. Map Episodes
         val episodesMap = mutableMapOf<Int, List<SeriesEpisode>>()
-        
+
+        // Une seule lecture pour toute la série : interroger la table épisode par
+        // épisode faisait autant d'allers-retours Room que la série a d'épisodes.
+        val savedPositions = vodDao.getAllPlaybackPositions(profileManager.currentProfileId())
+            .associateBy { it.streamId }
+
         response.episodes?.forEach { (seasonStr, dtoList) ->
             val seasonNum = seasonStr.toIntOrNull() ?: 1
             val episodesList = dtoList.mapNotNull { dto ->
@@ -422,7 +427,7 @@ class SeriesRepositoryImpl @Inject constructor(
                     val rDate = dto.info?.releaseDate ?: ""
                     val movieImage = dto.info?.movieImage ?: dto.movieImage
                     
-                    val savedPosition = vodDao.getPlaybackPosition(idInt, profileManager.currentProfileId())
+                    val savedPosition = savedPositions[idInt]
 
                     SeriesEpisode(
                         id = idInt,

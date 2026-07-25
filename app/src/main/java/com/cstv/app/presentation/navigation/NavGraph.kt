@@ -1,12 +1,19 @@
 package com.cstv.app.presentation.navigation
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -68,6 +75,36 @@ private const val NO_STREAM_ID = -1
  * instead lives for the entire logged-in session and is popped only on logout, which
  * is exactly when these catalogues must be dropped.
  */
+/**
+ * Un écran de détail qui a fini de charger sans résultat vient forcément d'un
+ * appel en échec (réponse illisible, panel injoignable, identifiants expirés).
+ * Afficher un indicateur de chargement de plus laisserait l'écran tourner
+ * indéfiniment alors qu'aucune requête ne repartira : le message d'erreur brut
+ * est montré tel quel, avec de quoi relancer ou sortir.
+ */
+@Composable
+private fun MediaDetailsErrorState(
+    message: String?,
+    onRetry: () -> Unit,
+    onBack: () -> Unit
+) {
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.padding(24.dp)
+        ) {
+            Text(
+                text = message ?: "Impossible de charger cette fiche.",
+                color = MaterialTheme.colorScheme.onSurface,
+                textAlign = TextAlign.Center
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Button(onClick = onRetry) { Text("Réessayer") }
+            TextButton(onClick = onBack) { Text("Retour") }
+        }
+    }
+}
+
 @Composable
 private fun rememberTabViewModelOwner(
     navController: NavHostController,
@@ -471,9 +508,11 @@ fun AppNavGraph(
                         onDislike = { vodViewModel.setRating(if (state.mediaRating == com.cstv.app.domain.model.MediaRatingValue.DISLIKE) null else com.cstv.app.domain.model.MediaRatingValue.DISLIKE) },
                         onConsumeRatingError = vodViewModel::consumeRatingError
                     )
-                } ?: Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
-                }
+                } ?: MediaDetailsErrorState(
+                    message = state.error,
+                    onRetry = { vodViewModel.selectStreamId(entryStreamId) },
+                    onBack = { navController.popBackStack() }
+                )
             }
         }
         composable("series_details") {
@@ -545,9 +584,11 @@ fun AppNavGraph(
                         onDislike = { seriesViewModel.setRating(if (state.mediaRating == com.cstv.app.domain.model.MediaRatingValue.DISLIKE) null else com.cstv.app.domain.model.MediaRatingValue.DISLIKE) },
                         onConsumeRatingError = seriesViewModel::consumeRatingError
                     )
-                } ?: Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
-                }
+                } ?: MediaDetailsErrorState(
+                    message = state.error,
+                    onRetry = { seriesViewModel.selectStreamId(entrySeriesId) },
+                    onBack = { navController.popBackStack() }
+                )
             }
         }
         composable("live_player") {

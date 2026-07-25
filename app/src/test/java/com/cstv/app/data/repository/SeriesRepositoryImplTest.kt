@@ -183,7 +183,7 @@ class SeriesRepositoryImplTest {
         val remoteResponse = SeriesInfoResponseDto(seasonsDto, episodesMapDto, null)
 
         whenever(apiService.getSeriesInfo("username", "password", 123)).thenReturn(remoteResponse)
-        whenever(vodDao.getPlaybackPosition(any(), any())).thenReturn(null)
+        whenever(vodDao.getAllPlaybackPositions(any())).thenReturn(emptyList())
 
         val result = repository.getSeriesDetails(123)
 
@@ -247,7 +247,7 @@ class SeriesRepositoryImplTest {
             durationMs = 2700000L,
             lastAccessedAt = 999999999L
         )
-        whenever(vodDao.getPlaybackPosition(555, activeProfileId)).thenReturn(savedPosition)
+        whenever(vodDao.getAllPlaybackPositions(activeProfileId)).thenReturn(listOf(savedPosition))
 
         val result = repository.getSeriesDetails(123)
 

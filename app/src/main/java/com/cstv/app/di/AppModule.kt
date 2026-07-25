@@ -18,6 +18,7 @@ import com.cstv.app.domain.repository.ProfileRepository
 import com.cstv.app.data.remote.api.DynamicBaseUrlInterceptor
 import com.cstv.app.data.remote.api.XtreamApiService
 import com.cstv.app.data.remote.api.XtreamRequestGate
+import com.cstv.app.data.remote.gson.EmptyArrayAsAbsentTypeAdapterFactory
 import com.cstv.app.data.remote.gson.SafeIntAdapter
 import com.cstv.app.data.remote.gson.SafeLongAdapter
 import com.cstv.app.data.local.dao.VodDao
@@ -195,6 +196,7 @@ object AppModule {
     @Singleton
     fun provideGson(): Gson {
         return GsonBuilder()
+            .registerTypeAdapterFactory(EmptyArrayAsAbsentTypeAdapterFactory())
             .registerTypeAdapter(Int::class.java, SafeIntAdapter())
             .registerTypeAdapter(Int::class.javaPrimitiveType, SafeIntAdapter())
             .registerTypeAdapter(Long::class.java, SafeLongAdapter())
@@ -236,6 +238,10 @@ object AppModule {
             .addInterceptor(loggingInterceptor)
             .connectTimeout(15, TimeUnit.SECONDS)
             .readTimeout(20, TimeUnit.SECONDS)
+            // Les délais ci-dessus ne couvrent pas l'attente dans la file du
+            // Dispatcher : sans plafond global, une requête écran coincée derrière
+            // le trafic de sync ne rend jamais la main et l'écran tourne à vide.
+            .callTimeout(60, TimeUnit.SECONDS)
             .retryOnConnectionFailure(true)
             .build()
     }
