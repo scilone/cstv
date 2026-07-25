@@ -18,6 +18,7 @@ import com.cstv.app.domain.repository.ProfileRepository
 import com.cstv.app.data.remote.api.DynamicBaseUrlInterceptor
 import com.cstv.app.data.remote.api.XtreamApiService
 import com.cstv.app.data.remote.api.XtreamRequestGate
+import com.cstv.app.data.remote.api.XtreamThrottleInterceptor
 import com.cstv.app.data.remote.gson.EmptyArrayAsAbsentTypeAdapterFactory
 import com.cstv.app.data.remote.gson.SafeIntAdapter
 import com.cstv.app.data.remote.gson.SafeLongAdapter
@@ -207,7 +208,8 @@ object AppModule {
     @Provides
     @Singleton
     fun provideOkHttpClient(
-        baseUrlInterceptor: DynamicBaseUrlInterceptor
+        baseUrlInterceptor: DynamicBaseUrlInterceptor,
+        requestGate: XtreamRequestGate
     ): OkHttpClient {
         // Phase 36 : BODY loggue l'intégralité des réponses (catalogues de
         // plusieurs Mo) et les URLs Xtream contenant username/password en
@@ -234,6 +236,8 @@ object AppModule {
 
         return OkHttpClient.Builder()
             .dispatcher(dispatcher)
+            // Avant la réécriture d'URL : chaque rejeu doit repasser par elle.
+            .addInterceptor(XtreamThrottleInterceptor(requestGate))
             .addInterceptor(baseUrlInterceptor)
             .addInterceptor(loggingInterceptor)
             .connectTimeout(15, TimeUnit.SECONDS)

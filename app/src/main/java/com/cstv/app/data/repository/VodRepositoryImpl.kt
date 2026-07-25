@@ -100,7 +100,9 @@ class VodRepositoryImpl @Inject constructor(
                             )
                         ))
                     }
-                    delay(200)
+                    // Les deux catalogues enrichissent en parallèle : à 200 ms le
+                    // compte tirait jusqu'à 10 req/s et se faisait rejeter (403).
+                    delay(ENRICHMENT_REQUEST_SPACING_MS)
                 } catch (e: Exception) {
                     if (e is kotlinx.coroutines.CancellationException) throw e
                     // ignore individual stream fetch failure and continue
@@ -128,6 +130,7 @@ class VodRepositoryImpl @Inject constructor(
     companion object {
         private const val CACHE_EXPIRY_MILLIS = 24 * 60 * 60 * 1000L // 24 hours
         private const val ENRICHMENT_BATCH_SIZE = 50
+        private const val ENRICHMENT_REQUEST_SPACING_MS = 500L
     }
 
 

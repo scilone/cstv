@@ -292,7 +292,15 @@ class SeriesViewModel @Inject constructor(
                 loadRelatedSeries(details.seriesId, details.genre)
             } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException) throw e
-                _state.update { it.copy(isLoadingDetails = false, error = e.message ?: "Impossible de charger les détails de la série.") }
+                _state.update {
+                    it.copy(
+                        isLoadingDetails = false,
+                        error = com.cstv.app.presentation.mediaLoadErrorMessage(
+                            e,
+                            "Impossible de charger les détails de la série."
+                        )
+                    )
+                }
             }
         }
     }

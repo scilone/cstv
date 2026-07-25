@@ -6,6 +6,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -65,6 +67,57 @@ class XtreamRequestGateTest {
             listOf("foreground_start", "foreground_end", "background_start"),
             events
         )
+    }
+
+    @Test
+    fun test_throttleWindow_expiresOnItsOwn() {
+        var now = 0L
+        val gate = XtreamRequestGate().apply { nowMs = { now } }
+
+        gate.notifyThrottled()
+        assertTrue(gate.isThrottled())
+
+        now = 29_000L
+        assertTrue(gate.isThrottled())
+
+        now = 31_000L
+        assertFalse(gate.isThrottled())
+    }
+
+    @Test
+    fun test_freshGate_isNotThrottled() {
+        assertFalse(XtreamRequestGate().isThrottled())
+    }
+
+    @Test
+    fun test_backgroundCall_waitsOutTheThrottleWindow() = runTest {
+        var now = 0L
+        val gate = XtreamRequestGate().apply { nowMs = { now } }
+        gate.notifyThrottled()
+
+        var ran = false
+        val backgroundJob = async {
+            withContext(RequestPriority.background) {
+                gate.acquire { ran = true }
+            }
+        }
+
+        delay(1_000)
+        assertFalse("le trafic de fond doit rester en attente pendant la fenêtre", ran)
+
+        now = 31_000L
+        backgroundJob.await()
+        assertTrue(ran)
+    }
+
+    @Test
+    fun test_foregroundCall_ignoresTheThrottleWindow() = runTest {
+        val gate = XtreamRequestGate().apply { nowMs = { 0L } }
+        gate.notifyThrottled()
+
+        val result = gate.acquire { "done" }
+
+        assertEquals("done", result)
     }
 
     @Test
