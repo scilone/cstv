@@ -20,12 +20,19 @@ object MobileNavigation {
 
 /** Every mobile "return to a tab root" navigation must use this single path. */
 fun NavController.navigateToRootTab(route: String) {
-    val targetIsAlreadySelected = MobileNavigation.isTabSelected(currentDestination?.route, route)
+    if (currentDestination?.route == route) return
+
+    // The tab root is usually still on the back stack, below the detail screen we
+    // opened from it. Popping back to it reuses that live entry, so its ViewModel
+    // and scroll position survive exactly like a system back press; navigating
+    // instead would drop the entry and make the screen reload behind a spinner.
+    if (popBackStack(route, inclusive = false)) return
+
     navigate(route) {
-        // A saved stack for the current tab can contain its detail destination;
-        // restoring it would put that detail back in front of the tab root.
-        popUpTo(MobileNavigation.ROOT_ROUTE) { saveState = !targetIsAlreadySelected }
+        // saveState/restoreState stay off on purpose: popUpTo always targets
+        // ROOT_ROUTE, so the saved stack is keyed to home, and restoring it on a
+        // home tab click pushes back the very entries just popped (B11).
+        popUpTo(MobileNavigation.ROOT_ROUTE)
         launchSingleTop = true
-        restoreState = !targetIsAlreadySelected
     }
 }

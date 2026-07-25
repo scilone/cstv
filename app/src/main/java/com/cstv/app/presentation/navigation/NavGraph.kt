@@ -10,10 +10,13 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.lifecycle.ViewModelStoreOwner
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -56,6 +59,20 @@ import androidx.compose.foundation.lazy.LazyListState
 // Xtream stream identifiers are positive; this marks an entry reached without
 // its required navigation seed, which is defensively popped below.
 private const val NO_STREAM_ID = -1
+
+/**
+ * Owner for the tab catalogue ViewModels (Live TV, films, séries).
+ *
+ * A tab entry is destroyed as soon as the user leaves it, so a ViewModel scoped to
+ * it refetches the whole catalogue behind a spinner on every return. The home entry
+ * instead lives for the entire logged-in session and is popped only on logout, which
+ * is exactly when these catalogues must be dropped.
+ */
+@Composable
+private fun rememberTabViewModelOwner(
+    navController: NavHostController,
+    tabEntry: NavBackStackEntry
+): ViewModelStoreOwner = remember(tabEntry) { navController.getBackStackEntry(MobileNavigation.ROOT_ROUTE) }
 
 @Composable
 fun AppNavGraph(
@@ -209,8 +226,8 @@ fun AppNavGraph(
                 }
             )
         }
-        composable("tv") {
-            val liveTvViewModel: LiveTvViewModel = hiltViewModel()
+        composable("tv") { tabEntry ->
+            val liveTvViewModel: LiveTvViewModel = hiltViewModel(rememberTabViewModelOwner(navController, tabEntry))
             LiveTvScreen(
                 viewModel = liveTvViewModel,
                 favoritesList = favsState.favorites,
@@ -231,8 +248,8 @@ fun AppNavGraph(
                 }
             )
         }
-        composable("movies") {
-            val vodViewModel: VodViewModel = hiltViewModel()
+        composable("movies") { tabEntry ->
+            val vodViewModel: VodViewModel = hiltViewModel(rememberTabViewModelOwner(navController, tabEntry))
             VodScreen(
                 viewModel = vodViewModel,
                 isTv = isTv,
@@ -244,8 +261,8 @@ fun AppNavGraph(
                 onNavigateToFavorites = { navController.navigate("favorites") }
             )
         }
-        composable("series") {
-            val seriesViewModel: SeriesViewModel = hiltViewModel()
+        composable("series") { tabEntry ->
+            val seriesViewModel: SeriesViewModel = hiltViewModel(rememberTabViewModelOwner(navController, tabEntry))
             SeriesScreen(
                 viewModel = seriesViewModel,
                 isTv = isTv,
