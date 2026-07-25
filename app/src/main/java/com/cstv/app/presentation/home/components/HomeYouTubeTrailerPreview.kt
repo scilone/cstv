@@ -7,16 +7,24 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebChromeClient
 import android.webkit.WebViewClient
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.viewinterop.AndroidView
+import coil.compose.AsyncImage
 import com.cstv.app.presentation.debug.DebugLog
+import kotlinx.coroutines.delay
 
 /**
  * Aperçu trailer répliquant EXACTEMENT une intégration web :
@@ -34,10 +42,26 @@ internal fun HomeYouTubeTrailerPreview(
     videoId: String,
     muted: Boolean,
     onPlaybackError: () -> Unit,
+    posterUrl: String? = null,
     modifier: Modifier = Modifier
 ) {
     androidx.compose.runtime.key(videoId) {
         var webView by remember { mutableStateOf<WebView?>(null) }
+        // Le lecteur mobile YouTube affiche de gros boutons centraux (play/seek)
+        // pendant ~3-4 s au démarrage, que `controls=0` ne supprime pas et que
+        // l'overscan ne peut pas clipper (ils sont au centre). On garde donc le
+        // poster par-dessus la WebView le temps qu'ils s'estompent, puis fondu.
+        var revealed by remember(videoId) { mutableStateOf(false) }
+        LaunchedEffect(videoId) {
+            delay(REVEAL_DELAY_MS)
+            revealed = true
+        }
+        val coverAlpha by animateFloatAsState(
+            targetValue = if (revealed) 0f else 1f,
+            animationSpec = tween(durationMillis = 500),
+            label = "trailerCoverAlpha"
+        )
+        Box(modifier = Modifier.fillMaxSize()) {
         AndroidView(
             factory = { context ->
                 WebView(context).apply {
@@ -95,8 +119,26 @@ internal fun HomeYouTubeTrailerPreview(
                 }
             }
         }
+
+        // Poster de couverture : masque les boutons centraux du lecteur au
+        // démarrage, puis disparaît en fondu une fois qu'ils se sont estompés.
+        if (coverAlpha > 0f && posterUrl != null) {
+            AsyncImage(
+                model = posterUrl,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .alpha(coverAlpha)
+            )
+        }
+        }
     }
 }
+
+// Durée pendant laquelle le poster couvre la WebView au démarrage, le temps que
+// les boutons centraux du lecteur mobile YouTube s'estompent (~3-4 s).
+private const val REVEAL_DELAY_MS = 4000L
 
 // Referer externe (non-youtube) présenté à l'IFrame embed. YouTube exige un
 // Referer valide depuis fin 2025 ; toute origine https externe convient pour une

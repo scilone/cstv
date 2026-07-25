@@ -163,6 +163,7 @@ fun HomeTrendingCarousel(
                             videoId = videoId,
                             muted = muted,
                             onPlaybackError = { onPreviewPlaybackFailed(preview.media) },
+                            posterUrl = item.trendingTitle.posterUrl,
                             modifier = Modifier.fillMaxSize()
                         )
                     }
