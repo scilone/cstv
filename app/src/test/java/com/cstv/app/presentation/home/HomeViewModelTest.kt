@@ -5,6 +5,7 @@ import com.cstv.app.domain.repository.FavoritesRepository
 import com.cstv.app.domain.repository.LiveTvRepository
 import com.cstv.app.domain.repository.SeriesRepository
 import com.cstv.app.domain.repository.VodRepository
+import com.cstv.app.data.local.storage.ProfileManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.cancel
@@ -59,6 +60,9 @@ class HomeViewModelTest {
     @Mock
     private lateinit var getTrailerPreviewUseCase: com.cstv.app.domain.usecase.GetTrailerPreviewUseCase
 
+    @Mock
+    private lateinit var profileManager: ProfileManager
+
     // Phase 42 : StandardTestDispatcher (et non Unconfined) + runCurrent() après
     // construction. HomeViewModel lance désormais un ticker EPG infini
     // (while(true) { delay(60s); ... }) dans son init : avec un dispatcher
@@ -67,6 +71,7 @@ class HomeViewModelTest {
     // déjà dû à l'instant virtuel courant (le chargement initial), sans jamais
     // avancer jusqu'au premier délai de 60s du ticker.
     private val testDispatcher = StandardTestDispatcher()
+    private val activeProfileId = MutableStateFlow(1)
 
     private lateinit var viewModel: HomeViewModel
 
@@ -74,6 +79,8 @@ class HomeViewModelTest {
     fun setUp() {
         MockitoAnnotations.openMocks(this)
         Dispatchers.setMain(testDispatcher)
+        activeProfileId.value = 1
+        doReturn(activeProfileId).whenever(profileManager).activeProfileId
     }
 
     @After
@@ -97,7 +104,8 @@ class HomeViewModelTest {
             getRecommendationsUseCase,
             getPopularTop10InCatalogUseCase,
             removeFromContinueWatchingUseCase,
-            getTrailerPreviewUseCase
+            getTrailerPreviewUseCase,
+            profileManager
         )
         testDispatcher.scheduler.runCurrent()
         return vm
@@ -126,6 +134,23 @@ class HomeViewModelTest {
 
     private suspend fun stubEmptyCategoryPreferences() {
         whenever(categoryPreferenceRepository.getPreferences(any())).thenReturn(emptyMap())
+    }
+
+    @Test
+    fun profileChangeReloadsHomeContent() = runTest {
+        stubReactiveSources()
+        stubEmptyCategoryPreferences()
+        whenever(getLiveCategoriesUseCase(false)).thenReturn(emptyList())
+        whenever(vodRepository.getVodStreams("all", false)).thenReturn(emptyList())
+        whenever(seriesRepository.getSeriesStreams("all", false)).thenReturn(emptyList())
+
+        viewModel = createViewModel()
+        activeProfileId.value = 2
+        testDispatcher.scheduler.runCurrent()
+
+        verify(getLiveCategoriesUseCase, times(2)).invoke(false)
+
+        viewModel.viewModelScope.cancel()
     }
 
     @Test

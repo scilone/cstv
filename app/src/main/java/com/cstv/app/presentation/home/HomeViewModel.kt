@@ -14,10 +14,13 @@ import com.cstv.app.domain.repository.FavoritesRepository
 import com.cstv.app.domain.repository.LiveTvRepository
 import com.cstv.app.domain.repository.SeriesRepository
 import com.cstv.app.domain.repository.VodRepository
+import com.cstv.app.data.local.storage.ProfileManager
 import com.cstv.app.domain.usecase.GetLiveCategoriesUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -85,7 +88,8 @@ class HomeViewModel @Inject constructor(
     private val getRecommendationsUseCase: GetRecommendationsUseCase,
     private val getPopularTop10InCatalogUseCase: GetPopularTop10InCatalogUseCase,
     private val removeFromContinueWatchingUseCase: com.cstv.app.domain.usecase.RemoveFromContinueWatchingUseCase,
-    private val getTrailerPreviewUseCase: GetTrailerPreviewUseCase
+    private val getTrailerPreviewUseCase: GetTrailerPreviewUseCase,
+    private val profileManager: ProfileManager
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(HomeState())
@@ -94,6 +98,11 @@ class HomeViewModel @Inject constructor(
     private val scrollPositions = mutableMapOf<String, Pair<Int, Int>>()
     private var trailerJob: Job? = null
     private var activeTrailerMedia: TrailerMedia? = null
+    private var popularJob: Job? = null
+    private var trendingJob: Job? = null
+    private var catalogJob: Job? = null
+    private var recommendationsJob: Job? = null
+    private var hasActiveProfile = false
 
     fun selectTrendingPreview(item: TrendingCatalogItem?) {
         val media = item?.toTrailerMedia()
@@ -180,11 +189,25 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             getRecommendationsUseCase.invalidations.collect { refreshRecommendations() }
         }
-        loadHomeData()
+        viewModelScope.launch {
+            var isInitialProfile = true
+            // B12: activeProfileId is the sole initial-load trigger. Keeping a
+            // direct loadHomeData() call here would start two loads at launch.
+            profileManager.activeProfileId
+                .filter { it != ProfileManager.NO_PROFILE }
+                .distinctUntilChanged()
+                .collect {
+                    hasActiveProfile = true
+                    loadHomeData(resetVisibleContent = !isInitialProfile)
+                    isInitialProfile = false
+                }
+        }
         // Phase 58 : recharge la Home quand les préférences de catégories
         // (masquage/ordre) changent — le ViewModel est partagé au niveau app.
         viewModelScope.launch {
-            categoryPreferenceRepository.changes.collect { loadHomeData() }
+            categoryPreferenceRepository.changes.collect {
+                if (hasActiveProfile) loadHomeData()
+            }
         }
         // Phase 41 : "Continuer à regarder" et "Favoris" restent à jour en
         // continu (ajout/suppression d'un favori ailleurs dans l'app, reprise
@@ -333,12 +356,38 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    fun loadHomeData() {
+    fun loadHomeData(resetVisibleContent: Boolean = false) {
+        // A result calculated with a previous profile's hidden categories must
+        // never be allowed to repopulate Home after the visible state is purged.
+        popularJob?.cancel()
+        trendingJob?.cancel()
+        catalogJob?.cancel()
+        recommendationsJob?.cancel()
+        if (resetVisibleContent) {
+            _state.update {
+                it.copy(
+                    isLoading = true,
+                    error = null,
+                    firstLiveCategory = null,
+                    firstLiveStreams = emptyList(),
+                    firstVodStreams = emptyList(),
+                    firstSeriesStreams = emptyList(),
+                    topVodStreams = emptyList(),
+                    topSeriesStreams = emptyList(),
+                    recommendedMovies = emptyList(),
+                    recommendedSeries = emptyList(),
+                    trendingList = emptyList(),
+                    epgPrograms = emptyMap(),
+                    trailerPreview = TrailerPreviewUiState.Poster
+                )
+            }
+            cancelTrendingPreview()
+        }
         _state.update { it.copy(popularTopVodStreams = null, popularTopSeriesStreams = null) }
 
         // F9 : Popular est isolé du chargement local afin que le fallback soit
         // immédiatement disponible et que TMDB ne puisse jamais bloquer Home.
-        viewModelScope.launch {
+        popularJob = viewModelScope.launch {
             val result = try {
                 kotlinx.coroutines.withTimeoutOrNull(15_000L) {
                     getPopularTop10InCatalogUseCase()
@@ -363,7 +412,7 @@ class HomeViewModel @Inject constructor(
         // isLoading — sinon un TMDB lent/hors-ligne fait paraître la Home comme
         // chargeant indéfiniment. Timeout client dur en garde-fou supplémentaire
         // (au cas où un appel suspendu ignorerait les timeouts OkHttp).
-        viewModelScope.launch {
+        trendingJob = viewModelScope.launch {
             val trendingList = try {
                 kotlinx.coroutines.withTimeoutOrNull(15_000L) {
                     getTrendingInCatalogUseCase()
@@ -379,7 +428,7 @@ class HomeViewModel @Inject constructor(
         // Découplé de la Home pour un affichage asynchrone progressif, comme TMDB.
         refreshRecommendations()
 
-        viewModelScope.launch {
+        catalogJob = viewModelScope.launch {
             val isCurrentStateEmpty = _state.value.firstLiveStreams.isEmpty() &&
                     _state.value.firstVodStreams.isEmpty() &&
                     _state.value.firstSeriesStreams.isEmpty()
@@ -469,12 +518,15 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    private fun refreshRecommendations() = viewModelScope.launch {
+    private fun refreshRecommendations() {
+        recommendationsJob?.cancel()
+        recommendationsJob = viewModelScope.launch {
         try {
             val recos = getRecommendationsUseCase()
             _state.update { it.copy(recommendedMovies = recos.movies, recommendedSeries = recos.series) }
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
+        }
         }
     }
 }

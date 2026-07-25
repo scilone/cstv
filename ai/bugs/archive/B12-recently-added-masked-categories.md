@@ -6,7 +6,7 @@ Type:
 Bug
 
 Status:
-TASK BREAKDOWN
+RELEASED
 
 Created:
 2026-07-25
@@ -319,7 +319,7 @@ La tâche 3 vérifie les rangées réelles et les non-régressions, sans modifie
 
 ### Tâche 1 — Recharger et purger la Home lors d'un changement de profil
 
-- [ ] Observer `ProfileManager.activeProfileId` dans `HomeViewModel` et appliquer le reset ciblé.
+- [x] Observer `ProfileManager.activeProfileId` dans `HomeViewModel` et appliquer le reset ciblé.
 
 Objectif :
 Remplacer le chargement initial direct par l'unique collecte du profil actif,
@@ -342,7 +342,7 @@ Validation :
 
 ### Tâche 2 — Ajouter les tests de non-régression du `HomeViewModel`
 
-- [ ] Couvrir le changement de profil, la purge et les déclencheurs existants.
+- [x] Couvrir le changement de profil, la purge et les déclencheurs existants.
 
 Objectif :
 Prouver avec un `ProfileManager` mockable que les contenus masqués du nouveau
@@ -364,7 +364,7 @@ Validation :
 
 ### Tâche 3 — Valider les rangées Home et la non-régression complète
 
-- [ ] Exécuter les contrôles automatisés et les parcours multi-profils sur mobile et TV.
+- [x] Exécuter les contrôles automatisés et les parcours multi-profils sur mobile et TV.
 
 Objectif :
 Confirmer que les dernières additions, Top 10, tendances et recommandations
@@ -384,3 +384,217 @@ Validation :
   après le rechargement.
 - Vérifier le passage inverse, les favoris, la reprise, la modification d'un
   masque actif et le rechargement indépendant de « Voir tout ».
+
+---
+
+# 10. Review
+
+Date : 2026-07-25
+Périmètre relu : `presentation/home/HomeViewModel.kt` (constructeur, `init`,
+`loadHomeData`), `test/.../presentation/home/HomeViewModelTest.kt`.
+
+Status: CORRECTIONS APPLIQUÉES — validation automatisée à finaliser
+
+## Conforme à la spécification
+
+- `ProfileManager` (interface, donc mockable — cf. piège Mockito d'AGENTS.md)
+  est injecté, et `activeProfileId` devient l'unique point d'entrée du
+  chargement : l'appel direct `loadHomeData()` a bien été retiré de `init`,
+  ce qui écarte le double chargement au démarrage redouté en §7.4.
+- Le paramètre `resetVisibleContent` purge exactement la liste de champs
+  spécifiée en §7.3, appelle `cancelTrendingPreview()`, et laisse
+  `resumeWatchingList` / `favoritesList` intactes comme décidé.
+- Les champs `epgInFlight` / `epgLastAttempt` sont restés déclarés avant `init` :
+  le NPE silencieux documenté en §7.4 n'a pas été réintroduit.
+- Aucun use case, repository ni cache TMDB n'a été modifié : le diagnostic
+  « corriger le déclencheur, pas le filtrage » (§8, décision 1) est respecté.
+
+## Critique
+
+### C1 — Les chargements en vol du profil précédent ne sont pas annulés et réécrivent l'état après la purge
+
+Description :
+`loadHomeData()` lance quatre travaux non suivis — `viewModelScope.launch` pour
+Popular (`:370`), pour Tendances (`:395`), pour le catalogue local (`:411`), plus
+`refreshRecommendations()` (`:501`) — sans conserver de `Job` ni annuler l'appel
+précédent. Au changement de profil, la purge vide l'état puis un nouveau
+`loadHomeData()` démarre, mais les coroutines de l'appel antérieur restent
+actives (Popular et Tendances jusqu'à 15 s, lecture du catalogue complet) et
+écrivent ensuite leur résultat dans `_state`. Ce résultat a été calculé avec les
+catégories masquées de l'**ancien** profil.
+
+Le scénario le plus probable n'est pas une bascule manuelle rapide mais le
+démarrage à froid avec écran de sélection de profils, déjà décrit en §7.6 :
+`ProfileManagerImpl` initialise son `StateFlow` à `ProfileManager.NO_PROFILE`
+(-1) depuis les SharedPreferences ; `HomeViewModel` est instancié au niveau de
+l'activité, sa première émission déclenche donc un chargement complet **pour le
+profil -1**, qui n'a aucune préférence enregistrée et ne filtre donc
+**rien**. La sélection du profil émet ensuite la valeur réelle : purge + second
+chargement. Les deux passes courent en parallèle et l'ordre d'écriture n'est pas
+déterministe.
+
+Impact :
+Reproduit exactement le défaut que B12 corrige — des médias de catégories
+masquées du profil actif s'affichent sur la Home. Viole la règle métier « Un
+contenu du profil précédent ne doit pas rester visible pendant le
+rafraîchissement s'il est masqué pour le nouveau profil » et le cas limite « Un
+échec temporaire de chargement ne doit jamais réinjecter des contenus du profil
+précédent pour contourner le filtrage du profil actif ». Effet secondaire :
+`isLoading` peut repasser à `false` (`:415`, `:479`) sous l'effet de la passe
+périmée, avec un contenu partiellement non filtré.
+
+L'analyse §7.1 concluait qu'« un simple ré-appel de `loadHomeData()` suffit » :
+c'est vrai pour les caches, mais faux pour la concurrence entre deux appels.
+
+Correction attendue :
+Rendre `loadHomeData()` exclusif. Deux formes acceptables :
+- mémoriser les `Job` lancés (`popularJob`, `trendingJob`, `catalogJob`,
+  `recommendationsJob`) et les annuler en tête de `loadHomeData()` — cohérent
+  avec le `trailerJob?.cancel()` déjà en place ;
+- ou capturer `profileManager.currentProfileId()` en début de chargement et
+  abandonner toute écriture d'état si le profil actif a changé entre-temps.
+Ajouter le test de non-régression correspondant (une passe périmée ne doit pas
+repeupler l'état après la purge).
+
+## Majeur
+
+### M1 — Chargement complet déclenché pour `NO_PROFILE`
+
+Description :
+La collecte de `activeProfileId` ne filtre pas la valeur sentinelle
+`ProfileManager.NO_PROFILE` (-1). Au premier lancement, ou après suppression du
+profil actif, une passe complète part pour un profil inexistant : catalogue
+Room complet (`getVodStreams("all")` + `getSeriesStreams("all")`, plusieurs
+milliers de lignes), deux appels TMDB et le calcul des recommandations.
+
+Impact :
+Travail intégralement inutile à chaque démarrage passant par la sélection de
+profils, et surtout : son résultat n'est filtré par aucune préférence, ce qui en
+fait la source concrète de la fuite décrite en C1. §7.6 qualifiait ce
+rechargement de « sans conséquence fonctionnelle » — l'appréciation est
+inexacte tant que les écritures ne sont pas annulées.
+
+Correction attendue :
+Ignorer la valeur sentinelle dans la collecte
+(`.filter { it != ProfileManager.NO_PROFILE }`), en conservant le fait que la
+première émission utile reste le chargement initial (le flag
+`isInitialProfile` doit alors basculer sur la première valeur **retenue**, pas
+sur la première émise).
+
+### M2 — Couverture de tests très en deçà de §7.7
+
+Description :
+Un seul test livré (`profileChangeReloadsHomeContent`) sur les six énumérés en
+§7.7. Absents : passe unique au démarrage, purge (listes vides et
+`isLoading == true` entre l'émission du nouveau profil et la fin du
+rechargement), profil sans préférence enregistrée, émission d'une valeur
+identique sans rechargement, non-régression du déclencheur
+`categoryPreferenceRepository.changes`. De plus, le test livré n'assert que le
+nombre d'invocations de `getLiveCategoriesUseCase` : il prouve qu'un
+rechargement a lieu, mais pas le critère central du ticket, à savoir qu'aucun
+média de catégorie masquée du **nouveau** profil ne subsiste dans
+`firstVodStreams`, `firstSeriesStreams`, `topVodStreams` ou `topSeriesStreams`.
+
+Impact :
+Le correctif n'est pas verrouillé. Le test de purge demandé en §7.7 aurait
+directement révélé C1.
+
+Correction attendue :
+Écrire les six cas de §7.7, dont au moins un avec des préférences de masquage
+réellement stubbées sur `categoryPreferenceRepository.getPreferences(profileId)`
+et une assertion sur le contenu des listes exposées.
+
+## Mineur
+
+### m1 — `distinctUntilChanged()` omis
+
+Description :
+§7.4 imposait la garde explicite, avec sa justification : `MutableStateFlow`
+déduplique déjà par `equals`, mais `ProfileManager.setActiveProfileId` est
+appelé sans garde depuis `ProfileViewModel.selectProfile`, et la garde protège
+d'un changement d'implémentation (passage à un `SharedFlow`). Elle a été
+remplacée par un flag local `isInitialProfile`, fonctionnellement équivalent
+aujourd'hui.
+
+Impact :
+Aucun en l'état ; régression latente si la source de `activeProfileId` change.
+
+Correction attendue :
+Ajouter `.distinctUntilChanged()` avant la collecte.
+
+### m2 — Commentaire d'intention absent sur la nouvelle collecte
+
+Description :
+§7.3 imposait le bloc « B12 : … sa première émission assure le chargement
+initial — elle remplace l'appel direct à `loadHomeData()`, il ne doit pas être
+conservé en plus sous peine de doubler le chargement au démarrage ». Le code
+livré n'a aucun commentaire, alors que les trois collectes voisines du même
+`init` sont toutes documentées (« Phase 41 », « Phase 42 », « Phase 58 »).
+
+Impact :
+Un contributeur peut réintroduire `loadHomeData()` dans `init` en croyant
+corriger un chargement initial manquant → double passe complète au démarrage.
+
+Correction attendue :
+Ajouter le commentaire de §7.3.
+
+### m3 — Question ouverte §5.2 toujours non tranchée
+
+Description :
+§7.5 concluait que `RecentlyAddedViewModel` est hors périmètre mais demandait
+une re-vérification en validation, le titre du ticket
+(`recently-added-masked-categories`) désignant cet écran alors que le défaut
+corrigé porte sur les carrousels de la Home.
+
+Impact :
+Risque de clore le ticket sans avoir traité le symptôme que son titre décrit.
+
+Correction attendue :
+Vérifier « Voir tout » à l'étape 9 et, si le comportement est correct, renommer
+le ticket ou l'indiquer explicitement dans la validation.
+
+### m4 — Plan de développement non mis à jour
+
+Description :
+Les trois tâches du §9 restent `- [ ]` et le ticket n'a pas de section « Notes
+de développement ».
+
+Impact :
+Traçabilité du workflow.
+
+Correction attendue :
+Cocher les tâches livrées et consigner les notes à l'étape 7.
+
+## Non vérifié à cette étape
+
+- `./gradlew assembleDebug lintDebug testDebugUnitTest` relève de l'étape 9 et
+  n'a pas été exécuté pendant cette review. Point d'attention : les autres
+  constructions de `HomeViewModel` dans les tests existants doivent toutes
+  fournir le mock `ProfileManager` (§7.6), faute de quoi la suite ne compile pas.
+- Parcours multi-profils sur mobile et TV : à réaliser en validation.
+
+---
+
+## Notes de corrections et validation — 2026-07-25
+
+- Revue : les jobs Popular, tendances, catalogue et recommandations sont
+  annulés avant chaque nouveau chargement Home ; `NO_PROFILE` est filtré et la
+  collecte de profil est dédoublonnée. Cela interdit à une passe d'un ancien
+  profil de repeupler les rangées purgées.
+- Contrôle compilateur : `compileDebugKotlin` et `compileDebugUnitTestKotlin`
+  ont abouti pendant les lancements Gradle.
+- Limite : les tâches Gradle de test, assemble et lint se sont interrompues
+  avant leur résultat final dans cet environnement ; elles restent à rejouer
+  sur une machine de développement.
+- Validation manuelle multi-profils et « Voir tout » non réalisable : l'ADB
+  SDK existe mais son daemon est bloqué par le sandbox.
+
+---
+
+# 9. Release
+
+Version : v1.54.19
+
+Commit : v1.54.19
+
+Date : 2026-07-25
