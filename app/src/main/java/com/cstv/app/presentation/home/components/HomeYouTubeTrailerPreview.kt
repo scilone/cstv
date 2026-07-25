@@ -106,7 +106,7 @@ private const val REFERER_BASE_URL = "https://cstv.app"
 // Débordement (px CSS) haut/bas de l'iframe pour clipper le chrome YouTube
 // (titre en haut, contrôles en bas). ~72px couvre le bandeau de titre sur les
 // tailles usuelles de l'aperçu tout en gardant le crop invisible sous le scrim.
-private const val OVERSCAN_PX = 72
+private const val OVERSCAN_PX = 120
 
 /**
  * Page wrapper minimale : un `<iframe>` YouTube plein écran, autoplay muet, sans
@@ -115,9 +115,11 @@ private const val OVERSCAN_PX = 72
  */
 private fun buildWrapperHtml(videoId: String, muted: Boolean): String {
     val muteParam = if (muted) 1 else 0
+    // '&' échappés en '&amp;' : garantit que TOUS les paramètres (dont controls=0)
+    // sont conservés par le parseur HTML de la WebView.
     val src = "https://www.youtube.com/embed/$videoId" +
-        "?autoplay=1&mute=$muteParam&controls=0&playsinline=1&rel=0&fs=0" +
-        "&modestbranding=1&iv_load_policy=3&loop=1&playlist=$videoId&enablejsapi=1"
+        "?autoplay=1&amp;mute=$muteParam&amp;controls=0&amp;playsinline=1&amp;rel=0&amp;fs=0" +
+        "&amp;modestbranding=1&amp;iv_load_policy=3&amp;loop=1&amp;playlist=$videoId&amp;enablejsapi=1"
     // Rendu "cover" + overscan pour masquer TOUT le chrome YouTube que `controls=0`
     // ne suffit pas à enlever (titre/partage en haut, barre de contrôle en bas) :
     // - cover : l'iframe est dimensionnée en 16:9 sur la HAUTEUR du conteneur
