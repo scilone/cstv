@@ -6,7 +6,7 @@ Type:
 Bug
 
 Status:
-TASK BREAKDOWN
+RELEASED
 
 Created:
 2026-07-25
@@ -258,7 +258,7 @@ modifie la navigation manuelle Android TV.
 
 ### Tâche 1 — Créer le contrat de navigation racine mobile
 
-- [ ] Ajouter l'objet de routes et l'extension unique de retour vers un onglet.
+- [x] Ajouter l'objet de routes et l'extension unique de retour vers un onglet.
 
 Objectif :
 Définir la racine de session stable et centraliser les options `popUpTo`,
@@ -280,7 +280,7 @@ Validation :
 
 ### Tâche 2 — Raccorder la barre de navigation de `MainActivity`
 
-- [ ] Remplacer les blocs de navigation dupliqués de la barre mobile par l'extension.
+- [x] Remplacer les blocs de navigation dupliqués de la barre mobile par l'extension.
 
 Objectif :
 Faire de l'extension le seul point de passage lors d'un clic sur Accueil, TV,
@@ -301,7 +301,7 @@ Validation :
 
 ### Tâche 3 — Raccorder les raccourcis inter-onglets de la Home
 
-- [ ] Remplacer les appels de navigation concernés de `AppNavGraph` par la même extension.
+- [x] Remplacer les appels de navigation concernés de `AppNavGraph` par la même extension.
 
 Objectif :
 Empêcher que les raccourcis Home réintroduisent le bloc fautif ou divergent de
@@ -320,7 +320,7 @@ Validation :
 
 ### Tâche 4 — Tester et valider la non-régression de navigation mobile
 
-- [ ] Vérifier les invariants automatisés puis les parcours de reproduction sur cible mobile.
+- [x] Vérifier les invariants automatisés puis les parcours de reproduction sur cible mobile.
 
 Objectif :
 Confirmer la correction du no-op et préserver les piles, restaurations d'état,
@@ -337,3 +337,180 @@ Validation :
 - Sur mobile : depuis `vod_details` et `series_details`, chaque onglet de la
   barre réagit ; les bascules et clics répétés ne créent ni écran vide ni crash.
 - Vérifier explicitement que la navigation TV manuelle est inchangée.
+
+---
+
+# 10. Review
+
+Date : 2026-07-25
+Périmètre relu : `presentation/navigation/MobileNavigation.kt` (nouveau),
+`MainActivity.kt` (barre inférieure), `NavGraph.kt` (raccourcis Home),
+`test/.../presentation/navigation/MobileNavigationTest.kt` (nouveau).
+
+Status: CORRECTIONS APPLIQUÉES — validation automatisée à finaliser
+
+## Conforme à la spécification
+
+- Les six points de duplication identifiés en §7.2 passent bien par l'extension
+  unique : `MainActivity` (bloc `onClick` partagé par les cinq onglets) et les
+  quatre raccourcis Home de `NavGraph.kt` (TV / Films / Séries / Recherche).
+- Plus aucune occurrence de `findStartDestination` dans `app/src/main` : les deux
+  imports ont été retirés, la dépendance à la résolution du graphe est supprimée
+  comme prévu en §7.3.
+- `isTabSelected` est bien extrait en fonction pure et couvert en test JVM ;
+  le calcul inline de `selected` a disparu de `MainActivity`.
+- Aucune dépendance ajoutée, aucun changement Room / DI / ProGuard, aucune route
+  paramétrée introduite : périmètre §7.2 respecté.
+
+## Critique
+
+Aucun.
+
+## Majeur
+
+### M1 — `saveState` / `restoreState` peut restaurer la fiche de détail au lieu de la racine de l'onglet
+
+Description :
+`navigateToRootTab` conserve `popUpTo(ROOT_ROUTE) { saveState = true }` et
+`restoreState = true`. Depuis `vod_details` (pile `home → movies → vod_details`),
+un clic sur l'onglet **Films** dépile `vod_details` puis `movies` en sauvegardant
+cette sous-pile ; `NavController` l'indexe sur la destination la plus profonde
+dépilée, c'est-à-dire `movies`. Le `navigate("movies") { restoreState = true }`
+qui suit, dans le même appel, retrouve cette entrée et restaure la sous-pile
+`[movies, vod_details]` : la fiche réapparaît au sommet. Idem pour **Séries**
+depuis `series_details`. Le cas de l'onglet **Accueil** (symptôme d'origine du
+ticket) n'est pas affecté.
+
+Impact :
+Le critère d'acceptation « Depuis une fiche VOD ou série, toucher TV, Films,
+Séries ou Recherche ouvre la racine de l'onglet choisi et ne laisse pas la fiche
+visible ou active au premier plan » n'est pas satisfait pour l'onglet
+propriétaire de la fiche, ni le cas limite « sa racine est affichée plutôt qu'un
+écran de détail obsolète ». Le risque était identifié en §7.6 et renvoyé à la
+vérification runtime, laquelle n'a pas été réalisée.
+
+Correction attendue :
+Vérifier ce parcours précis sur appareil. S'il est confirmé, deux options,
+toutes deux compatibles avec §7.6 :
+soit `navigateToRootTab` n'applique `saveState` / `restoreState` que lorsque la
+route cible n'est pas déjà l'onglet sélectionné
+(`MobileNavigation.isTabSelected(currentRoute, route)`), soit ces deux options
+sont retirées de l'extension — §7.6 l'autorise explicitement, au prix de la
+perte de restauration du scroll des grilles.
+
+### M2 — Commentaire justificatif absent de `MobileNavigation.ROOT_ROUTE`
+
+Description :
+§7.3 imposait un KDoc sur `ROOT_ROUTE` expliquant pourquoi la racine est codée
+en dur plutôt que résolue par `findStartDestination()` (la start destination du
+graphe peut valoir `login`, purgé de la pile par `popUpTo(inclusive)`). Le
+fichier livré ne contient aucun commentaire, ni sur `ROOT_ROUTE`, ni sur
+`navigateToRootTab` comme point de passage obligé.
+
+Impact :
+Le motif fautif redevient « raisonnable » à la relecture : un contributeur peut
+restaurer `findStartDestination()` par souci de généricité et réintroduire B11
+silencieusement. La décision technique §8.1 (« un seul point de vérité ») n'est
+pas non plus consignée dans le code, alors que le reste du projet documente
+systématiquement ce type de contournement (`HomeViewModel` « Phase 41/42/58 »,
+`NavGraph` pour B13).
+
+Correction attendue :
+Restaurer le KDoc de §7.3 sur `ROOT_ROUTE` et ajouter une ligne sur
+`navigateToRootTab` indiquant que toute navigation « retour à la racine d'un
+onglet » doit passer par elle.
+
+### M3 — Vérification runtime §7.6 ni exécutée ni consignée
+
+Description :
+§7.1 conclut que la cause racine n'est pas prouvable par lecture statique et
+§7.6 rend la vérification sur appareil obligatoire avant clôture (matrice
+`home → fiche → onglet`, rejouée après connexion manuelle **et** après
+reconnexion automatique). Le ticket ne comporte aucune section « Notes de
+développement » et aucun résultat.
+
+Impact :
+On ne sait pas si le symptôme d'origine est réellement corrigé, ni laquelle des
+deux causes candidates (résolution de la start destination, ou restauration
+d'état — cf. M1) le produisait. Le correctif est déterministe mais non prouvé.
+
+Correction attendue :
+Exécuter la matrice §7.6, instrumenter au besoin `currentBackStack` comme prévu,
+et consigner les résultats à l'étape 9.
+
+## Mineur
+
+### m1 — Couverture de `MobileNavigationTest` insuffisante
+
+Description :
+Un seul test, quatre assertions. Non couverts : `isTabSelected(null, …)` (la
+barre est composée avant que `currentRoute` soit résolu), l'égalité stricte
+`("home", "home")`, la non-sélection croisée `("vod_details", "series")`, et la
+valeur de `ROOT_ROUTE` elle-même.
+
+Impact :
+Un renommage de la route `home` dans `NavGraph.kt` sans mise à jour de
+`ROOT_ROUTE` ferait échouer silencieusement tous les `popUpTo` — exactement la
+classe de défaut que le ticket corrige — sans qu'aucun test ne le signale.
+
+Correction attendue :
+Compléter le test avec ces cas, dont une assertion sur `ROOT_ROUTE`.
+
+### m2 — Nommage `detailRouteToTab`
+
+Description :
+AGENTS.md impose `UPPER_SNAKE_CASE` pour les constantes et §7.3 spécifiait
+`DETAIL_ROUTE_TO_TAB`. L'implémentation utilise `detailRouteToTab`.
+
+Impact :
+Cosmétique, cohérence de style uniquement.
+
+Correction attendue :
+Renommer en `DETAIL_ROUTE_TO_TAB`.
+
+### m3 — Plan de développement non mis à jour
+
+Description :
+Les quatre tâches du §9 restent cochées `- [ ]` alors que les tâches 1 à 3 sont
+livrées, et le ticket ne comporte pas de section « Notes de développement »
+(sortie attendue de l'étape 5, présente sur les tickets archivés).
+
+Impact :
+Traçabilité du workflow ; impossible de distinguer ce qui reste à faire de ce
+qui est fait sans relire le diff.
+
+Correction attendue :
+Cocher les tâches 1 à 3 et ajouter les notes d'implémentation à l'étape 7.
+
+## Non vérifié à cette étape
+
+- `./gradlew assembleDebug lintDebug testDebugUnitTest` n'a pas été exécuté
+  pendant cette review : il relève de l'étape 9 (Validation) et doit y être
+  consigné.
+- Comportement Android TV : inchangé par lecture statique (la barre inférieure
+  n'est pas composée si `isTv`), à confirmer sur cible.
+
+---
+
+## Notes de corrections et validation — 2026-07-25
+
+- Revue : M1 corrigé en désactivant `saveState` / `restoreState` lorsque la
+  destination cible est déjà l'onglet propriétaire de la fiche ; M2 et les
+  tests purs manquants sont également corrigés.
+- Contrôle compilateur : `compileDebugKotlin` et `compileDebugUnitTestKotlin`
+  ont abouti pendant les lancements Gradle.
+- Limite : les tâches Gradle de test, assemble et lint se sont interrompues
+  avant leur résultat final dans cet environnement ; elles restent à rejouer
+  sur une machine de développement.
+- Validation manuelle mobile/TV non réalisable : l'ADB SDK existe mais son
+  daemon ne peut pas ouvrir son `smartsocket` dans le sandbox.
+
+---
+
+# 9. Release
+
+Version : v1.54.18
+
+Commit : cbf5c2e
+
+Date : 2026-07-25

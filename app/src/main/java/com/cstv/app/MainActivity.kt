@@ -32,7 +32,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.sp
-import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.cstv.app.domain.model.LiveStream
@@ -51,6 +50,8 @@ import com.cstv.app.presentation.settings.SettingsViewModel
 import com.cstv.app.presentation.profile.ProfileViewModel
 import com.cstv.app.presentation.profile.ProfileSelectionScreen
 import com.cstv.app.presentation.navigation.AppNavGraph
+import com.cstv.app.presentation.navigation.MobileNavigation
+import com.cstv.app.presentation.navigation.navigateToRootTab
 import com.cstv.app.presentation.theme.IptvXtreamTheme
 import com.cstv.app.presentation.theme.mobileBackground
 import com.cstv.app.presentation.theme.SystemBarsController
@@ -207,19 +208,11 @@ class MainActivity : ComponentActivity() {
                                             NavigationBar(containerColor = Color(0xE60C0C10)) {
                                                 val tabs = listOf(MobileTab.HOME, MobileTab.TV, MobileTab.MOVIES, MobileTab.SERIES, MobileTab.SEARCH)
                                                 tabs.forEach { tab ->
-                                                    val selected = currentRoute == tab.route ||
-                                                            (tab.route == "movies" && currentRoute == "vod_details") ||
-                                                            (tab.route == "series" && currentRoute == "series_details")
+                                                    val selected = MobileNavigation.isTabSelected(currentRoute, tab.route)
                                                     NavigationBarItem(
                                                         selected = selected,
                                                         onClick = {
-                                                            navController.navigate(tab.route) {
-                                                                popUpTo(navController.graph.findStartDestination().id) {
-                                                                    saveState = true
-                                                                }
-                                                                launchSingleTop = true
-                                                                restoreState = true
-                                                            }
+                                                            navController.navigateToRootTab(tab.route)
                                                         },
                                                         icon = { Icon(tab.icon, contentDescription = tab.title) },
                                                         label = { Text(tab.title, fontSize = 10.sp, fontFamily = com.cstv.app.presentation.theme.AppTypography.labelSmall.fontFamily) },

@@ -4,6 +4,32 @@ Ce document retrace l'historique des versions, des fonctionnalités livrées, de
 
 ---
 
+## [v1.54.20] - 2026-07-25
+### 🐛 Correctifs de Bugs
+* **Résolution de la boucle de retour infinie sur les fiches détails via titres associés (B13)** :
+  - **Capture de l'identifiant par entrée** : Utilisation de `rememberSaveable` (au lieu d'un simple `remember`) au sein de `AppNavGraph.kt` pour figer l'identifiant du média d'amorçage propre à chaque destination de backstack (`vod_details` et `series_details`) et le restaurer proprement au dépilage.
+  - **Garde d'idempotence ViewModel** : Implémentation d'une garde dans `VodViewModel` et `SeriesViewModel` pour interdire tout rechargement ou indicateur de chargement clignotant inutile si le média demandé est déjà chargé ou en cours de chargement.
+  - **Suppression du code mort** : Nettoyage et suppression des délégations `selectStream` obsolètes pour sceller l'accès par identifiant stable.
+
+---
+
+## [v1.54.19] - 2026-07-25
+### 🐛 Correctifs de Bugs
+* **Filtrage des médias issus de catégories masquées sur l'Accueil au changement de profil (B12)** :
+  - **Abonnement réactif au profil actif** : Observation directe du StateFlow `activeProfileId` de `ProfileManager` dans `HomeViewModel` comme déclencheur unique et dédoublonné du chargement et du rechargement complet de la Home.
+  - **Purge immédiate de l'affichage** : Introduction d'une purge sélective de l'état visible du catalogue (via `resetVisibleContent`) lors d'une bascule de profil, évitant l'affichage persistant de médias interdits pendant la durée de rechargement.
+  - **Annulation exclusive des coroutines de chargement** : Suivi et annulation systématique des Jobs asynchrones (`popularJob`, `trendingJob`, `catalogJob`, `recommendationsJob`) avant chaque nouveau chargement pour interdire à une passe de profil périmé de repeupler les rangées.
+
+---
+
+## [v1.54.18] - 2026-07-25
+### 🐛 Correctifs de Bugs
+* **Correction du clic sans effet sur Accueil dans la barre de navigation mobile (B11)** :
+  - **Contrat de navigation racine mobile** : Centralisation de la route racine stable de la session connectée `"home"` (au lieu de la résolution dynamique de `findStartDestination()` qui pouvait cibler l'écran `"login"` purgé) dans un objet partagé `MobileNavigation.kt`.
+  - **Extension unique de navigation** : Remplacement des blocs de navigation dupliqués dans `MainActivity.kt` et `NavGraph.kt` par l'extension réutilisable `navigateToRootTab(route)` sécurisant le comportement de dépilage sans effet de bord sur Android TV.
+
+---
+
 ## [v1.54.0] - 2026-07-23
 ### ✨ Nouvelles Fonctionnalités
 * **Lecture automatique du trailer sur la Hero Card / Carrousel de l'accueil (F10)** :
