@@ -62,7 +62,7 @@ internal fun HomeYouTubeTrailerPreview(
             animationSpec = tween(durationMillis = 500),
             label = "trailerCoverAlpha"
         )
-        Box(modifier = Modifier.fillMaxSize()) {
+        Box(modifier = modifier.fillMaxSize()) {
         AndroidView(
             factory = { context ->
                 WebView(context).apply {
