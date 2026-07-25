@@ -10,7 +10,7 @@ data class VodState(
     val categories: List<VodCategory> = emptyList(),
     val selectedCategory: VodCategory? = null,
     val streams: List<VodStream> = emptyList(),
-    val selectedStream: VodStream? = null,
+    val selectedStreamId: Int? = null,
     val selectedVodDetails: VodDetails? = null,
     // Films associés (mêmes genres) affichés en bas des détails.
     val relatedStreams: List<VodStream> = emptyList(),

@@ -249,16 +249,21 @@ class SeriesViewModel @Inject constructor(
         }
     }
 
-    fun selectStream(stream: SeriesStream?) {
+    fun selectStreamId(seriesId: Int?) {
+        val current = _state.value
+        if (seriesId != null && current.selectedStreamId == seriesId &&
+            (current.isLoadingDetails || current.selectedSeriesDetails != null)
+        ) return
+
         ratingObservation?.cancel()
-        _state.update { it.copy(selectedStream = stream, selectedSeriesDetails = null, relatedSeries = emptyList(), mediaRating = null, ratingError = null) }
-        if (stream != null) {
+        _state.update { it.copy(selectedStreamId = seriesId, selectedSeriesDetails = null, relatedSeries = emptyList(), mediaRating = null, ratingError = null) }
+        if (seriesId != null) {
             ratingObservation = viewModelScope.launch {
-                mediaRatingRepository.observeRating(stream.seriesId, RatedMediaType.SERIES).collect { rating ->
-                    _state.update { current -> if (current.selectedStream?.seriesId == stream.seriesId) current.copy(mediaRating = rating) else current }
+                mediaRatingRepository.observeRating(seriesId, RatedMediaType.SERIES).collect { rating ->
+                    _state.update { current -> if (current.selectedStreamId == seriesId) current.copy(mediaRating = rating) else current }
                 }
             }
-            loadSeriesDetails(stream.seriesId)
+            loadSeriesDetails(seriesId)
         }
     }
 

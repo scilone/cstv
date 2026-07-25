@@ -89,4 +89,67 @@ class VodViewModelTest {
         assertEquals(1, state.resumeMovies.size)
         assertEquals(101, state.resumeMovies[0].streamId)
     }
+
+    @Test
+    fun selectingAnAlreadyLoadedDetailDoesNotReloadIt() = runTest(testDispatcher) {
+        whenever(vodRepository.observeAllPlaybackPositions()).thenReturn(flowOf(emptyList()))
+        whenever(mediaRatingRepository.observeRating(42, RatedMediaType.MOVIE)).thenReturn(flowOf(null))
+        whenever(getVodDetailsUseCase(42)).thenReturn(
+            VodDetails(42, "Movie", "", "", "", "", "", "", null, "mp4")
+        )
+        viewModel = VodViewModel(getVodCategoriesUseCase, getVodCategoryCountsUseCase, getVodStreamsUseCase,
+            getVodDetailsUseCase, getRelatedMoviesUseCase, savePlaybackPositionUseCase, credentialsManager,
+            settingsManager, trackPreferenceRepository, categoryPreferenceRepository, vodRepository,
+            removeFromContinueWatchingUseCase, mediaRatingRepository, setMediaRatingUseCase)
+        runCurrent()
+
+        viewModel.selectStreamId(42)
+        runCurrent()
+        viewModel.selectStreamId(42)
+        runCurrent()
+
+        verify(getVodDetailsUseCase, times(1)).invoke(42)
+    }
+
+    @Test
+    fun selectingAnotherDetailLoadsTheNewMovie() = runTest(testDispatcher) {
+        whenever(vodRepository.observeAllPlaybackPositions()).thenReturn(flowOf(emptyList()))
+        whenever(mediaRatingRepository.observeRating(any(), eq(RatedMediaType.MOVIE))).thenReturn(flowOf(null))
+        whenever(getVodDetailsUseCase(42)).thenReturn(VodDetails(42, "A", "", "", "", "", "", "", null, "mp4"))
+        whenever(getVodDetailsUseCase(43)).thenReturn(VodDetails(43, "B", "", "", "", "", "", "", null, "mp4"))
+        viewModel = VodViewModel(getVodCategoriesUseCase, getVodCategoryCountsUseCase, getVodStreamsUseCase,
+            getVodDetailsUseCase, getRelatedMoviesUseCase, savePlaybackPositionUseCase, credentialsManager,
+            settingsManager, trackPreferenceRepository, categoryPreferenceRepository, vodRepository,
+            removeFromContinueWatchingUseCase, mediaRatingRepository, setMediaRatingUseCase)
+        runCurrent()
+
+        viewModel.selectStreamId(42)
+        runCurrent()
+        viewModel.selectStreamId(43)
+        runCurrent()
+
+        verify(getVodDetailsUseCase).invoke(43)
+        assertEquals(43, viewModel.state.value.selectedVodDetails?.streamId)
+    }
+
+    @Test
+    fun failedDetailCanBeRetried() = runTest(testDispatcher) {
+        whenever(vodRepository.observeAllPlaybackPositions()).thenReturn(flowOf(emptyList()))
+        whenever(mediaRatingRepository.observeRating(42, RatedMediaType.MOVIE)).thenReturn(flowOf(null))
+        whenever(getVodDetailsUseCase(42)).thenThrow(RuntimeException("offline"))
+            .thenReturn(VodDetails(42, "Recovered", "", "", "", "", "", "", null, "mp4"))
+        viewModel = VodViewModel(getVodCategoriesUseCase, getVodCategoryCountsUseCase, getVodStreamsUseCase,
+            getVodDetailsUseCase, getRelatedMoviesUseCase, savePlaybackPositionUseCase, credentialsManager,
+            settingsManager, trackPreferenceRepository, categoryPreferenceRepository, vodRepository,
+            removeFromContinueWatchingUseCase, mediaRatingRepository, setMediaRatingUseCase)
+        runCurrent()
+
+        viewModel.selectStreamId(42)
+        runCurrent()
+        viewModel.selectStreamId(42)
+        runCurrent()
+
+        verify(getVodDetailsUseCase, times(2)).invoke(42)
+        assertEquals("Recovered", viewModel.state.value.selectedVodDetails?.name)
+    }
 }

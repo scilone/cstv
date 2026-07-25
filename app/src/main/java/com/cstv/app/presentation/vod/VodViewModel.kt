@@ -240,16 +240,21 @@ class VodViewModel @Inject constructor(
         }
     }
 
-    fun selectStream(stream: VodStream?) {
+    fun selectStreamId(streamId: Int?) {
+        val current = _state.value
+        if (streamId != null && current.selectedStreamId == streamId &&
+            (current.isLoadingDetails || current.selectedVodDetails != null)
+        ) return
+
         ratingObservation?.cancel()
-        _state.update { it.copy(selectedStream = stream, selectedVodDetails = null, relatedStreams = emptyList(), mediaRating = null, ratingError = null) }
-        if (stream != null) {
+        _state.update { it.copy(selectedStreamId = streamId, selectedVodDetails = null, relatedStreams = emptyList(), mediaRating = null, ratingError = null) }
+        if (streamId != null) {
             ratingObservation = viewModelScope.launch {
-                mediaRatingRepository.observeRating(stream.streamId, RatedMediaType.MOVIE).collect { rating ->
-                    _state.update { current -> if (current.selectedStream?.streamId == stream.streamId) current.copy(mediaRating = rating) else current }
+                mediaRatingRepository.observeRating(streamId, RatedMediaType.MOVIE).collect { rating ->
+                    _state.update { current -> if (current.selectedStreamId == streamId) current.copy(mediaRating = rating) else current }
                 }
             }
-            loadVodDetails(stream.streamId)
+            loadVodDetails(streamId)
         }
     }
 

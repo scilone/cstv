@@ -10,10 +10,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -52,6 +52,10 @@ import com.cstv.app.presentation.profile.ProfileViewModel
 import com.cstv.app.presentation.profile.ProfileUiState
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.foundation.lazy.LazyListState
+
+// Xtream stream identifiers are positive; this marks an entry reached without
+// its required navigation seed, which is defensively popped below.
+private const val NO_STREAM_ID = -1
 
 @Composable
 fun AppNavGraph(
@@ -121,25 +125,13 @@ fun AppNavGraph(
                 activeProfileName = activeProfile?.name ?: loggedInUser?.username ?: "",
                 lazyListState = homeLazyListState,
                 onNavigateToLiveTv = {
-                    navController.navigate("tv") {
-                        popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                        launchSingleTop = true
-                        restoreState = true
-                    }
+                    navController.navigateToRootTab("tv")
                 },
                 onNavigateToVod = {
-                    navController.navigate("movies") {
-                        popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                        launchSingleTop = true
-                        restoreState = true
-                    }
+                    navController.navigateToRootTab("movies")
                 },
                 onNavigateToSeries = {
-                    navController.navigate("series") {
-                        popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                        launchSingleTop = true
-                        restoreState = true
-                    }
+                    navController.navigateToRootTab("series")
                 },
                 onNavigateToRecentlyAdded = { isSeries ->
                     navController.navigate("recently_added/$isSeries")
@@ -148,11 +140,7 @@ fun AppNavGraph(
                     navController.navigate("favorites")
                 },
                 onNavigateToSearch = {
-                    navController.navigate("search") {
-                        popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                        launchSingleTop = true
-                        restoreState = true
-                    }
+                    navController.navigateToRootTab("search")
                 },
                 onNavigateToSettings = {
                     navController.navigate("settings")
@@ -398,9 +386,14 @@ fun AppNavGraph(
             val vodViewModel: VodViewModel = hiltViewModel()
             val state by vodViewModel.state.collectAsStateWithLifecycle()
             
-            LaunchedEffect(activeVodMovie) {
-                activeVodMovie?.let { 
-                    vodViewModel.selectStream(it)
+            // This value belongs to this back-stack entry. remember would be lost when
+            // NavHost removes A from composition for B, then would reread B on return.
+            val entryStreamId = rememberSaveable { activeVodMovie?.streamId ?: NO_STREAM_ID }
+            LaunchedEffect(entryStreamId) {
+                if (entryStreamId != NO_STREAM_ID) {
+                    vodViewModel.selectStreamId(entryStreamId)
+                } else {
+                    navController.popBackStack()
                 }
             }
 
@@ -470,9 +463,14 @@ fun AppNavGraph(
             val seriesViewModel: SeriesViewModel = hiltViewModel()
             val state by seriesViewModel.state.collectAsStateWithLifecycle()
 
-            LaunchedEffect(activeSeriesShow) {
-                activeSeriesShow?.let { 
-                    seriesViewModel.selectStream(it)
+            // This value belongs to this back-stack entry. remember would be lost when
+            // NavHost removes A from composition for B, then would reread B on return.
+            val entrySeriesId = rememberSaveable { activeSeriesShow?.seriesId ?: NO_STREAM_ID }
+            LaunchedEffect(entrySeriesId) {
+                if (entrySeriesId != NO_STREAM_ID) {
+                    seriesViewModel.selectStreamId(entrySeriesId)
+                } else {
+                    navController.popBackStack()
                 }
             }
 

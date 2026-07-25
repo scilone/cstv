@@ -92,4 +92,67 @@ class SeriesViewModelTest {
         assertEquals(1, state.resumeSeries.size)
         assertEquals(1001, state.resumeSeries[0].seriesId)
     }
+
+    @Test
+    fun selectingAnAlreadyLoadedDetailDoesNotReloadIt() = runTest(testDispatcher) {
+        whenever(vodRepository.observeAllPlaybackPositions()).thenReturn(flowOf(emptyList()))
+        whenever(mediaRatingRepository.observeRating(42, RatedMediaType.SERIES)).thenReturn(flowOf(null))
+        whenever(getSeriesDetailsUseCase(42)).thenReturn(
+            SeriesDetails(42, "Series", null, null, emptyList(), emptyMap())
+        )
+        viewModel = SeriesViewModel(getSeriesCategoriesUseCase, getSeriesCategoryCountsUseCase, getSeriesStreamsUseCase,
+            getSeriesDetailsUseCase, getRelatedSeriesUseCase, savePlaybackPositionUseCase, credentialsManager,
+            settingsManager, trackPreferenceRepository, categoryPreferenceRepository, vodRepository, seriesRepository,
+            removeFromContinueWatchingUseCase, mediaRatingRepository, setMediaRatingUseCase)
+        runCurrent()
+
+        viewModel.selectStreamId(42)
+        runCurrent()
+        viewModel.selectStreamId(42)
+        runCurrent()
+
+        verify(getSeriesDetailsUseCase, times(1)).invoke(42)
+    }
+
+    @Test
+    fun selectingAnotherDetailLoadsTheNewSeries() = runTest(testDispatcher) {
+        whenever(vodRepository.observeAllPlaybackPositions()).thenReturn(flowOf(emptyList()))
+        whenever(mediaRatingRepository.observeRating(any(), eq(RatedMediaType.SERIES))).thenReturn(flowOf(null))
+        whenever(getSeriesDetailsUseCase(42)).thenReturn(SeriesDetails(42, "A", null, null, emptyList(), emptyMap()))
+        whenever(getSeriesDetailsUseCase(43)).thenReturn(SeriesDetails(43, "B", null, null, emptyList(), emptyMap()))
+        viewModel = SeriesViewModel(getSeriesCategoriesUseCase, getSeriesCategoryCountsUseCase, getSeriesStreamsUseCase,
+            getSeriesDetailsUseCase, getRelatedSeriesUseCase, savePlaybackPositionUseCase, credentialsManager,
+            settingsManager, trackPreferenceRepository, categoryPreferenceRepository, vodRepository, seriesRepository,
+            removeFromContinueWatchingUseCase, mediaRatingRepository, setMediaRatingUseCase)
+        runCurrent()
+
+        viewModel.selectStreamId(42)
+        runCurrent()
+        viewModel.selectStreamId(43)
+        runCurrent()
+
+        verify(getSeriesDetailsUseCase).invoke(43)
+        assertEquals(43, viewModel.state.value.selectedSeriesDetails?.seriesId)
+    }
+
+    @Test
+    fun failedDetailCanBeRetried() = runTest(testDispatcher) {
+        whenever(vodRepository.observeAllPlaybackPositions()).thenReturn(flowOf(emptyList()))
+        whenever(mediaRatingRepository.observeRating(42, RatedMediaType.SERIES)).thenReturn(flowOf(null))
+        whenever(getSeriesDetailsUseCase(42)).thenThrow(RuntimeException("offline"))
+            .thenReturn(SeriesDetails(42, "Recovered", null, null, emptyList(), emptyMap()))
+        viewModel = SeriesViewModel(getSeriesCategoriesUseCase, getSeriesCategoryCountsUseCase, getSeriesStreamsUseCase,
+            getSeriesDetailsUseCase, getRelatedSeriesUseCase, savePlaybackPositionUseCase, credentialsManager,
+            settingsManager, trackPreferenceRepository, categoryPreferenceRepository, vodRepository, seriesRepository,
+            removeFromContinueWatchingUseCase, mediaRatingRepository, setMediaRatingUseCase)
+        runCurrent()
+
+        viewModel.selectStreamId(42)
+        runCurrent()
+        viewModel.selectStreamId(42)
+        runCurrent()
+
+        verify(getSeriesDetailsUseCase, times(2)).invoke(42)
+        assertEquals("Recovered", viewModel.state.value.selectedSeriesDetails?.name)
+    }
 }

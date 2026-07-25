@@ -10,7 +10,7 @@ data class SeriesState(
     val categories: List<SeriesCategory> = emptyList(),
     val selectedCategory: SeriesCategory? = null,
     val streams: List<SeriesStream> = emptyList(),
-    val selectedStream: SeriesStream? = null,
+    val selectedStreamId: Int? = null,
     val selectedSeriesDetails: SeriesDetails? = null,
     // Séries associées (mêmes genres) affichées en bas des détails.
     val relatedSeries: List<SeriesStream> = emptyList(),
