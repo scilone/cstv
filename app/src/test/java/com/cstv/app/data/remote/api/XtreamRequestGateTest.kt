@@ -121,6 +121,29 @@ class XtreamRequestGateTest {
     }
 
     @Test
+    fun test_backgroundCalls_neverOverlapEachOther() = runTest {
+        val gate = XtreamRequestGate()
+        var inFlight = 0
+        var maxInFlight = 0
+
+        val jobs = (1..4).map {
+            async {
+                withContext(RequestPriority.background) {
+                    gate.acquire {
+                        inFlight++
+                        maxInFlight = maxOf(maxInFlight, inFlight)
+                        delay(50)
+                        inFlight--
+                    }
+                }
+            }
+        }
+        jobs.forEach { it.await() }
+
+        assertEquals("le trafic de fond doit rester séquentiel", 1, maxInFlight)
+    }
+
+    @Test
     fun test_currentLevel_defaultsToForeground_withoutExplicitContext() = runTest {
         assertEquals(RequestPriority.Level.FOREGROUND, RequestPriority.currentLevel())
     }

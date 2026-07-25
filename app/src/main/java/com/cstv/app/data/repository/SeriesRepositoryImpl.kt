@@ -57,6 +57,13 @@ class SeriesRepositoryImpl @Inject constructor(
         this.enrichmentDispatcher = dispatcher
     }
 
+    /**
+     * Déclenché uniquement après une récupération distante du catalogue (sync
+     * planifié, rafraîchissement explicite), c'est-à-dire quand des séries
+     * viennent d'entrer en base. Le brancher aussi sur les lectures servies
+     * depuis le cache relançait un lot à chaque ouverture de l'onglet Séries ou
+     * changement de catégorie, soit un trafic permanent vers le panel.
+     */
     private fun startBackgroundEnrichment() {
         if (enrichmentJob?.isActive == true) return
         enrichmentJob = repositoryScope.launch {
@@ -228,7 +235,6 @@ class SeriesRepositoryImpl @Inject constructor(
             if (categoryId == "all") {
                 val localStreams = seriesDao.getAllStreams()
                 if (localStreams.isNotEmpty()) {
-                    startBackgroundEnrichment()
                     return localStreams.map {
                         SeriesStream(it.seriesId, it.name, it.cover, it.rating, it.added, it.categoryId, it.genre, it.releaseYear?.takeIf { y -> y > 0 }, it.actors, it.director)
                     }
@@ -236,7 +242,6 @@ class SeriesRepositoryImpl @Inject constructor(
             } else {
                 val localStreams = seriesDao.getStreamsByCategory(categoryId)
                 if (localStreams.isNotEmpty()) {
-                    startBackgroundEnrichment()
                     return localStreams.map {
                         SeriesStream(it.seriesId, it.name, it.cover, it.rating, it.added, it.categoryId, it.genre, it.releaseYear?.takeIf { y -> y > 0 }, it.actors, it.director)
                     }

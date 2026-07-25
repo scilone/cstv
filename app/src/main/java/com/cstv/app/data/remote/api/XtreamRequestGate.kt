@@ -1,6 +1,8 @@
 package com.cstv.app.data.remote.api
 
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
 import javax.inject.Inject
@@ -12,17 +14,21 @@ import javax.inject.Singleton
  * le même compte Xtream, souvent limité à une poignée de connexions
  * concurrentes.
  *
- * Le plafonnement dur (1 requête à la fois) reste assuré par
- * `OkHttpClient.Dispatcher` (voir AppModule) — ce gate ajoute juste une
- * priorité par-dessus : le travail d'arrière-plan cède activement la main
- * tant qu'une requête écran est en cours, au lieu d'entrer en file FIFO
- * neutre avec elle.
+ * Deux garanties ici :
+ * - le travail d'arrière-plan cède activement la main tant qu'une requête écran
+ *   est en cours, au lieu d'entrer en file FIFO neutre avec elle ;
+ * - il ne part **jamais** plus d'une requête d'arrière-plan à la fois, tous
+ *   catalogues confondus. Chaque repository boucle séquentiellement de son
+ *   côté, mais les enrichissements films et séries tournaient en parallèle, et
+ *   en parallèle du sync : sur un compte limité à une connexion, ça suffit à
+ *   faire refuser des requêtes.
  */
 @Singleton
 class XtreamRequestGate @Inject constructor() {
 
     private val activeForegroundCount = AtomicInteger(0)
     private val throttledUntilMs = AtomicLong(0L)
+    private val backgroundLane = Mutex()
 
     // Seam de test : la classe reste injectable sans paramètre.
     internal var nowMs: () -> Long = { System.nanoTime() / 1_000_000 }
@@ -41,8 +47,12 @@ class XtreamRequestGate @Inject constructor() {
 
     suspend fun <T> acquire(block: suspend () -> T): T {
         return if (RequestPriority.currentLevel() == RequestPriority.Level.BACKGROUND) {
-            awaitForegroundClear()
-            block()
+            backgroundLane.withLock {
+                // Re-testé sous le verrou : une requête écran a pu démarrer
+                // pendant l'attente du tour.
+                awaitForegroundClear()
+                block()
+            }
         } else {
             activeForegroundCount.incrementAndGet()
             try {
