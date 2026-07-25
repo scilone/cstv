@@ -118,12 +118,17 @@ private fun buildWrapperHtml(videoId: String, muted: Boolean): String {
     val src = "https://www.youtube.com/embed/$videoId" +
         "?autoplay=1&mute=$muteParam&controls=0&playsinline=1&rel=0&fs=0" +
         "&modestbranding=1&iv_load_policy=3&loop=1&playlist=$videoId&enablejsapi=1"
-    // Overscan vertical : l'iframe déborde de OVERSCAN_PX en haut et en bas, le
-    // conteneur clippe (overflow:hidden). Cache le bandeau de titre/partage (haut)
-    // et toute barre de contrôle (bas) que `controls=0` ne suffit pas à masquer.
-    // pointer-events:none empêche toute interaction avec le lecteur (la navigation
-    // vers la fiche est gérée par un overlay du carrousel).
-    val overscan = OVERSCAN_PX
+    // Rendu "cover" + overscan pour masquer TOUT le chrome YouTube que `controls=0`
+    // ne suffit pas à enlever (titre/partage en haut, barre de contrôle en bas) :
+    // - cover : l'iframe est dimensionnée en 16:9 sur la HAUTEUR du conteneur
+    //   (via vh), donc la vidéo remplit la hauteur sans letterbox ; les côtés
+    //   débordent et sont clippés (overflow:hidden), comme un poster en Crop.
+    //   Sans cela, la vidéo est letterboxée et la barre de contrôle, ancrée au bas
+    //   de la vidéo (au milieu du conteneur), reste visible.
+    // - overscan : OVERSCAN_PX de débordement haut/bas place le chrome hors cadre.
+    // pointer-events:none empêche toute interaction (la navigation fiche passe par
+    // un overlay du carrousel).
+    val h = "calc(100vh + ${OVERSCAN_PX * 2}px)"
     return """
         <!DOCTYPE html>
         <html>
@@ -132,7 +137,13 @@ private fun buildWrapperHtml(videoId: String, muted: Boolean): String {
         <style>
           html,body{margin:0;padding:0;height:100%;width:100%;background:#000;overflow:hidden}
           .wrap{position:fixed;top:0;left:0;right:0;bottom:0;overflow:hidden}
-          iframe{position:absolute;left:0;width:100%;top:-${overscan}px;height:calc(100% + ${overscan * 2}px);border:0;display:block;pointer-events:none}
+          iframe{
+            position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+            height:$h;
+            width:calc($h * 16 / 9);
+            min-width:calc(100vw + ${OVERSCAN_PX * 2}px);
+            border:0;display:block;pointer-events:none;
+          }
         </style>
         </head>
         <body>
