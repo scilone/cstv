@@ -145,7 +145,7 @@ private const val DESKTOP_USER_AGENT =
 // Court cover poster au démarrage : masque juste le flash de chargement/buffering
 // avant que l'image vidéo n'apparaisse. Les contrôles sont déjà supprimés par l'UA
 // desktop + controls=0, donc plus besoin d'attendre leur disparition.
-private const val REVEAL_DELAY_MS = 4500L
+private const val REVEAL_DELAY_MS = 5000L
 
 // Referer externe (non-youtube) présenté à l'IFrame embed. YouTube exige un
 // Referer valide depuis fin 2025 ; toute origine https externe convient pour une
