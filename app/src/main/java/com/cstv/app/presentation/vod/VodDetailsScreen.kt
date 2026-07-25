@@ -417,6 +417,18 @@ private fun MobileLayoutDetails(
 
         Spacer(modifier = Modifier.height(16.dp))
 
+        if (details.isMetadataIncomplete) {
+            Text(
+                text = "Le serveur n'a pas fourni la fiche de ce titre : seules les " +
+                    "informations du catalogue sont affichées. La lecture reste possible.",
+                color = Color(0xFFE0B040),
+                fontSize = 12.sp,
+                lineHeight = 16.sp,
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+        }
+
         ExpandableText(
             text = details.plot,
             fontSize = 13.sp,

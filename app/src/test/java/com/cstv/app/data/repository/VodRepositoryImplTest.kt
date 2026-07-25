@@ -165,6 +165,58 @@ class VodRepositoryImplTest {
 
     // --- 4. DETAILED VOD INFO & RESUME PERSISTENCE TESTS ---
     @Test
+    fun test_getVodDetails_fallsBackOnCachedRow_whenPanelRefusesMetadata() = runTest {
+        val refused = retrofit2.HttpException(
+            retrofit2.Response.error<Any>(
+                403,
+                okhttp3.ResponseBody.Companion.create(null as okhttp3.MediaType?, "")
+            )
+        )
+        whenever(apiService.getVodInfo("username", "password", 777)).thenThrow(refused)
+        whenever(vodDao.getStreamById(777)).thenReturn(
+            VodStreamEntity(
+                streamId = 777,
+                name = "Film bloqué",
+                streamIcon = "cover.jpg",
+                rating = "7.5",
+                added = "1700000000",
+                categoryId = "12",
+                cachedAt = 0L,
+                actors = "Une Actrice",
+                director = "Un Réalisateur",
+                genre = "Drame",
+                releaseYear = 2019
+            )
+        )
+        whenever(vodDao.getPlaybackPosition(777, activeProfileId)).thenReturn(null)
+
+        val result = repository.getVodDetails(777)
+
+        assertEquals("Film bloqué", result.name)
+        assertEquals("Un Réalisateur", result.director)
+        assertEquals("Une Actrice", result.actors)
+        assertEquals("Drame", result.genre)
+        assertEquals("2019", result.releaseDate)
+        assertEquals("cover.jpg", result.coverBig)
+        assertEquals("mp4", result.containerExtension)
+        assertTrue(result.isMetadataIncomplete)
+    }
+
+    @Test(expected = retrofit2.HttpException::class)
+    fun test_getVodDetails_rethrows_whenPanelRefusesAndNothingIsCached() = runTest {
+        val refused = retrofit2.HttpException(
+            retrofit2.Response.error<Any>(
+                403,
+                okhttp3.ResponseBody.Companion.create(null as okhttp3.MediaType?, "")
+            )
+        )
+        whenever(apiService.getVodInfo("username", "password", 778)).thenThrow(refused)
+        whenever(vodDao.getStreamById(778)).thenReturn(null)
+
+        repository.getVodDetails(778)
+    }
+
+    @Test
     fun test_getVodDetails_returnsFullDetailsWithSavedPlaybackPosition() = runTest {
         val infoDto = VodInfoDto(
             name = "Inception",

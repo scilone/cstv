@@ -13,7 +13,13 @@ data class VodDetails(
     val containerExtension: String,
     val resumePositionMs: Long = 0L,
     val durationMs: Long = 0L,
-    val duration: String? = null
+    val duration: String? = null,
+    /**
+     * Fiche reconstruite depuis le catalogue local parce que le panel a refusé
+     * ses métadonnées : les champs manquants sont des repli, pas des valeurs
+     * fournies par le serveur.
+     */
+    val isMetadataIncomplete: Boolean = false
 ) {
     /**
      * Build play URL for VOD / Movie:

@@ -138,6 +138,7 @@ class VodRepositoryImpl @Inject constructor(
         private const val CACHE_EXPIRY_MILLIS = 24 * 60 * 60 * 1000L // 24 hours
         private const val ENRICHMENT_BATCH_SIZE = 50
         private const val ENRICHMENT_REQUEST_SPACING_MS = 500L
+        private const val DEFAULT_CONTAINER_EXTENSION = "mp4"
     }
 
 
@@ -447,11 +448,49 @@ class VodRepositoryImpl @Inject constructor(
             .map { VodStream(it.streamId, it.name, it.streamIcon, it.rating, it.added, it.categoryId, it.genre, it.releaseYear?.takeIf { y -> y > 0 }, it.actors, it.director) }
     }
 
+    /**
+     * Fiche de repli quand le panel refuse les métadonnées : tout ce qui est
+     * connu localement, et une extension de conteneur par défaut puisque seul
+     * `movie_data` la porte. [VodDetails.isMetadataIncomplete] permet à l'écran
+     * de le signaler plutôt que de faire passer les trous pour des vraies valeurs.
+     */
+    private suspend fun cachedVodDetails(
+        cached: com.cstv.app.data.local.entity.VodStreamEntity,
+        streamId: Int
+    ): VodDetails {
+        val savedPosition = vodDao.getPlaybackPosition(streamId, profileManager.currentProfileId())
+        return VodDetails(
+            streamId = streamId,
+            name = cached.name,
+            director = cached.director ?: "Inconnu",
+            actors = cached.actors ?: "Inconnu",
+            releaseDate = cached.releaseYear?.takeIf { it > 0 }?.toString() ?: "Inconnu",
+            genre = cached.genre ?: "Inconnu",
+            plot = "Aucun résumé disponible.",
+            rating = formatRating(cached.rating),
+            coverBig = cached.streamIcon,
+            containerExtension = DEFAULT_CONTAINER_EXTENSION,
+            resumePositionMs = savedPosition?.positionMs ?: 0L,
+            durationMs = savedPosition?.durationMs ?: 0L,
+            isMetadataIncomplete = true
+        )
+    }
+
     override suspend fun getVodDetails(streamId: Int): VodDetails {
         val creds = credentialsManager.getCredentials()
             ?: throw InvalidCredentialsException("Utilisateur non connecté.")
 
-        val response = requestGate.acquire { apiService.getVodInfo(creds.username, creds.password, streamId) }
+        // Certains panels refusent `get_vod_info` sur des titres précis (403
+        // reproductible) alors que le flux reste lisible. La fiche est reconstruite
+        // depuis le catalogue déjà en base plutôt que de rester inaccessible :
+        // c'est la même matière que celle affichée dans la liste.
+        val response = try {
+            requestGate.acquire { apiService.getVodInfo(creds.username, creds.password, streamId) }
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            return vodDao.getStreamById(streamId)?.let { cached -> cachedVodDetails(cached, streamId) }
+                ?: throw e
+        }
         val infoDto = response.info
         val movieDataDto = response.movieData
 
@@ -464,7 +503,7 @@ class VodRepositoryImpl @Inject constructor(
         val plot = infoDto?.plot ?: "Aucun résumé disponible."
         val rating = formatRating(infoDto?.rating ?: infoDto?.rating5)
         val cover = infoDto?.coverBig ?: infoDto?.movieImage
-        val extension = movieDataDto?.containerExtension ?: "mp4"
+        val extension = movieDataDto?.containerExtension ?: DEFAULT_CONTAINER_EXTENSION
         val duration = formatDuration(infoDto?.duration)
 
         // Fetch resume position from local DB if exists
