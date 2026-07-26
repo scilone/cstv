@@ -17,6 +17,14 @@ interface VodRepository {
     suspend fun getCachedVodCategories(): List<VodCategory>
     suspend fun getCachedVodStreams(categoryId: String): List<VodStream>
 
+    /**
+     * Films dont l'année de sortie est l'une de [years], plus ceux dont l'année
+     * n'est pas encore enrichie (l'appariement TMDB sait la lire dans le titre).
+     * Évite de charger et normaliser tout le catalogue pour une poignée
+     * d'années. [years] vide renvoie tout le catalogue.
+     */
+    suspend fun getCachedVodStreamsByYears(years: Set<Int>): List<VodStream>
+
     // --- Écriture : réseau → Room, jamais consommée directement par l'UI ---
     suspend fun syncVodCategories(): List<VodCategory>
     suspend fun syncVodStreams(categoryId: String = "all"): List<VodStream>

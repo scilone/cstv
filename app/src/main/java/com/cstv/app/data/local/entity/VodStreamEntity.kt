@@ -1,9 +1,13 @@
 package com.cstv.app.data.local.entity
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "vod_streams")
+// L'index sur releaseYear sert l'appariement TMDB : la requête ne remonte que
+// les films de l'année cherchée plus ceux dont l'année n'est pas encore connue,
+// au lieu de charger et normaliser tout le catalogue (T-B15).
+@Entity(tableName = "vod_streams", indices = [Index(value = ["releaseYear"])])
 data class VodStreamEntity(
     @PrimaryKey val streamId: Int,
     val name: String,

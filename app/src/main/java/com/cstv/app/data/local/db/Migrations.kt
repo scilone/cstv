@@ -391,4 +391,22 @@ val MIGRATION_17_18 = object : Migration(17, 18) {
     }
 }
 
-val ALL_MIGRATIONS = arrayOf(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18)
+/**
+ * MIGRATION_18_19 (appariement TMDB par année) : index sur `releaseYear` des
+ * tables `vod_streams` et `series_streams`. L'appariement des tendances ne
+ * charge plus tout le catalogue mais seulement les titres de l'année cherchée
+ * et ceux dont l'année n'est pas encore enrichie.
+ *
+ * Purement additif : aucun changement de colonne ni de clé primaire, donc
+ * aucune recopie de table. Les noms d'index reprennent la convention Room
+ * (`index_<table>_<colonne>`), sans quoi la validation de schéma échouerait au
+ * premier accès.
+ */
+val MIGRATION_18_19 = object : Migration(18, 19) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_vod_streams_releaseYear ON vod_streams(releaseYear)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_series_streams_releaseYear ON series_streams(releaseYear)")
+    }
+}
+
+val ALL_MIGRATIONS = arrayOf(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19)

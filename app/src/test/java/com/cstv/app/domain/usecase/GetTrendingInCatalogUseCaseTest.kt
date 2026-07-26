@@ -51,8 +51,8 @@ class GetTrendingInCatalogUseCaseTest {
         val series = listOf(
             SeriesStream(seriesId = 20, name = "Breaking Bad Complete", cover = "cover", rating = "9.0", added = "12345", categoryId = "cat_series", releaseYear = 2008)
         )
-        whenever(vodRepository.getCachedVodStreams(eq("all"))).thenReturn(movies)
-        whenever(seriesRepository.getCachedSeriesStreams(eq("all"))).thenReturn(series)
+        whenever(vodRepository.getCachedVodStreamsByYears(any())).thenReturn(movies)
+        whenever(seriesRepository.getCachedSeriesStreamsByYears(any())).thenReturn(series)
 
         // Mock existence revalidation
         whenever(vodRepository.getStreamById(10)).thenReturn(movies[0])
@@ -105,8 +105,8 @@ class GetTrendingInCatalogUseCaseTest {
         val movies = listOf(
             VodStream(streamId = 10, name = "Inception", streamIcon = "icon", rating = "9.0", added = "12345", categoryId = "hidden_category", releaseYear = 2010)
         )
-        whenever(vodRepository.getCachedVodStreams(eq("all"))).thenReturn(movies)
-        whenever(seriesRepository.getCachedSeriesStreams(eq("all"))).thenReturn(emptyList())
+        whenever(vodRepository.getCachedVodStreamsByYears(any())).thenReturn(movies)
+        whenever(seriesRepository.getCachedSeriesStreamsByYears(any())).thenReturn(emptyList())
 
         // Mock existence revalidation
         whenever(vodRepository.getStreamById(10)).thenReturn(movies[0])
@@ -193,8 +193,8 @@ class GetTrendingInCatalogUseCaseTest {
             VodStream(streamId = 101, name = "|PT| Inception", streamIcon = "icon", rating = "9.0", added = "12345", categoryId = "cat_pt", releaseYear = 2010),
             VodStream(streamId = 102, name = "|FR| Inception", streamIcon = "icon", rating = "9.0", added = "12345", categoryId = "cat_fr", releaseYear = 2010)
         )
-        whenever(vodRepository.getCachedVodStreams(eq("all"))).thenReturn(movies)
-        whenever(seriesRepository.getCachedSeriesStreams(eq("all"))).thenReturn(emptyList())
+        whenever(vodRepository.getCachedVodStreamsByYears(any())).thenReturn(movies)
+        whenever(seriesRepository.getCachedSeriesStreamsByYears(any())).thenReturn(emptyList())
 
         // Mock existence revalidation
         whenever(vodRepository.getStreamById(101)).thenReturn(movies[0])
@@ -244,8 +244,8 @@ class GetTrendingInCatalogUseCaseTest {
         whenever(trendingRepository.getTrending()).thenReturn(trends)
 
         val movies = listOf(VodStream(streamId = 10, name = "Inception", streamIcon = "icon", rating = "9.0", added = "12345", categoryId = "cat_movies", releaseYear = 2010))
-        whenever(vodRepository.getCachedVodStreams(eq("all"))).thenReturn(movies)
-        whenever(seriesRepository.getCachedSeriesStreams(eq("all"))).thenReturn(emptyList())
+        whenever(vodRepository.getCachedVodStreamsByYears(any())).thenReturn(movies)
+        whenever(seriesRepository.getCachedSeriesStreamsByYears(any())).thenReturn(emptyList())
         
         // Mock existence revalidation
         whenever(vodRepository.getStreamById(10)).thenReturn(movies[0])
@@ -284,8 +284,8 @@ class GetTrendingInCatalogUseCaseTest {
 
         val oldDune = VodStream(1, "Dune", null, null, null, "movies", releaseYear = 1984)
         val newDune = VodStream(2, "Dune", null, null, null, "movies", releaseYear = 2021)
-        whenever(vodRepository.getCachedVodStreams(eq("all"))).thenReturn(listOf(oldDune, newDune))
-        whenever(seriesRepository.getCachedSeriesStreams(eq("all"))).thenReturn(emptyList())
+        whenever(vodRepository.getCachedVodStreamsByYears(any())).thenReturn(listOf(oldDune, newDune))
+        whenever(seriesRepository.getCachedSeriesStreamsByYears(any())).thenReturn(emptyList())
         whenever(vodRepository.getStreamById(2)).thenReturn(newDune)
         whenever(categoryPreferenceRepository.getPreferences(any())).thenReturn(emptyMap())
 
@@ -326,8 +326,8 @@ class GetTrendingInCatalogUseCaseTest {
         val unenrichedSeries = SeriesStream(1, "Dune", null, null, null, "series", releaseYear = null)
         val datedSeries = SeriesStream(2, "Dune", null, null, null, "series", releaseYear = 2021)
 
-        whenever(vodRepository.getCachedVodStreams(eq("all"))).thenReturn(listOf(unenrichedMovie, datedMovie))
-        whenever(seriesRepository.getCachedSeriesStreams(eq("all"))).thenReturn(listOf(unenrichedSeries, datedSeries))
+        whenever(vodRepository.getCachedVodStreamsByYears(any())).thenReturn(listOf(unenrichedMovie, datedMovie))
+        whenever(seriesRepository.getCachedSeriesStreamsByYears(any())).thenReturn(listOf(unenrichedSeries, datedSeries))
         whenever(vodRepository.getStreamById(2)).thenReturn(datedMovie)
         whenever(seriesRepository.getStreamById(2)).thenReturn(datedSeries)
         whenever(categoryPreferenceRepository.getPreferences(any())).thenReturn(emptyMap())
@@ -361,8 +361,8 @@ class GetTrendingInCatalogUseCaseTest {
         whenever(trendingRepository.getTrending()).thenReturn(
             listOf(TrendingTitle(1, "Dune", isMovie = true, year = 2021, posterUrl = null))
         )
-        whenever(vodRepository.getCachedVodStreams(eq("all"))).thenReturn(listOf(datedHidden, datedVisible))
-        whenever(seriesRepository.getCachedSeriesStreams(eq("all"))).thenReturn(emptyList())
+        whenever(vodRepository.getCachedVodStreamsByYears(any())).thenReturn(listOf(datedHidden, datedVisible))
+        whenever(seriesRepository.getCachedSeriesStreamsByYears(any())).thenReturn(emptyList())
         whenever(vodRepository.getStreamById(1)).thenReturn(datedHidden)
         whenever(vodRepository.getStreamById(2)).thenReturn(datedVisible)
         whenever(preferences.getPreferences(CategoryType.VOD)).thenReturn(
@@ -397,8 +397,8 @@ class GetTrendingInCatalogUseCaseTest {
 
         val movie = VodStream(42, "Inception", null, null, null, "movies", releaseYear = 2010)
         val series = SeriesStream(42, "Breaking Bad", null, null, null, "series", releaseYear = 2008)
-        whenever(vodRepository.getCachedVodStreams(eq("all"))).thenReturn(listOf(movie))
-        whenever(seriesRepository.getCachedSeriesStreams(eq("all"))).thenReturn(listOf(series))
+        whenever(vodRepository.getCachedVodStreamsByYears(any())).thenReturn(listOf(movie))
+        whenever(seriesRepository.getCachedSeriesStreamsByYears(any())).thenReturn(listOf(series))
         whenever(vodRepository.getStreamById(42)).thenReturn(movie)
         whenever(seriesRepository.getStreamById(42)).thenReturn(series)
         whenever(categoryPreferenceRepository.getPreferences(any())).thenReturn(emptyMap())
@@ -414,6 +414,41 @@ class GetTrendingInCatalogUseCaseTest {
         assertEquals(2, result.size)
         assertEquals(42, result[0].matchedMovie?.streamId)
         assertEquals(42, result[1].matchedSeries?.seriesId)
+    }
+
+    @Test
+    fun test_useCase_queriesCatalogOnlyForTrendingYears() = runTest {
+        val trendingRepository = mock<TrendingRepository>()
+        val vodRepository = mock<VodRepository>()
+        val seriesRepository = mock<SeriesRepository>()
+        val categoryPreferenceRepository = mock<CategoryPreferenceRepository>()
+        val catalogFreshness = mock<com.cstv.app.data.sync.CatalogFreshness>()
+        whenever(catalogFreshness.vodSyncedAt()).thenReturn(0L)
+        whenever(catalogFreshness.seriesSyncedAt()).thenReturn(0L)
+        whenever(trendingRepository.getCachedMatchedTrendsGlobal(0L)).thenReturn(null)
+        whenever(trendingRepository.getTrending()).thenReturn(
+            listOf(
+                TrendingTitle(1, "Dune", isMovie = true, year = 2021, posterUrl = null),
+                TrendingTitle(2, "Inception", isMovie = true, year = 2010, posterUrl = null),
+                TrendingTitle(3, "Breaking Bad", isMovie = false, year = 2008, posterUrl = null),
+                // Année inconnue : ne doit pas élargir la requête.
+                TrendingTitle(4, "Sans année", isMovie = true, year = null, posterUrl = null)
+            )
+        )
+        whenever(vodRepository.getCachedVodStreamsByYears(any())).thenReturn(emptyList())
+        whenever(seriesRepository.getCachedSeriesStreamsByYears(any())).thenReturn(emptyList())
+        whenever(categoryPreferenceRepository.getPreferences(any())).thenReturn(emptyMap())
+
+        GetTrendingInCatalogUseCase(
+            trendingRepository,
+            vodRepository,
+            seriesRepository,
+            categoryPreferenceRepository,
+            catalogFreshness
+        )()
+
+        verify(vodRepository).getCachedVodStreamsByYears(setOf(2021, 2010))
+        verify(seriesRepository).getCachedSeriesStreamsByYears(setOf(2008))
     }
 
     @Test

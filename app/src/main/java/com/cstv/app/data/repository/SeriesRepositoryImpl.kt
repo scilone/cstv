@@ -216,6 +216,10 @@ class SeriesRepositoryImpl @Inject constructor(
         (if (categoryId == ALL_CATEGORIES) seriesDao.getAllStreams() else seriesDao.getStreamsByCategory(categoryId))
             .map { it.toDomain() }
 
+    override suspend fun getCachedSeriesStreamsByYears(years: Set<Int>): List<SeriesStream> =
+        if (years.isEmpty()) getCachedSeriesStreams(ALL_CATEGORIES)
+        else seriesDao.getStreamsByReleaseYears(years.toList()).map { it.toDomain() }
+
     // --- Écriture (synchronisation) ---
 
     override suspend fun syncSeriesCategories(): List<SeriesCategory> {

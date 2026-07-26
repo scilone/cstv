@@ -76,7 +76,9 @@ class GetPopularTop10InCatalogUseCase @Inject constructor(
     private suspend fun buildMovieMatches(): List<PopularCatalogItem> {
         val popular = popularRepository.getPopularMovies()
         if (popular.isEmpty()) return emptyList()
-        val streams = vodRepository.getCachedVodStreams("all")
+        // Seules les années des titres TMDB peuvent produire un match (année
+        // exacte obligatoire), les autres lignes seraient normalisées pour rien.
+        val streams = vodRepository.getCachedVodStreamsByYears(popular.mapNotNull { it.year }.toSet())
         return withContext(Dispatchers.Default) {
             match(popular, TmdbCatalogMatcher.prepareMovies(streams)) { it.streamId }
         }
@@ -85,7 +87,7 @@ class GetPopularTop10InCatalogUseCase @Inject constructor(
     private suspend fun buildSeriesMatches(): List<PopularCatalogItem> {
         val popular = popularRepository.getPopularSeries()
         if (popular.isEmpty()) return emptyList()
-        val streams = seriesRepository.getCachedSeriesStreams("all")
+        val streams = seriesRepository.getCachedSeriesStreamsByYears(popular.mapNotNull { it.year }.toSet())
         return withContext(Dispatchers.Default) {
             match(popular, TmdbCatalogMatcher.prepareSeries(streams)) { it.seriesId }
         }

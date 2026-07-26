@@ -274,6 +274,10 @@ class VodRepositoryImpl @Inject constructor(
         (if (categoryId == ALL_CATEGORIES) vodDao.getAllStreams() else vodDao.getStreamsByCategory(categoryId))
             .map { it.toDomain() }
 
+    override suspend fun getCachedVodStreamsByYears(years: Set<Int>): List<VodStream> =
+        if (years.isEmpty()) getCachedVodStreams(ALL_CATEGORIES)
+        else vodDao.getStreamsByReleaseYears(years.toList()).map { it.toDomain() }
+
     override suspend fun syncVodCategories(): List<VodCategory> {
         val currentTime = System.currentTimeMillis()
         val creds = credentialsManager.getCredentials()

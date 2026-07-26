@@ -1,9 +1,11 @@
 package com.cstv.app.data.local.entity
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "series_streams")
+// Voir VodStreamEntity : index dédié à l'appariement TMDB par année.
+@Entity(tableName = "series_streams", indices = [Index(value = ["releaseYear"])])
 data class SeriesStreamEntity(
     @PrimaryKey val seriesId: Int,
     val name: String,

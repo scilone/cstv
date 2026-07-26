@@ -44,6 +44,15 @@ interface SeriesDao {
     @Query("SELECT * FROM series_streams WHERE categoryId = :categoryId ORDER BY orderIndex ASC")
     suspend fun getStreamsByCategory(categoryId: String): List<SeriesStreamEntity>
 
+    // Voir VodDao.getStreamsByReleaseYears : les séries sans année connue sont
+    // conservées pour laisser TmdbCatalogMatcher lire l'année dans le titre.
+    @Query(
+        "SELECT * FROM series_streams " +
+            "WHERE releaseYear IS NULL OR releaseYear <= 0 OR releaseYear IN (:years) " +
+            "ORDER BY orderIndex ASC"
+    )
+    suspend fun getStreamsByReleaseYears(years: List<Int>): List<SeriesStreamEntity>
+
     @Query("SELECT * FROM series_streams WHERE categoryId = :categoryId ORDER BY orderIndex ASC")
     fun observeStreamsByCategory(categoryId: String): Flow<List<SeriesStreamEntity>>
 

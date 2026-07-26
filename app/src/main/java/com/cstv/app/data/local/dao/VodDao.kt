@@ -43,6 +43,16 @@ interface VodDao {
     @Query("SELECT * FROM vod_streams WHERE categoryId = :categoryId ORDER BY orderIndex ASC")
     suspend fun getStreamsByCategory(categoryId: String): List<VodStreamEntity>
 
+    // Appariement TMDB : on garde aussi les films sans année connue (NULL ou
+    // sentinelle 0), car TmdbCatalogMatcher sait encore lire l'année dans le
+    // titre ("Odyssée (2016) 1080p") quand l'enrichissement n'est pas passé.
+    @Query(
+        "SELECT * FROM vod_streams " +
+            "WHERE releaseYear IS NULL OR releaseYear <= 0 OR releaseYear IN (:years) " +
+            "ORDER BY orderIndex ASC"
+    )
+    suspend fun getStreamsByReleaseYears(years: List<Int>): List<VodStreamEntity>
+
     @Query("SELECT * FROM vod_streams WHERE categoryId = :categoryId ORDER BY orderIndex ASC")
     fun observeStreamsByCategory(categoryId: String): Flow<List<VodStreamEntity>>
 

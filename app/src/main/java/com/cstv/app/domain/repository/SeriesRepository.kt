@@ -16,6 +16,9 @@ interface SeriesRepository {
     suspend fun getCachedSeriesCategories(): List<SeriesCategory>
     suspend fun getCachedSeriesStreams(categoryId: String): List<SeriesStream>
 
+    /** Voir [VodRepository.getCachedVodStreamsByYears]. */
+    suspend fun getCachedSeriesStreamsByYears(years: Set<Int>): List<SeriesStream>
+
     // --- Écriture : réseau → Room, jamais consommée directement par l'UI ---
     suspend fun syncSeriesCategories(): List<SeriesCategory>
     suspend fun syncSeriesStreams(categoryId: String = "all"): List<SeriesStream>

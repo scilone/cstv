@@ -87,10 +87,15 @@ class GetTrendingInCatalogUseCase @Inject constructor(
             trendingList.joinToString { "[${if (it.isMovie) "Movie" else "Series"}] '${it.title}' (${it.year})" }
         )
 
-        // Fetch ALL local catalog items (without filtering hidden categories yet)
+        // Ne charger que les années utiles (plus les titres non encore enrichis)
+        // au lieu de tout le catalogue : l'appariement exige désormais l'année
+        // exacte, tout le reste serait normalisé pour rien.
+        val movieYears = trendingList.filter { it.isMovie }.mapNotNull { it.year }.toSet()
+        val seriesYears = trendingList.filterNot { it.isMovie }.mapNotNull { it.year }.toSet()
+
         val allMovies = try {
-            val list = vodRepository.getCachedVodStreams("all")
-            com.cstv.app.di.IptvLog.d("TMDB", "📦 Loaded ${list.size} movies from local database cache.")
+            val list = vodRepository.getCachedVodStreamsByYears(movieYears)
+            com.cstv.app.di.IptvLog.d("TMDB", "📦 Loaded ${list.size} movies from local database cache (années ${movieYears.sorted()}).")
             list
         } catch (e: Exception) {
             if (e is CancellationException) throw e
@@ -99,8 +104,8 @@ class GetTrendingInCatalogUseCase @Inject constructor(
         }
 
         val allSeries = try {
-            val list = seriesRepository.getCachedSeriesStreams("all")
-            com.cstv.app.di.IptvLog.d("TMDB", "📦 Loaded ${list.size} series from local database cache.")
+            val list = seriesRepository.getCachedSeriesStreamsByYears(seriesYears)
+            com.cstv.app.di.IptvLog.d("TMDB", "📦 Loaded ${list.size} series from local database cache (années ${seriesYears.sorted()}).")
             list
         } catch (e: Exception) {
             if (e is CancellationException) throw e

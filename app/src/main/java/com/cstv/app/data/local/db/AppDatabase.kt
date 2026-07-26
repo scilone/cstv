@@ -58,7 +58,7 @@ import com.cstv.app.data.local.entity.SeriesEpisodeEntity
         SeriesSeasonEntity::class,
         SeriesEpisodeEntity::class
     ],
-    version = 18,
+    version = 19,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
