@@ -8,11 +8,9 @@ import com.cstv.app.di.TmdbApiKey
 import com.cstv.app.domain.model.TrailerMedia
 import com.cstv.app.domain.model.TrailerPreview
 import com.cstv.app.domain.model.TrailerSource
-import com.cstv.app.domain.model.TrailerLookupMatcher
 import com.cstv.app.domain.repository.TrailerRepository
 import com.cstv.app.data.local.dao.TrailerCacheDao
 import com.cstv.app.data.local.entity.TrailerCacheEntity
-import com.cstv.app.domain.model.TitleNormalizer
 import java.net.URI
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -93,9 +91,14 @@ class TrailerRepositoryImpl @Inject constructor(
         runCatching { trailerCacheDao.delete(media.cacheKey().mediaType, media.catalogId) }
     }
 
+    // Pas de recherche TMDB par titre : deviner le tmdbId d'un média IPTV à
+    // partir de son titre est trop peu fiable pour le coût (un appel de
+    // recherche par média, en plus de celui des vidéos). Seul un tmdbId déjà
+    // connu (Accueil, ou résolu et mis en cache par une session antérieure)
+    // déclenche l'unique appel `videos`.
     private suspend fun tmdbFallback(media: TrailerMedia, cachedTmdbId: Int? = null): Resolution {
         if (tmdbApiKey.isBlank()) return Resolution(null, null, false)
-        val tmdbId = media.tmdbId ?: cachedTmdbId ?: resolveTmdbId(media) ?: return Resolution(null, null, true)
+        val tmdbId = media.tmdbId ?: cachedTmdbId ?: return Resolution(null, null, true)
         val videos = when (media) {
             is TrailerMedia.Movie -> tmdbApiService.getMovieVideos(tmdbId, tmdbApiKey).results
             is TrailerMedia.Series -> tmdbApiService.getSeriesVideos(tmdbId, tmdbApiKey).results
@@ -103,19 +106,6 @@ class TrailerRepositoryImpl @Inject constructor(
         val video = videos.firstOrNull { it.site.equals("YouTube", true) && it.type.equals("Trailer", true) && it.official == true }
             ?: videos.firstOrNull { it.site.equals("YouTube", true) && it.type.equals("Trailer", true) }
         return Resolution(normalizeYouTubeId(video?.key)?.toPreview(media), tmdbId, true)
-    }
-
-    private suspend fun resolveTmdbId(media: TrailerMedia): Int? {
-        val title = media.title ?: return null
-        if (tmdbApiKey.isBlank()) return null
-        val results = when (media) {
-            is TrailerMedia.Movie -> tmdbApiService.searchMovies(TitleNormalizer.normalize(title), tmdbApiKey, media.releaseYear).results
-            is TrailerMedia.Series -> tmdbApiService.searchSeries(TitleNormalizer.normalize(title), tmdbApiKey, media.releaseYear).results
-        }.orEmpty()
-        return TrailerLookupMatcher.select(title, media.releaseYear, results.mapNotNull { item ->
-            val id = item.id?.toString()?.toIntOrNull() ?: return@mapNotNull null
-            TrailerLookupMatcher.Candidate(id, item.title ?: item.name, (item.releaseDate ?: item.firstAirDate)?.take(4)?.toIntOrNull())
-        })?.id
     }
 
     private fun String.toPreview(media: TrailerMedia) = TrailerPreview(media, TrailerSource.YouTube(this))

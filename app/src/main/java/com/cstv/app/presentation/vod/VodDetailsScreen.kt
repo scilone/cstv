@@ -86,9 +86,7 @@ fun VodDetailsScreen(
     onTrailerEnded: () -> Unit = {},
     onTrailerFailed: (TrailerMedia) -> Unit = {}
 ) {
-    val trailerMedia = remember(details.streamId, details.name, details.releaseDate) {
-        TrailerMedia.Movie(details.streamId, title = details.name, releaseYear = extractReleaseYear(details.releaseDate))
-    }
+    val trailerMedia = remember(details.streamId) { TrailerMedia.Movie(details.streamId) }
     var trailerMuted by remember(trailerMedia) { mutableStateOf(true) }
     val snackbarHostState = remember { SnackbarHostState() }
     LaunchedEffect(ratingError) { ratingError?.let { snackbarHostState.showSnackbar(it); onConsumeRatingError() } }
@@ -156,7 +154,9 @@ fun VodDetailsScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 24.dp)
-                    .padding(top = if (showTrailerHero) 16.dp else 24.dp, bottom = 24.dp)
+                    // 20 dp : même respiration que le Spacer qui suit l'affiche
+                    // sur une fiche sans trailer, pour ne pas décaler le titre.
+                    .padding(top = if (showTrailerHero) 20.dp else 24.dp, bottom = 24.dp)
             ) {
             // Back Button
             if (!showTrailerHero) {
@@ -240,9 +240,6 @@ fun VodDetailsScreen(
         SnackbarHost(hostState = snackbarHostState, modifier = Modifier.align(Alignment.BottomCenter))
     }
 }
-
-private fun extractReleaseYear(value: String?): Int? =
-    Regex("(?:19|20)\\d{2}").find(value.orEmpty())?.value?.toIntOrNull()
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable

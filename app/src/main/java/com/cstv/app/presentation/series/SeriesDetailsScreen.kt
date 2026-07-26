@@ -90,9 +90,7 @@ fun SeriesDetailsScreen(
     onTrailerEnded: () -> Unit = {},
     onTrailerFailed: (TrailerMedia) -> Unit = {}
 ) {
-    val trailerMedia = remember(details.seriesId, details.name, details.releaseDate) {
-        TrailerMedia.Series(details.seriesId, title = details.name, releaseYear = Regex("(?:19|20)\\d{2}").find(details.releaseDate.orEmpty())?.value?.toIntOrNull())
-    }
+    val trailerMedia = remember(details.seriesId) { TrailerMedia.Series(details.seriesId) }
     var trailerMuted by remember(trailerMedia) { mutableStateOf(true) }
     val snackbarHostState = remember { SnackbarHostState() }
     LaunchedEffect(ratingError) { ratingError?.let { snackbarHostState.showSnackbar(it); onConsumeRatingError() } }
@@ -164,7 +162,9 @@ fun SeriesDetailsScreen(
                     .fillMaxWidth()
                     .weight(1f)
                     .padding(horizontal = 24.dp)
-                    .padding(top = if (showTrailerHero) 16.dp else 24.dp, bottom = 24.dp)
+                    // 20 dp : même respiration que le Spacer qui suit l'affiche
+                    // sur une fiche sans trailer, pour ne pas décaler le titre.
+                    .padding(top = if (showTrailerHero) 20.dp else 24.dp, bottom = 24.dp)
             ) {
             // Header with Back action
             if (!showTrailerHero) {

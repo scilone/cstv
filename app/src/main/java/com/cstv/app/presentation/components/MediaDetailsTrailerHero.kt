@@ -2,9 +2,9 @@ package com.cstv.app.presentation.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -26,12 +26,22 @@ import androidx.compose.ui.unit.dp
 import com.cstv.app.domain.model.TrailerMedia
 
 /**
- * Bandeau de tête des fiches de détail **mobile** : le trailer occupe toute la
- * largeur au format natif 16:9, au-dessus du titre du média.
+ * Hauteur de la zone de tête, calée sur le bloc affiche qu'elle remplace
+ * (marges + affiche 270 dp) : le titre reste ainsi à la même hauteur qu'une
+ * fiche sans trailer, sans vide entre la vidéo et le texte.
+ *
+ * Volontairement plus haute qu'un 16:9 : le lecteur recadre alors la vidéo en
+ * « cover » (débordement latéral clippé), comme le carrousel de l'Accueil.
+ */
+val MediaDetailsTrailerHeroHeight = 360.dp
+
+/**
+ * Zone de tête des fiches de détail **mobile** : le trailer occupe toute la
+ * largeur jusqu'au titre du média.
  *
  * Remplace l'affiche centrée tant qu'un trailer est disponible — l'affiche
- * recadrée en bandeau reste visible pendant la phase de couverture du lecteur,
- * puis s'efface en fondu sur la vidéo.
+ * recadrée reste visible pendant la phase de couverture du lecteur, puis
+ * s'efface en fondu sur la vidéo.
  *
  * Le bouton Son n'apparaît qu'une fois la vidéo réellement révélée : pendant la
  * couverture, il n'y a encore rien à écouter. Même règle que le carrousel de
@@ -58,7 +68,7 @@ fun MediaDetailsTrailerHero(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .aspectRatio(16f / 9f)
+            .height(MediaDetailsTrailerHeroHeight)
             .background(Color.Black)
     ) {
         MediaDetailsTrailerBackdrop(
