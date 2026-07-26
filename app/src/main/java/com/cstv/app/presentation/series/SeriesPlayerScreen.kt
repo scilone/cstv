@@ -637,7 +637,9 @@ fun SeriesPlayerScreen(
         ) {
             val hasMultipleAudio = availableAudioTracks.size > 1
             val hasSubtitles = availableSubtitleTracks.isNotEmpty()
-            val episodeLabel = "S%02dE%02d".format(currentEpisode.seasonNum, currentEpisode.episodeNum)
+            val episodeLabel = com.cstv.app.domain.model.EpisodeLabel
+                .format(currentEpisode.seasonNum, currentEpisode.episodeNum)
+                .orEmpty()
 
             PlayerOverlayGradients(topHeight = 120.dp, bottomHeight = 220.dp)
 

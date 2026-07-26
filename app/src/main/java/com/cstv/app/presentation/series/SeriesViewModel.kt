@@ -354,8 +354,12 @@ class SeriesViewModel @Inject constructor(
         seriesCover: String?
     ) {
         viewModelScope.launch {
-            // Format the title as: Series Name - SxxEyy Episode Title
-            val title = "$seriesName - S${episode.seasonNum}E${episode.episodeNum} ${episode.title}"
+            // Format the title as: Series Name - S01 E03 Episode Title
+            val episodeLabel = com.cstv.app.domain.model.EpisodeLabel
+                .format(episode.seasonNum, episode.episodeNum)
+                ?.plus(" ")
+                .orEmpty()
+            val title = "$seriesName - $episodeLabel${episode.title}"
             val coverUrl = seriesCover
             val type = "series"
             val containerExtension = episode.containerExtension

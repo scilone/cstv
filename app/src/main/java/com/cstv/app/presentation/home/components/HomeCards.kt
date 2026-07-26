@@ -1,7 +1,7 @@
 package com.cstv.app.presentation.home.components
 import com.cstv.app.R
 import androidx.compose.ui.res.stringResource
-import java.util.Locale
+import com.cstv.app.domain.model.EpisodeLabel
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -57,9 +57,8 @@ fun HomeHeroCard(
     } else 0f
 
     val subtitle = if (position.type == "series") {
-        val s = position.seasonNum ?: 1
-        val e = position.episodeNum ?: 1
-        "S$s E$e" + if (!position.duration.isNullOrBlank()) " · ${position.duration}" else ""
+        val episodeLabel = EpisodeLabel.format(position.seasonNum ?: 1, position.episodeNum ?: 1)
+        episodeLabel + if (!position.duration.isNullOrBlank()) " · ${position.duration}" else ""
     } else {
         if (!position.duration.isNullOrBlank()) position.duration else "Film"
     }
@@ -258,10 +257,10 @@ fun HomeResumeWatchingCard(
         position.positionMs.toFloat() / position.durationMs.toFloat()
     } else 0f
 
-    // Phase 55 : ligne meta = "S{n} E{n} · {temps restant}" en accent, sous le titre.
+    // Phase 55 : ligne meta = "S01 E03 · {temps restant}" en accent, sous le titre.
     val metaText = buildString {
-        if (position.type == "series" && position.seasonNum != null && position.episodeNum != null) {
-            append("S${position.seasonNum} E${position.episodeNum}")
+        if (position.type == "series") {
+            EpisodeLabel.format(position.seasonNum, position.episodeNum)?.let { append(it) }
         }
         if (position.durationMs > 0) {
             val remainingMs = (position.durationMs - position.positionMs).coerceAtLeast(0L)
@@ -694,9 +693,12 @@ fun HomeDownloadCard(
         // Épisode : repère saison/épisode en haut à gauche, au même style
         // d'étiquette neutre que le badge de type des favoris. Le titre n'est
         // pas répété sur la vignette, l'affiche suffit à identifier le média.
-        if (item.type == DownloadedItem.TYPE_EPISODE && item.seasonNum != null && item.episodeNum != null) {
+        val episodeLabel = if (item.type == DownloadedItem.TYPE_EPISODE) {
+            EpisodeLabel.format(item.seasonNum, item.episodeNum)
+        } else null
+        if (episodeLabel != null) {
             HomeMediaTypeBadge(
-                label = String.format(Locale.ROOT, "S%02d E%02d", item.seasonNum, item.episodeNum),
+                label = episodeLabel,
                 fontSize = 8.sp,
                 fontWeight = FontWeight.Bold,
                 contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp),

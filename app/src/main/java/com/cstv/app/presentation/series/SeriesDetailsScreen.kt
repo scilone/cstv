@@ -384,7 +384,11 @@ private fun TvLayout(
                             Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Color.White)
                             Spacer(modifier = Modifier.width(6.dp))
                             TvText(
-                                text = if (hasResume) "REPRENDRE : S${resumeEpisode!!.seasonNum}E${resumeEpisode.episodeNum}" else "LIRE LA SÉRIE",
+                                text = if (hasResume) {
+                                    "REPRENDRE : " + com.cstv.app.domain.model.EpisodeLabel
+                                        .format(resumeEpisode!!.seasonNum, resumeEpisode.episodeNum)
+                                        .orEmpty()
+                                } else "LIRE LA SÉRIE",
                                 fontWeight = FontWeight.Bold,
                                 style = TvTheme.typography.labelMedium,
                                 color = Color.White
@@ -585,7 +589,11 @@ private fun MobileLayout(
                     Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Color.White)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = if (hasResume) "REPRENDRE : S${resumeEpisode!!.seasonNum}E${resumeEpisode.episodeNum}" else "LIRE LA SÉRIE",
+                        text = if (hasResume) {
+                            "REPRENDRE : " + com.cstv.app.domain.model.EpisodeLabel
+                                .format(resumeEpisode!!.seasonNum, resumeEpisode.episodeNum)
+                                .orEmpty()
+                        } else "LIRE LA SÉRIE",
                         color = Color.White,
                         fontWeight = FontWeight.Bold,
                         fontSize = 13.sp
