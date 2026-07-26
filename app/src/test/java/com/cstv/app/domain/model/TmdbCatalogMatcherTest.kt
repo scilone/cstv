@@ -28,46 +28,64 @@ class TmdbCatalogMatcherTest {
     }
 
     @Test
-    fun findBestMatches_acceptsYearDifferencesFromMinusOneToPlusOne() {
-        listOf(2023, 2024, 2025).forEach { iptvYear ->
-            val movie = movie(id = iptvYear, name = "Dune", year = iptvYear)
-
+    fun findBestMatches_requiresExactYear_andRejectsPlusOrMinusOne() {
+        listOf(2023, 2025).forEach { iptvYear ->
             val match = TmdbCatalogMatcher.findBestMatches(
                 tmdbTitle = "Dune",
                 tmdbYear = 2024,
-                catalog = TmdbCatalogMatcher.prepareMovies(listOf(movie)),
+                catalog = TmdbCatalogMatcher.prepareMovies(listOf(movie(id = iptvYear, name = "Dune", year = iptvYear))),
                 excludedIds = emptySet()
             )
 
-            assertEquals(listOf(movie), match?.candidates)
+            assertNull(match)
         }
+
+        val exact = movie(id = 2024, name = "Dune", year = 2024)
+        val match = TmdbCatalogMatcher.findBestMatches(
+            tmdbTitle = "Dune",
+            tmdbYear = 2024,
+            catalog = TmdbCatalogMatcher.prepareMovies(listOf(exact)),
+            excludedIds = emptySet()
+        )
+
+        assertEquals(listOf(exact), match?.candidates)
+        assertEquals(TmdbCatalogMatcher.YearRank.EXACT, match?.yearRank)
     }
 
     @Test
-    fun findBestMatches_acceptsUnknownYearFromEitherSource() {
-        val movieWithUnknownYear = movie(id = 1, name = "Dune", year = 0)
-        val prepared = TmdbCatalogMatcher.prepareMovies(listOf(movieWithUnknownYear))
+    fun findBestMatches_rejectsUndatedCandidate_whenTmdbYearIsKnown() {
+        // Bug B15 : « Odyssée » non enrichie (année inconnue) ne doit plus être
+        // proposée comme tendance « Odyssey 2026 ».
+        val undated = movie(id = 1, name = "Odyssee", year = null)
+        val zeroYear = movie(id = 2, name = "Odyssee", year = 0)
 
-        val localYearUnknown = TmdbCatalogMatcher.findBestMatches(
-            tmdbTitle = "Dune",
-            tmdbYear = 2021,
-            catalog = prepared,
+        val match = TmdbCatalogMatcher.findBestMatches(
+            tmdbTitle = "Odyssey",
+            tmdbYear = 2026,
+            catalog = TmdbCatalogMatcher.prepareMovies(listOf(undated, zeroYear)),
             excludedIds = emptySet()
         )
-        val tmdbYearUnknown = TmdbCatalogMatcher.findBestMatches(
+
+        assertNull(match)
+    }
+
+    @Test
+    fun findBestMatches_acceptsAnyYearWhenTmdbYearIsUnknown() {
+        val dated = movie(id = 1, name = "Dune", year = 1984)
+
+        val match = TmdbCatalogMatcher.findBestMatches(
             tmdbTitle = "Dune",
             tmdbYear = null,
-            catalog = TmdbCatalogMatcher.prepareMovies(listOf(movie(id = 2, name = "Dune", year = 1984))),
+            catalog = TmdbCatalogMatcher.prepareMovies(listOf(dated)),
             excludedIds = emptySet()
         )
 
-        assertEquals(listOf(movieWithUnknownYear), localYearUnknown?.candidates)
-        assertEquals(TmdbCatalogMatcher.YearRank.UNKNOWN, localYearUnknown?.yearRank)
-        assertEquals(1, tmdbYearUnknown?.candidates?.size)
+        assertEquals(listOf(dated), match?.candidates)
+        assertEquals(TmdbCatalogMatcher.YearRank.UNKNOWN, match?.yearRank)
     }
 
     @Test
-    fun findBestMatches_acceptsZeroYearInDirectCatalogCandidate() {
+    fun findBestMatches_rejectsZeroYearInDirectCatalogCandidate() {
         val movie = movie(id = 1, name = "Dune", year = 0)
 
         val match = TmdbCatalogMatcher.findBestMatches(
@@ -84,7 +102,7 @@ class TmdbCatalogMatcherTest {
             excludedIds = emptySet()
         )
 
-        assertEquals(listOf(movie), match?.candidates)
+        assertNull(match)
     }
 
     @Test
@@ -118,7 +136,7 @@ class TmdbCatalogMatcherTest {
     }
 
     @Test
-    fun findBestMatches_prefersDatedCandidateOverUnenrichedHomonym_regardlessOfCatalogOrder() {
+    fun findBestMatches_keepsOnlyDatedCandidateAmongHomonyms_regardlessOfCatalogOrder() {
         val undated = movie(id = 1, name = "Dune", year = null)
         val dated2021 = movie(id = 2, name = "Dune", year = 2021)
 
@@ -135,65 +153,9 @@ class TmdbCatalogMatcherTest {
             excludedIds = emptySet()
         )
 
-        assertEquals(listOf(dated2021, undated), unenrichedFirst?.candidates)
-        assertEquals(listOf(dated2021, undated), unenrichedLast?.candidates)
+        assertEquals(listOf(dated2021), unenrichedFirst?.candidates)
+        assertEquals(listOf(dated2021), unenrichedLast?.candidates)
         assertEquals(TmdbCatalogMatcher.YearRank.EXACT, unenrichedFirst?.yearRank)
-        assertEquals(TmdbCatalogMatcher.YearRank.EXACT, unenrichedLast?.yearRank)
-    }
-
-    @Test
-    fun findBestMatches_prefersToleratedYearOverUnknownYearFallback() {
-        val undated = movie(id = 1, name = "Dune", year = null)
-        val toleratedYear = movie(id = 2, name = "Dune", year = 2022)
-
-        val match = TmdbCatalogMatcher.findBestMatches(
-            tmdbTitle = "Dune",
-            tmdbYear = 2021,
-            catalog = TmdbCatalogMatcher.prepareMovies(listOf(undated, toleratedYear)),
-            excludedIds = emptySet()
-        )
-
-        assertEquals(listOf(toleratedYear, undated), match?.candidates)
-        assertEquals(TmdbCatalogMatcher.YearRank.TOLERATED, match?.yearRank)
-    }
-
-    @Test
-    fun findBestMatches_keepsUnknownYearFallbackWhenNoDatedCandidateExists() {
-        val undated = movie(id = 1, name = "Dune", year = null)
-
-        val match = TmdbCatalogMatcher.findBestMatches(
-            tmdbTitle = "Dune",
-            tmdbYear = 2021,
-            catalog = TmdbCatalogMatcher.prepareMovies(listOf(undated)),
-            excludedIds = emptySet()
-        )
-
-        assertEquals(listOf(undated), match?.candidates)
-        assertEquals(TmdbCatalogMatcher.YearRank.UNKNOWN, match?.yearRank)
-    }
-
-    @Test
-    fun findBestMatches_prefersExactYearOverToleratedYear_regardlessOfCatalogOrder() {
-        val exact = movie(id = 1, name = "Dune", year = 2021)
-        val tolerated = movie(id = 2, name = "Dune", year = 2022)
-
-        val toleratedFirst = TmdbCatalogMatcher.findBestMatches(
-            tmdbTitle = "Dune",
-            tmdbYear = 2021,
-            catalog = TmdbCatalogMatcher.prepareMovies(listOf(tolerated, exact)),
-            excludedIds = emptySet()
-        )
-        val exactFirst = TmdbCatalogMatcher.findBestMatches(
-            tmdbTitle = "Dune",
-            tmdbYear = 2021,
-            catalog = TmdbCatalogMatcher.prepareMovies(listOf(exact, tolerated)),
-            excludedIds = emptySet()
-        )
-
-        assertEquals(listOf(exact, tolerated), toleratedFirst?.candidates)
-        assertEquals(listOf(exact, tolerated), exactFirst?.candidates)
-        assertEquals(TmdbCatalogMatcher.YearRank.EXACT, toleratedFirst?.yearRank)
-        assertEquals(TmdbCatalogMatcher.YearRank.EXACT, exactFirst?.yearRank)
     }
 
     @Test
@@ -206,6 +168,47 @@ class TmdbCatalogMatcherTest {
         )
 
         assertNull(match)
+    }
+
+    @Test
+    fun prepareMovies_readsYearFromTitle_whenEnrichmentHasNotFilledIt() {
+        val fromTitle = movie(id = 1, name = "[FR] Odyssée (2016) 1080p", year = null)
+
+        val prepared = TmdbCatalogMatcher.prepareMovies(listOf(fromTitle))
+
+        assertEquals(2016, prepared.single().releaseYear)
+        assertNull(
+            TmdbCatalogMatcher.findBestMatches(
+                tmdbTitle = "Odyssey",
+                tmdbYear = 2026,
+                catalog = prepared,
+                excludedIds = emptySet()
+            )
+        )
+        assertEquals(
+            listOf(fromTitle),
+            TmdbCatalogMatcher.findBestMatches(
+                tmdbTitle = "Odyssée",
+                tmdbYear = 2016,
+                catalog = prepared,
+                excludedIds = emptySet()
+            )?.candidates
+        )
+    }
+
+    @Test
+    fun prepareMovies_prefersEnrichedYearOverTitleYear() {
+        val enriched = movie(id = 1, name = "Blade Runner 2049", year = 2017)
+
+        assertEquals(2017, TmdbCatalogMatcher.prepareMovies(listOf(enriched)).single().releaseYear)
+    }
+
+    @Test
+    fun yearFromTitle_ignoresTitlesThatAreThemselvesAYear() {
+        assertNull(TmdbCatalogMatcher.yearFromTitle("1917"))
+        assertNull(TmdbCatalogMatcher.yearFromTitle("[FR] 2012 1080p"))
+        assertNull(TmdbCatalogMatcher.yearFromTitle("Sans année"))
+        assertEquals(2016, TmdbCatalogMatcher.yearFromTitle("Odyssée (2016)"))
     }
 
     private fun movie(id: Int, name: String, year: Int?) = VodStream(

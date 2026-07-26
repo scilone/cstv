@@ -45,11 +45,11 @@ class GetTrendingInCatalogUseCaseTest {
 
         // Mock IPTV local database
         val movies = listOf(
-            VodStream(streamId = 10, name = "[FR] Inception 1080p", streamIcon = "icon", rating = "9.0", added = "12345", categoryId = "cat_movies"),
-            VodStream(streamId = 11, name = "Gladiator", streamIcon = "icon", rating = "8.0", added = "12345", categoryId = "cat_movies")
+            VodStream(streamId = 10, name = "[FR] Inception 1080p", streamIcon = "icon", rating = "9.0", added = "12345", categoryId = "cat_movies", releaseYear = 2010),
+            VodStream(streamId = 11, name = "Gladiator", streamIcon = "icon", rating = "8.0", added = "12345", categoryId = "cat_movies", releaseYear = 2000)
         )
         val series = listOf(
-            SeriesStream(seriesId = 20, name = "Breaking Bad Complete", cover = "cover", rating = "9.0", added = "12345", categoryId = "cat_series")
+            SeriesStream(seriesId = 20, name = "Breaking Bad Complete", cover = "cover", rating = "9.0", added = "12345", categoryId = "cat_series", releaseYear = 2008)
         )
         whenever(vodRepository.getCachedVodStreams(eq("all"))).thenReturn(movies)
         whenever(seriesRepository.getCachedSeriesStreams(eq("all"))).thenReturn(series)
@@ -103,7 +103,7 @@ class GetTrendingInCatalogUseCaseTest {
         whenever(trendingRepository.getCachedMatchedTrendsGlobal(0L)).thenReturn(null)
 
         val movies = listOf(
-            VodStream(streamId = 10, name = "Inception", streamIcon = "icon", rating = "9.0", added = "12345", categoryId = "hidden_category")
+            VodStream(streamId = 10, name = "Inception", streamIcon = "icon", rating = "9.0", added = "12345", categoryId = "hidden_category", releaseYear = 2010)
         )
         whenever(vodRepository.getCachedVodStreams(eq("all"))).thenReturn(movies)
         whenever(seriesRepository.getCachedSeriesStreams(eq("all"))).thenReturn(emptyList())
@@ -190,8 +190,8 @@ class GetTrendingInCatalogUseCaseTest {
 
         // Mock IPTV local database (Inception in both PT (hidden) and FR (unhidden) categories)
         val movies = listOf(
-            VodStream(streamId = 101, name = "|PT| Inception", streamIcon = "icon", rating = "9.0", added = "12345", categoryId = "cat_pt"),
-            VodStream(streamId = 102, name = "|FR| Inception", streamIcon = "icon", rating = "9.0", added = "12345", categoryId = "cat_fr")
+            VodStream(streamId = 101, name = "|PT| Inception", streamIcon = "icon", rating = "9.0", added = "12345", categoryId = "cat_pt", releaseYear = 2010),
+            VodStream(streamId = 102, name = "|FR| Inception", streamIcon = "icon", rating = "9.0", added = "12345", categoryId = "cat_fr", releaseYear = 2010)
         )
         whenever(vodRepository.getCachedVodStreams(eq("all"))).thenReturn(movies)
         whenever(seriesRepository.getCachedSeriesStreams(eq("all"))).thenReturn(emptyList())
@@ -243,7 +243,7 @@ class GetTrendingInCatalogUseCaseTest {
         val trends = listOf(TrendingTitle(1, "Inception", isMovie = true, year = 2010, posterUrl = "url_inc"))
         whenever(trendingRepository.getTrending()).thenReturn(trends)
 
-        val movies = listOf(VodStream(streamId = 10, name = "Inception", streamIcon = "icon", rating = "9.0", added = "12345", categoryId = "cat_movies"))
+        val movies = listOf(VodStream(streamId = 10, name = "Inception", streamIcon = "icon", rating = "9.0", added = "12345", categoryId = "cat_movies", releaseYear = 2010))
         whenever(vodRepository.getCachedVodStreams(eq("all"))).thenReturn(movies)
         whenever(seriesRepository.getCachedSeriesStreams(eq("all"))).thenReturn(emptyList())
         
@@ -319,8 +319,8 @@ class GetTrendingInCatalogUseCaseTest {
         )
 
         // Candidat non enrichi (releaseYear pas encore récupéré) placé AVANT le
-        // candidat daté compatible : sans le rang d'année (B14), l'ordre du
-        // catalogue ferait gagner ce premier candidat.
+        // candidat daté : depuis B15, il est écarté puisque l'année exacte est
+        // obligatoire dès que TMDB en connaît une.
         val unenrichedMovie = VodStream(1, "Dune", null, null, null, "movies", releaseYear = null)
         val datedMovie = VodStream(2, "Dune", null, null, null, "movies", releaseYear = 2021)
         val unenrichedSeries = SeriesStream(1, "Dune", null, null, null, "series", releaseYear = null)
@@ -346,14 +346,14 @@ class GetTrendingInCatalogUseCaseTest {
     }
 
     @Test
-    fun test_useCase_keepsUnknownYearFallbackWhenBestDatedMovieCategoryIsHidden() = runTest {
+    fun test_useCase_keepsSameYearAlternateVersionWhenFirstMovieCategoryIsHidden() = runTest {
         val trendingRepository = mock<TrendingRepository>()
         val vodRepository = mock<VodRepository>()
         val seriesRepository = mock<SeriesRepository>()
         val preferences = mock<CategoryPreferenceRepository>()
         val catalogFreshness = mock<com.cstv.app.data.sync.CatalogFreshness>()
         val datedHidden = VodStream(1, "Dune", null, null, null, "hidden", releaseYear = 2021)
-        val undatedVisible = VodStream(2, "Dune", null, null, null, "visible", releaseYear = null)
+        val datedVisible = VodStream(2, "Dune", null, null, null, "visible", releaseYear = 2021)
 
         whenever(catalogFreshness.vodSyncedAt()).thenReturn(0L)
         whenever(catalogFreshness.seriesSyncedAt()).thenReturn(0L)
@@ -361,10 +361,10 @@ class GetTrendingInCatalogUseCaseTest {
         whenever(trendingRepository.getTrending()).thenReturn(
             listOf(TrendingTitle(1, "Dune", isMovie = true, year = 2021, posterUrl = null))
         )
-        whenever(vodRepository.getCachedVodStreams(eq("all"))).thenReturn(listOf(undatedVisible, datedHidden))
+        whenever(vodRepository.getCachedVodStreams(eq("all"))).thenReturn(listOf(datedHidden, datedVisible))
         whenever(seriesRepository.getCachedSeriesStreams(eq("all"))).thenReturn(emptyList())
         whenever(vodRepository.getStreamById(1)).thenReturn(datedHidden)
-        whenever(vodRepository.getStreamById(2)).thenReturn(undatedVisible)
+        whenever(vodRepository.getStreamById(2)).thenReturn(datedVisible)
         whenever(preferences.getPreferences(CategoryType.VOD)).thenReturn(
             mapOf("hidden" to CategoryPreference("hidden", hidden = true, sortOrder = null))
         )

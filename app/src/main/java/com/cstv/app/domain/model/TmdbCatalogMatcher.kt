@@ -28,7 +28,6 @@ object TmdbCatalogMatcher {
     /** Priorité des candidats à score de titre égal. */
     enum class YearRank {
         EXACT,
-        TOLERATED,
         UNKNOWN
     }
 
@@ -38,7 +37,7 @@ object TmdbCatalogMatcher {
                 item = movie,
                 id = movie.streamId,
                 normalizedTitle = TitleNormalizer.normalize(movie.name),
-                releaseYear = movie.releaseYear?.takeIf { it > 0 }
+                releaseYear = movie.releaseYear?.takeIf { it > 0 } ?: yearFromTitle(movie.name)
             )
         }
 
@@ -48,9 +47,24 @@ object TmdbCatalogMatcher {
                 item = stream,
                 id = stream.seriesId,
                 normalizedTitle = TitleNormalizer.normalize(stream.name),
-                releaseYear = stream.releaseYear?.takeIf { it > 0 }
+                releaseYear = stream.releaseYear?.takeIf { it > 0 } ?: yearFromTitle(stream.name)
             )
         }
+
+    /**
+     * Année lue dans le titre IPTV lui-même (ex. « Odyssée (2016) 1080p »)
+     * quand l'enrichissement Xtream n'a pas encore rempli `releaseYear`.
+     * Sans ça, l'appariement strict à l'année exacte rejetterait tout le
+     * catalogue non encore enrichi.
+     *
+     * Retourne `null` lorsque l'année EST le titre (« 1917 », « 2012 ») :
+     * ce n'est alors pas une date de sortie.
+     */
+    internal fun yearFromTitle(rawTitle: String?): Int? {
+        val year = ReleaseYearParser.parseYear(rawTitle) ?: return null
+        if (TitleNormalizer.normalize(rawTitle) == year.toString()) return null
+        return year
+    }
 
     fun <T> findBestMatches(
         tmdbTitle: String,
@@ -60,12 +74,11 @@ object TmdbCatalogMatcher {
     ): Match<T>? {
         val normalizedTmdbTitle = TitleNormalizer.normalize(tmdbTitle)
         var bestScore = 0.0
-        // Départage à score textuel égal : un candidat dont l'année est connue
-        // et compatible doit toujours l'emporter sur un candidat sans année
-        // connue (repli). Sans ce rang, l'ordre du catalogue tranchait seul
-        // entre un remake non enrichi et la bonne version datée (bug B14).
-        var bestYearRank = YearRank.UNKNOWN
-        val matches = mutableListOf<Pair<YearRank, T>>()
+        // Tous les candidats retenus partagent l'année TMDB (bug B15) : à score
+        // textuel égal, seul l'ordre du catalogue les départage — les versions
+        // suivantes servent de repli aux use cases quand la première est
+        // masquée par le profil ou supprimée de la base.
+        val matches = mutableListOf<T>()
 
         for (candidate in catalog) {
             if (candidate.id in excludedIds || !isYearCompatible(tmdbYear, candidate.releaseYear)) continue
@@ -76,47 +89,41 @@ object TmdbCatalogMatcher {
             )
             if (score < MIN_SIMILARITY) continue
 
-            val rank = yearRankOf(tmdbYear, candidate.releaseYear)
-
             when {
                 isStrictlyBetterScore(score, bestScore) -> {
                     bestScore = score
-                    bestYearRank = rank
                     matches.clear()
-                    matches += rank to candidate.item
+                    matches += candidate.item
                 }
-                abs(score - bestScore) <= SCORE_EQUALITY_EPSILON -> when {
-                    rank < bestYearRank -> {
-                        bestYearRank = rank
-                        // Conserver les replis après le candidat le mieux daté :
-                        // les use cases les consultent après filtre de catégorie
-                        // masquée ou de suppression en base.
-                        matches += rank to candidate.item
-                    }
-                    rank == bestYearRank -> matches += rank to candidate.item
-                    else -> matches += rank to candidate.item
-                }
+                abs(score - bestScore) <= SCORE_EQUALITY_EPSILON -> matches += candidate.item
             }
         }
 
-        return matches.takeIf { it.isNotEmpty() }?.let { rankedMatches ->
+        return matches.takeIf { it.isNotEmpty() }?.let { candidates ->
             Match(
-                candidates = rankedMatches.sortedBy { it.first }.map { it.second },
+                candidates = candidates.toList(),
                 score = bestScore,
-                yearRank = bestYearRank
+                yearRank = yearRankOf(tmdbYear)
             )
         }
     }
 
-    private fun isYearCompatible(tmdbYear: Int?, iptvYear: Int?): Boolean =
-        !tmdbYear.isKnownYear() || !iptvYear.isKnownYear() ||
-            abs(tmdbYear!!.toLong() - iptvYear!!.toLong()) <= 1L
-
-    private fun yearRankOf(tmdbYear: Int?, iptvYear: Int?): YearRank = when {
-        !tmdbYear.isKnownYear() || !iptvYear.isKnownYear() -> YearRank.UNKNOWN
-        tmdbYear == iptvYear -> YearRank.EXACT
-        else -> YearRank.TOLERATED
+    // Année exacte obligatoire dès que TMDB en connaît une (bug B15) : la
+    // tolérance ±1 et le repli « année locale inconnue » faisaient afficher un
+    // homonyme d'une autre décennie (« Odyssée 2026 » côté tendance ouvrant la
+    // fiche « Odyssée 2016 »). Un titre non daté vaut mieux qu'un faux titre.
+    private fun isYearCompatible(tmdbYear: Int?, iptvYear: Int?): Boolean = when {
+        !tmdbYear.isKnownYear() -> true
+        !iptvYear.isKnownYear() -> false
+        else -> tmdbYear == iptvYear
     }
+
+    /**
+     * Un match n'existe que si l'année TMDB est inconnue (aucun filtre possible)
+     * ou si le candidat porte exactement la même année.
+     */
+    private fun yearRankOf(tmdbYear: Int?): YearRank =
+        if (tmdbYear.isKnownYear()) YearRank.EXACT else YearRank.UNKNOWN
 
     private fun Int?.isKnownYear(): Boolean = this != null && this > 0
 
