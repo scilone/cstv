@@ -346,6 +346,39 @@ class GetTrendingInCatalogUseCaseTest {
     }
 
     @Test
+    fun test_useCase_keepsUnknownYearFallbackWhenBestDatedMovieCategoryIsHidden() = runTest {
+        val trendingRepository = mock<TrendingRepository>()
+        val vodRepository = mock<VodRepository>()
+        val seriesRepository = mock<SeriesRepository>()
+        val preferences = mock<CategoryPreferenceRepository>()
+        val catalogFreshness = mock<com.cstv.app.data.sync.CatalogFreshness>()
+        val datedHidden = VodStream(1, "Dune", null, null, null, "hidden", releaseYear = 2021)
+        val undatedVisible = VodStream(2, "Dune", null, null, null, "visible", releaseYear = null)
+
+        whenever(catalogFreshness.vodSyncedAt()).thenReturn(0L)
+        whenever(catalogFreshness.seriesSyncedAt()).thenReturn(0L)
+        whenever(trendingRepository.getCachedMatchedTrendsGlobal(0L)).thenReturn(null)
+        whenever(trendingRepository.getTrending()).thenReturn(
+            listOf(TrendingTitle(1, "Dune", isMovie = true, year = 2021, posterUrl = null))
+        )
+        whenever(vodRepository.getCachedVodStreams(eq("all"))).thenReturn(listOf(undatedVisible, datedHidden))
+        whenever(seriesRepository.getCachedSeriesStreams(eq("all"))).thenReturn(emptyList())
+        whenever(vodRepository.getStreamById(1)).thenReturn(datedHidden)
+        whenever(vodRepository.getStreamById(2)).thenReturn(undatedVisible)
+        whenever(preferences.getPreferences(CategoryType.VOD)).thenReturn(
+            mapOf("hidden" to CategoryPreference("hidden", hidden = true, sortOrder = null))
+        )
+        whenever(preferences.getPreferences(CategoryType.SERIES)).thenReturn(emptyMap())
+
+        val result = GetTrendingInCatalogUseCase(
+            trendingRepository, vodRepository, seriesRepository, preferences, catalogFreshness
+        )()
+
+        assertEquals(1, result.size)
+        assertEquals(2, result.single().matchedMovie?.streamId)
+    }
+
+    @Test
     fun test_useCase_matchesMovieAndSeriesWithSameXtreamId() = runTest {
         val trendingRepository = mock<TrendingRepository>()
         val vodRepository = mock<VodRepository>()

@@ -1,5 +1,23 @@
 # Journal des Modifications (Changelog) - CSTV IPTV
 
+## [v1.56.0] - 2026-07-26
+### ✨ Nouvelles Fonctionnalités
+* **Bouton de validation de recherche collant / sticky (F14)** :
+  - **Bouton d'action collant (sticky)** : Amélioration ergonomique majeure en isolant le bouton d'action « Voir les résultats » au bas de l'écran de recherche avancée (`AdvancedSearchSheet`), le rendant fixe et toujours visible pendant le défilement indépendant de tous les critères de filtres au-dessus.
+  - **Tri vertical et poids adaptatifs** : Utilisation d'un conteneur racine regroupant de manière ordonnée la partie défilante dotée de `Modifier.weight(1f, fill = false)` et le pied fixe, évitant ainsi d'étirer inutilement la feuille lorsque peu de filtres sont présents.
+  - **Continuité du focus D-pad** : Remontée du groupe de focus Compose `.focusGroup()` sur le conteneur racine pour assurer une navigation fluide et sans accroc au D-pad pour l'utilisateur Android TV vers le bouton d'action principal.
+
+### 🐛 Correctifs de Bugs
+* **Correction de la tolérance d'année TMDB (B14)** :
+  - **Départage par rang d'année** : Introduction d'un tri multicritère (`YearRank` : `EXACT`, `TOLERATED`, `UNKNOWN`) dans `TmdbCatalogMatcher` pour trier stablement les candidats par proximité d'année, empêchant les mauvais rapprochements d'œuvres homonymes ou remakes (ex: Dune 1984 vs Dune 2021) lorsque le catalogue n'est pas entièrement enrichi.
+  - **Mise à disposition des replis** : Préservation et tri de la liste complète de candidats compatibles pour permettre la sélection de replis non datés si la version datée nominale est masquée ou supprimée.
+  - **Fraîcheur intégrée** : Prise en compte de la section `CatalogSection.ENRICHMENT` (enrichissement des années d'arrière-plan) au sein de la fraîcheur du catalogue dans `CatalogFreshness`, garantissant l'invalidation automatique du cache des tendances/populaires de l'Accueil à la fin de l'enrichissement nominal du chemin `runSync`.
+  - **Traçabilité des décisions** : Ajout de logs d'appariement TMDB détaillés incluant l'année TMDB et le rang d'année sélectionné pour faciliter le diagnostic en production.
+
+> Validation automatisée : `testDebugUnitTest`, `assembleDebug` et `lintDebug` réussis. Les tests exhaustifs unitaires et d'intégration couvrent les cas limites de remakes et de replis partiels.
+
+---
+
 ## [v1.55.0] - 2026-07-26
 ### ⚡ Cache catalogue persistant et navigation hors ligne (T4)
 * Catalogue Xtream Live/VOD/Séries persisté dans Room avec état de synchronisation par section, migration 17 → 18 et remplacements transactionnels qui préservent le dernier cache valide.

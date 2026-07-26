@@ -93,7 +93,7 @@ class GetTrendingInCatalogUseCase @Inject constructor(
                     )
                     if (match != null) {
                         match.candidates.forEach { seenMovieIds.add(it.streamId) }
-                        com.cstv.app.di.IptvLog.d("TMDB", "🎯 Match movie: '${trending.title}' (TMDB ${trending.year}) ↔ ${match.candidates.size} version(s) found (best score: ${match.score}, yearRank: ${match.yearRank})")
+                        com.cstv.app.di.IptvLog.d("TMDB", "🎯 Match movie: '${trending.title}' (TMDB ${trending.year}) ↔ ${match.candidates.size} version(s) found (best score: ${match.score}, yearRank: ${match.yearRank.name})")
                         fullMatchedResult.add(TrendingCatalogItem(trendingTitle = trending, matchedMovies = match.candidates))
                     } else {
                         com.cstv.app.di.IptvLog.d("TMDB", "❔ No match found in catalog for trending movie: '${trending.title}'")
@@ -107,7 +107,7 @@ class GetTrendingInCatalogUseCase @Inject constructor(
                     )
                     if (match != null) {
                         match.candidates.forEach { seenSeriesIds.add(it.seriesId) }
-                        com.cstv.app.di.IptvLog.d("TMDB", "🎯 Match series: '${trending.title}' (TMDB ${trending.year}) ↔ ${match.candidates.size} version(s) found (best score: ${match.score}, yearRank: ${match.yearRank})")
+                        com.cstv.app.di.IptvLog.d("TMDB", "🎯 Match series: '${trending.title}' (TMDB ${trending.year}) ↔ ${match.candidates.size} version(s) found (best score: ${match.score}, yearRank: ${match.yearRank.name})")
                         fullMatchedResult.add(TrendingCatalogItem(trendingTitle = trending, matchedSeriesList = match.candidates))
                     } else {
                         com.cstv.app.di.IptvLog.d("TMDB", "❔ No match found in catalog for trending series: '${trending.title}'")

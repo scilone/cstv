@@ -7,6 +7,12 @@ import org.junit.Test
 class TmdbCatalogMatcherTest {
 
     @Test
+    fun isStrictlyBetterScore_treatsDifferenceWithinEpsilonAsEqual() {
+        assertEquals(false, TmdbCatalogMatcher.isStrictlyBetterScore(1.0 + 0.5e-9, 1.0))
+        assertEquals(true, TmdbCatalogMatcher.isStrictlyBetterScore(1.0 + 2e-9, 1.0))
+    }
+
+    @Test
     fun findBestMatches_rejectsRemakeWithIncompatibleYear_andFindsCorrectVersion() {
         val oldDune = movie(id = 1, name = "Dune", year = 1984)
         val newDune = movie(id = 2, name = "Dune", year = 2021)
@@ -56,6 +62,7 @@ class TmdbCatalogMatcherTest {
         )
 
         assertEquals(listOf(movieWithUnknownYear), localYearUnknown?.candidates)
+        assertEquals(TmdbCatalogMatcher.YearRank.UNKNOWN, localYearUnknown?.yearRank)
         assertEquals(1, tmdbYearUnknown?.candidates?.size)
     }
 
@@ -128,8 +135,10 @@ class TmdbCatalogMatcherTest {
             excludedIds = emptySet()
         )
 
-        assertEquals(listOf(dated2021), unenrichedFirst?.candidates)
-        assertEquals(listOf(dated2021), unenrichedLast?.candidates)
+        assertEquals(listOf(dated2021, undated), unenrichedFirst?.candidates)
+        assertEquals(listOf(dated2021, undated), unenrichedLast?.candidates)
+        assertEquals(TmdbCatalogMatcher.YearRank.EXACT, unenrichedFirst?.yearRank)
+        assertEquals(TmdbCatalogMatcher.YearRank.EXACT, unenrichedLast?.yearRank)
     }
 
     @Test
@@ -144,7 +153,8 @@ class TmdbCatalogMatcherTest {
             excludedIds = emptySet()
         )
 
-        assertEquals(listOf(toleratedYear), match?.candidates)
+        assertEquals(listOf(toleratedYear, undated), match?.candidates)
+        assertEquals(TmdbCatalogMatcher.YearRank.TOLERATED, match?.yearRank)
     }
 
     @Test
@@ -159,6 +169,31 @@ class TmdbCatalogMatcherTest {
         )
 
         assertEquals(listOf(undated), match?.candidates)
+        assertEquals(TmdbCatalogMatcher.YearRank.UNKNOWN, match?.yearRank)
+    }
+
+    @Test
+    fun findBestMatches_prefersExactYearOverToleratedYear_regardlessOfCatalogOrder() {
+        val exact = movie(id = 1, name = "Dune", year = 2021)
+        val tolerated = movie(id = 2, name = "Dune", year = 2022)
+
+        val toleratedFirst = TmdbCatalogMatcher.findBestMatches(
+            tmdbTitle = "Dune",
+            tmdbYear = 2021,
+            catalog = TmdbCatalogMatcher.prepareMovies(listOf(tolerated, exact)),
+            excludedIds = emptySet()
+        )
+        val exactFirst = TmdbCatalogMatcher.findBestMatches(
+            tmdbTitle = "Dune",
+            tmdbYear = 2021,
+            catalog = TmdbCatalogMatcher.prepareMovies(listOf(exact, tolerated)),
+            excludedIds = emptySet()
+        )
+
+        assertEquals(listOf(exact, tolerated), toleratedFirst?.candidates)
+        assertEquals(listOf(exact, tolerated), exactFirst?.candidates)
+        assertEquals(TmdbCatalogMatcher.YearRank.EXACT, toleratedFirst?.yearRank)
+        assertEquals(TmdbCatalogMatcher.YearRank.EXACT, exactFirst?.yearRank)
     }
 
     @Test

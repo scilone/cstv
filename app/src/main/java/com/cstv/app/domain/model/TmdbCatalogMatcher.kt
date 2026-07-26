@@ -22,8 +22,15 @@ object TmdbCatalogMatcher {
     data class Match<T>(
         val candidates: List<T>,
         val score: Double,
-        val yearRank: Int
+        val yearRank: YearRank
     )
+
+    /** Priorité des candidats à score de titre égal. */
+    enum class YearRank {
+        EXACT,
+        TOLERATED,
+        UNKNOWN
+    }
 
     fun prepareMovies(movies: List<VodStream>): List<CatalogCandidate<VodStream>> =
         movies.map { movie ->
@@ -57,8 +64,8 @@ object TmdbCatalogMatcher {
         // et compatible doit toujours l'emporter sur un candidat sans année
         // connue (repli). Sans ce rang, l'ordre du catalogue tranchait seul
         // entre un remake non enrichi et la bonne version datée (bug B14).
-        var bestYearRank = Int.MAX_VALUE
-        val matches = mutableListOf<T>()
+        var bestYearRank = YearRank.UNKNOWN
+        val matches = mutableListOf<Pair<YearRank, T>>()
 
         for (candidate in catalog) {
             if (candidate.id in excludedIds || !isYearCompatible(tmdbYear, candidate.releaseYear)) continue
@@ -72,35 +79,47 @@ object TmdbCatalogMatcher {
             val rank = yearRankOf(tmdbYear, candidate.releaseYear)
 
             when {
-                score > bestScore -> {
+                isStrictlyBetterScore(score, bestScore) -> {
                     bestScore = score
                     bestYearRank = rank
                     matches.clear()
-                    matches += candidate.item
+                    matches += rank to candidate.item
                 }
-                abs(score - bestScore) < SCORE_EQUALITY_EPSILON -> when {
+                abs(score - bestScore) <= SCORE_EQUALITY_EPSILON -> when {
                     rank < bestYearRank -> {
                         bestYearRank = rank
-                        matches.clear()
-                        matches += candidate.item
+                        // Conserver les replis après le candidat le mieux daté :
+                        // les use cases les consultent après filtre de catégorie
+                        // masquée ou de suppression en base.
+                        matches += rank to candidate.item
                     }
-                    rank == bestYearRank -> matches += candidate.item
-                    // rank > bestYearRank : candidat moins bien daté à score
-                    // égal, écarté au profit du lot déjà retenu.
+                    rank == bestYearRank -> matches += rank to candidate.item
+                    else -> matches += rank to candidate.item
                 }
             }
         }
 
-        return matches.takeIf { it.isNotEmpty() }?.let { Match(it, bestScore, bestYearRank) }
+        return matches.takeIf { it.isNotEmpty() }?.let { rankedMatches ->
+            Match(
+                candidates = rankedMatches.sortedBy { it.first }.map { it.second },
+                score = bestScore,
+                yearRank = bestYearRank
+            )
+        }
     }
 
     private fun isYearCompatible(tmdbYear: Int?, iptvYear: Int?): Boolean =
-        tmdbYear == null || iptvYear == null || iptvYear <= 0 ||
-            abs(tmdbYear.toLong() - iptvYear.toLong()) <= 1L
+        !tmdbYear.isKnownYear() || !iptvYear.isKnownYear() ||
+            abs(tmdbYear!!.toLong() - iptvYear!!.toLong()) <= 1L
 
-    /** 0 = année exacte, 1 = tolérance ±1 an, 2 = repli (une année au moins inconnue). */
-    private fun yearRankOf(tmdbYear: Int?, iptvYear: Int?): Int {
-        if (tmdbYear == null || iptvYear == null || iptvYear <= 0) return 2
-        return if (tmdbYear == iptvYear) 0 else 1
+    private fun yearRankOf(tmdbYear: Int?, iptvYear: Int?): YearRank = when {
+        !tmdbYear.isKnownYear() || !iptvYear.isKnownYear() -> YearRank.UNKNOWN
+        tmdbYear == iptvYear -> YearRank.EXACT
+        else -> YearRank.TOLERATED
     }
+
+    private fun Int?.isKnownYear(): Boolean = this != null && this > 0
+
+    internal fun isStrictlyBetterScore(score: Double, bestScore: Double): Boolean =
+        score > bestScore + SCORE_EQUALITY_EPSILON
 }

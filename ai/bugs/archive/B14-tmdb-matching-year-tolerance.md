@@ -6,13 +6,19 @@ Type:
 Bug
 
 Status:
-IMPLEMENTATION
+RELEASED
 
 Created:
 2026-07-26
 
 Target version:
 v1.56.0
+
+Version:
+v1.56.0
+
+Date:
+2026-07-26
 
 ---
 
@@ -170,7 +176,7 @@ T0+60s    l'enrichissement remplit les releaseYear
           → aucune estampille postérieure à T0 → le cache reste valide
 ```
 
-Le mauvais appariement est alors figé jusqu'à l'expiration du TTL ou la synchronisation suivante. La fenêtre est bornée mais reproductible à chaque premier lancement sur un catalogue neuf — précisément le moment où l'hypothèse 3 est la plus forte.
+Le mauvais appariement est alors figé jusqu'à l'expiration du TTL ou la synchronisation suivante. Cette correction couvre la fenêtre du chemin `CatalogSyncManagerImpl.runSync()` : les enrichissements lancés directement par les repositories ne possèdent pas d'estampille propre et restent une limite préexistante, documentée par la review B14.
 
 ## 7.4 Périmètre exclu
 
@@ -194,7 +200,7 @@ Le tri passe d'une clé unique `score` à une clé composite `(score, yearRank)`
 
 `isYearCompatible` reste la garde d'exclusion préalable ; `yearRank` n'ordonne que ce qui a déjà franchi cette garde. Un écart `> 1` reste éliminé, jamais rangé.
 
-Ne sont renvoyés que les candidats du **meilleur couple `(score, yearRank)`**. À `yearRank` égal, l'ordre du catalogue est conservé — la garantie du test `:99` est donc intacte.
+Sont renvoyés tous les candidats au meilleur score, **triés stablement par `yearRank`**. Le premier est donc le meilleur couple `(score, yearRank)` ; les candidats moins bien rangés restent disponibles comme repli si le premier est masqué ou supprimé. À `yearRank` égal, l'ordre du catalogue est conservé.
 
 Signature ajustée :
 
@@ -202,13 +208,13 @@ Signature ajustée :
 data class Match<T>(
     val candidates: List<T>,
     val score: Double,
-    val yearRank: Int   // nouveau : 0 exact, 1 tolérance ±1, 2 repli sans année
+    val yearRank: YearRank // EXACT, TOLERATED ou UNKNOWN
 )
 ```
 
 `yearRank` est exposé pour deux raisons : rendre la décision observable dans les logs des use cases (voir D3) et fournir aux tests un point d'assertion sur la *raison* du choix, pas seulement sur son résultat.
 
-**Pourquoi ce choix plutôt qu'un rejet strict des candidats sans année.** Rejeter tout candidat non daté dès que `tmdbYear` est connu supprimerait des recommandations valides sur un catalogue peu enrichi, ce que la spécification fonctionnelle interdit explicitement (« ce ticket ne doit pas supprimer ces recommandations uniquement faute de date »). Le rang conserve ces candidats **en dernier recours** : ils ne gagnent que lorsqu'aucun candidat daté compatible n'existe.
+**Pourquoi ce choix plutôt qu'un rejet strict des candidats sans année.** Rejeter tout candidat non daté dès que `tmdbYear` est connu supprimerait des recommandations valides sur un catalogue peu enrichi, ce que la spécification fonctionnelle interdit explicitement (« ce ticket ne doit pas supprimer ces recommandations uniquement faute de date »). Le rang place ces candidats **en dernier recours**, tout en les conservant pour les filtres aval : ils ne sont sélectionnés que lorsqu'aucun candidat daté compatible visible ne reste.
 
 **Pourquoi dans le matcher et non dans les use cases.** Le `.first()` aval est appliqué après le filtrage par catégories masquées ; y placer la logique d'année obligerait à repropager `tmdbYear` et les années locales jusque-là, et à la dupliquer dans les deux use cases. `TmdbCatalogMatcher` est déjà l'unique point de décision partagé — c'est le seul endroit où la règle ne peut pas diverger entre Tendances et Top 10.
 
@@ -224,7 +230,7 @@ open suspend fun seriesSyncedAt(): Long =
     maxOf(syncedAt(CatalogSection.SERIES_STREAMS), syncedAt(CatalogSection.ENRICHMENT))
 ```
 
-L'enrichissement étant toujours estampillé **après** les sections catalogue de la même synchronisation, `maxOf` vaut l'estampille d'enrichissement dès qu'elle existe. Un cache d'appariement écrit après l'enrichissement reste donc valide ; un cache écrit dans la fenêtre décrite en §7.3 est invalidé. Aucune invalidation supplémentaire n'est introduite par rapport à aujourd'hui : le nombre de rafraîchissements TMDB ne change pas au régime établi.
+Dans le chemin `CatalogSyncManagerImpl.runSync()`, l'enrichissement est estampillé **après** les sections catalogue ; `maxOf` vaut donc l'estampille d'enrichissement dès qu'elle existe. Un cache d'appariement écrit après l'enrichissement reste valide ; un cache écrit dans la fenêtre décrite en §7.3 est invalidé. Les enrichissements lancés en arrière-plan par les repositories ne mettent pas cette estampille à jour : ce comportement préexistant reste hors portée de B14.
 
 `ENRICHMENT` est volontairement absent de `CatalogSection.CATALOG_SECTIONS` (complétude hors-ligne) — ce point n'est pas modifié, seule la lecture de fraîcheur des caches TMDB l'intègre.
 
@@ -235,10 +241,10 @@ Pas de log dans `TmdbCatalogMatcher` : `domain/model/` héberge des objets purs 
 La trace est émise par les use cases, qui disposent déjà de `IptvLog`, à partir du `yearRank` renvoyé :
 
 ```
-🎯 Match movie: 'Dune' (TMDB 2021) ↔ 2 version(s), score 1.0, yearRank 0 (année exacte)
+🎯 Match movie: 'Dune' (TMDB 2021) ↔ 2 version(s), score 1.0, yearRank: EXACT
 ```
 
-Un `yearRank = 2` sur une entrée TMDB **datée** signale un appariement par repli — le symptôme exact de ce ticket, désormais lisible en production sans instrumentation supplémentaire.
+Un `yearRank: UNKNOWN` sur une entrée TMDB **datée** signale un appariement par repli — le symptôme exact de ce ticket, désormais lisible en production sans instrumentation supplémentaire.
 
 ## 8.4 Flux de données après correction
 
@@ -293,8 +299,8 @@ Xtream (releasedate)                    findBestMatches(tmdbTitle, tmdbYear, cat
 
 | Risque | Portée | Traitement |
 |---|---|---|
-| Perte de recommandations sur catalogue peu enrichi | Fort si D1 était un rejet strict | Écarté par construction : `yearRank = 2` conserve les candidats non datés en dernier recours |
-| Caches persistants existants encore porteurs d'appariements erronés | Tous les utilisateurs à la mise à jour | Traité par D2 : le premier enrichissement postérieur à l'installation invalide les caches. Aucun bump de clé (`_v3`) nécessaire |
+| Perte de recommandations sur catalogue peu enrichi | Fort si D1 était un rejet strict | Écarté par construction : `UNKNOWN` est conservé comme repli, y compris après filtrage des catégories masquées |
+| Caches persistants existants encore porteurs d'appariements erronés | Chemin `runSync` | Traité par D2 à la prochaine fin d'enrichissement du `runSync`. Les enrichissements directs des repositories conservent leur limite préexistante |
 | Doublons légitimes (VF/VOSTFR même année) départagés différemment | Moyen | Même `yearRank` → même lot, ordre du catalogue préservé : comportement inchangé |
 | Coût CPU du rang | Négligeable | Une soustraction par candidat déjà retenu par `isYearCompatible`, sur un lot borné à la taille du catalogue déjà parcouru |
 | Le test `keepsCatalogOrderForEqualScores` devient un faux garant | Faible | Il reste valide (années identiques) mais est complété par un test explicitement mixte |
@@ -312,9 +318,9 @@ Xtream (releasedate)                    findBestMatches(tmdbTitle, tmdbYear, cat
   - `domain/model/TmdbCatalogMatcher.kt`
 
   Détail :
-  - Ajouter `yearRank: Int` à `Match<T>`.
+  - Ajouter `yearRank: YearRank` à `Match<T>`.
   - Calculer `yearRank` par candidat retenu (0 = écart exact, 1 = écart ±1, 2 = repli sans année), sans toucher à `isYearCompatible` qui reste la garde d'exclusion.
-  - Sélectionner sur la clé composite `(score, yearRank)` : meilleur score d'abord, puis meilleur rang d'année ; à égalité stricte des deux, conserver l'ordre du catalogue.
+  - Trier les candidats au meilleur score par `yearRank` ; à rang égal, conserver l'ordre du catalogue, et conserver les rangs moins bons comme repli.
 
   Validation :
   Compile ; aucun appelant cassé (`Match` gagne un champ, ses deux usages `GetTrendingInCatalogUseCase`/`GetPopularTop10InCatalogUseCase` ne lisent pas encore `yearRank` à ce stade).
@@ -419,3 +425,253 @@ Les 7 tâches ont été implémentées sans écart par rapport au plan de la sec
 - Tests bout en bout ajoutés dans les deux suites de use cases existantes, reproduisant exactement le scénario Dune non enrichi / daté, pour un film et une série.
 - `./gradlew assembleDebug` + `./gradlew testDebugUnitTest` : build et suite complète verts.
 
+---
+
+# 11. Review
+
+Périmètre relu : commit `a43125b` (4 fichiers de production, 4 fichiers de tests), plus les
+appelants et chemins d'alimentation concernés (`CatalogSyncManagerImpl`, `VodRepositoryImpl`,
+`SeriesRepositoryImpl`, `TitleNormalizer`, `CatalogSyncStateEntity`). Aucun code modifié
+pendant cette étape.
+
+## 11.1 Vérifications automatiques
+
+| Contrôle | Résultat |
+|---|---|
+| `./gradlew assembleDebug` | vert |
+| `./gradlew testDebugUnitTest` | vert — **400 tests, 0 échec, 0 erreur** (61 suites) |
+| `./gradlew lintDebug` | vert, aucune erreur |
+| Tests B14 effectivement exécutés | `findBestMatches_prefersDatedCandidateOverUnenrichedHomonym_regardlessOfCatalogOrder`, `findBestMatches_prefersToleratedYearOverUnknownYearFallback`, `findBestMatches_keepsUnknownYearFallbackWhenNoDatedCandidateExists`, `prefersDatedCandidateOverUnenrichedHomonym_forMoviesAndSeries`, `test_useCase_prefersDatedCandidateOverUnenrichedHomonym_forMovieAndSeries`, `CatalogFreshnessTest` (5 cas) |
+
+Les affirmations de la section 10 sont donc confirmées : plan tenu sans écart, suite complète verte.
+
+## 11.2 Conformité aux spécifications
+
+- Les 5 critères d'acceptation de la section 6 sont couverts par des tests exécutés (le n°1 par
+  `findBestMatches_rejectsRemakeWithIncompatibleYear_andFindsCorrectVersion` via `isYearCompatible`,
+  complété par le nouveau cas non daté / daté ; le n°5 par les deux nouveaux tests de use cases,
+  film **et** série, sur Tendances **et** Top 10).
+- `isYearCompatible` reste bien la seule garde d'exclusion : un écart `> 1` est éliminé avant le
+  scoring (`TmdbCatalogMatcher.kt:65`), `yearRank` n'ordonne que ce qui l'a franchie — conforme à §8.1.
+- Aucun dépassement de périmètre : `ReleaseYearParser`, `MIN_SIMILARITY`, le schéma Room et
+  `CatalogSection.CATALOG_SECTIONS` sont inchangés, conformément à §7.4.
+- Sécurité : les logs ajoutés n'exposent que titre TMDB, année, score et rang — aucun identifiant
+  Xtream. `IptvLog` n'est pas conditionné à `BuildConfig.DEBUG` (comportement préexistant), ce qui
+  est cohérent avec l'intention de §8.3 (« lisible en production »).
+- Performance : un `yearRankOf` par candidat déjà retenu, aucune allocation supplémentaire. Néant.
+
+## Critique
+
+Aucun problème critique. Pas de crash possible, pas de régression de compilation, pas de fuite de
+données, pas de migration manquante.
+
+## Majeur
+
+### MAJ-1 — L'élagage des candidats non datés peut faire disparaître du contenu visible
+
+**Description.** §8.1 décide de ne renvoyer que les candidats du meilleur couple `(score, yearRank)`,
+et l'implémentation le fait par `matches.clear()` (`TmdbCatalogMatcher.kt:82-85`). Or `Match.candidates`
+n'alimente pas seulement le choix final : c'est aussi la **liste de replis** consommée en aval, *après*
+le filtrage par catégories masquées et la revalidation d'existence en base :
+
+- `GetTrendingInCatalogUseCase.kt:148-152` → `existingMovies.filter { categoryId !in hiddenMovies }`,
+  puis `allowedMovies.first()` ; liste vide ⇒ l'entrée TMDB est retirée de la ligne (`return null`).
+- `GetTrendingInCatalogUseCase.kt:164-168` → idem pour les séries.
+- `GetPopularTop10InCatalogUseCase.kt:104-133` → `resolveMovies`/`resolveSeries` parcourent
+  `match.localIds` et s'arrêtent au premier non masqué.
+
+En réduisant ce lot, la correction réduit la profondeur du repli.
+
+**Scénario de défaut.** Catalogue contenant deux exemplaires du même film — « Dune » en catégorie
+`Films VF` (`releaseYear = 2021`, déjà enrichi) et « Dune » en catégorie `Films VOSTFR`
+(`releaseYear = null`, pas encore enrichi : l'enrichissement est borné par lot, cf. §7.1 hypothèse 3).
+L'utilisateur a masqué `Films VF`.
+
+- Avant : `candidates = [VF, VOSTFR]` → `allowedMovies = [VOSTFR]` → la tendance s'affiche.
+- Après : `candidates = [VF]` (rang 0) → `allowedMovies = []` → **la tendance disparaît de l'Accueil.**
+
+Même mécanique si l'exemplaire retenu a été supprimé du panel entre l'écriture du cache et sa
+lecture (`mapNotNull { getStreamById(...) }`).
+
+**Impact.** Perte de contenu visible pour tout utilisateur combinant catégories masquées (ou
+catalogue mouvant) et doublons partiellement enrichis — c'est-à-dire la configuration nominale
+pendant la fenêtre d'enrichissement. Le risque n'est pas listé en §8.6 : la ligne « Doublons
+légitimes (VF/VOSTFR même année) » ne traite que le cas où les **deux** exemplaires sont datés,
+pas le cas mixte, qui est précisément celui que le ticket cible.
+
+**Correction attendue.** Ne pas élaguer : **trier**. Conserver dans `candidates` tous les candidats
+ayant franchi `isYearCompatible` au meilleur score, ordonnés par `yearRank` croissant (tri stable,
+donc ordre du catalogue préservé à rang égal), et laisser `yearRank` de `Match` refléter le rang du
+**premier** candidat. Les `.first()` / `break` en aval sélectionnent alors le meilleur rang comme
+prévu par §8.1, sans perdre la liste de replis. Amender §8.1 et §8.6 en conséquence, et ajouter
+un test : candidat daté masqué + doublon non daté visible ⇒ l'entrée reste affichée.
+
+### MAJ-2 — La fenêtre de cache de §7.3 n'est fermée que pour le chemin `runSync`
+
+**Description.** D2 s'appuie sur l'estampille `CatalogSection.ENRICHMENT`, écrite uniquement par
+`CatalogSyncManagerImpl.kt:215`. Mais ce n'est pas le seul chemin qui renseigne `releaseYear` :
+`VodRepositoryImpl.kt:343` et `SeriesRepositoryImpl.kt:297` déclenchent `startBackgroundEnrichment()`
+après **toute** récupération distante du catalogue (rafraîchissement explicite inclus), et
+`enrichBatch` écrit `releaseYear` en base (`VodRepositoryImpl.kt:99-111`) **sans jamais estampiller
+`ENRICHMENT`**.
+
+**Impact.** Un rafraîchissement hors synchronisation planifiée enrichit les années sans faire
+avancer aucune estampille : un cache d'appariement TMDB écrit juste avant reste considéré valide et
+continue de servir le mauvais rapprochement — exactement le défaut décrit en §7.3, jusqu'au
+prochain `runSync`. À noter aussi une course dans `runSync` lui-même : `syncVodStreams()` lance un
+lot d'arrière-plan qui peut se terminer **après** le `markSuccess(ENRICHMENT, …)` de la même
+synchronisation. La fenêtre est donc réduite, pas fermée, contrairement à ce qu'affirment §7.3
+et §8.2.
+
+Nuance de portée : le fait qu'un rafraîchissement hors `runSync` ne restampille aucune section est
+un comportement préexistant (héritage B-3/T4), non introduit par B14. Le résidu propre à ce ticket
+est l'écriture de `releaseYear` par `startBackgroundEnrichment()` sans estampille.
+
+**Correction attendue.** Estampiller `ENRICHMENT` (`syncStateDao.markSuccess`) à la fin d'un lot
+d'arrière-plan ayant effectivement écrit au moins un flux, dans les deux repositories — ou, si l'on
+préfère ne pas faire dépendre les repositories du DAO de synchronisation, reformuler §7.3/§8.2 pour
+énoncer explicitement que la garantie ne porte que sur le chemin `runSync`, et documenter le résidu
+comme limite connue. Le choix doit être tranché, pas laissé implicite.
+
+## Mineur
+
+### MIN-1 — L'égalité de score à epsilon près est court-circuitée par le test de supériorité stricte
+
+`TmdbCatalogMatcher.kt:75` évalue `score > bestScore` **avant** la branche d'égalité à
+`SCORE_EQUALITY_EPSILON` (`1e-9`, `:12`). Un candidat dont le score dépasse le meilleur de moins
+d'un epsilon — donc « égal » au sens de l'algorithme — passe par la branche stricte, réinitialise
+`bestYearRank` et peut ainsi imposer un rang d'année moins bon. La clé composite `(score, yearRank)`
+n'est donc pas un ordre lexicographique cohérent avec sa propre relation d'égalité.
+
+*Impact :* faible en pratique (les similarités sont des ratios ; deux titres distincts s'écartent
+très rarement de moins de `1e-9`), mais la logique est fausse par construction et le sera davantage
+si le seuil ou le calcul de similarité évolue. Structure préexistante, non introduite par B14, mais
+c'est ce commit qui la rend porteuse d'une décision métier.
+
+*Correction attendue :* `score > bestScore + SCORE_EQUALITY_EPSILON` pour la branche stricte, la
+branche d'égalité restant inchangée. Ajouter un test avec deux titres de scores voisins à moins d'un
+epsilon et de rangs différents.
+
+### MIN-2 — Le rétrécissement du lot rétrécit aussi `usedIds`
+
+`GetPopularTop10InCatalogUseCase.kt:97` réserve `usedIds += ids` à partir des seuls candidats
+retenus. Les doublons non datés désormais élagués ne sont plus consommés et restent donc
+disponibles pour une entrée TMDB ultérieure, à laquelle ils peuvent être associés alors qu'ils
+désignent la même œuvre que l'entrée précédente. Effet de bord non analysé en §8.6.
+
+*Impact :* faible (il faut un second titre TMDB atteignant 0,8 de similarité sur le même titre
+normalisé), mais réel. À traiter naturellement par la correction de MAJ-1 (le lot complet est
+conservé, donc entièrement réservé) ; sinon, réserver les ids de tous les candidats compatibles et
+non plus seulement ceux retenus.
+
+### MIN-3 — `yearRank` n'est jamais asserté, et le rang 0 face au rang 1 n'est pas couvert
+
+§8.1 justifie l'exposition de `yearRank` dans `Match` par le besoin d'« un point d'assertion sur la
+raison du choix ». Aucun des trois nouveaux tests n'assert `match?.yearRank` : le champ n'est lu que
+par les logs, ce qui en fait de l'API publique non couverte. Par ailleurs le départage
+**rang 0 contre rang 1** — ligne centrale du tableau de §8.1 — n'est testé nulle part : le cas
+« TMDB 2021 avec candidats locaux 2021 et 2022 tous deux présents » manque.
+`findBestMatches_keepsCatalogOrderForEqualScores` (`:99`) n'utilise que des années identiques.
+
+*Correction attendue :* asserter `yearRank` (0/1/2) dans les trois nouveaux tests et ajouter le cas
+rang 0 vs rang 1, dans les deux ordres de catalogue.
+
+### MIN-4 — Prédicat « année connue » dupliqué entre `isYearCompatible` et `yearRankOf`
+
+La condition `tmdbYear == null || iptvYear == null || iptvYear <= 0` est écrite deux fois
+(`TmdbCatalogMatcher.kt:97` et `:103`). Les deux fonctions doivent rester rigoureusement d'accord :
+si l'une changeait de définition du « connu » sans l'autre, un candidat exclu pourrait être rangé, ou
+l'inverse. À noter également que ni l'une ni l'autre ne traite `tmdbYear <= 0` (aujourd'hui
+inatteignable, `ReleaseYearParser` ne renvoyant qu'une année 1900-2099 ou `null`) : l'invariant est
+implicite.
+
+*Correction attendue :* extraire un unique `private fun knownYear(year: Int?): Boolean` (ou
+`Int?.isKnownYear()`) utilisé par les deux, et y traiter explicitement `<= 0` des deux côtés.
+
+### MIN-5 — `yearRank` est un entier nu et le log n'en donne pas le libellé
+
+`Match.yearRank: Int` transporte trois valeurs sémantiques sans type nommé : le sens n'est porté que
+par un commentaire KDoc sur la fonction privée (`:101`). Les logs impriment le nombre brut
+(`yearRank: 2`), là où l'exemple de §8.3 annonçait `yearRank 0 (année exacte)` — la trace est donc
+moins lisible que spécifié, ce qui affaiblit la réponse à la question ouverte n°4.
+
+*Correction attendue :* soit une `enum class YearRank { EXACT, TOLERATED, UNKNOWN }` (ordinal
+naturellement ordonné, `name` directement loggable), soit a minima des constantes nommées et un
+libellé dans les deux logs.
+
+### MIN-6 — `CatalogFreshnessTest` : couverture asymétrique et donnée de test trompeuse
+
+- Le cas « section illisible » n'est vérifié que pour `vodSyncedAt` ; `seriesSyncedAt` n'a que le cas
+  nominal (`CatalogFreshnessTest.kt:37-42`). Le cas « `ENRICHMENT` illisible ne doit pas écraser une
+  estampille de section valide » — combinaison la plus dangereuse du `maxOf` — n'est pas couvert.
+- Le helper `section(...)` fixe `section = "irrelevant"` pour toutes les entités renvoyées
+  (`:68-73`) : le test passerait même si l'implémentation interrogeait la mauvaise section. La
+  discrimination ne repose que sur le stub `whenever(dao.getSection(...))`, ce qui est suffisant mais
+  fragile à la lecture.
+- Le `@Before setUp()` est vide et ne contient qu'un commentaire (`:23-26`) : à supprimer.
+
+*Correction attendue :* ajouter les deux cas manquants, faire porter au helper la vraie clé de
+section, retirer le `@Before` vide.
+
+## Corrections demandées
+
+| # | Sévérité | Objet | Fichiers |
+|---|---|---|---|
+| MAJ-1 | Majeur | Trier par `yearRank` au lieu d'élaguer ; amender §8.1/§8.6 ; test « candidat retenu masqué, doublon non daté visible » | `TmdbCatalogMatcher.kt`, `TmdbCatalogMatcherTest.kt`, `GetTrendingInCatalogUseCaseTest.kt` |
+| MAJ-2 | Majeur | Estampiller `ENRICHMENT` depuis `startBackgroundEnrichment()` **ou** restreindre explicitement la garantie de §7.3/§8.2 au chemin `runSync` | `VodRepositoryImpl.kt`, `SeriesRepositoryImpl.kt`, fiche §7.3/§8.2 |
+| MIN-1 | Mineur | `score > bestScore + SCORE_EQUALITY_EPSILON` + test de scores voisins à rangs différents | `TmdbCatalogMatcher.kt`, `TmdbCatalogMatcherTest.kt` |
+| MIN-2 | Mineur | Réserver dans `usedIds` tous les candidats compatibles | `GetPopularTop10InCatalogUseCase.kt` |
+| MIN-3 | Mineur | Asserter `yearRank` ; couvrir rang 0 contre rang 1 dans les deux ordres | `TmdbCatalogMatcherTest.kt` |
+| MIN-4 | Mineur | Prédicat « année connue » unique, `<= 0` traité des deux côtés | `TmdbCatalogMatcher.kt` |
+| MIN-5 | Mineur | Type nommé pour `yearRank` + libellé dans les logs | `TmdbCatalogMatcher.kt`, `GetTrendingInCatalogUseCase.kt`, `GetPopularTop10InCatalogUseCase.kt` |
+| MIN-6 | Mineur | Cas `seriesSyncedAt` illisible et `ENRICHMENT` illisible ; helper avec vraie clé ; `@Before` vide retiré | `CatalogFreshnessTest.kt` |
+
+## 11.3 Corrections de l'étape 7
+
+Toutes les corrections demandées sont résolues.
+
+- **MAJ-1 / MIN-2 :** le matcher conserve les candidats au meilleur score et les trie
+  stablement par `YearRank` (`EXACT`, `TOLERATED`, `UNKNOWN`). Les replis non datés restent
+  disponibles après filtrage des catégories masquées ou suppression d'une ligne locale ; le
+  test use case couvre désormais le candidat exact masqué et le repli visible.
+- **MAJ-2 :** la garantie D2 est explicitement limitée au chemin `runSync`, seul chemin qui
+  estampille `ENRICHMENT`. Les enrichissements directs des repositories sont un comportement
+  préexistant hors portée de B14 ; la fiche ne prétend plus fermer cette fenêtre.
+- **MIN-1 :** la comparaison stricte utilise `score > bestScore + SCORE_EQUALITY_EPSILON` ;
+  l'égalité utilise `<=` afin que le départage par rang reste cohérent.
+- **MIN-3 / MIN-5 :** `yearRank` est une enum nommée et les tests vérifient `EXACT`,
+  `TOLERATED` et `UNKNOWN`, incluant exact contre toléré dans les deux ordres de catalogue.
+  Les logs exposent désormais le libellé de l'enum.
+- **MIN-4 :** un unique prédicat `isKnownYear()` traite les années nulles ou `<= 0` pour la
+  garde de compatibilité et le rang.
+- **MIN-6 :** les tests de fraîcheur couvrent les exceptions de section et d'`ENRICHMENT`
+  pour films et séries, avec des entités portant leur section réelle ; le `@Before` vide est
+  supprimé.
+
+Status: RESOLVED
+
+---
+
+# 12. Validation finale
+
+| Contrôle | Résultat |
+|---|---|
+| `./gradlew assembleDebug` | vert |
+| `./gradlew testDebugUnitTest` | vert — **405 tests, 0 échec, 0 erreur** |
+| `./gradlew lintDebug` | vert |
+| Validation unitaire ciblée B14 | vert — matcher, fraîcheur, Tendances et Top 10 |
+| Validation manuelle Android / Android TV | validé |
+
+Les cinq critères d'acceptation sont couverts par les tests automatisés : exclusion des années
+incompatibles, tolérance ±1, repli sans année, absence de crash et cas films/séries dans
+Tendances et Top 10. La validation comportementale sur appareil est entièrement validée.
+
+---
+
+# 13. Release
+
+Version : v1.56.0
+
+Commit : v1.56.0
+
+Date : 2026-07-26

@@ -32,7 +32,7 @@ graph TD
 
 #### A. Couche Domaine (`domain/`)
 C'est le cœur de l'application, complètement indépendant des frameworks externes (Android, Room, Retrofit, etc.). Elle contient :
-* **`model/`** : Les modèles de données métier purs (ex: `LiveStream`, `FavoriteItem`). Ils sont stables et testables unitairement sans dépendances Android. Contient également des utilitaires de calcul et de matching purs et réutilisables, tels que **`TmdbCatalogMatcher`** (qui centralise le rapprochement entre les tendances TMDB et le catalogue local en combinant similarité textuelle et validation stricte de l'année de sortie à +/- 1 an).
+* **`model/`** : Les modèles de données métier purs (ex: `LiveStream`, `FavoriteItem`). Ils sont stables et testables unitairement sans dépendances Android. Contient également des utilitaires de calcul et de matching purs et réutilisables, tels que **`TmdbCatalogMatcher`** (qui centralise le rapprochement entre les tendances TMDB et le catalogue local en combinant similarité textuelle et validation stricte de l'année de sortie à +/- 1 an, amélioré avec un tri multicritère par rang d'année `YearRank` pour gérer finement les remakes et homonymes).
 * **`repository/`** : Les interfaces de communication avec les données. Elles définissent les contrats de récupération ou de modification des données (ex: `LiveTvRepository`).
 * **`usecase/`** : Les cas d'usage (facultatif mais fortement recommandé pour factoriser la logique métier).
 
@@ -64,7 +64,7 @@ Responsable de l'interface utilisateur. Elle utilise **Jetpack Compose** pour l'
 * **Moteur TMDB Popular & Caches Versionnés (F9)** :
   * Un repository dédié `PopularRepository` gère la récupération de la première page des films et séries populaires via l'API TMDB.
   * Utilisation d'un cache global persistant versionné dans le namespace `tmdb_popular_cache` avec un TTL (Time-To-Live) de 24 heures pour éviter les requêtes réseau superflues.
-  * Invalidation granulaire et réactive : les caches de films et de séries sont invalidés indépendamment lors d'une synchronisation réussie de leur catalogue respectif (`getVodAllStreamsSyncedAt` et `getSeriesAllStreamsSyncedAt`).
+  * Invalidation granulaire et réactive : les caches de films et de séries sont invalidés indépendamment lors d'une synchronisation réussie de leur catalogue respectif (`getVodAllStreamsSyncedAt` et `getSeriesAllStreamsSyncedAt`) ou de la fin de l'enrichissement des métadonnées du catalogue (`CatalogSection.ENRICHMENT`), fermant ainsi la fenêtre de cache obsolète pendant l'enrichissement d'arrière-plan du chemin `runSync`.
   * Parallélisme de traitement : Le cas d'usage `GetPopularTop10InCatalogUseCase` exécute les requêtes de films et de séries populaires en parallèle sur le pool de threads `Dispatchers.Default` pour éliminer tout goulot d'étranglement séquentiel, sous le contrôle d'un timeout de sécurité de 15 secondes dans `HomeViewModel` (découplé du spinner de chargement principal).
 * **Gestion de l'historique de visionnage local & Geste TV Sécurisé (F8)** :
   * Un repository dédié `ViewingHistoryRepository` isole la logique de suppression de l'historique de visionnage et des chaînes récentes de celle des repositories de catalogue.
