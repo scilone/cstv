@@ -108,9 +108,6 @@ Chaque élément doit suivre cette structure :
 
 ## Informations générales
 
-Type:
-Feature / Bug / Technical
-
 Status:
 IDEA
 
@@ -802,3 +799,5 @@ L'agent doit toujours :
 5. Respecter les décisions déjà prises.
 6. Signaler les incohérences avant modification.
 7. Ne jamais modifier le périmètre sans validation.
+8. Poser directement des questions à l'utilisateur en cas de doute, d'ambiguïté ou de questionnement sur les choix fonctionnels ou techniques, afin de valider l'alignement avant d'agir.
+9. Veiller à ce que tous les tests requis pour valider une tâche soient entièrement automatisés (tests unitaires s'exécutant localement via `./gradlew testDebugUnitTest`). Si une tâche ou une vérification requiert un appareil physique connecté (device), un émulateur en cours d'exécution, ou un test utilisateur manuel, elle ne doit pas être prise en compte et doit être ignorée des critères de validation de l'agent.

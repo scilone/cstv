@@ -108,6 +108,8 @@
     <string name="player_loading_stream">Chargement du flux...</string>
     <string name="player_error_title">Erreur de lecture</string>
     <string name="player_retry">Réessayer</string>
+    <string name="player_open_details">Ouvrir la fiche du média</string>
+    <string name="player_details_unavailable">La fiche de ce média n’est pas disponible.</string>
     <string name="profile_confirm_delete_cancel">Annuler</string>
     <string name="profile_logout">Déconnexion</string>
     <string name="series_details_seasons_label">SAISONS</string>

@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -26,12 +27,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
+import com.cstv.app.presentation.theme.Surface3
 
 /**
  * Composants UI partagés par les trois lecteurs (Live TV / VOD / Séries),
@@ -42,6 +48,58 @@ import androidx.compose.ui.unit.sp
 
 /** Couleur de fond des boutons ronds de l'overlay (semi-transparent sombre). */
 private val OverlayButtonBg = Color(0x59000000)
+
+/**
+ * Jaquette actionnable commune aux players VOD et Séries. Elle garde une zone
+ * interactive même sans image, pour que la navigation vers la fiche ne dépende
+ * pas de la disponibilité de l'affiche.
+ */
+@Composable
+fun PlayerCoverAction(
+    coverUrl: String?,
+    contentDescription: String,
+    isAvailable: Boolean,
+    unavailableContentDescription: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var isFocused by remember { mutableStateOf(false) }
+    Box(
+        modifier = modifier
+            .size(width = 64.dp, height = 92.dp)
+            .onFocusChanged { isFocused = it.isFocused }
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(
+                onClickLabel = if (isAvailable) contentDescription else unavailableContentDescription,
+                role = Role.Button,
+                onClick = onClick
+            )
+            .focusable()
+            .background(Surface3)
+            .border(
+                width = if (isFocused) 2.dp else 0.dp,
+                color = if (isFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
+                shape = RoundedCornerShape(8.dp)
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        if (coverUrl.isNullOrBlank()) {
+            Icon(
+                imageVector = Icons.Default.Movie,
+                contentDescription = null,
+                tint = Color.White.copy(alpha = 0.75f),
+                modifier = Modifier.size(30.dp)
+            )
+        } else {
+            AsyncImage(
+                model = coverUrl,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.matchParentSize()
+            )
+        }
+    }
+}
 
 /**
  * Bouton rond de la barre supérieure (retour, PIP, format d'image). Bordure

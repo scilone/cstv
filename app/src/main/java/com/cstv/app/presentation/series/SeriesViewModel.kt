@@ -351,7 +351,8 @@ class SeriesViewModel @Inject constructor(
         positionMs: Long,
         durationMs: Long,
         seriesName: String,
-        seriesCover: String?
+        seriesCover: String?,
+        seriesId: Int? = null
     ) {
         viewModelScope.launch {
             // Format the title as: Series Name - S01 E03 Episode Title
@@ -372,7 +373,7 @@ class SeriesViewModel @Inject constructor(
                 coverUrl = coverUrl,
                 type = type,
                 containerExtension = containerExtension,
-                seriesId = _state.value.selectedSeriesDetails?.seriesId,
+                seriesId = seriesId ?: _state.value.selectedSeriesDetails?.seriesId,
                 episodeNum = episode.episodeNum,
                 seasonNum = episode.seasonNum,
                 plot = episode.plot,

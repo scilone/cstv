@@ -38,7 +38,6 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.*
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -61,7 +60,6 @@ import com.cstv.app.data.download.OfflineDownloadUtil
 import com.cstv.app.domain.model.DownloadedItem
 import androidx.compose.material.icons.filled.AspectRatio
 import androidx.compose.material.icons.filled.PictureInPictureAlt
-import coil.compose.AsyncImage
 import com.cstv.app.data.local.storage.ResizeMode
 import androidx.media3.ui.PlayerView
 import com.cstv.app.presentation.player.applySubtitleStyle
@@ -69,6 +67,7 @@ import com.cstv.app.presentation.player.PlayerTopButton
 import com.cstv.app.presentation.player.TransportButton
 import com.cstv.app.presentation.player.PlayPauseButton
 import com.cstv.app.presentation.player.PlayerBottomAction
+import com.cstv.app.presentation.player.PlayerCoverAction
 import com.cstv.app.presentation.player.ResolutionBadge
 import com.cstv.app.presentation.theme.Surface1
 import com.cstv.app.presentation.theme.Surface3
@@ -85,6 +84,9 @@ import com.cstv.app.presentation.player.core.rememberPipState
 import com.cstv.app.domain.model.Credentials
 import com.cstv.app.domain.model.VodDetails
 import kotlinx.coroutines.delay
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.focusRequester
 
 private fun Context.findActivity(): Activity? {
     var currentContext = this
@@ -115,7 +117,9 @@ fun VodPlayerScreen(
     credentials: Credentials,
     isTv: Boolean,
     viewModel: VodViewModel,
-    onClose: () -> Unit,
+    onClose: () -> Boolean,
+    canOpenDetails: Boolean,
+    onOpenDetails: () -> Boolean,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -123,13 +127,15 @@ fun VodPlayerScreen(
     val exoPlayer = rememberManagedExoPlayer(useOfflineCache = true)
 
     var isPlayerVisible by remember { mutableStateOf(true) }
+    var isLeaving by remember { mutableStateOf(false) }
     var currentResizeMode by remember { mutableStateOf(viewModel.getResizeMode()) }
-    var resizeModeNotification by remember { mutableStateOf<String?>(null) }
+    var overlayNotification by remember { mutableStateOf<String?>(null) }
+    val coverFocusRequester = remember { FocusRequester() }
 
-    LaunchedEffect(resizeModeNotification) {
-        if (resizeModeNotification != null) {
+    LaunchedEffect(overlayNotification) {
+        if (overlayNotification != null) {
             delay(2000)
-            resizeModeNotification = null
+            overlayNotification = null
         }
     }
 
@@ -145,10 +151,37 @@ fun VodPlayerScreen(
     }
 
     val handleClose = {
-        isPlayerVisible = false
-        exoPlayer.stop()
-        exoPlayer.clearVideoSurface()
-        onClose()
+        if (!isLeaving) {
+            isLeaving = true
+            isPlayerVisible = false
+            exoPlayer.stop()
+            exoPlayer.clearVideoSurface()
+            if (!onClose()) {
+                isLeaving = false
+                isPlayerVisible = true
+                exoPlayer.prepare()
+                exoPlayer.play()
+            }
+        }
+    }
+
+    val handleOpenDetails = {
+        if (isLeaving) {
+            Unit
+        } else if (!canOpenDetails) {
+            overlayNotification = context.getString(R.string.player_details_unavailable)
+        } else {
+            isLeaving = true
+            isPlayerVisible = false
+            exoPlayer.stop()
+            exoPlayer.clearVideoSurface()
+            if (!onOpenDetails()) {
+                isLeaving = false
+                isPlayerVisible = true
+                exoPlayer.prepare()
+                exoPlayer.play()
+            }
+        }
     }
 
     androidx.activity.compose.BackHandler {
@@ -467,20 +500,14 @@ fun VodPlayerScreen(
             }
         }
 
-        // Aspect Ratio Change Notification Overlay
-        resizeModeNotification?.let { msg ->
+        overlayNotification?.let { msg ->
             Box(
                 modifier = Modifier
                     .align(Alignment.Center)
                     .background(Color(0x99000000), shape = RoundedCornerShape(8.dp))
                     .padding(horizontal = 16.dp, vertical = 8.dp)
             ) {
-                Text(
-                    text = msg,
-                    color = Color.White,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold
-                )
+                Text(text = msg, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
             }
         }
 
@@ -580,7 +607,7 @@ fun VodPlayerScreen(
                             }
                             currentResizeMode = nextMode
                             viewModel.setResizeMode(nextMode)
-                            resizeModeNotification = "Format : ${when (nextMode) {
+                            overlayNotification = "Format : ${when (nextMode) {
                                 ResizeMode.FIT -> "Ajuster"
                                 ResizeMode.FILL -> "Étirer"
                                 ResizeMode.ZOOM -> "Zoom"
@@ -597,7 +624,11 @@ fun VodPlayerScreen(
                 modifier = Modifier.align(Alignment.Center)
             ) {
                 TransportButton(Icons.Default.FastRewind, "Reculer 10s", onClick = { skipBackward() })
-                PlayPauseButton(isPlaying = isPlaying, onClick = { togglePlayPause() })
+                PlayPauseButton(
+                    isPlaying = isPlaying,
+                    onClick = { togglePlayPause() },
+                    modifier = if (isTv) Modifier.focusProperties { down = coverFocusRequester } else Modifier
+                )
                 TransportButton(Icons.Default.FastForward, "Avancer 10s", onClick = { skipForward() })
             }
 
@@ -609,18 +640,15 @@ fun VodPlayerScreen(
                     .padding(horizontal = 20.dp, vertical = 18.dp)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (!details.coverBig.isNullOrBlank()) {
-                        AsyncImage(
-                            model = details.coverBig,
-                            contentDescription = null,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier
-                                .size(width = 64.dp, height = 92.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(Surface3)
-                        )
-                        Spacer(modifier = Modifier.width(14.dp))
-                    }
+                    PlayerCoverAction(
+                        coverUrl = details.coverBig,
+                        contentDescription = stringResource(R.string.player_open_details),
+                        isAvailable = canOpenDetails,
+                        unavailableContentDescription = stringResource(R.string.player_details_unavailable),
+                        onClick = handleOpenDetails,
+                        modifier = Modifier.focusRequester(coverFocusRequester)
+                    )
+                    Spacer(modifier = Modifier.width(14.dp))
 
                     Column(modifier = Modifier.weight(1f)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {

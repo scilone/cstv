@@ -129,6 +129,18 @@ Cette fonctionnalité apporte du mouvement et de l'interactivité à l'Accueil e
 
 ---
 
+## 13. Navigation vers la fiche détails depuis le clic sur la cover du player (F16)
+Cette fonctionnalité permet d'accéder directement à la fiche détaillée (fiche média) d'un film ou d'une série depuis le lecteur vidéo en rendant sa cover cliquable.
+* **Cover interactive et focusable** : La jaquette (cover) affichée dans le bloc inférieur gauche des contrôles des lecteurs `VodPlayerScreen` et `SeriesPlayerScreen` devient interactive. Sur mobile, elle est cliquable tactilement, et sur Android TV, elle est entièrement focusable au D-pad (avec mise en valeur par une bordure d'accentuation violette) et validable par appui central. Un placeholder cliquable prend le relais lorsque l'image de la cover est indisponible.
+* **Navigation intelligente (Gestion du Backstack)** :
+  - Si la fiche de détails correspondante est l'écran immédiatement précédent dans la pile de navigation, l'action effectue un simple retour arrière (`popBackStack`), évitant ainsi la duplication inutile d'écrans.
+  - Si le lecteur a été ouvert depuis un autre écran (par exemple l'Accueil ou l'écran des Téléchargements), le lecteur est fermé puis la fiche détaillée du média est ouverte. Un retour depuis celle-ci ramène l'utilisateur à l'écran d'origine (et non au lecteur fermé).
+* **Sauvegarde automatique et fermeture propre** : Le clic sur la cover applique exactement le même cycle d'arrêt et de libération des ressources que les boutons Fermer ou Retour, garantissant que la progression de lecture en cours est fidèlement mémorisée en base de données.
+* **Fiabilisation des métadonnées de séries** : La colonne `seriesId` est désormais correctement écrite en base de données pour chaque position d'épisode de série, permettant de restaurer la fiche série associée même lors d'une reprise directe depuis « Continuer la lecture » de l'Accueil.
+* **Traitement des cas d'erreur & Mode hors-ligne** : Si les métadonnées nécessaires à l'ouverture de la fiche ne peuvent être résolues, la lecture n'est pas interrompue et un message d'erreur transitoire non technique est affiché. Hors connexion, la fiche détaillée s'ouvre à partir des données mises en cache localement dans la base de données Room.
+
+---
+
 ## 🚫 Fonctionnalités hors périmètre (Exclusions validées)
 Pour des raisons de performance, de stabilité ou d'expérience utilisateur, les fonctionnalités suivantes sont **strictement hors périmètre** :
 * **Multi-comptes Xtream** : L'application gère un seul compte Xtream Codes actif à la fois (les profils sont purement locaux et rattachés à ce compte unique).

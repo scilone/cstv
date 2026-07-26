@@ -1,5 +1,16 @@
 # Journal des Modifications (Changelog) - CSTV IPTV
 
+## [v1.59.0] - 2026-07-26
+### ✨ Nouvelles Fonctionnalités
+* **Navigation vers la fiche détails depuis le clic sur la cover du player (F16)** :
+  - **Cover cliquable et interactive** : Remplacement de la jaquette statique par un composant d'action interactif et partagé (`PlayerCoverAction`) sur mobile (tactile) et Android TV (D-pad avec bordure d'accentuation violette active), s'appuyant sur un placeholder cliquable en cas d'absence d'affiche.
+  - **Navigation intelligente et gestion du Backstack** : Intégration de la règle de routage `PlayerDetailsNavigation` (100% couverte en tests unitaires JVM) pour détecter si la fiche média est l'écran précédent (retour arrière simple via `popBackStack()`) ou s'il faut fermer le lecteur et ouvrir la fiche d'un clic pour éviter les doublons dans l'historique de navigation.
+  - **Garde d'unicité et cycle de fermeture propre** : Ajout d'un état `isLeaving` verrouillant les transitions pour éviter les doubles clics ou double fermetures, tout en permettant au lecteur de restaurer son état en cas d'échec de navigation. Arrêt propre du flux vidéo et sauvegarde automatique de la position en base de données avant la transition.
+  - **Fiabilisation de l'identifiant de série** : Raccordement complet de `seriesId` dans la persistance de position de lecture (`PlaybackPositionEntity`) et dans la reprise de lecture depuis l'Accueil pour permettre la résolution sans faille de la fiche série correspondante.
+  - **Notifications transitoires exclusives** : Gestion d'un état de notification unique dans les players pour afficher les erreurs transitoires (comme une fiche non résoluble ou l'absence de réseau) de manière élégante sans superposition ni interruption de la lecture en cours.
+
+> Validation automatisée : `testDebugUnitTest` et compilation validées à 100% avec succès.
+
 ## [v1.57.0] - 2026-07-26
 ### ✨ Nouvelles Fonctionnalités
 * **Section « Téléchargements » sur l'Accueil (F15)** :

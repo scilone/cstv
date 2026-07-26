@@ -67,6 +67,25 @@ import androidx.compose.foundation.lazy.LazyListState
 // its required navigation seed, which is defensively popped below.
 private const val NO_STREAM_ID = -1
 
+/** Exécute une sortie player atomique et ne navigue jamais au-dessus d'un player non dépilé. */
+private fun NavHostController.openPlayerDetails(
+    action: PlayerDetailsAction,
+    detailsRoute: String,
+    prepareDetails: () -> Unit
+): Boolean = when (action) {
+    PlayerDetailsAction.POP_TO_DETAILS -> popBackStack()
+    PlayerDetailsAction.REPLACE_WITH_DETAILS -> {
+        if (!popBackStack()) {
+            false
+        } else {
+            prepareDetails()
+            navigate(detailsRoute)
+            true
+        }
+    }
+    PlayerDetailsAction.UNAVAILABLE -> false
+}
+
 /**
  * Owner for the tab catalogue ViewModels (Live TV, films, séries).
  *
@@ -241,7 +260,7 @@ fun AppNavGraph(
                         seasonNum = position.seasonNum ?: 1
                     )
                     val details = SeriesDetails(
-                        seriesId = 0,
+                        seriesId = position.seriesId ?: 0,
                         name = sName,
                         cover = position.coverUrl,
                         rating = "0",
@@ -654,14 +673,41 @@ fun AppNavGraph(
             val vodViewModel: VodViewModel = hiltViewModel()
             val creds = vodViewModel.getCredentials()
             if (creds != null && activeVodDetails != null) {
+                val details = activeVodDetails
+                val navigationAction = remember {
+                    PlayerDetailsNavigation.resolve(
+                        detailsRoute = PlayerDetailsNavigation.VOD_DETAILS_ROUTE,
+                        targetId = details.streamId,
+                        previousRoute = navController.previousBackStackEntry?.destination?.route,
+                        previousTargetId = activeVodMovie?.streamId
+                    )
+                }
                 VodPlayerScreen(
-                    details = activeVodDetails,
+                    details = details,
                     initialPositionMs = resumePositionMs,
                     credentials = creds,
                     isTv = isTv,
                     viewModel = vodViewModel,
                     onClose = {
                         navController.popBackStack()
+                    },
+                    canOpenDetails = navigationAction != PlayerDetailsAction.UNAVAILABLE,
+                    onOpenDetails = {
+                        navController.openPlayerDetails(
+                            action = navigationAction,
+                            detailsRoute = PlayerDetailsNavigation.VOD_DETAILS_ROUTE
+                        ) {
+                            onActiveVodMovieChanged(
+                                VodStream(
+                                    streamId = details.streamId,
+                                    name = details.name,
+                                    streamIcon = details.coverBig,
+                                    rating = details.rating,
+                                    added = null,
+                                    categoryId = "0"
+                                )
+                            )
+                        }
                     }
                 )
             } else {
@@ -672,17 +718,45 @@ fun AppNavGraph(
             val seriesViewModel: SeriesViewModel = hiltViewModel()
             val creds = seriesViewModel.getCredentials()
             if (creds != null && activeEpisode != null) {
+                val episode = activeEpisode
+                val details = activeSeriesDetails
+                val navigationAction = remember {
+                    PlayerDetailsNavigation.resolve(
+                        detailsRoute = PlayerDetailsNavigation.SERIES_DETAILS_ROUTE,
+                        targetId = details?.seriesId,
+                        previousRoute = navController.previousBackStackEntry?.destination?.route,
+                        previousTargetId = activeSeriesShow?.seriesId
+                    )
+                }
                 SeriesPlayerScreen(
-                    episode = activeEpisode,
-                    seriesId = activeSeriesDetails?.seriesId ?: 0,
-                    seriesName = activeSeriesDetails?.name ?: "Série",
-                    seriesCover = activeSeriesDetails?.cover,
-                    seriesEpisodes = activeSeriesDetails?.episodes ?: emptyMap(),
+                    episode = episode,
+                    seriesId = details?.seriesId ?: 0,
+                    seriesName = details?.name ?: "Série",
+                    seriesCover = details?.cover,
+                    seriesEpisodes = details?.episodes ?: emptyMap(),
                     credentials = creds,
                     isTv = isTv,
                     viewModel = seriesViewModel,
                     onClose = {
                         navController.popBackStack()
+                    },
+                    canOpenDetails = navigationAction != PlayerDetailsAction.UNAVAILABLE,
+                    onOpenDetails = {
+                        navController.openPlayerDetails(
+                            action = navigationAction,
+                            detailsRoute = PlayerDetailsNavigation.SERIES_DETAILS_ROUTE
+                        ) {
+                            onActiveSeriesShowChanged(
+                                SeriesStream(
+                                    seriesId = details?.seriesId ?: 0,
+                                    name = details?.name ?: "Série",
+                                    cover = details?.cover,
+                                    rating = null,
+                                    added = null,
+                                    categoryId = "0"
+                                )
+                            )
+                        }
                     }
                 )
             } else {

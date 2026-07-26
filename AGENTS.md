@@ -136,6 +136,7 @@ Chaque nouvelle fonctionnalité livrée phase doit accompagner tests, pas juste 
 **Non prioritaire / pas sur-investir**
 - Tests UI Compose bout en bout (screenshot/instrumentation) : que si temps une fois reste couvert, jamais au détriment tests unitaires ci-dessus.
 - Pas test code layout pur sans logique (couleurs, dimensions).
+- **Exclusion des tests manuels ou sur device connecté** : TOUS les tests requis pour valider une tâche doivent être entièrement automatisés (tests unitaires locaux JVM exécutables via `./gradlew testDebugUnitTest`). Si une tâche ou une vérification requiert un appareil physique connecté (device), un émulateur actif, ou des tests utilisateurs manuels, elle est exclue et ne doit PAS être prise en compte dans les critères de validation finale de l'agent.
 
 **Pièges Mockito/Kotlin rencontrés (à réappliquer)**
 - Classe Kotlin `class Foo` avec méthode retournant type primitif (`Int`, `Boolean`, etc.) peut, une fois mockée, provoquer `NullPointerException` unboxing (`Callable.call()` retourne `null`) selon config Mockito projet (pas `mockito-inline`/`mockito-android` ici). Solution retenue : extraire **interface** (`ProfileManager`) + implémentation (`ProfileManagerImpl`), mocker interface.

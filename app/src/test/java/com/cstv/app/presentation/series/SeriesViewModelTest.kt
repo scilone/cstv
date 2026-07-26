@@ -165,4 +165,103 @@ class SeriesViewModelTest {
         verify(getSeriesDetailsUseCase, times(2)).invoke(42)
         assertEquals("Recovered", viewModel.state.value.selectedSeriesDetails?.name)
     }
+
+    @Test
+    fun savePositionPersistsExplicitSeriesIdWithoutSelectedDetails() = runTest(testDispatcher) {
+        whenever(vodRepository.observeAllPlaybackPositions()).thenReturn(flowOf(emptyList()))
+        viewModel = SeriesViewModel(
+            getSeriesCategoriesUseCase, getSeriesCategoryCountsUseCase, getSeriesStreamsUseCase,
+            getSeriesDetailsUseCase, getRelatedSeriesUseCase, savePlaybackPositionUseCase, credentialsManager,
+            settingsManager, trackPreferenceRepository, categoryPreferenceRepository, vodRepository, seriesRepository,
+            removeFromContinueWatchingUseCase, mediaRatingRepository, setMediaRatingUseCase,
+            observeCatalogStatusUseCase, catalogSyncManager, canPlayContentUseCase
+        )
+        runCurrent()
+
+        viewModel.savePosition(
+            episode = SeriesEpisode(
+                id = 501,
+                episodeNum = 2,
+                title = "Épisode",
+                containerExtension = "mp4",
+                plot = "",
+                duration = "",
+                releaseDate = "",
+                seasonNum = 1
+            ),
+            positionMs = 1_000L,
+            durationMs = 10_000L,
+            seriesName = "Série",
+            seriesCover = null,
+            seriesId = 42
+        )
+        runCurrent()
+
+        verify(savePlaybackPositionUseCase).invoke(
+            streamId = eq(501),
+            positionMs = eq(1_000L),
+            durationMs = eq(10_000L),
+            title = any(),
+            coverUrl = isNull(),
+            type = eq("series"),
+            containerExtension = eq("mp4"),
+            seriesId = eq(42),
+            episodeNum = eq(2),
+            seasonNum = eq(1),
+            plot = eq(""),
+            duration = eq(""),
+            releaseDate = eq("")
+        )
+    }
+
+    @Test
+    fun savePositionFallsBackToSelectedSeriesDetailsId() = runTest(testDispatcher) {
+        whenever(vodRepository.observeAllPlaybackPositions()).thenReturn(flowOf(emptyList()))
+        whenever(mediaRatingRepository.observeRating(42, RatedMediaType.SERIES)).thenReturn(flowOf(null))
+        whenever(getSeriesDetailsUseCase(42)).thenReturn(SeriesDetails(42, "Série", null, null, emptyList(), emptyMap()))
+        viewModel = SeriesViewModel(
+            getSeriesCategoriesUseCase, getSeriesCategoryCountsUseCase, getSeriesStreamsUseCase,
+            getSeriesDetailsUseCase, getRelatedSeriesUseCase, savePlaybackPositionUseCase, credentialsManager,
+            settingsManager, trackPreferenceRepository, categoryPreferenceRepository, vodRepository, seriesRepository,
+            removeFromContinueWatchingUseCase, mediaRatingRepository, setMediaRatingUseCase,
+            observeCatalogStatusUseCase, catalogSyncManager, canPlayContentUseCase
+        )
+        runCurrent()
+        viewModel.selectStreamId(42)
+        runCurrent()
+
+        viewModel.savePosition(
+            episode = SeriesEpisode(
+                id = 501,
+                episodeNum = 2,
+                title = "Épisode",
+                containerExtension = "mp4",
+                plot = "",
+                duration = "",
+                releaseDate = "",
+                seasonNum = 1
+            ),
+            positionMs = 1_000L,
+            durationMs = 10_000L,
+            seriesName = "Série",
+            seriesCover = null
+        )
+        runCurrent()
+
+        verify(savePlaybackPositionUseCase).invoke(
+            streamId = eq(501),
+            positionMs = eq(1_000L),
+            durationMs = eq(10_000L),
+            title = any(),
+            coverUrl = isNull(),
+            type = eq("series"),
+            containerExtension = eq("mp4"),
+            seriesId = eq(42),
+            episodeNum = eq(2),
+            seasonNum = eq(1),
+            plot = eq(""),
+            duration = eq(""),
+            releaseDate = eq("")
+        )
+    }
 }

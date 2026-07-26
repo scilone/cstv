@@ -178,3 +178,26 @@ Si aucun trailer n'est configuré par votre fournisseur IPTV ou trouvé sur TMDB
 ### 📺 Version Android TV
 Afin de préserver la navigation par focus au bouton (D-pad) caractéristique des téléviseurs, l'autoplay des trailers est **désactivé** sur Android TV. Le carrousel y reste statique et fidèle à l'expérience d'origine.
 
+---
+
+## 13. Navigation vers la fiche détails depuis le clic sur la cover du player (F16)
+
+Vous pouvez à tout moment basculer instantanément du lecteur vidéo (Films ou Séries) vers la fiche détaillée du média en lecture en sélectionnant simplement l'affiche (cover) située dans les contrôles.
+
+### 📱 Sur smartphone et tablette (Tactile)
+1. **Geste** : Ouvrez les contrôles du lecteur vidéo, puis touchez simplement la jaquette (cover) du média située en bas à gauche de l'écran (à côté du titre).
+2. Le lecteur s'arrête proprement, mémorise votre progression de lecture et vous redirige directement vers la fiche détaillée du film ou de la série correspondante.
+
+### 📺 Sur Android TV / Fire TV (Télécommande)
+1. **Geste** : Affichez les contrôles du lecteur. Naviguez vers le bas pour amener le focus sur la jaquette (cover) en bas à gauche. Son focus est clairement signalé par une bordure d'accentuation violette.
+2. **Validation** : Appuyez sur le bouton central **OK/Sélectionner** de votre télécommande pour valider l'action.
+3. Le lecteur s'arrête et vous amène directement sur la fiche détaillée.
+
+### 🔄 Comportement intelligent du retour arrière (Backstack)
+* **Pas de doublon** : Si vous aviez lancé la lecture depuis la fiche détaillée, cliquer sur la cover effectue un simple retour arrière pour revenir sur cette même fiche. L'application évite d'empiler des fenêtres en double dans votre historique.
+* **Fermeture puis ouverture** : Si la lecture a été lancée directement depuis l'Accueil (ex: « Continuer la lecture ») ou depuis vos Téléchargements sans passer par la fiche, l'application ferme d'abord proprement le lecteur vidéo puis vous ouvre la fiche détaillée. Ainsi, un retour arrière depuis cette fiche vous ramène directement à l'écran d'accueil d'origine, sans repasser par le lecteur vidéo.
+
+### 💡 Cas particuliers
+* **Mode hors-ligne** : Si vous lisez un contenu téléchargé sans connexion internet, cliquer sur la cover ouvrira la fiche détaillée en utilisant uniquement les données et jaquettes stockées localement sur votre appareil.
+* **Erreur ou absence de métadonnées** : Si pour une raison exceptionnelle (vieux téléchargement orphelin, etc.) l'application ne parvient pas à identifier la fiche correspondante, la lecture de votre vidéo n'est pas interrompue. Un message transitoire s'affiche brièvement pour vous informer qu'aucune fiche n'est disponible.
+
