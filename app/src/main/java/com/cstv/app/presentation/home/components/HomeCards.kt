@@ -1,6 +1,7 @@
 package com.cstv.app.presentation.home.components
 import com.cstv.app.R
 import androidx.compose.ui.res.stringResource
+import java.util.Locale
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -690,17 +691,19 @@ fun HomeDownloadCard(
                 modifier = Modifier.size(32.dp)
             )
         }
-        Column(
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .fillMaxWidth()
-                .background(Color(0xB8000000))
-                .padding(horizontal = 8.dp, vertical = 6.dp)
-        ) {
-            Text(item.title, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            item.subtitle?.takeIf { it.isNotBlank() }?.let { subtitle ->
-                Text(subtitle, color = Color.LightGray, fontSize = 9.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
+        // Épisode : repère saison/épisode en haut à gauche, au même style
+        // d'étiquette neutre que le badge de type des favoris. Le titre n'est
+        // pas répété sur la vignette, l'affiche suffit à identifier le média.
+        if (item.type == DownloadedItem.TYPE_EPISODE && item.seasonNum != null && item.episodeNum != null) {
+            HomeMediaTypeBadge(
+                label = String.format(Locale.ROOT, "S%02d E%02d", item.seasonNum, item.episodeNum),
+                fontSize = 8.sp,
+                fontWeight = FontWeight.Bold,
+                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp),
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(6.dp)
+            )
         }
     }
 }
