@@ -62,6 +62,7 @@ Introduits en Phase 27, les profils locaux permettent un partage personnalisé d
 * **Moteur de recherche performant** : Utilisation des fonctionnalités FTS (Full-Text Search) de SQLite/Room pour une recherche instantanée dans tout le catalogue hors-ligne.
 * **Recherche par crédit (acteur/réalisateur)** : Un clic sur le nom d'un acteur ou réalisateur depuis une fiche détaillée (Film ou Série) déclenche une recherche dédiée. Lors de cette transition, tous les filtres avancés précédemment actifs sont réinitialisés pour éviter d'exclure par erreur des résultats de l'acteur (prévention des faux positifs de résultats vides). Le moteur effectue une recherche exhaustive sur le titre, les acteurs, le réalisateur et le genre.
 * **Recherche Avancée** :
+  - Bouton d'action principal « Voir les résultats » rendu collant (sticky) en bas du volet de recherche pour rester visible en permanence pendant le défilement indépendant de tous les critères de filtres, réduisant la friction sur mobile et TV.
   - Filtrage précis par type de média (Live, VOD, Séries).
   - Filtrage multicritères par catégorie.
   - Tri par date d'ajout, note ou titre.

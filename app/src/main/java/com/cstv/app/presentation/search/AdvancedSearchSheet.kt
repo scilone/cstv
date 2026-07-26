@@ -115,124 +115,128 @@ fun AdvancedSearchSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                // Le contenu (catégorie/genres dépliés) peut dépasser la hauteur
-                // d'écran sur petits mobiles : sans scroll interne, le bouton
-                // "Voir les résultats" tombait hors-écran et devenait inatteignable.
-                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp)
-                .padding(bottom = 20.dp)
                 .focusGroup()
         ) {
-            // --- En-tête ---
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth().padding(bottom = 20.dp)
+            // La zone des filtres défile indépendamment du bouton d'application.
+            // fill = false conserve la hauteur naturelle de la sheet si le
+            // contenu est court, tout en la plafonnant si les filtres sont longs.
+            Column(
+                modifier = Modifier
+                    .weight(1f, fill = false)
+                    .verticalScroll(rememberScrollState())
             ) {
-                Text(
-                    text = "Recherche avancée",
-                    fontFamily = BricolageGrotesque,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 22.sp,
-                    letterSpacing = (-0.01).sp,
-                    color = TextPrimary,
-                    modifier = Modifier.weight(1f)
-                )
-                FocusableLink(
-                    text = "Réinitialiser",
-                    onClick = {
+                // --- En-tête ---
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 20.dp)
+                ) {
+                    Text(
+                        text = "Recherche avancée",
+                        fontFamily = BricolageGrotesque,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 22.sp,
+                        letterSpacing = (-0.01).sp,
+                        color = TextPrimary,
+                        modifier = Modifier.weight(1f)
+                    )
+                    FocusableLink(
+                        text = "Réinitialiser",
+                        onClick = {
+                            categoryExpanded = false
+                            onReset()
+                        }
+                    )
+                }
+
+                // --- Catégorie du média (choix exclusif) ---
+                SectionLabel("CATÉGORIE DU MÉDIA")
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
+                ) {
+                    MediaTypeChip(
+                        label = "Film",
+                        selected = filter.mediaType == SearchMediaType.FILM,
+                        isTv = isTv,
+                        onClick = {
+                            categoryExpanded = false
+                            onMediaTypeSelected(
+                                if (filter.mediaType == SearchMediaType.FILM) null else SearchMediaType.FILM
+                            )
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+                    MediaTypeChip(
+                        label = "Série",
+                        selected = filter.mediaType == SearchMediaType.SERIE,
+                        isTv = isTv,
+                        onClick = {
+                            categoryExpanded = false
+                            onMediaTypeSelected(
+                                if (filter.mediaType == SearchMediaType.SERIE) null else SearchMediaType.SERIE
+                            )
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+
+                // --- Dropdown catégorie (dépend du type) ---
+                CategoryDropdown(
+                    enabled = filter.mediaType != null,
+                    selectedCategoryId = filter.categoryId,
+                    categories = availableCategories,
+                    expanded = categoryExpanded,
+                    isTv = isTv,
+                    onToggleExpanded = { categoryExpanded = !categoryExpanded },
+                    onSelect = { id ->
                         categoryExpanded = false
-                        onReset()
+                        // "all" (Toutes les catégories) = pas de filtre catégorie.
+                        onCategorySelected(if (id == "all") null else id)
                     }
                 )
-            }
 
-            // --- Catégorie du média (choix exclusif) ---
-            SectionLabel("CATÉGORIE DU MÉDIA")
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
-            ) {
-                MediaTypeChip(
-                    label = "Film",
-                    selected = filter.mediaType == SearchMediaType.FILM,
-                    isTv = isTv,
-                    onClick = {
-                        categoryExpanded = false
-                        onMediaTypeSelected(
-                            if (filter.mediaType == SearchMediaType.FILM) null else SearchMediaType.FILM
-                        )
-                    },
-                    modifier = Modifier.weight(1f)
-                )
-                MediaTypeChip(
-                    label = "Série",
-                    selected = filter.mediaType == SearchMediaType.SERIE,
-                    isTv = isTv,
-                    onClick = {
-                        categoryExpanded = false
-                        onMediaTypeSelected(
-                            if (filter.mediaType == SearchMediaType.SERIE) null else SearchMediaType.SERIE
-                        )
-                    },
-                    modifier = Modifier.weight(1f)
-                )
-            }
+                Spacer(Modifier.height(20.dp))
 
-            // --- Dropdown catégorie (dépend du type) ---
-            CategoryDropdown(
-                enabled = filter.mediaType != null,
-                selectedCategoryId = filter.categoryId,
-                categories = availableCategories,
-                expanded = categoryExpanded,
-                isTv = isTv,
-                onToggleExpanded = { categoryExpanded = !categoryExpanded },
-                onSelect = { id ->
-                    categoryExpanded = false
-                    // "all" (Toutes les catégories) = pas de filtre catégorie.
-                    onCategorySelected(if (id == "all") null else id)
-                }
-            )
-
-            Spacer(Modifier.height(20.dp))
-
-            // --- Note minimum ---
-            SectionLabel("NOTE MINIMUM")
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                modifier = Modifier.fillMaxWidth().padding(bottom = 20.dp)
-            ) {
-                RatingChip("Toutes", filter.minRating == null, isTv, { onMinRatingSelected(null) }, Modifier.weight(1f))
-                listOf(7, 8, 9).forEach { r ->
-                    RatingChip("$r+", filter.minRating == r, isTv, { onMinRatingSelected(r) }, Modifier.weight(1f))
-                }
-                RatingChip("10", filter.minRating == 10, isTv, { onMinRatingSelected(10) }, Modifier.weight(1f))
-            }
-
-            // --- Année de sortie ---
-            YearRangeSection(
-                yearRange = filter.yearRange ?: catalogYearRange,
-                catalogYearRange = catalogYearRange,
-                isTv = isTv,
-                onYearRangeChanged = onYearRangeChanged
-            )
-
-            Spacer(Modifier.height(20.dp))
-
-            // --- Genres (top 20) ---
-            if (availableGenres.isNotEmpty()) {
-                SectionLabel("GENRES")
-                FlowRow(
+                // --- Note minimum ---
+                SectionLabel("NOTE MINIMUM")
+                Row(
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp)
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 20.dp)
                 ) {
-                    availableGenres.forEach { genre ->
-                        GenreChip(
-                            label = genre,
-                            selected = genre in filter.genres,
-                            isTv = isTv,
-                            onClick = { onGenreToggled(genre) }
-                        )
+                    RatingChip("Toutes", filter.minRating == null, isTv, { onMinRatingSelected(null) }, Modifier.weight(1f))
+                    listOf(7, 8, 9).forEach { r ->
+                        RatingChip("$r+", filter.minRating == r, isTv, { onMinRatingSelected(r) }, Modifier.weight(1f))
+                    }
+                    RatingChip("10", filter.minRating == 10, isTv, { onMinRatingSelected(10) }, Modifier.weight(1f))
+                }
+
+                // --- Année de sortie ---
+                YearRangeSection(
+                    yearRange = filter.yearRange ?: catalogYearRange,
+                    catalogYearRange = catalogYearRange,
+                    isTv = isTv,
+                    onYearRangeChanged = onYearRangeChanged
+                )
+
+                Spacer(Modifier.height(20.dp))
+
+                // --- Genres (top 20) ---
+                if (availableGenres.isNotEmpty()) {
+                    SectionLabel("GENRES")
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp)
+                    ) {
+                        availableGenres.forEach { genre ->
+                            GenreChip(
+                                label = genre,
+                                selected = genre in filter.genres,
+                                isTv = isTv,
+                                onClick = { onGenreToggled(genre) }
+                            )
+                        }
                     }
                 }
             }
@@ -240,29 +244,35 @@ fun AdvancedSearchSheet(
             // --- Bouton résultats ---
             var applyFocused by remember { mutableStateOf(false) }
             Box(
-                contentAlignment = Alignment.Center,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .onFocusChanged { applyFocused = it.isFocused }
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(AccentLavande)
-                    .then(
-                        if (isTv) Modifier.border(
-                            3.dp,
-                            if (applyFocused) Color.White else Color.Transparent,
-                            RoundedCornerShape(16.dp)
-                        ) else Modifier
-                    )
-                    .clickable { onApply() }
-                    .padding(vertical = 16.dp)
+                    .padding(bottom = 20.dp)
             ) {
-                Text(
-                    text = "Voir les résultats ($resultCount)",
-                    fontFamily = HankenGrotesk,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp,
-                    color = Color(0xFF17131F)
-                )
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .onFocusChanged { applyFocused = it.isFocused }
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(AccentLavande)
+                        .then(
+                            if (isTv) Modifier.border(
+                                3.dp,
+                                if (applyFocused) Color.White else Color.Transparent,
+                                RoundedCornerShape(16.dp)
+                            ) else Modifier
+                        )
+                        .clickable { onApply() }
+                        .padding(vertical = 16.dp)
+                ) {
+                    Text(
+                        text = "Voir les résultats ($resultCount)",
+                        fontFamily = HankenGrotesk,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp,
+                        color = Color(0xFF17131F)
+                    )
+                }
             }
         }
     }

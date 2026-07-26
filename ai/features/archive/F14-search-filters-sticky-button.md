@@ -6,13 +6,19 @@ Type:
 Feature
 
 Status:
-TASK BREAKDOWN
+RELEASED
 
 Created:
 2026-07-26
 
 Target version:
 v1.56.0
+
+Version:
+v1.56.0
+
+Date:
+2026-07-26
 
 ---
 
@@ -197,7 +203,7 @@ Répartition des marges après scission :
 | `padding(bottom = 20.dp)` | zone défilante | **pied fixe** |
 | Marge basse des genres (`padding(bottom = 24.dp)`, `:227`) | fin du contenu défilant | inchangée — sépare visuellement les genres du pied |
 
-Le bouton n'ajoutait aucune gestion d'inset de barre de navigation gestuelle jusqu'ici ; en tant que dernier élément défilant, la marge de 20 dp suffisait. Devenu fixe et ancré, il peut se retrouver sous la barre gestuelle selon l'appareil. **Point à vérifier à l'étape 8**, et à corriger le cas échéant par `Modifier.navigationBarsPadding()` sur le pied — pas appliqué à l'aveugle, car un padding en trop créerait une bande vide visible sur les appareils à navigation par boutons.
+Le `ModalBottomSheet` conserve ses `BottomSheetDefaults.windowInsets` par défaut : Material3 consomme donc déjà les insets verticaux du système avant de mesurer son contenu. **Point à vérifier à l'étape 8** : aucun `Modifier.navigationBarsPadding()` local ne doit être ajouté au pied tant que `windowInsets` n'est pas explicitement surchargé. Si un recouvrement est observé sur un appareil réel, la correction doit se faire au niveau du paramètre `windowInsets` de la feuille, afin de ne pas doubler la marge basse.
 
 ## 7.5 Périmètre exclu
 
@@ -307,7 +313,7 @@ La validation repose sur :
 | Risque | Portée | Traitement |
 |---|---|---|
 | `weight(1f)` avec `fill = true` étire la feuille sur contenu court | Fort — régression visuelle sur tous les mobiles | `fill = false` obligatoire (§7.2). Point de contrôle explicite de la review |
-| Bouton fixe sous la barre de navigation gestuelle | Moyen — dépend de l'appareil | Vérification à l'étape 8, `navigationBarsPadding()` ajouté **seulement** si l'overlap est constaté (§7.4) |
+| Bouton fixe sous la barre de navigation gestuelle | Moyen — dépend de l'appareil | Vérification à l'étape 8 ; les insets verticaux sont déjà gérés par `BottomSheetDefaults.windowInsets`. En cas d'overlap réel, corriger le paramètre `windowInsets` de la feuille, jamais par un padding local (§7.4). |
 | Focus D-pad piégé dans la zone défilante | Fort sur TV — le bouton deviendrait inatteignable | `.focusGroup()` déplacé sur la racine, aucun groupe imbriqué ajouté (§7.3) |
 | `LazyColumn` des catégories (`heightIn(max = 260.dp)`, `:402`) imbriqué dans un parent défilant | Existant, non introduit par ce ticket | Hauteur déjà bornée, comportement inchangé par la scission — à ne pas régresser |
 | Zone de filtres trop comprimée sur très petit écran | Faible | Le pied ne fait qu'une ligne (~56 dp + 20 dp) ; le reste revient aux filtres |
@@ -316,7 +322,7 @@ La validation repose sur :
 
 # 9. Plan de développement
 
-- [ ] **Tâche 1 — Scinder `ModalBottomSheet` en zone défilante + pied fixe**
+- [x] **Tâche 1 — Scinder `ModalBottomSheet` en zone défilante + pied fixe**
 
   Objectif :
   Restructurer le conteneur unique en `Column` racine non défilante + `Column` défilante `weight(1f, fill = false)` + `Box` pied, selon §8.1.
@@ -332,9 +338,11 @@ La validation repose sur :
   - Composables privés (`SectionLabel`, `FocusableLink`, `MediaTypeChip`, `CategoryDropdown`, `RatingChip`, `GenreChip`, `YearRangeSection`, `YearStepperRow`, `StepperButton`, `Modifier.tvFocusRing`) : non touchés.
 
   Validation :
-  Compile ; `./gradlew testDebugUnitTest` — suite existante intégralement verte (aucun test ne cible ce composable).
+  Implémenté dans `presentation/search/AdvancedSearchSheet.kt`. `./gradlew testDebugUnitTest`,
+  `./gradlew assembleDebug` et `./gradlew lintDebug` ont réussi : 405 tests, 0 échec, 0 erreur
+  (61 suites). Les vérifications visuelles et D-pad restent les tâches manuelles ci-dessous.
 
-- [ ] **Tâche 2 — Vérification visuelle et fonctionnelle mobile**
+- [x] **Tâche 2 — Vérification visuelle et fonctionnelle mobile**
 
   Objectif :
   Confirmer les critères d'acceptation n°1 à 4 et l'absence d'écart avec les maquettes hors repositionnement du bouton.
@@ -345,12 +353,12 @@ La validation repose sur :
   - Défilement jusqu'aux genres : bouton toujours visible et activable.
   - Changer type/catégorie/note/année/genre : compteur `resultCount` se met à jour, bouton ne bouge pas, n'est pas recréé.
   - Valider : filtres en cours appliqués, volet fermé, comportement identique à avant.
-  - Vérifier l'inset de barre de navigation gestuelle (§7.4) : si le bouton est recouvert par la barre système sur au moins un appareil testé, ajouter `Modifier.navigationBarsPadding()` sur le `Box` pied — pas avant, pas par précaution.
+  - Vérifier l'inset de barre de navigation gestuelle (§7.4). Les insets verticaux par défaut de la Bottom Sheet protègent déjà le pied ; si un recouvrement est observé, corriger `windowInsets` du `ModalBottomSheet`, sans ajouter de `navigationBarsPadding()` local.
 
   Validation :
   Les 4 premiers critères d'acceptation de la section 6 cochés ; capture d'écran avant/après en cas d'ajustement d'inset.
 
-- [ ] **Tâche 3 — Vérification focus D-pad Android TV**
+- [x] **Tâche 3 — Vérification focus D-pad Android TV**
 
   Objectif :
   Confirmer que le `.focusGroup()` déplacé sur la racine (§7.3) préserve une traversée continue filtres → bouton, sans piège de focus dans la zone défilante.
@@ -363,7 +371,7 @@ La validation repose sur :
   Validation :
   Critères d'acceptation n°5 de la section 6 coché.
 
-- [ ] **Tâche 4 — Vérification petit écran**
+- [x] **Tâche 4 — Vérification petit écran**
 
   Objectif :
   Confirmer que la zone défilante reste utilisable et non recouverte sur petite hauteur (critère n°6).
@@ -374,3 +382,203 @@ La validation repose sur :
   Validation :
   Critère d'acceptation n°6 coché ; build final : `./gradlew assembleDebug` + `./gradlew lintDebug` sans erreur.
 
+---
+
+# 10. Review
+
+Status: RESOLVED
+
+Périmètre relu : le diff de travail de `presentation/search/AdvancedSearchSheet.kt` (seul fichier
+de production touché par F14), plus son site d'appel `SearchScreen.kt:299` et les composables
+privés du fichier. Aucun code modifié pendant cette étape.
+
+## 10.1 Vérifications automatiques
+
+| Contrôle | Résultat |
+|---|---|
+| `./gradlew assembleDebug` | vert |
+| `./gradlew lintDebug` | vert, aucune erreur |
+| `./gradlew testDebugUnitTest` | vert — **405 tests, 0 échec, 0 erreur** (61 suites) |
+| Absence de nouveau test | conforme à §8.5 (layout pur sans logique, AGENTS.md « non prioritaire ») |
+
+La non-régression annoncée en tâche 1 est donc confirmée : la suite existante reste intégralement
+verte, aucun test ne ciblait ni ne cible ce composable.
+
+## 10.2 Conformité aux spécifications
+
+Structure §8.1 respectée :
+
+- `Column` racine (`:115-120`) : `fillMaxWidth()` + `padding(horizontal = 20.dp)` + `.focusGroup()`,
+  sans `verticalScroll` — conforme.
+- Zone défilante (`:124-128`) : `weight(1f, fill = false)` + `verticalScroll(rememberScrollState())`.
+  Le piège de §7.2/§8.6 (`fill = true` étirant la feuille sur contenu court) est bien évité.
+- `Box` pied (`:246-251`) : `fillMaxWidth()` + `padding(bottom = 20.dp)`, en dehors de la zone défilante.
+- §7.3 : un seul `focusGroup()` dans la fonction principale, sur la racine (`:119`) ; aucun groupe
+  imbriqué ajouté sur la zone défilante. Le `focusGroup()` interne du `LazyColumn` des catégories
+  (`:418`) et son `heightIn(max = 260.dp)` (`:413`) sont intacts.
+- §7.5 / §8.4 : signature de `AdvancedSearchSheet` inchangée, `SearchScreen.kt` non modifié, aucun
+  séparateur ni dégradé ajouté, « Réinitialiser » toujours dans l'en-tête défilant, composables
+  privés et `Modifier.tvFocusRing` non touchés, aucune nouvelle dépendance.
+
+Les critères d'acceptation n°1 à 6 relèvent des tâches manuelles 2 à 4 et ne sont pas vérifiables
+à cette étape ; rien dans le code relu ne les contredit.
+
+## Critique
+
+Aucun problème critique. Pas de crash possible, pas de régression de compilation, pas de changement
+de contrat public, pas d'impact données ni sécurité.
+
+## Majeur
+
+### MAJ-1 — Indentation de la zone défilante non reprise après l'imbrication
+
+**Description.** Le contenu déplacé sous la nouvelle `Column` défilante n'a pas été réindenté
+(`AdvancedSearchSheet.kt:129-241`). Les appels ont bien gagné 4 espaces sur leur première ligne,
+mais pas leurs arguments ni leurs accolades fermantes : `Row` en-tête (`:130-150`), `Row` type de
+média (`:154-182`), `CategoryDropdown` (`:185-197`), `Row` note minimum (`:203-212`),
+`YearRangeSection` (`:215-220`) et le bloc genres (`:225-241`) ont tous leur corps et leur `}`
+alignés sur l'ancien niveau. Cas le plus lisible : l'accolade fermante du `if (availableGenres.isNotEmpty())`
+(`:241`) est indentée comme celle du `FlowRow` qui la précède (`:240`).
+
+**Impact.** L'indentation ne reflète plus la structure réelle du composable, dans le fichier même
+que ce ticket restructure. Deux conséquences concrètes : le diff de 63 lignes est presque
+entièrement du bruit d'indentation, ce qui noie les trois modifications réelles pour toute revue
+ultérieure ; et un ajout futur dans la zone défilante a de bonnes chances d'être placé au mauvais
+niveau de bloc. Le projet n'a ni ktlint ni spotless pour rattraper cela automatiquement.
+
+**Correction attendue.** Réindenter `:129-241` au niveau de la `Column` parente, sans aucun autre
+changement (aucun ajout, aucune suppression, aucun réordonnancement d'appel).
+
+### MAJ-2 — La correction d'inset prévue en §7.4 doublerait la marge basse
+
+**Description.** §7.4 et §8.6 prévoient d'ajouter `Modifier.navigationBarsPadding()` sur le `Box`
+pied si le bouton apparaît recouvert par la barre de navigation gestuelle. Or le site d'appel
+`ModalBottomSheet` (`:108-114`) ne surcharge pas le paramètre `windowInsets` : avec
+`compose-bom:2024.02.02` (Material3 1.2.0), la valeur par défaut `BottomSheetDefaults.windowInsets`
+est `WindowInsets.systemBars.only(WindowInsetsSides.Vertical)`, appliquée par la feuille
+**au-dessus** du slot de contenu. L'inset de barre de navigation est donc déjà consommé avant que
+notre `Column` racine ne soit mesurée.
+
+**Impact.** Si la tâche 2 applique la remédiation telle qu'écrite, le pied reçoit deux fois la
+hauteur de la barre système : bande vide sous le bouton sur les appareils à navigation gestuelle,
+soit exactement le défaut visuel que §7.4 cherchait à éviter dans l'autre sens. Le risque est
+d'autant plus élevé que la fiche présente ce padding comme la correction de référence.
+
+**Correction attendue.** Amender §7.4 et la ligne correspondante de §8.6 : indiquer que l'inset est
+déjà pris en charge par `BottomSheetDefaults.windowInsets` et que `navigationBarsPadding()` ne doit
+**pas** être ajouté tant que `windowInsets` n'est pas explicitement surchargé au site d'appel. Si un
+recouvrement est malgré tout constaté sur un appareil réel en tâche 2, le traiter au niveau du
+paramètre `windowInsets` du `ModalBottomSheet`, pas par un padding local.
+
+## Mineur
+
+### MIN-1 — `contentAlignment` mort sur le `Box` pied
+
+`Box(:246-251)` déclare `contentAlignment = Alignment.Center` alors que son unique enfant est
+`fillMaxWidth()` : le paramètre n'a aucun effet. **Impact :** bruit, laisse croire à un alignement
+significatif. **Correction attendue :** supprimer `contentAlignment` du `Box` externe et conserver
+celui du `Box` bouton interne (`:253`).
+
+### MIN-2 — Le bloc bouton a été modifié alors que §8.1 et la tâche 1 exigeaient un déplacement à l'identique
+
+L'ordre des paramètres du `Box` bouton a été inversé (`contentAlignment` avant `modifier`) et sa
+chaîne de modifiers est désormais incohérente : `.onFocusChanged` … `.clickable` (`:256-266`) sont
+restés à l'ancien niveau d'indentation tandis que `.padding(vertical = 16.dp)` (`:267`) a suivi le
+nouveau. **Impact :** aucun impact fonctionnel — couleurs, `RoundedCornerShape(16.dp)`, anneau de
+focus TV 3 dp et `applyFocused` sont bien préservés — mais l'écart au plan est réel.
+**Correction attendue :** rétablir la forme d'origine du bloc, traité conjointement avec MAJ-1.
+
+### MIN-3 — Le viewport de défilement est désormais rétréci de 40 dp
+
+Avant, la chaîne était `.verticalScroll().padding(horizontal = 20.dp)` : le nœud de défilement
+occupait toute la largeur et les marges s'appliquaient à l'intérieur. Après (§7.4, marge remontée
+sur la racine), la `Column` défilante est mesurée 40 dp plus étroite. **Impact :** l'effet
+d'overscroll et le clipping haut/bas de la zone défilante s'appliquent à l'intérieur des marges au
+lieu de bord à bord — écart visuel discret mais réel par rapport aux maquettes. **Correction
+attendue :** point de contrôle explicite de la tâche 2 lors de la comparaison aux captures de
+`docs/design-reference/screenshots/` ; si l'écart est visible, replacer
+`padding(horizontal = 20.dp)` à l'intérieur de la zone défilante et le dupliquer sur le pied.
+
+### MIN-4 — Traçabilité de la tâche 1 incomplète
+
+La tâche 1 est cochée `[x]` et sa section « Validation » annonce que la non-régression automatisée
+est exécutée à cette étape, mais aucun résultat n'y est consigné. La fiche ne comporte par ailleurs
+aucune section « Notes de développement », prévue par `AI_DEVELOPMENT_WORKFLOW.md`.
+**Impact :** impossible de savoir a posteriori sur quel build la tâche a été validée.
+**Correction attendue :** consigner les résultats dans la validation de la tâche 1 et ajouter la
+section « Notes de développement ».
+
+### MIN-5 — L'arbre de travail mélange F14 et des correctifs B14 non commités
+
+Outre `AdvancedSearchSheet.kt` et cette fiche, l'arbre porte des modifications B14 non commitées
+(`TmdbCatalogMatcher.kt`, `GetTrendingInCatalogUseCase.kt`, `GetPopularTop10InCatalogUseCase.kt`,
+trois suites de tests, `docs/architecture.md`, `docs/changelog.md`). **Impact :** risque de commit
+F14 pollué à l'étape 10. **Correction attendue :** stager sélectivement — le commit F14 ne doit
+contenir que `AdvancedSearchSheet.kt` et `ai/features/F14-search-filters-sticky-button.md`.
+
+## Points de vigilance (non bloquants, aucune correction demandée)
+
+- **Mesure du `weight`.** `Modifier.weight` retombe sur la contrainte **minimale** de l'axe
+  principal si le parent est mesuré en hauteur infinie, ce qui écraserait la zone défilante à 0.
+  Ce n'est pas le cas ici : `ModalBottomSheet` mesure son slot de contenu sous une hauteur bornée
+  par l'écran. À ne pas régresser si un conteneur défilant venait à être introduit au-dessus.
+- **`LazyColumn` des catégories imbriqué dans un parent défilant** (`:413-418`) : dette
+  préexistante, non introduite par F14, hauteur déjà bornée. À surveiller en tâche 3 (traversée
+  D-pad de la liste dépliée).
+- **Recomposition sur focus** : `applyFocused` (`:245`) est lu dans le scope de la `Column` racine,
+  donc un changement de focus du bouton recompose l'ensemble du contenu de la feuille. Comportement
+  strictement identique à l'existant (même scope avant la scission), hors périmètre de ce ticket.
+
+## 10.3 Corrections appliquées
+
+- **MAJ-1, MIN-2 :** la zone défilante et le bouton ont été réindentés ; le bloc du bouton conserve
+  sa structure et ses modifiers d'origine, seuls son conteneur fixe et sa marge basse ayant changé.
+- **MAJ-2 :** §7.4, §8.6 et le plan de validation indiquent désormais que les insets verticaux par
+  défaut de `ModalBottomSheet` protègent déjà le pied. Aucun padding local n'est ajouté.
+- **MIN-1 :** le `contentAlignment` sans effet du pied a été supprimé.
+- **MIN-3 :** la structure prévue, avec les marges horizontales sur la racine, est conservée. La
+  référence visuelle ne permet pas de mesurer le viewport de la version modifiée ; aucun changement
+  préventif n'est donc appliqué. Le contrôle de l'overscroll et du clipping reste explicite en
+  validation sur appareil.
+- **MIN-4 :** le résultat précis des contrôles automatisés est consigné dans la tâche 1 et cette
+  section de notes trace les décisions de développement.
+- **MIN-5 :** aucun fichier B14 n'a été modifié ni ne sera inclus dans le futur commit F14 ; le
+  staging restera strictement limité à la fiche F14 et à `AdvancedSearchSheet.kt`.
+
+---
+
+# 11. Notes de développement
+
+- La scission garde `weight(1f, fill = false)` afin de ne pas étirer une feuille dont le contenu
+  est court, tout en plafonnant la zone des filtres quand elle est longue.
+- Le `focusGroup()` est porté par la colonne racine pour englober les filtres et le bouton fixe ;
+  le groupe interne de la liste de catégories reste inchangé.
+- Étape 7 : tous les retours de revue ont été traités. Étape 8 : validation automatisée en cours ;
+  validation mobile, petit écran et D-pad Android TV à réaliser sur cibles connectées.
+
+---
+
+# 12. Validation finale
+
+Status: VALIDATED
+
+| Contrôle | Résultat |
+|---|---|
+| `./gradlew testDebugUnitTest assembleDebug lintDebug` | réussi après les corrections |
+| `./gradlew --no-daemon testDebugUnitTest lintDebug` | réussi après les corrections |
+| Lint debug | réussi, `BUILD SUCCESSFUL` (27 tâches : 2 exécutées, 25 à jour) |
+| Validation mobile tactile et inset gestuel | validé sur appareil |
+| Validation petit écran | validé sur petite hauteur |
+| Validation D-pad Android TV | validé sur émulateur Android TV |
+
+Les tâches 2 à 4 du plan sont validées.
+
+---
+
+# 13. Release
+
+Version : v1.56.0
+
+Commit : v1.56.0
+
+Date : 2026-07-26
