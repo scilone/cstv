@@ -20,9 +20,15 @@ import javax.inject.Singleton
 open class CatalogFreshness @Inject constructor(
     private val syncStateDao: CatalogSyncStateDao
 ) {
-    open suspend fun vodSyncedAt(): Long = syncedAt(CatalogSection.VOD_STREAMS)
+    // maxOf(...) : l'enrichissement (années de sortie notamment) est estampillé
+    // après les sections catalogue de la même synchronisation (B14). Sans lui,
+    // un cache d'appariement TMDB écrit avant la fin de l'enrichissement reste
+    // valide indéfiniment et fige un mauvais rapprochement (remake/homonyme).
+    open suspend fun vodSyncedAt(): Long =
+        maxOf(syncedAt(CatalogSection.VOD_STREAMS), syncedAt(CatalogSection.ENRICHMENT))
 
-    open suspend fun seriesSyncedAt(): Long = syncedAt(CatalogSection.SERIES_STREAMS)
+    open suspend fun seriesSyncedAt(): Long =
+        maxOf(syncedAt(CatalogSection.SERIES_STREAMS), syncedAt(CatalogSection.ENRICHMENT))
 
     private suspend fun syncedAt(section: String): Long =
         try {

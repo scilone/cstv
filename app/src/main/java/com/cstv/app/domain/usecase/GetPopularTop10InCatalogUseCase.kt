@@ -95,6 +95,7 @@ class GetPopularTop10InCatalogUseCase @Inject constructor(
             TmdbCatalogMatcher.findBestMatches(title.title, title.year, catalog, usedIds)?.let { match ->
                 val ids = match.candidates.map(idOf)
                 usedIds += ids
+                IptvLog.d("TMDB", "🎯 Match popular: '${title.title}' (TMDB ${title.year}) ↔ ${ids.size} version(s) found (best score: ${match.score}, yearRank: ${match.yearRank})")
                 PopularCatalogItem(ids)
             }
         }

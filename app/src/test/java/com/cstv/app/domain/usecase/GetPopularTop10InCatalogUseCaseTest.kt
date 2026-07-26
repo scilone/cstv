@@ -93,6 +93,45 @@ class GetPopularTop10InCatalogUseCaseTest {
     }
 
     @Test
+    fun prefersDatedCandidateOverUnenrichedHomonym_forMoviesAndSeries() = runTest {
+        val popularRepository = mock<PopularRepository>()
+        val vodRepository = mock<VodRepository>()
+        val seriesRepository = mock<SeriesRepository>()
+        val preferences = mock<CategoryPreferenceRepository>()
+        val catalogFreshness = mock<com.cstv.app.data.sync.CatalogFreshness>()
+        whenever(catalogFreshness.vodSyncedAt()).thenReturn(0L)
+        whenever(catalogFreshness.seriesSyncedAt()).thenReturn(0L)
+        whenever(popularRepository.getCachedMatchedMovies(0L)).thenReturn(null)
+        whenever(popularRepository.getCachedMatchedSeries(0L)).thenReturn(null)
+        whenever(popularRepository.getPopularMovies()).thenReturn(
+            listOf(TrendingTitle(1, "Dune", true, 2021, null))
+        )
+        whenever(popularRepository.getPopularSeries()).thenReturn(
+            listOf(TrendingTitle(2, "Dune", false, 2021, null))
+        )
+
+        // Candidat non enrichi placé en premier dans le catalogue : sans le
+        // rang d'année (B14), l'ordre du catalogue le ferait gagner à tort.
+        val unenrichedMovie = VodStream(1, "Dune", null, null, null, "visible", releaseYear = null)
+        val datedMovie = VodStream(2, "Dune", null, null, null, "visible", releaseYear = 2021)
+        val unenrichedSeries = SeriesStream(1, "Dune", null, null, null, "visible", releaseYear = null)
+        val datedSeries = SeriesStream(2, "Dune", null, null, null, "visible", releaseYear = 2021)
+
+        whenever(vodRepository.getCachedVodStreams(eq("all"))).thenReturn(listOf(unenrichedMovie, datedMovie))
+        whenever(seriesRepository.getCachedSeriesStreams(eq("all"))).thenReturn(listOf(unenrichedSeries, datedSeries))
+        whenever(vodRepository.getStreamById(2)).thenReturn(datedMovie)
+        whenever(seriesRepository.getStreamById(2)).thenReturn(datedSeries)
+        whenever(preferences.getPreferences(any())).thenReturn(emptyMap())
+
+        val result = GetPopularTop10InCatalogUseCase(
+            popularRepository, vodRepository, seriesRepository, preferences, catalogFreshness
+        )()
+
+        assertEquals(listOf(2), result.movies?.map { it.streamId })
+        assertEquals(listOf(2), result.series?.map { it.seriesId })
+    }
+
+    @Test
     fun cachedDeletedOrHiddenMoviesFallBackToLocal() = runTest {
         val popularRepository = mock<PopularRepository>()
         val vodRepository = mock<VodRepository>()

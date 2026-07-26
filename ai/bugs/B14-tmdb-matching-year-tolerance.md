@@ -6,7 +6,7 @@ Type:
 Bug
 
 Status:
-TASK BREAKDOWN
+IMPLEMENTATION
 
 Created:
 2026-07-26
@@ -303,7 +303,7 @@ Xtream (releasedate)                    findBestMatches(tmdbTitle, tmdbYear, cat
 
 # 9. Plan de développement
 
-- [ ] **Tâche 1 — `yearRank` dans `TmdbCatalogMatcher`**
+- [x] **Tâche 1 — `yearRank` dans `TmdbCatalogMatcher`**
 
   Objectif :
   Départager les candidats à score textuel égal par la proximité d'année (§8.1), au lieu de laisser l'ordre du catalogue trancher entre un candidat daté compatible et un candidat non daté.
@@ -319,7 +319,7 @@ Xtream (releasedate)                    findBestMatches(tmdbTitle, tmdbYear, cat
   Validation :
   Compile ; aucun appelant cassé (`Match` gagne un champ, ses deux usages `GetTrendingInCatalogUseCase`/`GetPopularTop10InCatalogUseCase` ne lisent pas encore `yearRank` à ce stade).
 
-- [ ] **Tâche 2 — Tests `TmdbCatalogMatcherTest` de la cause racine**
+- [x] **Tâche 2 — Tests `TmdbCatalogMatcherTest` de la cause racine**
 
   Objectif :
   Verrouiller le scénario exact du bug (§7.2) : un candidat daté compatible doit gagner face à un candidat non daté à score égal, quel que soit l'ordre du catalogue.
@@ -336,7 +336,7 @@ Xtream (releasedate)                    findBestMatches(tmdbTitle, tmdbYear, cat
   Validation :
   `./gradlew testDebugUnitTest` sur ce fichier — tous verts.
 
-- [ ] **Tâche 3 — `CatalogFreshness` intègre `ENRICHMENT`**
+- [x] **Tâche 3 — `CatalogFreshness` intègre `ENRICHMENT`**
 
   Objectif :
   Fermer la fenêtre de cache figé décrite en §7.3 : un cache d'appariement écrit avant l'enrichissement doit être invalidé une fois l'enrichissement terminé.
@@ -350,7 +350,7 @@ Xtream (releasedate)                    findBestMatches(tmdbTitle, tmdbYear, cat
   Validation :
   Compile ; `getCachedMatchedTrendsGlobal`/`getCachedMatchedMovies`/`getCachedMatchedSeries` consomment ces méthodes sans changement de signature.
 
-- [ ] **Tâche 4 — Tests `CatalogFreshness`**
+- [x] **Tâche 4 — Tests `CatalogFreshness`**
 
   Objectif :
   Garantir que l'intégration de `ENRICHMENT` invalide bien la fenêtre de cache visée, sans introduire d'invalidation excessive.
@@ -366,7 +366,7 @@ Xtream (releasedate)                    findBestMatches(tmdbTitle, tmdbYear, cat
   Validation :
   `./gradlew testDebugUnitTest` — tous verts.
 
-- [ ] **Tâche 5 — Traçabilité `yearRank` dans les use cases**
+- [x] **Tâche 5 — Traçabilité `yearRank` dans les use cases**
 
   Objectif :
   Rendre lisible en log la raison d'un appariement (§8.3), réponse à la question ouverte n°4 de l'étape 1.
@@ -381,7 +381,7 @@ Xtream (releasedate)                    findBestMatches(tmdbTitle, tmdbYear, cat
   Validation :
   Compile ; logs visibles en exécutant l'Accueil en debug (vérification manuelle, pas de test dédié — c'est un log, pas une règle métier).
 
-- [ ] **Tâche 6 — Tests bout en bout des deux use cases**
+- [x] **Tâche 6 — Tests bout en bout des deux use cases**
 
   Objectif :
   Non-régression sur un catalogue mixte (candidats datés et non datés), pour un film et une série dans Tendances **et** Top 10 populaires (critère d'acceptation n°5).
@@ -396,7 +396,7 @@ Xtream (releasedate)                    findBestMatches(tmdbTitle, tmdbYear, cat
   Validation :
   `./gradlew testDebugUnitTest` — tous verts, y compris les tests déjà existants de ces deux fichiers.
 
-- [ ] **Tâche 7 — Vérification finale**
+- [x] **Tâche 7 — Vérification finale**
 
   Objectif :
   Boucler la non-régression avant passage en `IMPLEMENTATION`.
@@ -406,4 +406,16 @@ Xtream (releasedate)                    findBestMatches(tmdbTitle, tmdbYear, cat
 
   Validation :
   Build vert, suite complète verte, 5 critères cochés.
+
+---
+
+# 10. Notes de développement
+
+Les 7 tâches ont été implémentées sans écart par rapport au plan de la section 9.
+
+- `TmdbCatalogMatcher.Match` porte désormais `yearRank` (0/1/2) ; sélection sur `(score, yearRank)`. Les 7 tests existants passent sans modification, complétés par 3 nouveaux couvrant la cause racine (ordre du catalogue non déterminant, tolérance ±1 préférée au repli, repli conservé en dernier recours).
+- `CatalogFreshness.vodSyncedAt()`/`seriesSyncedAt()` intègrent `maxOf(..., ENRICHMENT)`. Nouveau fichier `CatalogFreshnessTest.kt` (absent avant ce ticket) : 5 cas (enrichissement postérieur, enrichissement absent, enrichissement antérieur, section illisible).
+- Logs `IptvLog.d("TMDB", ...)` étendus avec `tmdbYear`/`yearRank` dans `GetTrendingInCatalogUseCase` (mouvement, série) et `GetPopularTop10InCatalogUseCase` (aucun log n'existait avant sur cette ligne, ajouté par cohérence).
+- Tests bout en bout ajoutés dans les deux suites de use cases existantes, reproduisant exactement le scénario Dune non enrichi / daté, pour un film et une série.
+- `./gradlew assembleDebug` + `./gradlew testDebugUnitTest` : build et suite complète verts.
 

@@ -302,6 +302,50 @@ class GetTrendingInCatalogUseCaseTest {
     }
 
     @Test
+    fun test_useCase_prefersDatedCandidateOverUnenrichedHomonym_forMovieAndSeries() = runTest {
+        val trendingRepository = mock<TrendingRepository>()
+        val vodRepository = mock<VodRepository>()
+        val seriesRepository = mock<SeriesRepository>()
+        val categoryPreferenceRepository = mock<CategoryPreferenceRepository>()
+        val catalogFreshness = mock<com.cstv.app.data.sync.CatalogFreshness>()
+        whenever(catalogFreshness.vodSyncedAt()).thenReturn(0L)
+        whenever(catalogFreshness.seriesSyncedAt()).thenReturn(0L)
+        whenever(trendingRepository.getCachedMatchedTrendsGlobal(0L)).thenReturn(null)
+        whenever(trendingRepository.getTrending()).thenReturn(
+            listOf(
+                TrendingTitle(1, "Dune", isMovie = true, year = 2021, posterUrl = null),
+                TrendingTitle(2, "Dune", isMovie = false, year = 2021, posterUrl = null)
+            )
+        )
+
+        // Candidat non enrichi (releaseYear pas encore récupéré) placé AVANT le
+        // candidat daté compatible : sans le rang d'année (B14), l'ordre du
+        // catalogue ferait gagner ce premier candidat.
+        val unenrichedMovie = VodStream(1, "Dune", null, null, null, "movies", releaseYear = null)
+        val datedMovie = VodStream(2, "Dune", null, null, null, "movies", releaseYear = 2021)
+        val unenrichedSeries = SeriesStream(1, "Dune", null, null, null, "series", releaseYear = null)
+        val datedSeries = SeriesStream(2, "Dune", null, null, null, "series", releaseYear = 2021)
+
+        whenever(vodRepository.getCachedVodStreams(eq("all"))).thenReturn(listOf(unenrichedMovie, datedMovie))
+        whenever(seriesRepository.getCachedSeriesStreams(eq("all"))).thenReturn(listOf(unenrichedSeries, datedSeries))
+        whenever(vodRepository.getStreamById(2)).thenReturn(datedMovie)
+        whenever(seriesRepository.getStreamById(2)).thenReturn(datedSeries)
+        whenever(categoryPreferenceRepository.getPreferences(any())).thenReturn(emptyMap())
+
+        val result = GetTrendingInCatalogUseCase(
+            trendingRepository,
+            vodRepository,
+            seriesRepository,
+            categoryPreferenceRepository,
+            catalogFreshness
+        )()
+
+        assertEquals(2, result.size)
+        assertEquals(2, result[0].matchedMovie?.streamId)
+        assertEquals(2, result[1].matchedSeries?.seriesId)
+    }
+
+    @Test
     fun test_useCase_matchesMovieAndSeriesWithSameXtreamId() = runTest {
         val trendingRepository = mock<TrendingRepository>()
         val vodRepository = mock<VodRepository>()

@@ -111,6 +111,57 @@ class TmdbCatalogMatcherTest {
     }
 
     @Test
+    fun findBestMatches_prefersDatedCandidateOverUnenrichedHomonym_regardlessOfCatalogOrder() {
+        val undated = movie(id = 1, name = "Dune", year = null)
+        val dated2021 = movie(id = 2, name = "Dune", year = 2021)
+
+        val unenrichedFirst = TmdbCatalogMatcher.findBestMatches(
+            tmdbTitle = "Dune",
+            tmdbYear = 2021,
+            catalog = TmdbCatalogMatcher.prepareMovies(listOf(undated, dated2021)),
+            excludedIds = emptySet()
+        )
+        val unenrichedLast = TmdbCatalogMatcher.findBestMatches(
+            tmdbTitle = "Dune",
+            tmdbYear = 2021,
+            catalog = TmdbCatalogMatcher.prepareMovies(listOf(dated2021, undated)),
+            excludedIds = emptySet()
+        )
+
+        assertEquals(listOf(dated2021), unenrichedFirst?.candidates)
+        assertEquals(listOf(dated2021), unenrichedLast?.candidates)
+    }
+
+    @Test
+    fun findBestMatches_prefersToleratedYearOverUnknownYearFallback() {
+        val undated = movie(id = 1, name = "Dune", year = null)
+        val toleratedYear = movie(id = 2, name = "Dune", year = 2022)
+
+        val match = TmdbCatalogMatcher.findBestMatches(
+            tmdbTitle = "Dune",
+            tmdbYear = 2021,
+            catalog = TmdbCatalogMatcher.prepareMovies(listOf(undated, toleratedYear)),
+            excludedIds = emptySet()
+        )
+
+        assertEquals(listOf(toleratedYear), match?.candidates)
+    }
+
+    @Test
+    fun findBestMatches_keepsUnknownYearFallbackWhenNoDatedCandidateExists() {
+        val undated = movie(id = 1, name = "Dune", year = null)
+
+        val match = TmdbCatalogMatcher.findBestMatches(
+            tmdbTitle = "Dune",
+            tmdbYear = 2021,
+            catalog = TmdbCatalogMatcher.prepareMovies(listOf(undated)),
+            excludedIds = emptySet()
+        )
+
+        assertEquals(listOf(undated), match?.candidates)
+    }
+
+    @Test
     fun findBestMatches_returnsNullWhenOnlyYearIsIncompatible() {
         val match = TmdbCatalogMatcher.findBestMatches(
             tmdbTitle = "Dune",
