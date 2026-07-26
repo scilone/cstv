@@ -33,6 +33,8 @@ import com.cstv.app.data.local.entity.MediaRatingEntity
 import com.cstv.app.data.local.entity.CatalogSyncStateEntity
 import com.cstv.app.data.local.entity.SeriesSeasonEntity
 import com.cstv.app.data.local.entity.SeriesEpisodeEntity
+import com.cstv.app.data.local.entity.TrailerCacheEntity
+import com.cstv.app.data.local.dao.TrailerCacheDao
 
 @Database(
     entities = [
@@ -56,9 +58,10 @@ import com.cstv.app.data.local.entity.SeriesEpisodeEntity
         MediaRatingEntity::class,
         CatalogSyncStateEntity::class,
         SeriesSeasonEntity::class,
-        SeriesEpisodeEntity::class
+        SeriesEpisodeEntity::class,
+        TrailerCacheEntity::class
     ],
-    version = 19,
+    version = 20,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -72,4 +75,5 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun downloadDao(): DownloadDao
     abstract fun mediaRatingDao(): MediaRatingDao
     abstract fun catalogSyncStateDao(): CatalogSyncStateDao
+    abstract fun trailerCacheDao(): TrailerCacheDao
 }

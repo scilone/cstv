@@ -1,5 +1,17 @@
 # Journal des Modifications (Changelog) - CSTV IPTV
 
+## [v1.60.0] - 2026-07-26
+### ✨ Nouvelles Fonctionnalités
+* **Lecture automatique du trailer YouTube sur les fiches de détail (Films/Séries) (F13)** :
+  - **Lecture immersive automatique** : Lancement automatique et en boucle de la bande-annonce YouTube en arrière-plan du bloc d'en-tête de la fiche de détails (Films et Séries) après 5 secondes de présence continue et stable sur la fiche.
+  - **Contrôle sonore complet** : Intégration d'un bouton d'activation/désactivation du son (Mute/Unmute) accessible et descriptif dans la barre d'action supérieure, s'initialisant systématiquement en mode muet à chaque nouvelle ouverture d'une fiche.
+  - **Gestion rigoureuse du cycle de vie** : Interruption instantanée de la vidéo et libération complète des ressources de la WebView à la fermeture de la fiche, lors de la mise en arrière-plan de l'application, ou lors du lancement de la lecture vidéo plein écran du média principal.
+  - **Résolution dynamique du TMDB ID** : Rapprochement automatique et intelligent du catalogue IPTV local (sans `tmdbId`) avec la base de données TMDB via de nouveaux endpoints de recherche (`search/movie` et `search/tv`) combinant similarité textuelle de titre normalisé et compatibilité de l'année de sortie à ± 1 an.
+  - **Cache persistant Room (v20)** : Mémorisation pérenne des résolutions (positives et négatives) en base de données avec des durées de validité (TTL) asymétriques (30 jours pour une bande-annonce trouvée, 7 jours pour un média dépourvu de trailer) pour éviter les requêtes réseau superflues.
+  - **Oubli instantané sur échec de lecture** : Invalidation en temps réel et purge immédiate du cache de la vidéo en cas de détection d'erreur de lecture (ex: vidéo supprimée, bloquée dans le pays), forçant une nouvelle recherche lors de la prochaine consultation et restaurant l'affiche de fond.
+
+> Validation automatisée : `testDebugUnitTest` et compilation validées à 100% avec succès.
+
 ## [v1.59.0] - 2026-07-26
 ### ✨ Nouvelles Fonctionnalités
 * **Navigation vers la fiche détails depuis le clic sur la cover du player (F16)** :

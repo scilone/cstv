@@ -23,6 +23,8 @@ import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.VolumeOff
+import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -57,6 +59,9 @@ import com.cstv.app.domain.model.SeriesEpisode
 import com.cstv.app.domain.model.SeriesSeason
 import com.cstv.app.domain.model.MediaRatingValue
 import com.cstv.app.presentation.components.MediaRatingControls
+import com.cstv.app.presentation.components.MediaDetailsTrailerBackdrop
+import com.cstv.app.domain.model.TrailerMedia
+import com.cstv.app.presentation.components.TrailerPreviewUiState
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
@@ -80,7 +85,15 @@ fun SeriesDetailsScreen(
     onLike: () -> Unit = {},
     onDislike: () -> Unit = {},
     onConsumeRatingError: () -> Unit = {}
+    ,trailerState: TrailerPreviewUiState = TrailerPreviewUiState.Poster,
+    onTrailerReady: (TrailerMedia) -> Unit = {},
+    onTrailerEnded: () -> Unit = {},
+    onTrailerFailed: (TrailerMedia) -> Unit = {}
 ) {
+    val trailerMedia = remember(details.seriesId, details.name, details.releaseDate) {
+        TrailerMedia.Series(details.seriesId, title = details.name, releaseYear = Regex("(?:19|20)\\d{2}").find(details.releaseDate.orEmpty())?.value?.toIntOrNull())
+    }
+    var trailerMuted by remember(trailerMedia) { mutableStateOf(true) }
     val snackbarHostState = remember { SnackbarHostState() }
     LaunchedEffect(ratingError) { ratingError?.let { snackbarHostState.showSnackbar(it); onConsumeRatingError() } }
     var selectedSeasonNumber by remember { mutableStateOf(details.seasons.firstOrNull()?.seasonNumber ?: 1) }
@@ -105,6 +118,16 @@ fun SeriesDetailsScreen(
                     .alpha(0.18f)
             )
         }
+        MediaDetailsTrailerBackdrop(
+            media = trailerMedia,
+            state = trailerState,
+            posterUrl = details.cover,
+            onContextReady = onTrailerReady,
+            onContextEnded = onTrailerEnded,
+            onPlaybackFailed = onTrailerFailed,
+            muted = trailerMuted,
+            modifier = Modifier.fillMaxSize()
+        )
 
         // 2. Content Structure
         Column(
@@ -122,6 +145,15 @@ fun SeriesDetailsScreen(
                     modifier = Modifier.background(Color(0x33FFFFFF), shape = RoundedCornerShape(12.dp))
                 ) {
                     Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Retour", tint = Color.White)
+                }
+                if (trailerState is TrailerPreviewUiState.Playing) {
+                    IconButton(onClick = { trailerMuted = !trailerMuted }) {
+                        Icon(
+                            if (trailerMuted) Icons.Filled.VolumeOff else Icons.Filled.VolumeUp,
+                            contentDescription = if (trailerMuted) "Activer le son du trailer" else "Couper le son du trailer",
+                            tint = Color.White
+                        )
+                    }
                 }
             }
 

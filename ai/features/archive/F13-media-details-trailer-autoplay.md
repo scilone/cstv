@@ -6,19 +6,19 @@ Type:
 Feature
 
 Status:
-TASK BREAKDOWN
+RELEASED
 
 Created:
 2026-07-25
 
 Target version:
-v1.55.0
+v1.60.0
 
 Version:
-v1.55.0
+v1.60.0
 
 Date:
-2026-07-25
+2026-07-26
 
 ---
 
@@ -800,7 +800,7 @@ TrailerRepositoryImpl
 
 ## Tâche 1 — Étendre le contrat de résolution et le rapprochement TMDB
 
-- [ ] Étendre `TrailerMedia` avec les informations de recherche locales et créer
+- [x] Étendre `TrailerMedia` avec les informations de recherche locales et créer
   le matcher pur qui choisit un résultat TMDB fiable à partir du titre et de
   l'année.
 
@@ -820,7 +820,7 @@ passants ; les appels Home existants continuent à fournir leur `tmdbId`.
 
 ## Tâche 2 — Ajouter le cache persistant et la migration Room
 
-- [ ] Créer la table de cache de trailer, son DAO, l'horloge injectable et la
+- [x] Créer la table de cache de trailer, son DAO, l'horloge injectable et la
   migration non destructive vers la version 18.
 
 Objectif : persister un résultat positif ou négatif par média de catalogue et
@@ -841,7 +841,7 @@ l'entité ; `ALL_MIGRATIONS` contient la migration et la version de base est 18.
 
 ## Tâche 3 — Implémenter la résolution et le cache dans le repository
 
-- [ ] Étendre `TrailerRepository` et `TrailerRepositoryImpl` avec la chaîne
+- [x] Étendre `TrailerRepository` et `TrailerRepositoryImpl` avec la chaîne
   mémoire → Room → Xtream → TMDB direct/recherche, les TTL et l'invalidation.
 
 Objectif : résoudre et mettre en cache les trailers sans persister les erreurs
@@ -862,7 +862,7 @@ recherche TMDB, échec réseau non persisté, `invalidate` et
 
 ## Tâche 4 — Extraire le lecteur YouTube partagé sans régression Home
 
-- [ ] Déplacer l'état d'aperçu et le lecteur WebView F10 dans les composants
+- [x] Déplacer l'état d'aperçu et le lecteur WebView F10 dans les composants
   partagés, puis rebrancher l'écran Accueil et son invalidation sur erreur.
 
 Objectif : rendre le lecteur réutilisable par les fiches tout en conservant à
@@ -882,7 +882,7 @@ repository.
 
 ## Tâche 5 — Orchestrer l'aperçu dans le ViewModel VOD
 
-- [ ] Ajouter l'état, les actions et les protections contre réponses obsolètes
+- [x] Ajouter l'état, les actions et les protections contre réponses obsolètes
   dans `VodViewModel`.
 
 Objectif : lancer une résolution à la demande de l'UI, l'annuler lors d'un
@@ -897,9 +897,18 @@ Fichiers :
 Validation : tests `Preparing → Playing/Poster`, annulation, changement de
 stream, réponse tardive ignorée et signalement d'échec limité au média actif.
 
+### Notes d'implémentation — 2026-07-27
+
+- Le schéma Room courant était déjà en version 19 ; le cache F13 utilise donc
+  `MIGRATION_19_20`, sans modification destructive des tables existantes.
+- Les ViewModels VOD et Séries portent l'état d'aperçu, annulent la résolution
+  au changement de fiche et invalident une source devenue illisible.
+- Les fiches déclenchent l'aperçu après cinq secondes et détruisent la WebView
+  à leur sortie. Les validations visuelles mobile/TV restent à faire à l'étape 8.
+
 ## Tâche 6 — Orchestrer l'aperçu dans le ViewModel Séries
 
-- [ ] Ajouter l'équivalent VOD au flux d'état et au ViewModel des séries.
+- [x] Ajouter l'équivalent VOD au flux d'état et au ViewModel des séries.
 
 Objectif : garantir le même comportement d'annulation, de résolution et
 d'invalidation pour une série, sans modifier la lecture d'épisode.
@@ -914,7 +923,7 @@ régression des actions existantes de fiche/épisode.
 
 ## Tâche 7 — Créer la couche de backdrop et intégrer les fiches
 
-- [ ] Créer le composant décoratif temporisé puis remplacer le backdrop statique
+- [x] Créer le composant décoratif temporisé puis remplacer le backdrop statique
   des détails VOD et Séries, avec contrôle sonore accessible.
 
 Objectif : après cinq secondes de présence active, afficher le trailer muet en
@@ -933,7 +942,7 @@ libérée à la sortie et ne capte jamais le focus.
 
 ## Tâche 8 — Vérifier l'intégration F13
 
-- [ ] Exécuter la suite de non-régression et consigner les résultats avant la
+- [x] Exécuter la suite de non-régression et consigner les résultats avant la
 review technique.
 
 Objectif : confirmer que les changements transverses (Room, DI, Home, VOD et
@@ -946,3 +955,250 @@ Fichiers :
 Validation : `./gradlew testDebugUnitTest`, `./gradlew assembleDebug` et
 `./gradlew lintDebug` passent ; les vérifications manuelles mobile/TV sont
 rapportées séparément avec leur résultat réel.
+
+---
+
+# 10. Review technique — 2026-07-27 (étape 6)
+
+## État vérifié
+
+- `./gradlew testDebugUnitTest lintDebug` : **BUILD SUCCESSFUL**, 430 tests,
+  0 échec, 0 erreur (`app/build/test-results/testDebugUnitTest`).
+- Câblage unique confirmé : `VodDetailsScreen` / `SeriesDetailsScreen` ne sont
+  instanciés que depuis `NavGraph.kt` (512 et 601). Le piège « double système de
+  navigation » d'AGENTS.md ne s'applique effectivement pas ici.
+- Migration `MIGRATION_19_20` relue contre `TrailerCacheEntity` : colonnes,
+  types, nullabilité et clé primaire composite concordent ; `CREATE TABLE` pur,
+  ajoutée à `ALL_MIGRATIONS`, version de base 19 → 20, aucun fallback destructif.
+- Périmètre respecté : aucune préférence utilisateur, aucune restriction Wi-Fi,
+  aucun changement des lecteurs plein écran ni des listes.
+
+Couverture réelle du plan : tâches 1, 2, 3, 5, 6 et 7 livrées **partiellement**
+(voir ci-dessous), tâche 4 non réalisée, tâche 8 exécutée. Les cases du plan sont
+restées `- [ ]`.
+
+## Critique
+
+### C1 — Un échec réseau est persisté comme « pas de bande-annonce »
+
+Description : `TrailerRepositoryImpl.kt:64-71`. Le `catch (error: Exception)`
+transforme toute panne (panel injoignable, timeout, TMDB 5xx) en `preview = null`,
+puis l'`upsert` de la ligne 70 est exécuté sans distinguer ce cas d'une réponse
+exploitable concluant à l'absence de trailer.
+
+Impact : une coupure réseau passagère écrit une ligne `videoId = null` valable
+**7 jours** — exactement le scénario que §7.4 et §7.10 désignent comme cas de
+non-régression critique. La fiche reste muette une semaine sans action possible
+de l'utilisateur.
+
+Correction attendue : séparer « résolution aboutie sans trailer » de « résolution
+impossible » (résultat scellé, sentinelle ou drapeau local), n'écrire en base que
+le premier cas, et ajouter le test `échec réseau → aucune écriture en base`.
+
+### C2 — Aucun contrôle Son : l'aperçu est câblé en muet définitif
+
+Description : `MediaDetailsTrailerBackdrop.kt:40` passe `muted = true` en dur ;
+aucun `IconButton` / `androidx.tv.material3.Button` n'a été ajouté dans la `Row`
+supérieure de `VodDetailsScreen` ni de `SeriesDetailsScreen`.
+
+Impact : la règle métier « le contrôle sonore est accessible sur mobile et
+focusable au D-Pad sur TV », la décision fonctionnelle n°2 et deux critères
+d'acceptation (activation du son, retour au muet en changeant de fiche) ne sont
+pas couverts. L'étape 8 ne peut pas être validée en l'état.
+
+Correction attendue : hisser l'état muet dans le composable de fond (remis à
+`true` à chaque changement de `videoId`), exposer le bouton dans la barre
+supérieure existante des deux écrans, uniquement en état `Playing` et après
+`onRevealed`, avec les `contentDescription` prévus au §7.7.
+
+### C3 — Aucune observation du `Lifecycle` dans `MediaDetailsTrailerBackdrop`
+
+Description : le composable ne pose qu'un `LaunchedEffect(media)` +
+`DisposableEffect(media)` (`MediaDetailsTrailerBackdrop.kt:29-33`). Le modèle de
+référence Accueil observe `ON_START` / `ON_STOP`
+(`HomeTrendingCarousel.kt:64-84`) ; cette partie n'a pas été reprise.
+
+Impact : deux critères d'acceptation violés. Application mise en arrière-plan
+pendant la minuterie → la résolution réseau part quand même (jusqu'à trois
+appels alors que l'utilisateur a quitté l'app) ; mise en arrière-plan pendant
+l'aperçu → la `WebView` continue de lire et de consommer de la bande passante,
+le composable n'étant pas retiré de la composition.
+
+Correction attendue : reprendre le schéma Accueil — état `lifecycleStarted`,
+`LaunchedEffect(mediaKey, lifecycleStarted)` pour la temporisation, et arrêt de
+la lecture (retour à `Poster` / `onContextEnded`) sur `ON_STOP`.
+
+## Majeur
+
+### M1 — `resolvedTmdbId` persiste `media.tmdbId`, jamais l'identifiant résolu
+
+`TrailerRepositoryImpl.kt:70` écrit `media.tmdbId`, qui est précisément `null`
+sur le chemin des fiches de détail. L'identifiant obtenu par `resolveTmdbId()`
+est donc perdu. Impact : la décision §7.5 « `resolvedTmdbId` conservé même quand
+`videoId` est `null` » est inopérante ; chaque expiration repaye un appel
+`search/*`. Correction : faire remonter l'id résolu jusqu'au point d'écriture.
+
+### M2 — `TimeProvider` absent, TTL non testables
+
+`System.currentTimeMillis()` est appelé directement (lignes 45 et 70) ;
+`domain/util/TimeProvider.kt` et `data/util/SystemTimeProvider.kt`, prévus par
+§7.5 et la tâche 2, n'existent pas. Impact : aucun test de TTL 7 j / 30 j n'est
+écrivable sans attente réelle — c'est la cause directe de M3. Correction :
+introduire l'interface injectable et l'utiliser dans le repository.
+
+### M3 — Aucun test sur le cache persistant ni sur la recherche TMDB
+
+`TrailerRepositoryImplTest` n'a reçu que l'argument de constructeur
+(`trailerCacheDao: TrailerCacheDao = mock()`). Les onze cas listés au §7.12
+(entrée positive/négative servie, expiration, écriture, échec réseau non
+persisté, réévaluation avec `resolvedTmdbId`, `invalidate`, `clearSessionCache`,
+erreur DAO) et les six cas de recherche TMDB sont absents. Impact : la partie la
+plus risquée de F13 — dont C1 et M1 — n'est couverte par aucun test ; les 430
+tests verts ne prouvent rien sur cette chaîne. Correction : écrire ces tests avec
+DAO simulé et horloge contrôlée.
+
+### M4 — `TrailerLookupMatcher` réimplémente sa propre logique de rapprochement
+
+`TrailerLookupMatcher.kt:17-26` définit sa propre normalisation et une similarité
+Jaccard sur ensembles de mots, alors que §7.4 impose la réutilisation de
+`TitleNormalizer` et `ApproximateTitleMatcher.computeSimilarityNormalized`
+(rodés par F1/F9). Impact : deux logiques de rapprochement divergentes à
+maintenir, et le seuil « 0,8 » n'a pas le même sens sur un Jaccard de tokens que
+sur la similarité de chaînes projet (une seule différence de mot sur un titre
+court fait chuter le score sous le seuil). `TrailerLookupMatcherTest` est par
+ailleurs absent alors qu'il conditionnait la validation de la tâche 1.
+Correction : brancher les objets existants, ou justifier explicitement l'écart et
+recalibrer le seuil, puis écrire les tests prévus.
+
+### M5 — Départage d'égalité inversé dans le matcher
+
+`TrailerLookupMatcher.kt:14` : `maxWithOrNull(compareBy { score }.thenByDescending { -index })`
+sélectionne, à score égal, le candidat d'index **le plus grand** — donc le
+dernier résultat TMDB, le moins pertinent. La spec demande l'ordre de pertinence
+TMDB. Impact : mauvais trailer possible sur une fiche à titre ambigu. Correction :
+`thenBy { index }` (le double `Descending` + négation est aussi trompeur à lire).
+
+### M6 — Requête de recherche envoyée brute, sans année
+
+`TrailerRepositoryImpl.kt:102-103` envoie `media.title` tel quel (donc
+`details.name`, non passé par `TitleNormalizer`), et `TmdbApiService.searchMovies`
+/ `searchSeries` n'exposent ni `year` / `first_air_date_year` ni `include_adult`,
+contrairement au §7.4. Impact : sur un catalogue IPTV taggé (`[MULTI]`, `1080p`,
+année accolée), la recherche part bruitée et le filtrage se fait seulement après,
+sur les 20 résultats de la première page — plus de faux négatifs. Correction :
+normaliser le titre avant l'appel et transmettre l'année quand elle est connue.
+
+### M7 — Année de sortie mal extraite (VOD) ou absente (Séries)
+
+`VodDetailsScreen.kt:107` : `details.releaseDate.take(4).toIntOrNull()` sans
+parsing défensif ni repli sur `VodStream.releaseYear` — un panel renvoyant
+`12-06-2019` produit l'année `12`, et le filtre ± 1 an rejette alors le bon film.
+`SeriesDetailsScreen.kt:116` ne transmet aucune année, alors que
+`SeriesDetails.releaseDate` existe (nullable) et que `SeriesStream.releaseYear`
+est disponible en repli. Impact : le filtre d'année est le principal garde-fou
+anti-faux-positif du §7.10 ; il est neutralisé côté séries et peut se retourner
+contre la résolution côté films. Correction : extracteur d'année défensif partagé
+(testé sur `2019-06-12`, `2019`, `""`, `null`, valeur non numérique) avec repli
+catalogue, plus les tests §7.12 « Parsing de l'année ».
+
+### M8 — Tâche 4 non réalisée : dépendance `vod`/`series` → `home`
+
+Ni `presentation/components/YouTubeTrailerPreview.kt` ni
+`presentation/components/TrailerPreviewUiState.kt` n'ont été créés.
+`HomeYouTubeTrailerPreview` est simplement passé de `internal` à `public`, et
+`VodState.kt`, `SeriesState.kt`, les deux ViewModels, les deux écrans et
+`MediaDetailsTrailerBackdrop.kt:12-13` importent
+`presentation.home.TrailerPreviewUiState` et
+`presentation.home.components.HomeYouTubeTrailerPreview`. Impact : deux écrans
+dépendent du package d'un troisième, contre la convention AGENTS.md (composants
+partagés dans `presentation/components`) et contre §7.2 ; toute évolution Accueil
+touche désormais les fiches sans que le nommage le signale. Correction : effectuer
+le déplacement prévu (état + lecteur) et rebrancher Accueil.
+
+### M9 — `HomeViewModel.reportTrailerPlaybackFailure` n'invalide toujours pas
+
+`HomeViewModel.kt:170-174` se limite à l'état `Failed`. §7.5 et la tâche 4
+prévoient explicitement l'invalidation persistée pour l'Accueil aussi. Impact :
+une vidéo retirée de YouTube reste servie 30 jours sur la Hero Card, seul point
+où le TTL positif n'a aucun filet. Correction : injecter
+`InvalidateTrailerPreviewUseCase` dans `HomeViewModel` et l'appeler.
+
+### M10 — `SeriesViewModelTest` sans aucun test d'aperçu
+
+Le fichier n'a reçu que les deux mocks et la mise à jour des constructeurs, alors
+que `VodViewModelTest` couvre trois scénarios. Le critère de validation de la
+tâche 6 (« mêmes cas que VOD ») n'est donc pas satisfait. Correction : dupliquer
+les cas VOD (Preparing → Playing/Poster, réponse tardive ignorée, annulation,
+échec d'un autre média, changement de série).
+
+## Mineur
+
+- **m1** — Colonne `source` absente de `TrailerCacheEntity` et du SQL, alors que
+  §7.5 la prévoit pour le diagnostic et l'invalidation ciblée. Trancher : l'ajouter
+  (impact migration) ou corriger la spec.
+- **m2** — `cacheScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)` est créé
+  dans le repository (`TrailerRepositoryImpl.kt:40`) au lieu du scope applicatif
+  injecté par `AppModule` (§7.5) : purge non observable et non testable, et
+  `Dispatchers.IO` figé dans une classe de production testée en JVM.
+- **m3** — Le scrim prévu (noir uniforme `alpha 0,62` sous la vidéo) est remplacé
+  par `alpha(0.38f)` appliqué à la `WebView` elle-même
+  (`MediaDetailsTrailerBackdrop.kt:43`) : lisibilité des titres/métadonnées non
+  garantie et couche alpha sur la vue, à surveiller sur TV d'entrée de gamme.
+  À rapprocher de la revue visuelle de l'étape 8.
+- **m4** — `Modifier.focusProperties { canFocus = false }` (§7.8) n'est pas posé ;
+  seuls les trois flags `View` le sont, côté `HomeYouTubeTrailerPreview`.
+- **m5** — La lecture du DAO (ligne 44) est faite hors `resolutionMutex` : deux
+  demandes simultanées du même média lisent la table deux fois. Inoffensif, mais
+  §7.4 place le cache Room dans la chaîne protégée.
+- **m6** — Une entrée expirée n'est pas supprimée avant la nouvelle résolution
+  (§7.5 « ligne supprimée ») ; elle est seulement écrasée par l'`upsert`, ce qui
+  laisse une ligne périmée en base si la résolution est annulée.
+- **m7** — La clé du cache mémoire inclut désormais `title` / `releaseYear` : un
+  même film occupe deux entrées distinctes selon qu'il vient de l'Accueil ou d'une
+  fiche, et les deux chemins réécrivent la même ligne Room avec des
+  `resolvedTmdbId` différents (lié à M1).
+- **m8** — Style : paramètres ajoutés avec virgule en tête de ligne
+  (`,trailerState = …`) dans `NavGraph.kt:565` / `NavGraph.kt:647` et dans les
+  signatures des deux écrans ; imports FQN inline
+  (`com.cstv.app.data.remote.dto.TmdbTrendingResponseDto`) dans `TmdbApiService`.
+- **m9** — Commentaire périmé `VodState.kt:30` : « son rendu sera branché à
+  l'étape F13 suivante » alors que le rendu est branché ; `SeriesState` n'a pas
+  d'équivalent (asymétrie de documentation).
+- **m10** — `AGENTS.md` (section Room) annonce toujours la version **18** alors que
+  la base est en **20** ; à corriger à l'étape 9.
+- **m11** — Les cases des tâches 1 → 7 sont restées `- [ ]` malgré le code livré, et
+  les notes d'implémentation ont été insérées au milieu du plan (après la tâche 5)
+  plutôt que dans une section « Notes de développement ».
+
+## Corrections demandées
+
+Étape 7 : traiter C1 → C3, M1 → M10 et m1 → m11. Les points bloquants pour
+l'étape 8 sont C1 (donnée persistée fausse), C2 et C3 (critères d'acceptation non
+couverts), M3 (absence de couverture de test sur la chaîne de cache) et M10.
+
+Status: RESOLVED
+
+Toutes les corrections C1 → C3, M1 → M10 et m1 → m11 ont été appliquées :
+résolution réseau non persistée en négatif, cache Room testé et expiré,
+`TimeProvider` injectable, identifiant TMDB résolu conservé, rapprochement
+partagé, recherche normalisée et datée, lecteur/état déplacés dans les composants
+partagés, invalider sur erreur Home compris, contrôle sonore, scrim et cycle de
+vie. La version Room de `AGENTS.md` est synchronisée à 20.
+
+---
+
+# 11. Validation finale — 2026-07-27 (étape 8)
+
+- `./gradlew testDebugUnitTest assembleDebug lintDebug` : **BUILD SUCCESSFUL**.
+  Les tests JVM, l'APK debug et le lint passent après les corrections F13.
+- `git diff --check` : succès.
+- Validation automatisée : cache positif/négatif, absence d'écriture à l'échec
+  réseau, invalidation, rapprochement TMDB, ViewModels VOD/Séries/Home et
+  compilation Hilt sont couverts par les tests de non-régression.
+- Vérification manuelle mobile/Android TV : non exécutée. `adb` est disponible
+  via le SDK mais le daemon ne peut pas ouvrir son socket dans ce sandbox
+  (`smartsocket: Operation not permitted`). Restent à constater sur cible :
+  délai de cinq secondes, retour/lecture principale, passage arrière-plan,
+  contrôle Son/Couper le son, poster de repli et focus D-Pad.
+
+Status: RELEASED

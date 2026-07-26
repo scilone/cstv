@@ -57,6 +57,17 @@ object AppModule {
 
     @Provides
     @Singleton
+    @javax.inject.Named("applicationScope")
+    fun provideApplicationScope(): kotlinx.coroutines.CoroutineScope =
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO)
+
+    @Provides
+    @Singleton
+    fun provideTimeProvider(): com.cstv.app.domain.util.TimeProvider =
+        com.cstv.app.data.util.SystemTimeProvider()
+
+    @Provides
+    @Singleton
     fun provideApplicationContext(@ApplicationContext context: Context): Context {
         return context
     }
@@ -116,6 +127,10 @@ object AppModule {
     @Singleton
     fun provideCatalogSyncStateDao(database: AppDatabase): com.cstv.app.data.local.dao.CatalogSyncStateDao =
         database.catalogSyncStateDao()
+
+    @Provides
+    @Singleton
+    fun provideTrailerCacheDao(database: AppDatabase): com.cstv.app.data.local.dao.TrailerCacheDao = database.trailerCacheDao()
 
     // Interface plutôt que classe concrète : isCurrentlyOnline() retourne un
     // Boolean primitif, et un mock de classe Kotlin sur retour primitif
@@ -472,9 +487,12 @@ object AppModule {
         tmdbApiService: com.cstv.app.data.remote.api.TmdbApiService,
         credentialsManager: CredentialsManager,
         requestGate: XtreamRequestGate,
-        @TmdbApiKey apiKey: String
+        @TmdbApiKey apiKey: String,
+        trailerCacheDao: com.cstv.app.data.local.dao.TrailerCacheDao,
+        timeProvider: com.cstv.app.domain.util.TimeProvider,
+        @javax.inject.Named("applicationScope") applicationScope: kotlinx.coroutines.CoroutineScope
     ): com.cstv.app.domain.repository.TrailerRepository =
-        com.cstv.app.data.repository.TrailerRepositoryImpl(xtreamApiService, tmdbApiService, credentialsManager, requestGate, apiKey)
+        com.cstv.app.data.repository.TrailerRepositoryImpl(xtreamApiService, tmdbApiService, credentialsManager, requestGate, apiKey, trailerCacheDao, timeProvider, applicationScope)
 }
 
 @javax.inject.Qualifier

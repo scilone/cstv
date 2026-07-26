@@ -46,7 +46,7 @@ import coil.compose.AsyncImage
 import com.cstv.app.domain.model.TrendingCatalogItem
 import com.cstv.app.domain.model.TrailerSource
 import com.cstv.app.domain.model.TrailerMedia
-import com.cstv.app.presentation.home.TrailerPreviewUiState
+import com.cstv.app.presentation.components.TrailerPreviewUiState
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -152,7 +152,7 @@ fun HomeTrendingCarousel(
                     )
 
                     if (videoId != null) {
-                        HomeYouTubeTrailerPreview(
+                        com.cstv.app.presentation.components.YouTubeTrailerPreview(
                             videoId = videoId,
                             muted = muted,
                             onPlaybackError = { onPreviewPlaybackFailed(preview.media) },

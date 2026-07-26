@@ -5,6 +5,7 @@ import com.cstv.app.domain.model.SeriesCategory
 import com.cstv.app.domain.model.SeriesDetails
 import com.cstv.app.domain.model.SeriesStream
 import com.cstv.app.domain.model.MediaRatingValue
+import com.cstv.app.presentation.components.TrailerPreviewUiState
 
 data class SeriesState(
     val categories: List<SeriesCategory> = emptyList(),
@@ -26,6 +27,7 @@ data class SeriesState(
     val mediaRating: MediaRatingValue? = null,
     val isRatingSaving: Boolean = false,
     val ratingError: String? = null,
+    val trailerPreview: TrailerPreviewUiState = TrailerPreviewUiState.Poster,
     /** Fraîcheur du catalogue local : alimente la bannière hors ligne. */
     val catalogStatus: com.cstv.app.domain.sync.CatalogStatus = com.cstv.app.domain.sync.CatalogStatus()
 )

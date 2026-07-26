@@ -43,15 +43,9 @@ import com.cstv.app.domain.model.TrailerPreview
 import com.cstv.app.domain.model.TrendingCatalogItem
 import kotlinx.coroutines.Job
 import com.cstv.app.domain.model.TopRatedSelector
+import com.cstv.app.presentation.components.TrailerPreviewUiState
 
 private const val EPG_POLL_INTERVAL_MILLIS = 60_000L
-
-sealed interface TrailerPreviewUiState {
-    data object Poster : TrailerPreviewUiState
-    data object Preparing : TrailerPreviewUiState
-    data class Playing(val preview: TrailerPreview) : TrailerPreviewUiState
-    data object Failed : TrailerPreviewUiState
-}
 
 data class HomeState(
     val isLoading: Boolean = false,
@@ -96,6 +90,7 @@ class HomeViewModel @Inject constructor(
     private val getPopularTop10InCatalogUseCase: GetPopularTop10InCatalogUseCase,
     private val removeFromContinueWatchingUseCase: com.cstv.app.domain.usecase.RemoveFromContinueWatchingUseCase,
     private val getTrailerPreviewUseCase: GetTrailerPreviewUseCase,
+    private val invalidateTrailerPreviewUseCase: com.cstv.app.domain.usecase.InvalidateTrailerPreviewUseCase,
     private val profileManager: ProfileManager,
     private val canPlayContentUseCase: com.cstv.app.domain.usecase.CanPlayContentUseCase
 ) : ViewModel() {
@@ -170,6 +165,7 @@ class HomeViewModel @Inject constructor(
     fun reportTrailerPlaybackFailure(media: TrailerMedia) {
         if (activeTrailerMedia == media) {
             _state.update { it.copy(trailerPreview = TrailerPreviewUiState.Failed) }
+            viewModelScope.launch { invalidateTrailerPreviewUseCase(media) }
         }
     }
 

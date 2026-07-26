@@ -141,6 +141,17 @@ Cette fonctionnalité permet d'accéder directement à la fiche détaillée (fic
 
 ---
 
+## 14. Lecture automatique du trailer YouTube sur les fiches de détail (Films/Séries) (F13)
+Cette fonctionnalité intègre la lecture automatique et immersive de bandes-annonces YouTube directement en arrière-plan du bloc d'en-tête des fiches détaillées de films et séries, calquée sur l'expérience dynamique de l'Accueil.
+* **Lecture automatique immersive** : Après 5 secondes passées de manière stable et continue sur la fiche d'un média (film ou série), le poster statique de fond (Backdrop) s'estompe délicatement pour laisser place à la lecture en boucle du trailer YouTube correspondant.
+* **Contrôle sonore complet** : La bande-annonce démarre systématiquement en mode muet pour préserver le confort de navigation de l'utilisateur. Un bouton sonore d'activation/désactivation du son (Mute/Unmute) avec étiquettes d'accessibilité est intégré à la barre d'action supérieure des fiches (mobile et TV) pour permettre à l'utilisateur de l'activer d'un clic/touche.
+* **Gestion hermétique du cycle de vie** : La lecture est interrompue de force et les ressources de la WebView sont libérées instantanément dès que l'utilisateur quitte la fiche détaillée, met l'application en arrière-plan (gestion des événements `ON_STOP` du Lifecycle), ou lance la lecture vidéo principale (plein écran).
+* **Résolution de source à facettes** : En l'absence de bande-annonce fournie par le serveur IPTV local et de `tmdbId` de média, l'application recherche activement et dynamiquement le média sur TMDB via son titre normalisé et son année de sortie, appliquant un filtrage de correspondance strict (seuil de similarité >= 0,8 et tolérance d'année de ± 1 an) pour éviter les faux-positifs.
+* **Cache persistant haute performance (v20)** : Le résultat de résolution (positif comme négatif) est conservé localement en base de données Room avec des durées de validité (TTL) asymétriques (30 jours pour un trailer trouvé, 7 jours pour un résultat négatif) pour éliminer les appels réseau réseau répétitifs lors des visites ultérieures, y compris hors ligne.
+* **Résilience aux pannes de lecture** : Si une vidéo mémorisée devient illisible (retirée de YouTube, géo-bloquée, etc.), un échec de lecture invalide et purge immédiatement l'entrée du cache persistant local, forçant une nouvelle résolution lors de la prochaine consultation et restaurant l'affichage statique d'origine sans erreur intrusive.
+
+---
+
 ## 🚫 Fonctionnalités hors périmètre (Exclusions validées)
 Pour des raisons de performance, de stabilité ou d'expérience utilisateur, les fonctionnalités suivantes sont **strictement hors périmètre** :
 * **Multi-comptes Xtream** : L'application gère un seul compte Xtream Codes actif à la fois (les profils sont purement locaux et rattachés à ce compte unique).

@@ -5,6 +5,7 @@ import com.cstv.app.domain.model.VodCategory
 import com.cstv.app.domain.model.VodDetails
 import com.cstv.app.domain.model.VodStream
 import com.cstv.app.domain.model.MediaRatingValue
+import com.cstv.app.presentation.components.TrailerPreviewUiState
 
 data class VodState(
     val categories: List<VodCategory> = emptyList(),
@@ -26,6 +27,8 @@ data class VodState(
     val mediaRating: MediaRatingValue? = null,
     val isRatingSaving: Boolean = false,
     val ratingError: String? = null,
+    /** Aperçu trailer demandé par la fiche ; son rendu sera branché à l'étape F13 suivante. */
+    val trailerPreview: TrailerPreviewUiState = TrailerPreviewUiState.Poster,
     /** Fraîcheur du catalogue local : alimente la bannière hors ligne. */
     val catalogStatus: com.cstv.app.domain.sync.CatalogStatus = com.cstv.app.domain.sync.CatalogStatus()
 )

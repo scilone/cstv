@@ -201,3 +201,25 @@ Vous pouvez à tout moment basculer instantanément du lecteur vidéo (Films ou 
 * **Mode hors-ligne** : Si vous lisez un contenu téléchargé sans connexion internet, cliquer sur la cover ouvrira la fiche détaillée en utilisant uniquement les données et jaquettes stockées localement sur votre appareil.
 * **Erreur ou absence de métadonnées** : Si pour une raison exceptionnelle (vieux téléchargement orphelin, etc.) l'application ne parvient pas à identifier la fiche correspondante, la lecture de votre vidéo n'est pas interrompue. Un message transitoire s'affiche brièvement pour vous informer qu'aucune fiche n'est disponible.
 
+---
+
+## 14. Lecture automatique du trailer YouTube sur les fiches de détail (Films/Séries) (F13)
+
+Pour rendre l'exploration de vos fiches de détail encore plus vivante, l'application lance automatiquement la bande-annonce (trailer) du film ou de la série en arrière-plan après quelques secondes.
+
+### 📱 Fonctionnement général (Mobile & Android TV)
+1. **Délai d'estompage** : Lorsque vous ouvrez une fiche de détails, celle-ci s'affiche immédiatement avec son affiche de fond statique. Si vous restez stable sur cette même fiche pendant **5 secondes**, l'affiche de fond s'estompe délicatement pour laisser place à la bande-annonce YouTube lue en arrière-plan.
+2. **Autoplay silencieux** : Afin d'éviter toute gêne sonore, la bande-annonce démarre systématiquement en mode **muet**.
+3. **Activation du son (Bouton d'action)** : Un bouton haut-parleur (icône son actif/couper) apparaît en haut de l'écran à côté des autres boutons d'actions (Retour, Favori, etc.) dès que la vidéo démarre. Cliquez dessus ou sélectionnez-le au D-Pad pour activer ou couper le son. 
+4. **Coupure immédiate** : La bande-annonce s'arrête instantanément dès que :
+   - Vous quittez la fiche de détails (retour arrière).
+   - Vous lancez la lecture plein écran de la vidéo principale.
+   - Vous mettez l'application en arrière-plan.
+
+### 📺 Version Android TV
+Sur Android TV, la vidéo se lance de la même manière sans jamais capturer le focus de votre télécommande. Vous pouvez naviguer en toute liberté au D-pad sur les différents boutons d'actions (Lecture, Favori, etc.) sans être interrompu ou bloqué par la vidéo.
+
+### 💡 Optimisations & Mode hors-ligne
+* **Économie de données** : Si vous revenez sur une fiche détaillée déjà consultée, l'application réutilise instantanément les métadonnées de bande-annonce déjà mémorisées dans sa base de données locale (Room) pour éviter des requêtes réseau inutiles.
+* **Aucun trailer disponible** : Si le média n'a pas de bande-annonce trouvée (ou si vous êtes déconnecté sans données locales), la fiche reste parfaitement fonctionnelle avec son affiche de fond statique d'origine de manière invisible et fluide.
+

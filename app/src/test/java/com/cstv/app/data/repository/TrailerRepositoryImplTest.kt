@@ -1,6 +1,8 @@
 package com.cstv.app.data.repository
 
 import com.cstv.app.data.local.storage.CredentialsManager
+import com.cstv.app.data.local.dao.TrailerCacheDao
+import com.cstv.app.data.local.entity.TrailerCacheEntity
 import com.cstv.app.data.remote.api.TmdbApiService
 import com.cstv.app.data.remote.api.XtreamApiService
 import com.cstv.app.data.remote.api.XtreamRequestGate
@@ -11,6 +13,9 @@ import com.cstv.app.domain.model.Credentials
 import com.cstv.app.domain.model.TrailerMedia
 import com.cstv.app.domain.model.TrailerSource
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import com.cstv.app.domain.util.TimeProvider
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -19,14 +24,18 @@ import org.mockito.kotlin.mock
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
+import org.mockito.kotlin.never
+import org.mockito.kotlin.verifyNoInteractions
 
 class TrailerRepositoryImplTest {
     private val credentials = Credentials("https://panel.example", 443, "user", "password", true)
     private val xtream: XtreamApiService = mock()
     private val tmdb: TmdbApiService = mock()
     private val credentialsManager: CredentialsManager = mock()
+    private val trailerCacheDao: TrailerCacheDao = mock()
+    private val timeProvider = object : TimeProvider { override fun nowMillis() = 1_000L }
     private val repository = TrailerRepositoryImpl(
-        xtream, tmdb, credentialsManager, XtreamRequestGate(), "tmdb-key"
+        xtream, tmdb, credentialsManager, XtreamRequestGate(), "tmdb-key", trailerCacheDao, timeProvider, CoroutineScope(Dispatchers.Unconfined)
     )
 
     @Test
@@ -36,6 +45,33 @@ class TrailerRepositoryImplTest {
         assertEquals("dQw4w9WgXcQ", TrailerRepositoryImpl.normalizeYouTubeId("https://youtu.be/dQw4w9WgXcQ"))
         assertNull(TrailerRepositoryImpl.normalizeYouTubeId("https://example.org/trailer"))
         assertNull(TrailerRepositoryImpl.normalizeYouTubeId("not a video id"))
+    }
+
+    @Test
+    fun getTrailerPreview_usesFreshPersistentEntryWithoutNetworkCall() {
+        runBlocking {
+        val media = TrailerMedia.Movie(7, 42)
+        whenever(trailerCacheDao.get("movie", 7)).thenReturn(
+            TrailerCacheEntity("movie", 7, "dQw4w9WgXcQ", "youtube", 42, 999L)
+        )
+
+        val preview = repository.getTrailerPreview(media)
+
+        assertEquals("dQw4w9WgXcQ", (preview?.source as TrailerSource.YouTube).videoId)
+        verifyNoInteractions(xtream)
+        }
+    }
+
+    @Test
+    fun getTrailerPreview_doesNotPersistNetworkFailure() {
+        runBlocking {
+        doReturn(credentials).whenever(credentialsManager).getCredentials()
+        whenever(xtream.getVodInfo("user", "password", 7)).thenThrow(IllegalStateException("offline"))
+
+        assertNull(repository.getTrailerPreview(TrailerMedia.Movie(7, 42)))
+
+        verify(trailerCacheDao, never()).upsert(org.mockito.kotlin.any())
+        }
     }
 
     @Test

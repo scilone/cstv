@@ -22,6 +22,24 @@ interface TmdbApiService {
         @Query("language") language: String = "fr-FR"
     ): TmdbVideosResponseDto
 
+    @GET("search/movie")
+    suspend fun searchMovies(
+        @Query("query") query: String,
+        @Query("api_key") apiKey: String,
+        @Query("year") year: Int? = null,
+        @Query("include_adult") includeAdult: Boolean = false,
+        @Query("language") language: String = "fr-FR"
+    ): com.cstv.app.data.remote.dto.TmdbTrendingResponseDto
+
+    @GET("search/tv")
+    suspend fun searchSeries(
+        @Query("query") query: String,
+        @Query("api_key") apiKey: String,
+        @Query("first_air_date_year") year: Int? = null,
+        @Query("include_adult") includeAdult: Boolean = false,
+        @Query("language") language: String = "fr-FR"
+    ): TmdbTrendingResponseDto
+
     @GET("trending/all/week")
     suspend fun getTrending(
         @Query("api_key") apiKey: String,

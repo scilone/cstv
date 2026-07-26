@@ -7,6 +7,7 @@ import com.cstv.app.domain.repository.CategoryPreferenceRepository
 import com.cstv.app.domain.repository.TrackPreferenceRepository
 import com.cstv.app.domain.repository.VodRepository
 import com.cstv.app.domain.usecase.*
+import com.cstv.app.presentation.components.TrailerPreviewUiState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.cancel
@@ -40,6 +41,8 @@ class VodViewModelTest {
     @Mock private lateinit var removeFromContinueWatchingUseCase: RemoveFromContinueWatchingUseCase
     @Mock private lateinit var mediaRatingRepository: com.cstv.app.domain.repository.MediaRatingRepository
     @Mock private lateinit var setMediaRatingUseCase: com.cstv.app.domain.usecase.SetMediaRatingUseCase
+    @Mock private lateinit var getTrailerPreviewUseCase: GetTrailerPreviewUseCase
+    @Mock private lateinit var invalidateTrailerPreviewUseCase: InvalidateTrailerPreviewUseCase
 
     private val testDispatcher = StandardTestDispatcher()
     private lateinit var viewModel: VodViewModel
@@ -88,7 +91,9 @@ class VodViewModelTest {
             setMediaRatingUseCase,
             observeCatalogStatusUseCase,
             catalogSyncManager,
-            canPlayContentUseCase
+            canPlayContentUseCase,
+            getTrailerPreviewUseCase,
+            invalidateTrailerPreviewUseCase
         )
         runCurrent()
 
@@ -108,7 +113,7 @@ class VodViewModelTest {
             getVodDetailsUseCase, getRelatedMoviesUseCase, savePlaybackPositionUseCase, credentialsManager,
             settingsManager, trackPreferenceRepository, categoryPreferenceRepository, vodRepository,
             removeFromContinueWatchingUseCase, mediaRatingRepository, setMediaRatingUseCase,
-            observeCatalogStatusUseCase, catalogSyncManager, canPlayContentUseCase)
+            observeCatalogStatusUseCase, catalogSyncManager, canPlayContentUseCase, getTrailerPreviewUseCase, invalidateTrailerPreviewUseCase)
         runCurrent()
 
         viewModel.selectStreamId(42)
@@ -129,7 +134,7 @@ class VodViewModelTest {
             getVodDetailsUseCase, getRelatedMoviesUseCase, savePlaybackPositionUseCase, credentialsManager,
             settingsManager, trackPreferenceRepository, categoryPreferenceRepository, vodRepository,
             removeFromContinueWatchingUseCase, mediaRatingRepository, setMediaRatingUseCase,
-            observeCatalogStatusUseCase, catalogSyncManager, canPlayContentUseCase)
+            observeCatalogStatusUseCase, catalogSyncManager, canPlayContentUseCase, getTrailerPreviewUseCase, invalidateTrailerPreviewUseCase)
         runCurrent()
 
         viewModel.selectStreamId(42)
@@ -151,7 +156,7 @@ class VodViewModelTest {
             getVodDetailsUseCase, getRelatedMoviesUseCase, savePlaybackPositionUseCase, credentialsManager,
             settingsManager, trackPreferenceRepository, categoryPreferenceRepository, vodRepository,
             removeFromContinueWatchingUseCase, mediaRatingRepository, setMediaRatingUseCase,
-            observeCatalogStatusUseCase, catalogSyncManager, canPlayContentUseCase)
+            observeCatalogStatusUseCase, catalogSyncManager, canPlayContentUseCase, getTrailerPreviewUseCase, invalidateTrailerPreviewUseCase)
         runCurrent()
 
         viewModel.selectStreamId(42)
@@ -162,4 +167,71 @@ class VodViewModelTest {
         verify(getVodDetailsUseCase, times(2)).invoke(42)
         assertEquals("Recovered", viewModel.state.value.selectedVodDetails?.name)
     }
+
+    @Test
+    fun trailerPreview_transitionsFromPreparingToPlayingOrPoster() = runTest(testDispatcher) {
+        val media = TrailerMedia.Movie(42, 100)
+        val preview = TrailerPreview(media, TrailerSource.YouTube("dQw4w9WgXcQ"))
+        whenever(vodRepository.observeAllPlaybackPositions()).thenReturn(flowOf(emptyList()))
+        whenever(getTrailerPreviewUseCase(media)).thenReturn(preview)
+        viewModel = createViewModel()
+
+        viewModel.startTrailerPreview(media)
+        assertEquals(TrailerPreviewUiState.Preparing, viewModel.state.value.trailerPreview)
+        runCurrent()
+        assertEquals(TrailerPreviewUiState.Playing(preview), viewModel.state.value.trailerPreview)
+
+        val unavailable = TrailerMedia.Movie(43, 101)
+        whenever(getTrailerPreviewUseCase(unavailable)).thenReturn(null)
+        viewModel.startTrailerPreview(unavailable)
+        runCurrent()
+        assertEquals(TrailerPreviewUiState.Poster, viewModel.state.value.trailerPreview)
+    }
+
+    @Test
+    fun trailerPreview_cancelsOnStreamChangeAndIgnoresOtherMediaFailure() = runTest(testDispatcher) {
+        val media = TrailerMedia.Movie(42, 100)
+        val preview = TrailerPreview(media, TrailerSource.YouTube("dQw4w9WgXcQ"))
+        whenever(vodRepository.observeAllPlaybackPositions()).thenReturn(flowOf(emptyList()))
+        whenever(getTrailerPreviewUseCase(media)).thenReturn(preview)
+        whenever(mediaRatingRepository.observeRating(any(), eq(RatedMediaType.MOVIE))).thenReturn(flowOf(null))
+        whenever(getVodDetailsUseCase(43)).thenReturn(VodDetails(43, "Other", "", "", "", "", "", "", null, "mp4"))
+        viewModel = createViewModel()
+
+        viewModel.startTrailerPreview(media)
+        runCurrent()
+        viewModel.reportTrailerPlaybackFailure(TrailerMedia.Movie(99, 999))
+        assertEquals(TrailerPreviewUiState.Playing(preview), viewModel.state.value.trailerPreview)
+        viewModel.reportTrailerPlaybackFailure(media)
+        assertEquals(TrailerPreviewUiState.Failed, viewModel.state.value.trailerPreview)
+
+        viewModel.selectStreamId(43)
+        assertEquals(TrailerPreviewUiState.Poster, viewModel.state.value.trailerPreview)
+    }
+
+    @Test
+    fun trailerPreview_latestRequestWinsWhenRequestsChangeBeforeResolution() = runTest(testDispatcher) {
+        val first = TrailerMedia.Movie(42, 100)
+        val second = TrailerMedia.Movie(43, 101)
+        val secondPreview = TrailerPreview(second, TrailerSource.YouTube("9bZkp7q19f0"))
+        whenever(vodRepository.observeAllPlaybackPositions()).thenReturn(flowOf(emptyList()))
+        whenever(getTrailerPreviewUseCase(first)).thenReturn(TrailerPreview(first, TrailerSource.YouTube("dQw4w9WgXcQ")))
+        whenever(getTrailerPreviewUseCase(second)).thenReturn(secondPreview)
+        viewModel = createViewModel()
+
+        viewModel.startTrailerPreview(first)
+        viewModel.startTrailerPreview(second)
+        runCurrent()
+
+        assertEquals(TrailerPreviewUiState.Playing(secondPreview), viewModel.state.value.trailerPreview)
+        verify(getTrailerPreviewUseCase, never()).invoke(first)
+    }
+
+    private fun createViewModel() = VodViewModel(
+        getVodCategoriesUseCase, getVodCategoryCountsUseCase, getVodStreamsUseCase,
+        getVodDetailsUseCase, getRelatedMoviesUseCase, savePlaybackPositionUseCase, credentialsManager,
+        settingsManager, trackPreferenceRepository, categoryPreferenceRepository, vodRepository,
+        removeFromContinueWatchingUseCase, mediaRatingRepository, setMediaRatingUseCase,
+        observeCatalogStatusUseCase, catalogSyncManager, canPlayContentUseCase, getTrailerPreviewUseCase, invalidateTrailerPreviewUseCase
+    )
 }

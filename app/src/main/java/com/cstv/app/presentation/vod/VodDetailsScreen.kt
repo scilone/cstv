@@ -20,6 +20,8 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.VolumeOff
+import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -52,6 +54,9 @@ import com.cstv.app.domain.model.VodDetails
 import com.cstv.app.domain.model.VodStream
 import com.cstv.app.domain.model.MediaRatingValue
 import com.cstv.app.presentation.components.MediaRatingControls
+import com.cstv.app.presentation.components.MediaDetailsTrailerBackdrop
+import com.cstv.app.domain.model.TrailerMedia
+import com.cstv.app.presentation.components.TrailerPreviewUiState
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
@@ -76,7 +81,15 @@ fun VodDetailsScreen(
     onLike: () -> Unit = {},
     onDislike: () -> Unit = {},
     onConsumeRatingError: () -> Unit = {}
+    ,trailerState: TrailerPreviewUiState = TrailerPreviewUiState.Poster,
+    onTrailerReady: (TrailerMedia) -> Unit = {},
+    onTrailerEnded: () -> Unit = {},
+    onTrailerFailed: (TrailerMedia) -> Unit = {}
 ) {
+    val trailerMedia = remember(details.streamId, details.name, details.releaseDate) {
+        TrailerMedia.Movie(details.streamId, title = details.name, releaseYear = extractReleaseYear(details.releaseDate))
+    }
+    var trailerMuted by remember(trailerMedia) { mutableStateOf(true) }
     val snackbarHostState = remember { SnackbarHostState() }
     LaunchedEffect(ratingError) { ratingError?.let { snackbarHostState.showSnackbar(it); onConsumeRatingError() } }
     Box(
@@ -96,6 +109,16 @@ fun VodDetailsScreen(
                     .alpha(0.18f)
             )
         }
+        MediaDetailsTrailerBackdrop(
+            media = trailerMedia,
+            state = trailerState,
+            posterUrl = details.coverBig,
+            onContextReady = onTrailerReady,
+            onContextEnded = onTrailerEnded,
+            onPlaybackFailed = onTrailerFailed,
+            muted = trailerMuted,
+            modifier = Modifier.fillMaxSize()
+        )
 
         // 2. Content Column/Scroll
         Column(
@@ -114,6 +137,15 @@ fun VodDetailsScreen(
                     modifier = Modifier.background(Color(0x33FFFFFF), shape = RoundedCornerShape(12.dp))
                 ) {
                     Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Retour", tint = Color.White)
+                }
+                if (trailerState is TrailerPreviewUiState.Playing) {
+                    IconButton(onClick = { trailerMuted = !trailerMuted }) {
+                        Icon(
+                            if (trailerMuted) Icons.Filled.VolumeOff else Icons.Filled.VolumeUp,
+                            contentDescription = if (trailerMuted) "Activer le son du trailer" else "Couper le son du trailer",
+                            tint = Color.White
+                        )
+                    }
                 }
             }
 
@@ -171,6 +203,9 @@ fun VodDetailsScreen(
         SnackbarHost(hostState = snackbarHostState, modifier = Modifier.align(Alignment.BottomCenter))
     }
 }
+
+private fun extractReleaseYear(value: String?): Int? =
+    Regex("(?:19|20)\\d{2}").find(value.orEmpty())?.value?.toIntOrNull()
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable

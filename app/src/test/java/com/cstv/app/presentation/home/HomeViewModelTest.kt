@@ -7,6 +7,7 @@ import com.cstv.app.domain.repository.LiveTvRepository
 import com.cstv.app.domain.repository.SeriesRepository
 import com.cstv.app.domain.repository.VodRepository
 import com.cstv.app.data.local.storage.ProfileManager
+import com.cstv.app.presentation.components.TrailerPreviewUiState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.cancel
@@ -68,6 +69,9 @@ class HomeViewModelTest {
     private lateinit var getTrailerPreviewUseCase: com.cstv.app.domain.usecase.GetTrailerPreviewUseCase
 
     @Mock
+    private lateinit var invalidateTrailerPreviewUseCase: com.cstv.app.domain.usecase.InvalidateTrailerPreviewUseCase
+
+    @Mock
     private lateinit var profileManager: ProfileManager
 
     // Phase 42 : StandardTestDispatcher (et non Unconfined) + runCurrent() après
@@ -113,6 +117,7 @@ class HomeViewModelTest {
             getPopularTop10InCatalogUseCase,
             removeFromContinueWatchingUseCase,
             getTrailerPreviewUseCase,
+            invalidateTrailerPreviewUseCase,
             profileManager,
             canPlayContentUseCase
         )

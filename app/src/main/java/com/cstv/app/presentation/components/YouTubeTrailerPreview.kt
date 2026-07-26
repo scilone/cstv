@@ -1,4 +1,4 @@
-package com.cstv.app.presentation.home.components
+package com.cstv.app.presentation.components
 
 import android.annotation.SuppressLint
 import android.view.ViewGroup
@@ -37,7 +37,7 @@ import kotlinx.coroutines.delay
  */
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
-internal fun HomeYouTubeTrailerPreview(
+fun YouTubeTrailerPreview(
     videoId: String,
     muted: Boolean,
     onPlaybackError: () -> Unit,
@@ -66,6 +66,9 @@ internal fun HomeYouTubeTrailerPreview(
         AndroidView(
             factory = { context ->
                 WebView(context).apply {
+                    isFocusable = false
+                    isFocusableInTouchMode = false
+                    descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS
                     webView = this
                     layoutParams = ViewGroup.LayoutParams(
                         ViewGroup.LayoutParams.MATCH_PARENT,

@@ -34,6 +34,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.Job
 import com.cstv.app.domain.model.MediaRatingValue
 import com.cstv.app.domain.model.RatedMediaType
+import com.cstv.app.domain.model.TrailerMedia
+import com.cstv.app.domain.usecase.GetTrailerPreviewUseCase
+import com.cstv.app.presentation.components.TrailerPreviewUiState
 import javax.inject.Inject
 
 @HiltViewModel
@@ -54,7 +57,9 @@ class VodViewModel @Inject constructor(
     private val setMediaRatingUseCase: com.cstv.app.domain.usecase.SetMediaRatingUseCase,
     private val observeCatalogStatusUseCase: com.cstv.app.domain.usecase.ObserveCatalogStatusUseCase,
     private val catalogSyncManager: com.cstv.app.domain.sync.CatalogSyncManager,
-    private val canPlayContentUseCase: com.cstv.app.domain.usecase.CanPlayContentUseCase
+    private val canPlayContentUseCase: com.cstv.app.domain.usecase.CanPlayContentUseCase,
+    private val getTrailerPreviewUseCase: GetTrailerPreviewUseCase,
+    private val invalidateTrailerPreviewUseCase: com.cstv.app.domain.usecase.InvalidateTrailerPreviewUseCase
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(VodState())
@@ -64,6 +69,8 @@ class VodViewModel @Inject constructor(
     private var ratingObservation: Job? = null
     private var streamsJob: Job? = null
     private var observedCategoryId: String? = null
+    private var trailerJob: Job? = null
+    private var activeTrailerMedia: TrailerMedia? = null
 
     fun saveScrollPosition(key: String, index: Int, offset: Int) {
         scrollPositions[key] = Pair(index, offset)
@@ -283,6 +290,7 @@ class VodViewModel @Inject constructor(
             (current.isLoadingDetails || current.selectedVodDetails != null)
         ) return
 
+        cancelTrailerPreview()
         ratingObservation?.cancel()
         _state.update { it.copy(selectedStreamId = streamId, selectedVodDetails = null, relatedStreams = emptyList(), mediaRating = null, ratingError = null) }
         if (streamId != null) {
@@ -292,6 +300,49 @@ class VodViewModel @Inject constructor(
                 }
             }
             loadVodDetails(streamId)
+        }
+    }
+
+    /**
+     * Démarre la résolution uniquement à la demande de la couche UI. Toute
+     * réponse arrivée après un changement de fiche est volontairement ignorée.
+     */
+    fun startTrailerPreview(media: TrailerMedia) {
+        if (media == activeTrailerMedia) return
+        trailerJob?.cancel()
+        activeTrailerMedia = media
+        _state.update { it.copy(trailerPreview = TrailerPreviewUiState.Preparing) }
+        trailerJob = viewModelScope.launch {
+            val preview = try {
+                getTrailerPreviewUseCase(media)
+            } catch (error: Exception) {
+                if (error is kotlinx.coroutines.CancellationException) throw error
+                null
+            }
+            if (activeTrailerMedia == media) {
+                _state.update {
+                    it.copy(
+                        trailerPreview = preview?.let(TrailerPreviewUiState::Playing)
+                            ?: TrailerPreviewUiState.Poster
+                    )
+                }
+            }
+        }
+    }
+
+    /** Annule l'aperçu dès que la fiche n'est plus le contexte actif. */
+    fun cancelTrailerPreview() {
+        trailerJob?.cancel()
+        trailerJob = null
+        activeTrailerMedia = null
+        _state.update { it.copy(trailerPreview = TrailerPreviewUiState.Poster) }
+    }
+
+    /** Un échec de lecture n'affecte que le trailer encore affiché. */
+    fun reportTrailerPlaybackFailure(media: TrailerMedia) {
+        if (activeTrailerMedia == media) {
+            _state.update { it.copy(trailerPreview = TrailerPreviewUiState.Failed) }
+            viewModelScope.launch { invalidateTrailerPreviewUseCase(media) }
         }
     }
 

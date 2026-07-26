@@ -562,6 +562,10 @@ fun AppNavGraph(
                         onLike = { vodViewModel.setRating(if (state.mediaRating == com.cstv.app.domain.model.MediaRatingValue.LIKE) null else com.cstv.app.domain.model.MediaRatingValue.LIKE) },
                         onDislike = { vodViewModel.setRating(if (state.mediaRating == com.cstv.app.domain.model.MediaRatingValue.DISLIKE) null else com.cstv.app.domain.model.MediaRatingValue.DISLIKE) },
                         onConsumeRatingError = vodViewModel::consumeRatingError
+                        ,trailerState = state.trailerPreview,
+                        onTrailerReady = vodViewModel::startTrailerPreview,
+                        onTrailerEnded = vodViewModel::cancelTrailerPreview,
+                        onTrailerFailed = vodViewModel::reportTrailerPlaybackFailure
                     )
                 } ?: MediaDetailsErrorState(
                     message = state.error,
@@ -640,6 +644,10 @@ fun AppNavGraph(
                         onLike = { seriesViewModel.setRating(if (state.mediaRating == com.cstv.app.domain.model.MediaRatingValue.LIKE) null else com.cstv.app.domain.model.MediaRatingValue.LIKE) },
                         onDislike = { seriesViewModel.setRating(if (state.mediaRating == com.cstv.app.domain.model.MediaRatingValue.DISLIKE) null else com.cstv.app.domain.model.MediaRatingValue.DISLIKE) },
                         onConsumeRatingError = seriesViewModel::consumeRatingError
+                        ,trailerState = state.trailerPreview,
+                        onTrailerReady = seriesViewModel::startTrailerPreview,
+                        onTrailerEnded = seriesViewModel::cancelTrailerPreview,
+                        onTrailerFailed = seriesViewModel::reportTrailerPlaybackFailure
                     )
                 } ?: MediaDetailsErrorState(
                     message = state.error,
