@@ -75,6 +75,7 @@ Introduits en Phase 27, les profils locaux permettent un partage personnalisé d
 * **Mode hors-ligne** : Possibilité de télécharger des films ou des épisodes de séries localement sur l'appareil.
 * **Gestion des téléchargements** : Service de téléchargement en arrière-plan robuste basé sur le gestionnaire de téléchargement ExoPlayer / Media3.
 * **Lecture locale** : Section "Téléchargements" dédiée permettant de regarder les vidéos téléchargées sans aucune connexion internet active, en utilisant le même lecteur vidéo performant.
+* **Raccourci sur l'écran d'Accueil (F15)** : Intégration d'une nouvelle section horizontale « Téléchargements » en dernière position de l'écran d'Accueil (masquée si la liste est vide). Elle affiche un carrousel des 20 derniers téléchargements terminés (`COMPLETED`) par ordre antéchronologique. Les cartes affichent le titre, le sous-titre (repère saison/épisode pour les séries) et lancent directement la lecture locale hors-ligne, avec un bouton « Voir tout » qui redirige vers l'écran complet. La liste est réactive et optimisée pour ignorer les recompositions parasites lors de la progression d'autres téléchargements en cours d'écriture.
 
 ---
 

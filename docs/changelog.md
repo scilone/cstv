@@ -1,5 +1,15 @@
 # Journal des Modifications (Changelog) - CSTV IPTV
 
+## [v1.57.0] - 2026-07-26
+### ✨ Nouvelles Fonctionnalités
+* **Section « Téléchargements » sur l'Accueil (F15)** :
+  - **Raccourci réactif sur l'Accueil** : Ajout d'une nouvelle section horizontale « Téléchargements » tout à la fin de l'écran d'Accueil, masquée automatiquement si aucun téléchargement n'est terminé.
+  - **Plafond et ordre de fraîcheur** : Affichage des 20 derniers téléchargements entièrement terminés (`COMPLETED`) par ordre antéchronologique (les plus récents en premier).
+  - **Optimisation de la recomposition** : Filtrage et application de `distinctUntilChanged` sur le flux réactif de téléchargements pour éviter de recomposer l'Accueil ou de clignoter à chaque mise à jour de progression ou d'écriture d'un autre fichier en cours de téléchargement.
+  - **Lecture hors-ligne directe** : Les cartes dédiées affichent le titre, le sous-titre (repère de saison/épisode pour les séries) et lancent directement le lecteur vidéo hors-ligne local. Le bouton « Voir tout » redirige de manière fluide vers l'onglet complet de gestion des Téléchargements.
+
+> Validation automatisée : `testDebugUnitTest` et compilation validées à 100% avec succès en 15 secondes.
+
 ## [v1.56.0] - 2026-07-26
 ### ✨ Nouvelles Fonctionnalités
 * **Bouton de validation de recherche collant / sticky (F14)** :

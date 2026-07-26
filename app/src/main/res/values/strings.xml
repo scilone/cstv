@@ -141,4 +141,5 @@
     <!-- Recommendations F-6 -->
     <string name="home_recommended_movies">Films recommandés pour vous</string>
     <string name="home_recommended_series">Séries recommandées pour vous</string>
+    <string name="home_section_downloads">Téléchargements</string>
 </resources>

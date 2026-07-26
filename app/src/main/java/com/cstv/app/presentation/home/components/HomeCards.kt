@@ -34,6 +34,7 @@ import com.cstv.app.domain.model.FavoriteItem
 import com.cstv.app.domain.model.LiveStream
 import com.cstv.app.domain.model.VodStream
 import com.cstv.app.domain.model.SeriesStream
+import com.cstv.app.domain.model.DownloadedItem
 import com.cstv.app.presentation.theme.AccentLavande
 import com.cstv.app.presentation.theme.DarkBackground
 import com.cstv.app.presentation.theme.Surface1
@@ -649,6 +650,56 @@ fun HomeVodMovieCard(
                         Text(cleanRating, color = Color.White, fontSize = 8.sp, fontWeight = FontWeight.Bold)
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+fun HomeDownloadCard(
+    item: DownloadedItem,
+    onClick: () -> Unit,
+    isTv: Boolean = false
+) {
+    var isFocused by remember { mutableStateOf(false) }
+    val shape = RoundedCornerShape(14.dp)
+
+    Box(
+        modifier = Modifier
+            .width(130.dp)
+            .height(195.dp)
+            .onFocusChanged { isFocused = it.isFocused }
+            .border(2.dp, if (isFocused) MaterialTheme.colorScheme.primary else Color.Transparent, shape)
+            .clip(shape)
+            .background(Surface1)
+            .historyItemActions(isTv, onClick, null),
+        contentAlignment = Alignment.Center
+    ) {
+        if (!item.coverUrl.isNullOrBlank()) {
+            AsyncImage(
+                model = item.coverUrl,
+                contentDescription = item.title,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+        } else {
+            Icon(
+                imageVector = Icons.Default.Warning,
+                contentDescription = null,
+                tint = Color.DarkGray,
+                modifier = Modifier.size(32.dp)
+            )
+        }
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .fillMaxWidth()
+                .background(Color(0xB8000000))
+                .padding(horizontal = 8.dp, vertical = 6.dp)
+        ) {
+            Text(item.title, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            item.subtitle?.takeIf { it.isNotBlank() }?.let { subtitle ->
+                Text(subtitle, color = Color.LightGray, fontSize = 9.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
     }

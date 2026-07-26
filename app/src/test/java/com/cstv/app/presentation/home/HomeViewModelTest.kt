@@ -2,6 +2,7 @@ package com.cstv.app.presentation.home
 
 import com.cstv.app.domain.model.*
 import com.cstv.app.domain.repository.FavoritesRepository
+import com.cstv.app.domain.repository.DownloadRepository
 import com.cstv.app.domain.repository.LiveTvRepository
 import com.cstv.app.domain.repository.SeriesRepository
 import com.cstv.app.domain.repository.VodRepository
@@ -35,6 +36,9 @@ class HomeViewModelTest {
 
     @Mock
     private lateinit var favoritesRepository: FavoritesRepository
+
+    @Mock
+    private lateinit var downloadRepository: DownloadRepository
 
     @Mock
     private lateinit var getLiveEpgUseCase: com.cstv.app.domain.usecase.GetLiveEpgUseCase
@@ -100,6 +104,7 @@ class HomeViewModelTest {
             liveTvRepository,
             seriesRepository,
             favoritesRepository,
+            downloadRepository,
             getLiveEpgUseCase,
             getLiveCategoriesUseCase,
             categoryPreferenceRepository,
@@ -125,6 +130,7 @@ class HomeViewModelTest {
     ) {
         doReturn(flowOf(positions)).whenever(vodRepository).observeAllPlaybackPositions()
         doReturn(flowOf(favorites)).whenever(favoritesRepository).observeFavorites()
+        doReturn(flowOf(emptyList<DownloadedItem>())).whenever(downloadRepository).observeDownloads()
         // Phase 58 : flux de changements de préférences collecté dans init{},
         // et préférences vides par défaut (aucune catégorie masquée).
         doReturn(flowOf(Unit)).whenever(categoryPreferenceRepository).changes
@@ -138,6 +144,80 @@ class HomeViewModelTest {
 
     private suspend fun stubEmptyCategoryPreferences() {
         whenever(categoryPreferenceRepository.getPreferences(any())).thenReturn(emptyMap())
+    }
+
+    private fun downloadedItem(
+        id: Int,
+        status: DownloadStatus = DownloadStatus.COMPLETED,
+        percent: Int = 100
+    ) = DownloadedItem(
+        contentId = "movie_$id",
+        type = DownloadedItem.TYPE_MOVIE,
+        streamId = id,
+        seriesId = null,
+        seasonNum = null,
+        episodeNum = null,
+        title = "Téléchargement $id",
+        subtitle = null,
+        coverUrl = null,
+        containerExtension = "mp4",
+        status = status,
+        percent = percent,
+        bytesDownloaded = 0L,
+        totalBytes = 0L
+    )
+
+    @Test
+    fun downloadsOnlyExposeCompletedItemsInRepositoryOrderAndLimitToTwenty() = runTest {
+        stubReactiveSources()
+        stubEmptyCategoryPreferences()
+        val downloads = MutableStateFlow(
+            listOf(downloadedItem(99, DownloadStatus.DOWNLOADING, 50)) + (1..21).map(::downloadedItem)
+        )
+        doReturn(downloads).whenever(downloadRepository).observeDownloads()
+
+        viewModel = createViewModel()
+
+        assertEquals((1..20).toList(), viewModel.state.value.downloadedItems.map { it.streamId })
+        viewModel.viewModelScope.cancel()
+    }
+
+    @Test
+    fun downloadsEmptyWhenNoCompletedItemExistsAndUpdatesAfterRemoval() = runTest {
+        stubReactiveSources()
+        stubEmptyCategoryPreferences()
+        val first = downloadedItem(1)
+        val downloads = MutableStateFlow(listOf(downloadedItem(2, DownloadStatus.FAILED)))
+        doReturn(downloads).whenever(downloadRepository).observeDownloads()
+
+        viewModel = createViewModel()
+        assertTrue(viewModel.state.value.downloadedItems.isEmpty())
+
+        downloads.value = listOf(first)
+        testDispatcher.scheduler.runCurrent()
+        assertEquals(listOf(first), viewModel.state.value.downloadedItems)
+
+        downloads.value = emptyList()
+        testDispatcher.scheduler.runCurrent()
+        assertTrue(viewModel.state.value.downloadedItems.isEmpty())
+        viewModel.viewModelScope.cancel()
+    }
+
+    @Test
+    fun downloadingProgressUpdatesDoNotChangeCompletedDownloadsState() = runTest {
+        stubReactiveSources()
+        stubEmptyCategoryPreferences()
+        val completed = downloadedItem(1)
+        val downloads = MutableStateFlow(listOf(completed, downloadedItem(2, DownloadStatus.DOWNLOADING, 20)))
+        doReturn(downloads).whenever(downloadRepository).observeDownloads()
+
+        viewModel = createViewModel()
+        val stateBeforeProgress = viewModel.state.value
+        downloads.value = listOf(completed, downloadedItem(2, DownloadStatus.DOWNLOADING, 80))
+        testDispatcher.scheduler.runCurrent()
+
+        assertSame(stateBeforeProgress, viewModel.state.value)
+        viewModel.viewModelScope.cancel()
     }
 
     @Test

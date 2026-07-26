@@ -62,6 +62,7 @@ import com.cstv.app.domain.model.FavoriteItem
 import com.cstv.app.domain.model.LiveStream
 import com.cstv.app.domain.model.VodStream
 import com.cstv.app.domain.model.SeriesStream
+import com.cstv.app.domain.model.DownloadedItem
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
@@ -84,6 +85,9 @@ fun HomeScreen(
     onPlayLiveStream: (LiveStream, List<LiveStream>) -> Unit,
     onSelectMovieDetail: (VodStream) -> Unit,
     onSelectSeriesDetail: (SeriesStream) -> Unit,
+    onNavigateToDownloads: () -> Unit,
+    onPlayDownloadedMovie: (DownloadedItem) -> Unit,
+    onPlayDownloadedEpisode: (DownloadedItem) -> Unit,
     modifier: Modifier = Modifier,
     lazyListState: LazyListState = rememberLazyListState()
 ) {
@@ -616,6 +620,38 @@ fun HomeScreen(
                                     HomeSeriesShowCard(
                                         stream = stream,
                                         onClick = { onSelectSeriesDetail(stream) }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 11. F15: les téléchargements terminés restent un raccourci de lecture,
+                // leur gestion complète est conservée dans DownloadsScreen.
+                if (state.downloadedItems.isNotEmpty()) {
+                    item {
+                        HomeSectionRow(
+                            title = stringResource(R.string.home_section_downloads),
+                            isTv = isTv,
+                            onSeeAll = onNavigateToDownloads
+                        ) {
+                            LazyRow(
+                                state = rememberForeverLazyListState("home_downloads", { viewModel.getScrollPosition(it) }, { k, i, o -> viewModel.saveScrollPosition(k, i, o) }),
+                                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                                modifier = Modifier.fillMaxWidth().focusGroup()
+                            ) {
+                                items(state.downloadedItems, key = { it.contentId }) { item ->
+                                    HomeDownloadCard(
+                                        item = item,
+                                        isTv = isTv,
+                                        onClick = {
+                                            if (item.type == DownloadedItem.TYPE_MOVIE) {
+                                                onPlayDownloadedMovie(item)
+                                            } else {
+                                                onPlayDownloadedEpisode(item)
+                                            }
+                                        }
                                     )
                                 }
                             }

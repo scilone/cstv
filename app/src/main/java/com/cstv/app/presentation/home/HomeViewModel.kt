@@ -9,7 +9,10 @@ import com.cstv.app.domain.model.LiveStream
 import com.cstv.app.domain.model.VodStream
 import com.cstv.app.domain.model.SeriesStream
 import com.cstv.app.domain.model.CategoryType
+import com.cstv.app.domain.model.DownloadedItem
+import com.cstv.app.domain.model.DownloadStatus
 import com.cstv.app.domain.repository.CategoryPreferenceRepository
+import com.cstv.app.domain.repository.DownloadRepository
 import com.cstv.app.domain.repository.FavoritesRepository
 import com.cstv.app.domain.repository.LiveTvRepository
 import com.cstv.app.domain.repository.SeriesRepository
@@ -18,9 +21,11 @@ import com.cstv.app.data.local.storage.ProfileManager
 import com.cstv.app.domain.usecase.GetLiveCategoriesUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -67,6 +72,7 @@ data class HomeState(
     
     val recommendedMovies: List<VodStream> = emptyList(),
     val recommendedSeries: List<SeriesStream> = emptyList(),
+    val downloadedItems: List<DownloadedItem> = emptyList(),
     
     val error: String? = null,
     val epgPrograms: Map<Int, LiveEpgProgram> = emptyMap(),
@@ -81,6 +87,7 @@ class HomeViewModel @Inject constructor(
     private val liveTvRepository: LiveTvRepository,
     private val seriesRepository: SeriesRepository,
     private val favoritesRepository: FavoritesRepository,
+    private val downloadRepository: DownloadRepository,
     private val getLiveEpgUseCase: GetLiveEpgUseCase,
     private val getLiveCategoriesUseCase: GetLiveCategoriesUseCase,
     private val categoryPreferenceRepository: CategoryPreferenceRepository,
@@ -291,6 +298,16 @@ class HomeViewModel @Inject constructor(
                 }
                 _state.update { it.copy(favoritesList = filteredFavorites) }
             }
+        }
+        // F15: le DAO émet aussi pendant la progression des téléchargements en cours.
+        // Ne publier que la liste visible évite de recomposer l'Accueil à chaque tick.
+        viewModelScope.launch {
+            downloadRepository.observeDownloads()
+                .map { items -> items.filter { it.status == DownloadStatus.COMPLETED } }
+                .distinctUntilChanged()
+                .collect { completed ->
+                    _state.update { it.copy(downloadedItems = completed.take(20)) }
+                }
         }
         // Phase 42 : un seul ticker pour toute la rangée "TV" au lieu d'une
         // boucle while(true)+delay(60s) par carte visible (une par chaîne).

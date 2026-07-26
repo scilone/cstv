@@ -71,6 +71,7 @@ L'application est entièrement optimisée pour deux types d'appareils :
 * **Lancer un téléchargement** : Sur la fiche détaillée d'un film ou d'un épisode de série, cliquez sur l'icône de téléchargement. Le téléchargement se lance en arrière-plan.
 * **Consulter ses vidéos hors-ligne** : Rendez-vous dans la section **Téléchargements** de l'application. Vous y retrouverez tous vos fichiers téléchargés localement.
 * **Lecture sans connexion** : Les vidéos de cette section peuvent être lues à tout moment, même si votre appareil n'est absolument pas connecté à internet.
+* **Raccourci sur l'écran d'Accueil (F15)** : En plus de l'écran dédié, une nouvelle rangée horizontale « Téléchargements » apparaît automatiquement tout en bas de votre écran d'Accueil dès que vous possédez des téléchargements terminés (`COMPLETED`). Vous pouvez y voir d'un coup d'œil vos 20 derniers téléchargements par ordre de fraîcheur, voir leur titre et repère saison/épisode pour les séries, lancer directement leur lecture locale sans réseau, et utiliser le bouton « Voir tout » pour basculer vers l'écran complet de gestion.
 
 ## Catalogue sans connexion
 

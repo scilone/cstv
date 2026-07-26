@@ -272,6 +272,20 @@ fun AppNavGraph(
                 onSelectSeriesDetail = { stream ->
                     onActiveSeriesShowChanged(stream)
                     navController.navigate("series_details")
+                },
+                onNavigateToDownloads = {
+                    navController.navigate("downloads")
+                },
+                onPlayDownloadedMovie = { item ->
+                    onActiveVodDetailsChanged(com.cstv.app.buildOfflineVodDetails(item))
+                    onResumePositionMsChanged(0L)
+                    navController.navigate("vod_player")
+                },
+                onPlayDownloadedEpisode = { item ->
+                    val episode = com.cstv.app.buildOfflineEpisode(item)
+                    onActiveSeriesDetailsChanged(com.cstv.app.buildOfflineSeriesDetails(item, episode))
+                    onActiveEpisodeChanged(episode)
+                    navController.navigate("series_player")
                 }
             )
         }
