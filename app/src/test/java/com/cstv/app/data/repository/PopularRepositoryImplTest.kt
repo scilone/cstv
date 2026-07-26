@@ -1,6 +1,7 @@
 package com.cstv.app.data.repository
 
 import android.content.Context
+import android.content.SharedPreferences
 import com.cstv.app.data.remote.api.TmdbApiService
 import com.cstv.app.data.remote.dto.TmdbTrendingItemDto
 import com.cstv.app.data.remote.dto.TmdbTrendingResponseDto
@@ -68,5 +69,71 @@ class PopularRepositoryImplTest {
             org.mockito.kotlin.any(),
             org.mockito.kotlin.any()
         )
+    }
+
+    @Test
+    fun getCachedMatchedMovies_skipsCacheOnFirstAccessThenServesIt() = runTest {
+        val context = mock<Context>()
+        val prefs = mock<SharedPreferences>()
+        whenever(context.getSharedPreferences("tmdb_popular_cache", Context.MODE_PRIVATE)).thenReturn(prefs)
+        whenever(prefs.getLong("movies_time_v2", 0L)).thenReturn(System.currentTimeMillis())
+        whenever(prefs.getString("movies_data_v2", null)).thenReturn("""[{"localIds":[14,15]}]""")
+        val repository = PopularRepositoryImpl(context, mock(), "valid_key", Gson())
+
+        // Premier accès du lancement : rafraîchissement forcé, le cache est ignoré.
+        assertEquals(null, repository.getCachedMatchedMovies(lastVodCatalogSyncTime = 0L))
+        verify(prefs, never()).getString("movies_data_v2", null)
+
+        // Accès suivants : le cache reprend son rôle normal.
+        val second = repository.getCachedMatchedMovies(lastVodCatalogSyncTime = 0L)
+        assertEquals(listOf(14, 15), second?.single()?.localIds)
+    }
+
+    @Test
+    fun getCachedMatchedMovies_readsCacheOnFirstAccess_whenSessionRefreshIgnored() = runTest {
+        val context = mock<Context>()
+        val prefs = mock<SharedPreferences>()
+        whenever(context.getSharedPreferences("tmdb_popular_cache", Context.MODE_PRIVATE)).thenReturn(prefs)
+        whenever(prefs.getLong("movies_time_v2", 0L)).thenReturn(System.currentTimeMillis())
+        whenever(prefs.getString("movies_data_v2", null)).thenReturn("""[{"localIds":[14]}]""")
+        val repository = PopularRepositoryImpl(context, mock(), "valid_key", Gson())
+
+        // Repli hors ligne : le cache doit rester lisible dès le premier accès.
+        val result = repository.getCachedMatchedMovies(
+            lastVodCatalogSyncTime = 0L,
+            ignoreSessionRefresh = true
+        )
+
+        assertEquals(listOf(14), result?.single()?.localIds)
+    }
+
+    @Test
+    fun getCachedMatchedSeries_skipsCacheOnFirstAccessThenServesIt() = runTest {
+        val context = mock<Context>()
+        val prefs = mock<SharedPreferences>()
+        whenever(context.getSharedPreferences("tmdb_popular_cache", Context.MODE_PRIVATE)).thenReturn(prefs)
+        whenever(prefs.getLong("series_time_v2", 0L)).thenReturn(System.currentTimeMillis())
+        whenever(prefs.getString("series_data_v2", null)).thenReturn("""[{"localIds":[2]}]""")
+        val repository = PopularRepositoryImpl(context, mock(), "valid_key", Gson())
+
+        assertEquals(null, repository.getCachedMatchedSeries(lastSeriesCatalogSyncTime = 0L))
+
+        val second = repository.getCachedMatchedSeries(lastSeriesCatalogSyncTime = 0L)
+        assertEquals(listOf(2), second?.single()?.localIds)
+    }
+
+    @Test
+    fun getCachedMatchedMovies_andSeries_haveIndependentSessionGates() = runTest {
+        val context = mock<Context>()
+        val prefs = mock<SharedPreferences>()
+        whenever(context.getSharedPreferences("tmdb_popular_cache", Context.MODE_PRIVATE)).thenReturn(prefs)
+        whenever(prefs.getLong("series_time_v2", 0L)).thenReturn(System.currentTimeMillis())
+        whenever(prefs.getString("series_data_v2", null)).thenReturn("""[{"localIds":[2]}]""")
+        val repository = PopularRepositoryImpl(context, mock(), "valid_key", Gson())
+
+        // Consommer la porte Films ne doit pas consommer celle des Séries.
+        repository.getCachedMatchedMovies(lastVodCatalogSyncTime = 0L)
+
+        assertEquals(null, repository.getCachedMatchedSeries(lastSeriesCatalogSyncTime = 0L))
     }
 }

@@ -37,11 +37,15 @@ class GetPopularTop10InCatalogUseCase @Inject constructor(
 
     private suspend fun loadMovies(): List<VodStream>? {
         return try {
-        val cached = popularRepository.getCachedMatchedMovies(catalogFreshness.vodSyncedAt())
-        val matches = cached ?: buildMovieMatches().also { fresh ->
-            if (fresh.isNotEmpty()) popularRepository.saveMatchedMovies(fresh)
-        }
-        if (matches.isEmpty()) return null
+        val syncedAt = catalogFreshness.vodSyncedAt()
+        val matches = popularRepository.getCachedMatchedMovies(syncedAt)
+            ?: buildMovieMatches()
+                .also { fresh -> if (fresh.isNotEmpty()) popularRepository.saveMatchedMovies(fresh) }
+                .takeIf { it.isNotEmpty() }
+            // Rafraîchissement de lancement impossible (TMDB injoignable, catalogue
+            // vide) : on repart sur le cache existant plutôt que de vider la ligne.
+            ?: popularRepository.getCachedMatchedMovies(syncedAt, ignoreSessionRefresh = true)
+            ?: return null
         val hidden = hiddenCategories(CategoryType.VOD)
         resolveMovies(matches, hidden).take(10).takeIf { it.isNotEmpty() }
     } catch (e: Exception) {
@@ -53,11 +57,13 @@ class GetPopularTop10InCatalogUseCase @Inject constructor(
 
     private suspend fun loadSeries(): List<SeriesStream>? {
         return try {
-        val cached = popularRepository.getCachedMatchedSeries(catalogFreshness.seriesSyncedAt())
-        val matches = cached ?: buildSeriesMatches().also { fresh ->
-            if (fresh.isNotEmpty()) popularRepository.saveMatchedSeries(fresh)
-        }
-        if (matches.isEmpty()) return null
+        val syncedAt = catalogFreshness.seriesSyncedAt()
+        val matches = popularRepository.getCachedMatchedSeries(syncedAt)
+            ?: buildSeriesMatches()
+                .also { fresh -> if (fresh.isNotEmpty()) popularRepository.saveMatchedSeries(fresh) }
+                .takeIf { it.isNotEmpty() }
+            ?: popularRepository.getCachedMatchedSeries(syncedAt, ignoreSessionRefresh = true)
+            ?: return null
         val hidden = hiddenCategories(CategoryType.SERIES)
         resolveSeries(matches, hidden).take(10).takeIf { it.isNotEmpty() }
     } catch (e: Exception) {

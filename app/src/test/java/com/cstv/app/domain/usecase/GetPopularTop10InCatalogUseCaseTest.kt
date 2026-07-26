@@ -36,8 +36,16 @@ class GetPopularTop10InCatalogUseCaseTest {
                 return emptyList()
             }
 
-            override suspend fun getCachedMatchedMovies(lastVodCatalogSyncTime: Long) = null
-            override suspend fun getCachedMatchedSeries(lastSeriesCatalogSyncTime: Long) = null
+            override suspend fun getCachedMatchedMovies(
+                lastVodCatalogSyncTime: Long,
+                ignoreSessionRefresh: Boolean
+            ) = null
+
+            override suspend fun getCachedMatchedSeries(
+                lastSeriesCatalogSyncTime: Long,
+                ignoreSessionRefresh: Boolean
+            ) = null
+
             override suspend fun saveMatchedMovies(items: List<com.cstv.app.domain.model.PopularCatalogItem>) = Unit
             override suspend fun saveMatchedSeries(items: List<com.cstv.app.domain.model.PopularCatalogItem>) = Unit
         }
@@ -152,5 +160,35 @@ class GetPopularTop10InCatalogUseCaseTest {
         )()
 
         assertNull(result.movies)
+    }
+
+    @Test
+    fun fallsBackToPersistentCache_whenTmdbIsUnreachableAtLaunch() = runTest {
+        val popularRepository = mock<PopularRepository>()
+        val vodRepository = mock<VodRepository>()
+        val seriesRepository = mock<SeriesRepository>()
+        val preferences = mock<CategoryPreferenceRepository>()
+        val catalogFreshness = mock<com.cstv.app.data.sync.CatalogFreshness>()
+        whenever(catalogFreshness.vodSyncedAt()).thenReturn(0L)
+        whenever(catalogFreshness.seriesSyncedAt()).thenReturn(0L)
+        // Rafraîchissement forcé au lancement : le cache est ignoré…
+        whenever(popularRepository.getCachedMatchedMovies(0L)).thenReturn(null)
+        whenever(popularRepository.getCachedMatchedSeries(0L)).thenReturn(null)
+        // …mais TMDB est injoignable (liste vide).
+        whenever(popularRepository.getPopularMovies()).thenReturn(emptyList())
+        whenever(popularRepository.getPopularSeries()).thenReturn(emptyList())
+        whenever(popularRepository.getCachedMatchedMovies(0L, ignoreSessionRefresh = true)).thenReturn(
+            listOf(com.cstv.app.domain.model.PopularCatalogItem(listOf(7)))
+        )
+        val movie = VodStream(7, "Dune", null, null, null, "visible", releaseYear = 2021)
+        whenever(vodRepository.getStreamById(7)).thenReturn(movie)
+        whenever(preferences.getPreferences(any())).thenReturn(emptyMap())
+
+        val result = GetPopularTop10InCatalogUseCase(
+            popularRepository, vodRepository, seriesRepository, preferences, catalogFreshness
+        )()
+
+        assertEquals(listOf(7), result.movies?.map { it.streamId })
+        assertNull(result.series)
     }
 }

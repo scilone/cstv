@@ -18,7 +18,8 @@ class TrendingRepositoryImpl @Inject constructor(
     private val context: Context,
     private val tmdbApiService: TmdbApiService,
     @com.cstv.app.di.TmdbApiKey private val apiKey: String,
-    private val gson: Gson
+    private val gson: Gson,
+    private val sessionRefreshGate: TmdbSessionRefreshGate = TmdbSessionRefreshGate()
 ) : TrendingRepository {
 
     private val prefsName = "tmdb_trends_cache"
@@ -73,7 +74,14 @@ class TrendingRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun getCachedMatchedTrendsGlobal(lastCatalogSyncTime: Long): List<TrendingCatalogItem>? = mutex.withLock {
+    override suspend fun getCachedMatchedTrendsGlobal(
+        lastCatalogSyncTime: Long,
+        ignoreSessionRefresh: Boolean
+    ): List<TrendingCatalogItem>? = mutex.withLock {
+        if (!ignoreSessionRefresh && sessionRefreshGate.consumeFirstAccess(TRENDS_DATA_KEY)) {
+            com.cstv.app.di.IptvLog.d("TMDB", "💾 Cache tendances ignoré au lancement : rafraîchissement forcé.")
+            return null
+        }
         val lastFetchTime = sharedPrefs.getLong("trends_time_global_v3", 0L)
         val currentTime = System.currentTimeMillis()
 
@@ -87,7 +95,7 @@ class TrendingRepositoryImpl @Inject constructor(
             return null // Invalidate cache on catalog update
         }
 
-        val json = sharedPrefs.getString("trends_data_global_v3", null) ?: run {
+        val json = sharedPrefs.getString(TRENDS_DATA_KEY, null) ?: run {
             com.cstv.app.di.IptvLog.d("TMDB", "💾 Global trends cache is empty.")
             return null
         }
@@ -107,7 +115,7 @@ class TrendingRepositoryImpl @Inject constructor(
             try {
                 val json = gson.toJson(items)
                 sharedPrefs.edit()
-                    .putString("trends_data_global_v3", json)
+                    .putString(TRENDS_DATA_KEY, json)
                     .putLong("trends_time_global_v3", System.currentTimeMillis())
                     .apply()
                 com.cstv.app.di.IptvLog.d("TMDB", "💾 Global matched trends successfully saved in persistent cache.")
@@ -115,5 +123,9 @@ class TrendingRepositoryImpl @Inject constructor(
                 com.cstv.app.di.IptvLog.e("TMDB", "💾 Failed to save matched trends to persistent cache", e)
             }
         }
+    }
+
+    private companion object {
+        const val TRENDS_DATA_KEY = "trends_data_global_v3"
     }
 }

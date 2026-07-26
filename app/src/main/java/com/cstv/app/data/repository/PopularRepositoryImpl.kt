@@ -23,7 +23,8 @@ class PopularRepositoryImpl @Inject constructor(
     private val context: Context,
     private val tmdbApiService: TmdbApiService,
     @TmdbApiKey private val apiKey: String,
-    private val gson: Gson
+    private val gson: Gson,
+    private val sessionRefreshGate: TmdbSessionRefreshGate = TmdbSessionRefreshGate()
 ) : PopularRepository {
 
     private val sharedPrefs by lazy {
@@ -37,11 +38,17 @@ class PopularRepositoryImpl @Inject constructor(
     override suspend fun getPopularSeries(): List<TrendingTitle> =
         getPopular(isMovie = false)
 
-    override suspend fun getCachedMatchedMovies(lastVodCatalogSyncTime: Long): List<PopularCatalogItem>? =
-        getCached(MOVIES_DATA_KEY, MOVIES_TIME_KEY, lastVodCatalogSyncTime)
+    override suspend fun getCachedMatchedMovies(
+        lastVodCatalogSyncTime: Long,
+        ignoreSessionRefresh: Boolean
+    ): List<PopularCatalogItem>? =
+        getCached(MOVIES_DATA_KEY, MOVIES_TIME_KEY, lastVodCatalogSyncTime, ignoreSessionRefresh)
 
-    override suspend fun getCachedMatchedSeries(lastSeriesCatalogSyncTime: Long): List<PopularCatalogItem>? =
-        getCached(SERIES_DATA_KEY, SERIES_TIME_KEY, lastSeriesCatalogSyncTime)
+    override suspend fun getCachedMatchedSeries(
+        lastSeriesCatalogSyncTime: Long,
+        ignoreSessionRefresh: Boolean
+    ): List<PopularCatalogItem>? =
+        getCached(SERIES_DATA_KEY, SERIES_TIME_KEY, lastSeriesCatalogSyncTime, ignoreSessionRefresh)
 
     override suspend fun saveMatchedMovies(items: List<PopularCatalogItem>) {
         save(MOVIES_DATA_KEY, MOVIES_TIME_KEY, items)
@@ -93,8 +100,13 @@ class PopularRepositoryImpl @Inject constructor(
     private suspend fun getCached(
         dataKey: String,
         timeKey: String,
-        lastCatalogSyncTime: Long
+        lastCatalogSyncTime: Long,
+        ignoreSessionRefresh: Boolean
     ): List<PopularCatalogItem>? = mutex.withLock {
+        if (!ignoreSessionRefresh && sessionRefreshGate.consumeFirstAccess(dataKey)) {
+            IptvLog.d("TMDB", "💾 Cache Popular ($dataKey) ignoré au lancement : rafraîchissement forcé.")
+            return null
+        }
         val savedAt = sharedPrefs.getLong(timeKey, 0L)
         if (savedAt == 0L || System.currentTimeMillis() - savedAt >= CACHE_DURATION_MS || savedAt < lastCatalogSyncTime) {
             return null

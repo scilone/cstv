@@ -131,10 +131,52 @@ class TrendingRepositoryImplTest {
         whenever(prefs.getLong("trends_time_global_v3", 0L)).thenReturn(0L)
         val repository = TrendingRepositoryImpl(context, mock(), "valid_key", Gson())
 
-        val result = repository.getCachedMatchedTrendsGlobal(lastCatalogSyncTime = 0L)
+        val result = repository.getCachedMatchedTrendsGlobal(
+            lastCatalogSyncTime = 0L,
+            ignoreSessionRefresh = true
+        )
 
         assertEquals(null, result)
         verify(prefs).getLong("trends_time_global_v3", 0L)
         verify(prefs, never()).getLong("trends_time_global_v2", 0L)
+    }
+
+    @Test
+    fun test_getCachedMatchedTrendsGlobal_skipsCacheOnFirstAccessThenServesIt() = runTest {
+        val context = mock<Context>()
+        val prefs = mock<SharedPreferences>()
+        val json = """[{"trendingTitle":{"tmdbId":1,"title":"Dune","isMovie":true,"year":2021}}]"""
+        whenever(context.getSharedPreferences("tmdb_trends_cache", Context.MODE_PRIVATE)).thenReturn(prefs)
+        whenever(prefs.getLong("trends_time_global_v3", 0L)).thenReturn(System.currentTimeMillis())
+        whenever(prefs.getString("trends_data_global_v3", null)).thenReturn(json)
+        val repository = TrendingRepositoryImpl(context, mock(), "valid_key", Gson())
+
+        // Premier accès du lancement : rafraîchissement forcé, le cache est ignoré.
+        assertEquals(null, repository.getCachedMatchedTrendsGlobal(lastCatalogSyncTime = 0L))
+        verify(prefs, never()).getString("trends_data_global_v3", null)
+
+        // Accès suivants : le cache reprend son rôle normal.
+        val second = repository.getCachedMatchedTrendsGlobal(lastCatalogSyncTime = 0L)
+        assertEquals(1, second?.size)
+        assertEquals("Dune", second?.single()?.trendingTitle?.title)
+    }
+
+    @Test
+    fun test_getCachedMatchedTrendsGlobal_readsCacheOnFirstAccess_whenSessionRefreshIgnored() = runTest {
+        val context = mock<Context>()
+        val prefs = mock<SharedPreferences>()
+        val json = """[{"trendingTitle":{"tmdbId":1,"title":"Dune","isMovie":true,"year":2021}}]"""
+        whenever(context.getSharedPreferences("tmdb_trends_cache", Context.MODE_PRIVATE)).thenReturn(prefs)
+        whenever(prefs.getLong("trends_time_global_v3", 0L)).thenReturn(System.currentTimeMillis())
+        whenever(prefs.getString("trends_data_global_v3", null)).thenReturn(json)
+        val repository = TrendingRepositoryImpl(context, mock(), "valid_key", Gson())
+
+        // Repli hors ligne : le cache doit rester lisible dès le premier accès.
+        val result = repository.getCachedMatchedTrendsGlobal(
+            lastCatalogSyncTime = 0L,
+            ignoreSessionRefresh = true
+        )
+
+        assertEquals(1, result?.size)
     }
 }

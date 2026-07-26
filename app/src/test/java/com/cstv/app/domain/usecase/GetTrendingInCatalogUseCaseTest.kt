@@ -415,4 +415,42 @@ class GetTrendingInCatalogUseCaseTest {
         assertEquals(42, result[0].matchedMovie?.streamId)
         assertEquals(42, result[1].matchedSeries?.seriesId)
     }
+
+    @Test
+    fun test_useCase_fallsBackToPersistentCache_whenTmdbIsUnreachableAtLaunch() = runTest {
+        val trendingRepository = mock<TrendingRepository>()
+        val vodRepository = mock<VodRepository>()
+        val seriesRepository = mock<SeriesRepository>()
+        val categoryPreferenceRepository = mock<CategoryPreferenceRepository>()
+        val catalogFreshness = mock<com.cstv.app.data.sync.CatalogFreshness>()
+        whenever(catalogFreshness.vodSyncedAt()).thenReturn(0L)
+        whenever(catalogFreshness.seriesSyncedAt()).thenReturn(0L)
+
+        val movie = VodStream(7, "Dune", null, null, null, "visible", releaseYear = 2021)
+        // Rafraîchissement forcé au lancement : le cache est ignoré…
+        whenever(trendingRepository.getCachedMatchedTrendsGlobal(0L)).thenReturn(null)
+        // …mais TMDB est injoignable.
+        whenever(trendingRepository.getTrending()).thenReturn(emptyList())
+        whenever(trendingRepository.getCachedMatchedTrendsGlobal(0L, ignoreSessionRefresh = true)).thenReturn(
+            listOf(
+                TrendingCatalogItem(
+                    trendingTitle = TrendingTitle(1, "Dune", isMovie = true, year = 2021, posterUrl = null),
+                    matchedMovies = listOf(movie)
+                )
+            )
+        )
+        whenever(vodRepository.getStreamById(7)).thenReturn(movie)
+        whenever(categoryPreferenceRepository.getPreferences(any())).thenReturn(emptyMap())
+
+        val result = GetTrendingInCatalogUseCase(
+            trendingRepository,
+            vodRepository,
+            seriesRepository,
+            categoryPreferenceRepository,
+            catalogFreshness
+        )()
+
+        assertEquals(1, result.size)
+        assertEquals(7, result.single().matchedMovie?.streamId)
+    }
 }
