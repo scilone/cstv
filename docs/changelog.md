@@ -1,5 +1,15 @@
 # Journal des Modifications (Changelog) - CSTV IPTV
 
+## [v1.55.0] - 2026-07-26
+### ⚡ Cache catalogue persistant et navigation hors ligne (T4)
+* Catalogue Xtream Live/VOD/Séries persisté dans Room avec état de synchronisation par section, migration 17 → 18 et remplacements transactionnels qui préservent le dernier cache valide.
+* Démarrage hors ligne autorisé uniquement après validation réseau antérieure du même utilisateur et catalogue complet ; refus explicite du panel révoquant cette autorisation sans supprimer le catalogue.
+* Synchronisation centralisée (démarrage, manuel, WorkManager, reconnexion), EPG fenêtré, détails VOD/Séries conservés à la consultation et cache Coil explicite pour les jaquettes.
+* Lecture hors ligne clarifiée : téléchargements autorisés, flux distants refusés avec un message explicite depuis tous les points d'entrée, y compris recherche et favoris.
+* Le catalogue est conservé pour tout utilisateur du même serveur (`host:port`) et purgé uniquement lors d'un changement de serveur.
+
+> Validation automatisée : `testDebugUnitTest`, `assembleDebug` et `lintDebug` réussis. La migration sur une installation v17 réelle et les parcours manuels mobile/Android TV restent à exécuter sur appareil ou émulateur.
+
 Ce document retrace l'historique des versions, des fonctionnalités livrées, des optimisations et des correctifs apportés à l'application CSTV IPTV.
 
 ---

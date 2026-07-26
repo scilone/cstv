@@ -29,7 +29,7 @@ class AdvancedCatalogSearchUseCase @Inject constructor(
 
         val rawVod = if (showVod) {
             try {
-                vodRepository.getVodStreams("all", forceRefresh = false)
+                vodRepository.getCachedVodStreams("all")
             } catch (e: Exception) {
                 emptyList()
             }
@@ -39,7 +39,7 @@ class AdvancedCatalogSearchUseCase @Inject constructor(
 
         val rawSeries = if (showSeries) {
             try {
-                seriesRepository.getSeriesStreams("all", forceRefresh = false)
+                seriesRepository.getCachedSeriesStreams("all")
             } catch (e: Exception) {
                 emptyList()
             }

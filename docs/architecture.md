@@ -44,6 +44,10 @@ Responsable de l'approvisionnement en données. Elle implémente les interfaces 
 * **`worker/`** : Tâches planifiées en arrière-plan avec **WorkManager** pour la synchronisation automatique du catalogue.
 * **`repository/`** : Implémentations réelles des interfaces de repositories (ex: `LiveTvRepositoryImpl`), gérant la logique de cache (quand servir les données locales de Room vs quand appeler l'API réseau).
 
+### Cache catalogue hors ligne (T4)
+
+Les écrans catalogue lisent des `Flow` Room et ne déclenchent pas directement le réseau. `CatalogSyncManager` coordonne les écritures Xtream vers Room pour les catégories et flux Live/VOD/Séries, avec fraîcheur par section, classement d'erreurs et remplacement transactionnel du catalogue. La clé de catalogue est liée au serveur (`host:port`) : un changement d'utilisateur sur le même serveur conserve la base, tandis qu'un changement de serveur la purge. La session hors ligne est contrôlée séparément par une clé chiffrée liée à l'utilisateur exact.
+
 #### C. Couche Présentation (`presentation/`)
 Responsable de l'interface utilisateur. Elle utilise **Jetpack Compose** pour l'UI.
 * **ViewModels** : Un ViewModel par écran. Il gère l'état de l'interface (StateFlow) et interagit avec la couche Domaine. Zéro logique métier directe dans les Composables.

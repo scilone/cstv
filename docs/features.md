@@ -10,6 +10,16 @@ L'accès au contenu IPTV s'effectue exclusivement via l'API **Xtream Codes** (`p
 * **Sécurité** : Les identifiants sont chiffrés et stockés localement de manière sécurisée (DataStore chiffré / EncryptedSharedPreferences). Ils ne sont jamais consignés dans les logs ni inclus dans des fichiers versionnés.
 * **Gestion défensive** : Gestion robuste des cas d'erreur réseau (timeout, serveur injoignable), des identifiants erronés et des comptes expirés.
 * **Multi-Profils locaux** : Possibilité de créer plusieurs profils locaux de type Netflix sous un même compte Xtream Codes (voir section dédiée).
+* **Démarrage hors ligne après validation** : Après une connexion en ligne réussie et une synchronisation complète, l'application peut rouvrir le catalogue local sans réseau. Un refus explicite des identifiants ou une expiration révoque cet accès jusqu'à une nouvelle validation en ligne.
+
+---
+
+## Cache persistant du catalogue et mode hors ligne (T4)
+
+* **Catalogue Room réactif** : Les catégories et listes Live, Films et Séries sont lues localement et se mettent à jour dès qu'une synchronisation écrit les nouvelles données.
+* **Synchronisation maîtrisée** : Les rafraîchissements manuels, planifiés et au retour du réseau sont centralisés, avec conservation du dernier catalogue valide en cas d'erreur.
+* **Détails consultés conservés** : Les fiches VOD et les saisons/épisodes déjà ouverts restent disponibles depuis le cache ; les programmes EPG récemment reçus sont aussi consultables hors connexion.
+* **Lecture explicite** : Hors ligne, les téléchargements restent lisibles ; un flux Live ou distant affiche un message de connexion requise au lieu d'ouvrir un lecteur en erreur.
 
 ---
 

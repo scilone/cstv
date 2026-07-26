@@ -20,7 +20,7 @@ class GetCategoriesForTypeUseCase @Inject constructor(
         return when (mediaType) {
             SearchMediaType.FILM -> {
                 val rawCategories = try {
-                    vodRepository.getVodCategories(forceRefresh = false)
+                    vodRepository.getCachedVodCategories()
                 } catch (e: Exception) {
                     emptyList()
                 }
@@ -53,7 +53,7 @@ class GetCategoriesForTypeUseCase @Inject constructor(
             }
             SearchMediaType.SERIE -> {
                 val rawCategories = try {
-                    seriesRepository.getSeriesCategories(forceRefresh = false)
+                    seriesRepository.getCachedSeriesCategories()
                 } catch (e: Exception) {
                     emptyList()
                 }

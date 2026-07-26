@@ -11,6 +11,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import com.cstv.app.presentation.components.CatalogUnavailableState
+import com.cstv.app.presentation.components.OfflineBanner
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -115,10 +117,6 @@ fun VodScreen(
         }
     }.collectAsLazyPagingItems()
 
-    LaunchedEffect(Unit) {
-        viewModel.loadCategories(forceRefresh = false)
-    }
-
     val getScroll: (String) -> Pair<Int, Int> = { viewModel.getScrollPosition(it) }
     val saveScroll: (String, Int, Int) -> Unit = { k, i, o -> viewModel.saveScrollPosition(k, i, o) }
 
@@ -132,7 +130,7 @@ fun VodScreen(
                 state = state,
                 onCategorySelected = { viewModel.selectCategory(it) },
                 onMovieSelected = onMovieSelected,
-                onRefresh = { viewModel.loadCategories(forceRefresh = true) },
+                onRefresh = { viewModel.refresh() },
                 filteredStreams = filteredStreams,
                 pagedStreams = pagedStreams,
                 favoritesList = favoritesList,
@@ -148,7 +146,7 @@ fun VodScreen(
                 state = state,
                 onCategorySelected = { viewModel.selectCategory(it) },
                 onMovieSelected = onMovieSelected,
-                onRefresh = { viewModel.loadCategories(forceRefresh = true) },
+                onRefresh = { viewModel.refresh() },
                 filteredStreams = filteredStreams,
                 pagedStreams = pagedStreams,
                 favoritesList = favoritesList,
@@ -213,6 +211,10 @@ private fun TvLayout(
             .fillMaxSize()
             .padding(16.dp)
     ) {
+        // Bannière hors ligne : discrète, non bloquante, jamais en remplacement
+        // du contenu (règle « une donnée ancienne reste consultable »).
+        OfflineBanner(status = state.catalogStatus, onRetry = onRefresh)
+
         // Top categories filter row
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -239,7 +241,11 @@ private fun TvLayout(
             }
         }
 
-        if (state.isLoadingStreams || state.isLoadingCategories) {
+        if (!state.catalogStatus.isComplete && state.catalogStatus.isOffline && state.streams.isEmpty()) {
+            // Uniquement sans cache ET sans réseau : ne doit jamais se
+            // substituer à une liste simplement filtrée à vide.
+            CatalogUnavailableState(onRetry = onRefresh, isRetrying = state.catalogStatus.isSyncing)
+        } else if (state.isLoadingStreams || state.isLoadingCategories) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
             }
@@ -409,6 +415,10 @@ private fun MobileLayout(
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
+        // Bannière hors ligne : discrète, non bloquante, jamais en remplacement
+        // du contenu (règle « une donnée ancienne reste consultable »).
+        OfflineBanner(status = state.catalogStatus, onRetry = onRefresh)
+
         // Sélecteur de catégorie unifié (Phase 56) : pleine largeur, sans bouton
         // "Rafraîchir" (rafraîchissement manuel déplacé dans les Paramètres),
         // espacé du haut, fond neutre transparent comme le reste du layout.
@@ -447,7 +457,11 @@ private fun MobileLayout(
             )
         }
 
-        if (state.isLoadingStreams || state.isLoadingCategories) {
+        if (!state.catalogStatus.isComplete && state.catalogStatus.isOffline && state.streams.isEmpty()) {
+            // Uniquement sans cache ET sans réseau : ne doit jamais se
+            // substituer à une liste simplement filtrée à vide.
+            CatalogUnavailableState(onRetry = onRefresh, isRetrying = state.catalogStatus.isSyncing)
+        } else if (state.isLoadingStreams || state.isLoadingCategories) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
             }

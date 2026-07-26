@@ -62,11 +62,11 @@ class CategoryManagementViewModel @Inject constructor(
                 // masquées) : on passe par les repositories, puis on applique
                 // uniquement l'ordre personnalisé.
                 val raw = when (type) {
-                    CategoryType.LIVE -> liveTvRepository.getLiveCategories(forceRefresh = false)
+                    CategoryType.LIVE -> liveTvRepository.getCachedLiveCategories()
                         .map { it.categoryId to it.categoryName }
-                    CategoryType.VOD -> vodRepository.getVodCategories(forceRefresh = false)
+                    CategoryType.VOD -> vodRepository.getCachedVodCategories()
                         .map { it.categoryId to it.categoryName }
-                    CategoryType.SERIES -> seriesRepository.getSeriesCategories(forceRefresh = false)
+                    CategoryType.SERIES -> seriesRepository.getCachedSeriesCategories()
                         .map { it.categoryId to it.categoryName }
                 }
                 val prefs = categoryPreferenceRepository.getPreferences(type)

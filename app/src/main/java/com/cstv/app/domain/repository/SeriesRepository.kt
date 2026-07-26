@@ -3,11 +3,28 @@ package com.cstv.app.domain.repository
 import com.cstv.app.domain.model.SeriesCategory
 import com.cstv.app.domain.model.SeriesDetails
 import com.cstv.app.domain.model.SeriesStream
+import kotlinx.coroutines.flow.Flow
 
 interface SeriesRepository {
-    suspend fun getSeriesCategories(forceRefresh: Boolean): List<SeriesCategory>
-    suspend fun getSeriesStreams(categoryId: String, forceRefresh: Boolean): List<SeriesStream>
-    fun getSeriesStreamsPaged(categoryId: String): kotlinx.coroutines.flow.Flow<androidx.paging.PagingData<SeriesStream>>
+
+    // --- Lecture : strictement locale, jamais de réseau, jamais d'exception réseau ---
+    fun observeSeriesCategories(): Flow<List<SeriesCategory>>
+    fun observeSeriesStreams(categoryId: String): Flow<List<SeriesStream>>
+    fun getSeriesStreamsPaged(categoryId: String): Flow<androidx.paging.PagingData<SeriesStream>>
+
+    /** Lecture ponctuelle du cache local (aucun appel réseau). */
+    suspend fun getCachedSeriesCategories(): List<SeriesCategory>
+    suspend fun getCachedSeriesStreams(categoryId: String): List<SeriesStream>
+
+    // --- Écriture : réseau → Room, jamais consommée directement par l'UI ---
+    suspend fun syncSeriesCategories(): List<SeriesCategory>
+    suspend fun syncSeriesStreams(categoryId: String = "all"): List<SeriesStream>
+
+    /**
+     * Fiche série. Cache d'abord, réseau ensuite si en ligne, persistance des
+     * saisons et épisodes, repli sur une fiche dégradée
+     * ([SeriesDetails.isMetadataIncomplete]) si le panel échoue.
+     */
     suspend fun getSeriesDetails(seriesId: Int): SeriesDetails
     suspend fun savePlaybackPosition(episodeStreamId: Int, positionMs: Long, durationMs: Long)
     suspend fun getPlaybackPosition(episodeStreamId: Int): Pair<Long, Long>?

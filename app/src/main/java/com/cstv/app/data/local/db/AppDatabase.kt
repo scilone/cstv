@@ -2,6 +2,7 @@ package com.cstv.app.data.local.db
 
 import androidx.room.Database
 import androidx.room.RoomDatabase
+import com.cstv.app.data.local.dao.CatalogSyncStateDao
 import com.cstv.app.data.local.dao.LiveTvDao
 import com.cstv.app.data.local.dao.SeriesDao
 import com.cstv.app.data.local.dao.MediaRatingDao
@@ -29,6 +30,9 @@ import com.cstv.app.data.local.entity.LiveStreamFtsEntity
 import com.cstv.app.data.local.entity.VodStreamFtsEntity
 import com.cstv.app.data.local.entity.SeriesStreamFtsEntity
 import com.cstv.app.data.local.entity.MediaRatingEntity
+import com.cstv.app.data.local.entity.CatalogSyncStateEntity
+import com.cstv.app.data.local.entity.SeriesSeasonEntity
+import com.cstv.app.data.local.entity.SeriesEpisodeEntity
 
 @Database(
     entities = [
@@ -49,9 +53,12 @@ import com.cstv.app.data.local.entity.MediaRatingEntity
         SeriesStreamFtsEntity::class,
         CategoryPreferenceEntity::class,
         DownloadedMediaEntity::class,
-        MediaRatingEntity::class
+        MediaRatingEntity::class,
+        CatalogSyncStateEntity::class,
+        SeriesSeasonEntity::class,
+        SeriesEpisodeEntity::class
     ],
-    version = 17,
+    version = 18,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -64,4 +71,5 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun categoryPreferenceDao(): CategoryPreferenceDao
     abstract fun downloadDao(): DownloadDao
     abstract fun mediaRatingDao(): MediaRatingDao
+    abstract fun catalogSyncStateDao(): CatalogSyncStateDao
 }

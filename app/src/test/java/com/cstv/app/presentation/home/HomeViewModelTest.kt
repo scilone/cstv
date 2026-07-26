@@ -43,6 +43,9 @@ class HomeViewModelTest {
     private lateinit var getLiveCategoriesUseCase: com.cstv.app.domain.usecase.GetLiveCategoriesUseCase
 
     @Mock
+    private lateinit var canPlayContentUseCase: com.cstv.app.domain.usecase.CanPlayContentUseCase
+
+    @Mock
     private lateinit var categoryPreferenceRepository: com.cstv.app.domain.repository.CategoryPreferenceRepository
 
     @Mock
@@ -105,7 +108,8 @@ class HomeViewModelTest {
             getPopularTop10InCatalogUseCase,
             removeFromContinueWatchingUseCase,
             getTrailerPreviewUseCase,
-            profileManager
+            profileManager,
+            canPlayContentUseCase
         )
         testDispatcher.scheduler.runCurrent()
         return vm
@@ -140,15 +144,15 @@ class HomeViewModelTest {
     fun profileChangeReloadsHomeContent() = runTest {
         stubReactiveSources()
         stubEmptyCategoryPreferences()
-        whenever(getLiveCategoriesUseCase(false)).thenReturn(emptyList())
-        whenever(vodRepository.getVodStreams("all", false)).thenReturn(emptyList())
-        whenever(seriesRepository.getSeriesStreams("all", false)).thenReturn(emptyList())
+        whenever(getLiveCategoriesUseCase.once()).thenReturn(emptyList())
+        whenever(vodRepository.getCachedVodStreams("all")).thenReturn(emptyList())
+        whenever(seriesRepository.getCachedSeriesStreams("all")).thenReturn(emptyList())
 
         viewModel = createViewModel()
         activeProfileId.value = 2
         testDispatcher.scheduler.runCurrent()
 
-        verify(getLiveCategoriesUseCase, times(2)).invoke(false)
+        verify(getLiveCategoriesUseCase, times(2)).once()
 
         viewModel.viewModelScope.cancel()
     }
@@ -167,16 +171,16 @@ class HomeViewModelTest {
         // Mock Live TV
         val liveCats = listOf(LiveCategory("1", "Live Cat 1", 0))
         val liveStreams = listOf(LiveStream(101, "Channel 1", "icon1", null, 1, "1"))
-        whenever(getLiveCategoriesUseCase(false)).thenReturn(liveCats)
-        whenever(liveTvRepository.getLiveStreams("1", false)).thenReturn(liveStreams)
+        whenever(getLiveCategoriesUseCase.once()).thenReturn(liveCats)
+        whenever(liveTvRepository.getCachedLiveStreams("1")).thenReturn(liveStreams)
 
         // Mock VOD Movies
         val vodStreams = listOf(VodStream(201, "Movie A", "icon2", "8.5", "2026", "1"))
-        whenever(vodRepository.getVodStreams("all", false)).thenReturn(vodStreams)
+        whenever(vodRepository.getCachedVodStreams("all")).thenReturn(vodStreams)
 
         // Mock Series
         val seriesStreams = listOf(SeriesStream(301, "Series X", "cover3", "9.0", "2026", "1"))
-        whenever(seriesRepository.getSeriesStreams("all", false)).thenReturn(seriesStreams)
+        whenever(seriesRepository.getCachedSeriesStreams("all")).thenReturn(seriesStreams)
 
         viewModel = createViewModel()
 
@@ -204,9 +208,9 @@ class HomeViewModelTest {
         val fallbackMovie = VodStream(100, "Fallback movie", null, "9.0", "1", "movies")
         stubReactiveSources(popular = PopularTop10Result(listOf(popularMovie), null))
         stubEmptyCategoryPreferences()
-        whenever(getLiveCategoriesUseCase(false)).thenReturn(emptyList())
-        whenever(vodRepository.getVodStreams("all", false)).thenReturn(listOf(fallbackMovie))
-        whenever(seriesRepository.getSeriesStreams("all", false)).thenReturn(emptyList())
+        whenever(getLiveCategoriesUseCase.once()).thenReturn(emptyList())
+        whenever(vodRepository.getCachedVodStreams("all")).thenReturn(listOf(fallbackMovie))
+        whenever(seriesRepository.getCachedSeriesStreams("all")).thenReturn(emptyList())
 
         viewModel = createViewModel()
 
@@ -223,14 +227,14 @@ class HomeViewModelTest {
         stubEmptyCategoryPreferences()
 
         // Mock Live TV throws exception
-        whenever(getLiveCategoriesUseCase(false)).thenThrow(RuntimeException("API Error Live TV"))
+        whenever(getLiveCategoriesUseCase.once()).thenThrow(RuntimeException("API Error Live TV"))
 
         // Mock VOD Movies succeeds
         val vodStreams = listOf(VodStream(201, "Movie A", "icon2", "8.5", "2026", "1"))
-        whenever(vodRepository.getVodStreams("all", false)).thenReturn(vodStreams)
+        whenever(vodRepository.getCachedVodStreams("all")).thenReturn(vodStreams)
 
         // Mock Series to be empty
-        whenever(seriesRepository.getSeriesStreams("all", false)).thenReturn(emptyList())
+        whenever(seriesRepository.getCachedSeriesStreams("all")).thenReturn(emptyList())
 
         viewModel = createViewModel()
 
@@ -266,9 +270,9 @@ class HomeViewModelTest {
         )
         stubReactiveSources(positions = positions)
         stubEmptyCategoryPreferences()
-        whenever(getLiveCategoriesUseCase(false)).thenReturn(emptyList())
-        whenever(vodRepository.getVodStreams("all", false)).thenReturn(emptyList())
-        whenever(seriesRepository.getSeriesStreams("all", false)).thenReturn(emptyList())
+        whenever(getLiveCategoriesUseCase.once()).thenReturn(emptyList())
+        whenever(vodRepository.getCachedVodStreams("all")).thenReturn(emptyList())
+        whenever(seriesRepository.getCachedSeriesStreams("all")).thenReturn(emptyList())
 
         viewModel = createViewModel()
 
@@ -286,14 +290,14 @@ class HomeViewModelTest {
     fun test_loadHomeData_sortsVodAndSeriesByAddedDescending_andLimitsTo20() = runTest {
         stubReactiveSources()
         stubEmptyCategoryPreferences()
-        whenever(getLiveCategoriesUseCase(false)).thenReturn(emptyList())
+        whenever(getLiveCategoriesUseCase.once()).thenReturn(emptyList())
 
         // 22 streams générés avec des dates d'ajout croissantes : le plus récent (id 21, added "21")
         // doit apparaître en premier, et seuls les 20 plus récents doivent être conservés.
         val vodStreams = (0..21).map { i -> VodStream(i, "Movie $i", "icon", "5.0", i.toString(), "1") }
         val seriesStreams = (0..21).map { i -> SeriesStream(i, "Series $i", "cover", "5.0", i.toString(), "1") }
-        whenever(vodRepository.getVodStreams("all", false)).thenReturn(vodStreams)
-        whenever(seriesRepository.getSeriesStreams("all", false)).thenReturn(seriesStreams)
+        whenever(vodRepository.getCachedVodStreams("all")).thenReturn(vodStreams)
+        whenever(seriesRepository.getCachedSeriesStreams("all")).thenReturn(seriesStreams)
 
         viewModel = createViewModel()
 
@@ -315,10 +319,10 @@ class HomeViewModelTest {
         stubEmptyCategoryPreferences()
         val liveCats = listOf(LiveCategory("1", "Live Cat 1", 0), LiveCategory("2", "Live Cat 2", 1))
         val liveStreams = listOf(LiveStream(101, "Channel 1", "icon1", null, 1, "1"))
-        whenever(getLiveCategoriesUseCase(false)).thenReturn(liveCats)
-        whenever(liveTvRepository.getLiveStreams("1", false)).thenReturn(liveStreams)
-        whenever(vodRepository.getVodStreams("all", false)).thenReturn(emptyList())
-        whenever(seriesRepository.getSeriesStreams("all", false)).thenReturn(emptyList())
+        whenever(getLiveCategoriesUseCase.once()).thenReturn(liveCats)
+        whenever(liveTvRepository.getCachedLiveStreams("1")).thenReturn(liveStreams)
+        whenever(vodRepository.getCachedVodStreams("all")).thenReturn(emptyList())
+        whenever(seriesRepository.getCachedSeriesStreams("all")).thenReturn(emptyList())
 
         viewModel = createViewModel()
 
@@ -352,10 +356,10 @@ class HomeViewModelTest {
 
         // Also mock the stream category IDs:
         // Movie 101 is in "hidden_vod_cat"
-        whenever(vodRepository.getVodStreams("all", false)).thenReturn(
+        whenever(vodRepository.getCachedVodStreams("all")).thenReturn(
             listOf(VodStream(101, "Movie 101", "cover1", null, null, "hidden_vod_cat"))
         )
-        whenever(seriesRepository.getSeriesStreams("all", false)).thenReturn(
+        whenever(seriesRepository.getCachedSeriesStreams("all")).thenReturn(
             listOf(SeriesStream(1001, "Series 201", "cover2", null, null, "visible_series_cat"))
         )
 
@@ -388,9 +392,9 @@ class HomeViewModelTest {
         whenever(getTrendingInCatalogUseCase.invoke()).thenReturn(mockTrends)
 
         // Stub other methods to succeed with empty list
-        whenever(getLiveCategoriesUseCase(false)).thenReturn(emptyList())
-        whenever(vodRepository.getVodStreams("all", false)).thenReturn(emptyList())
-        whenever(seriesRepository.getSeriesStreams("all", false)).thenReturn(emptyList())
+        whenever(getLiveCategoriesUseCase.once()).thenReturn(emptyList())
+        whenever(vodRepository.getCachedVodStreams("all")).thenReturn(emptyList())
+        whenever(seriesRepository.getCachedSeriesStreams("all")).thenReturn(emptyList())
 
         viewModel = createViewModel()
 
@@ -410,9 +414,9 @@ class HomeViewModelTest {
     fun test_loadHomeData_populatesRecommendedMoviesAndSeries() = runTest {
         stubReactiveSources()
         stubEmptyCategoryPreferences()
-        whenever(getLiveCategoriesUseCase(false)).thenReturn(emptyList())
-        whenever(vodRepository.getVodStreams("all", false)).thenReturn(emptyList())
-        whenever(seriesRepository.getSeriesStreams("all", false)).thenReturn(emptyList())
+        whenever(getLiveCategoriesUseCase.once()).thenReturn(emptyList())
+        whenever(vodRepository.getCachedVodStreams("all")).thenReturn(emptyList())
+        whenever(seriesRepository.getCachedSeriesStreams("all")).thenReturn(emptyList())
 
         val recoMovie = VodStream(501, "Recommended Movie", "icon", "8.0", "12345", "1")
         val recoSeries = SeriesStream(601, "Recommended Series", "cover", "8.5", "12345", "1")
@@ -440,9 +444,9 @@ class HomeViewModelTest {
     fun test_loadHomeData_coldStart_recommendedListsStayEmpty() = runTest {
         stubReactiveSources() // stubReactiveSources() renvoie déjà des listes vides par défaut
         stubEmptyCategoryPreferences()
-        whenever(getLiveCategoriesUseCase(false)).thenReturn(emptyList())
-        whenever(vodRepository.getVodStreams("all", false)).thenReturn(emptyList())
-        whenever(seriesRepository.getSeriesStreams("all", false)).thenReturn(emptyList())
+        whenever(getLiveCategoriesUseCase.once()).thenReturn(emptyList())
+        whenever(vodRepository.getCachedVodStreams("all")).thenReturn(emptyList())
+        whenever(seriesRepository.getCachedSeriesStreams("all")).thenReturn(emptyList())
 
         viewModel = createViewModel()
 
@@ -457,9 +461,9 @@ class HomeViewModelTest {
     fun trailerPreview_selectsActiveMediaAndKeepsPosterWhenUnavailable() = runTest {
         stubReactiveSources()
         stubEmptyCategoryPreferences()
-        whenever(getLiveCategoriesUseCase(false)).thenReturn(emptyList())
-        whenever(vodRepository.getVodStreams("all", false)).thenReturn(emptyList())
-        whenever(seriesRepository.getSeriesStreams("all", false)).thenReturn(emptyList())
+        whenever(getLiveCategoriesUseCase.once()).thenReturn(emptyList())
+        whenever(vodRepository.getCachedVodStreams("all")).thenReturn(emptyList())
+        whenever(seriesRepository.getCachedSeriesStreams("all")).thenReturn(emptyList())
         val item = trendingMovie(10, 100)
         whenever(getTrailerPreviewUseCase.invoke(TrailerMedia.Movie(10, 100))).thenReturn(null)
         viewModel = createViewModel()
@@ -477,9 +481,9 @@ class HomeViewModelTest {
     fun trailerPreview_ignoresCancelledStaleResponseAndResetsForNewMedia() = runTest {
         stubReactiveSources()
         stubEmptyCategoryPreferences()
-        whenever(getLiveCategoriesUseCase(false)).thenReturn(emptyList())
-        whenever(vodRepository.getVodStreams("all", false)).thenReturn(emptyList())
-        whenever(seriesRepository.getSeriesStreams("all", false)).thenReturn(emptyList())
+        whenever(getLiveCategoriesUseCase.once()).thenReturn(emptyList())
+        whenever(vodRepository.getCachedVodStreams("all")).thenReturn(emptyList())
+        whenever(seriesRepository.getCachedSeriesStreams("all")).thenReturn(emptyList())
         val first = trendingMovie(10, 100)
         val second = trendingMovie(11, 101)
         val firstPreview = TrailerPreview(TrailerMedia.Movie(10, 100), TrailerSource.YouTube("dQw4w9WgXcQ"))
@@ -502,9 +506,9 @@ class HomeViewModelTest {
     fun trailerPreview_playbackFailureOnlyAppliesToCurrentMediaAndCancelsToPoster() = runTest {
         stubReactiveSources()
         stubEmptyCategoryPreferences()
-        whenever(getLiveCategoriesUseCase(false)).thenReturn(emptyList())
-        whenever(vodRepository.getVodStreams("all", false)).thenReturn(emptyList())
-        whenever(seriesRepository.getSeriesStreams("all", false)).thenReturn(emptyList())
+        whenever(getLiveCategoriesUseCase.once()).thenReturn(emptyList())
+        whenever(vodRepository.getCachedVodStreams("all")).thenReturn(emptyList())
+        whenever(seriesRepository.getCachedSeriesStreams("all")).thenReturn(emptyList())
         val item = trendingMovie(10, 100)
         val media = TrailerMedia.Movie(10, 100)
         val preview = TrailerPreview(media, TrailerSource.YouTube("dQw4w9WgXcQ"))

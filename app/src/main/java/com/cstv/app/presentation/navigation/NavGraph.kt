@@ -217,9 +217,13 @@ fun AppNavGraph(
                         resumePositionMs = position.positionMs,
                         durationMs = position.durationMs
                     )
-                    onActiveVodDetailsChanged(details)
-                    onResumePositionMsChanged(position.positionMs)
-                    navController.navigate("vod_player")
+                    homeViewModel.requestPlayback(
+                        com.cstv.app.domain.model.DownloadedItem.movieContentId(position.streamId)
+                    ) {
+                        onActiveVodDetailsChanged(details)
+                        onResumePositionMsChanged(position.positionMs)
+                        navController.navigate("vod_player")
+                    }
                 },
                 onPlayResumeWatchingSeries = { position ->
                     val sName = position.title?.substringBefore(" - ") ?: "Série"
@@ -236,7 +240,6 @@ fun AppNavGraph(
                         durationMs = position.durationMs,
                         seasonNum = position.seasonNum ?: 1
                     )
-                    onActiveEpisodeChanged(episode)
                     val details = SeriesDetails(
                         seriesId = 0,
                         name = sName,
@@ -245,13 +248,22 @@ fun AppNavGraph(
                         seasons = emptyList(),
                         episodes = emptyMap()
                     )
-                    onActiveSeriesDetailsChanged(details)
-                    navController.navigate("series_player")
+                    homeViewModel.requestPlayback(
+                        com.cstv.app.domain.model.DownloadedItem.episodeContentId(position.streamId)
+                    ) {
+                        onActiveEpisodeChanged(episode)
+                        onActiveSeriesDetailsChanged(details)
+                        navController.navigate("series_player")
+                    }
                 },
                 onPlayLiveStream = { stream, list ->
-                    onActiveStreamChanged(stream)
-                    onActiveStreamsListChanged(list)
-                    navController.navigate("live_player")
+                    // Un flux Live n'est jamais téléchargeable : hors ligne, il
+                    // n'est pas lancé, avec un message qui le dit.
+                    homeViewModel.requestPlayback(null) {
+                        onActiveStreamChanged(stream)
+                        onActiveStreamsListChanged(list)
+                        navController.navigate("live_player")
+                    }
                 },
                 onSelectMovieDetail = { stream ->
                     onActiveVodMovieChanged(stream)
@@ -316,9 +328,11 @@ fun AppNavGraph(
                 viewModel = favoritesViewModel,
                 isTv = isTv,
                 onPlayLive = { stream ->
-                    onActiveStreamChanged(stream)
-                    onActiveStreamsListChanged(listOf(stream))
-                    navController.navigate("live_player")
+                    favoritesViewModel.requestPlayback(null) {
+                        onActiveStreamChanged(stream)
+                        onActiveStreamsListChanged(listOf(stream))
+                        navController.navigate("live_player")
+                    }
                 },
                 onSelectMovie = { stream ->
                     onActiveVodMovieChanged(stream)
@@ -338,10 +352,12 @@ fun AppNavGraph(
                 viewModel = favoritesViewModel,
                 isTv = isTv,
                 onPlayLive = { id, catId ->
-                    val stream = LiveStream(id, "Chaîne Favorie", null, null, 1, catId)
-                    onActiveStreamChanged(stream)
-                    onActiveStreamsListChanged(listOf(stream))
-                    navController.navigate("live_player")
+                    favoritesViewModel.requestPlayback(null) {
+                        val stream = LiveStream(id, "Chaîne Favorie", null, null, 1, catId)
+                        onActiveStreamChanged(stream)
+                        onActiveStreamsListChanged(listOf(stream))
+                        navController.navigate("live_player")
+                    }
                 },
                 onSelectMovie = { id, catId ->
                     onActiveVodMovieChanged(VodStream(id, "Film Favori", null, null, null, catId))
@@ -474,13 +490,19 @@ fun AppNavGraph(
                             )
                         },
                         onPlayFromBeginning = {
-                            vodViewModel.clearPosition(details.streamId)
-                            onResumePositionMsChanged(0L)
-                            navController.navigate("vod_player")
+                            // Hors ligne et non téléchargé : rien n'est lancé,
+                            // le message est porté par l'état de l'écran.
+                            vodViewModel.requestPlayback(details.streamId) {
+                                vodViewModel.clearPosition(details.streamId)
+                                onResumePositionMsChanged(0L)
+                                navController.navigate("vod_player")
+                            }
                         },
                         onResumePlayback = { pos ->
-                            onResumePositionMsChanged(pos)
-                            navController.navigate("vod_player")
+                            vodViewModel.requestPlayback(details.streamId) {
+                                onResumePositionMsChanged(pos)
+                                navController.navigate("vod_player")
+                            }
                         },
                         onBack = {
                             navController.popBackStack()
@@ -553,8 +575,10 @@ fun AppNavGraph(
                             )
                         },
                         onEpisodeSelected = { episode ->
-                            onActiveEpisodeChanged(episode)
-                            navController.navigate("series_player")
+                            seriesViewModel.requestPlayback(episode.id) {
+                                onActiveEpisodeChanged(episode)
+                                navController.navigate("series_player")
+                            }
                         },
                         onBack = {
                             navController.popBackStack()

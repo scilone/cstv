@@ -1,6 +1,5 @@
 package com.cstv.app.domain.usecase
 
-import com.cstv.app.data.local.storage.SettingsManager
 import com.cstv.app.di.IptvLog
 import com.cstv.app.domain.model.CategoryType
 import com.cstv.app.domain.model.PopularCatalogItem
@@ -25,7 +24,7 @@ class GetPopularTop10InCatalogUseCase @Inject constructor(
     private val vodRepository: VodRepository,
     private val seriesRepository: SeriesRepository,
     private val categoryPreferenceRepository: CategoryPreferenceRepository,
-    private val settingsManager: SettingsManager
+    private val catalogFreshness: com.cstv.app.data.sync.CatalogFreshness
 ) {
     suspend operator fun invoke(): PopularTop10Result = coroutineScope {
         // Les deux endpoints sont indépendants : une requête Films lente ne doit
@@ -38,7 +37,7 @@ class GetPopularTop10InCatalogUseCase @Inject constructor(
 
     private suspend fun loadMovies(): List<VodStream>? {
         return try {
-        val cached = popularRepository.getCachedMatchedMovies(settingsManager.getVodAllStreamsSyncedAt())
+        val cached = popularRepository.getCachedMatchedMovies(catalogFreshness.vodSyncedAt())
         val matches = cached ?: buildMovieMatches().also { fresh ->
             if (fresh.isNotEmpty()) popularRepository.saveMatchedMovies(fresh)
         }
@@ -54,7 +53,7 @@ class GetPopularTop10InCatalogUseCase @Inject constructor(
 
     private suspend fun loadSeries(): List<SeriesStream>? {
         return try {
-        val cached = popularRepository.getCachedMatchedSeries(settingsManager.getSeriesAllStreamsSyncedAt())
+        val cached = popularRepository.getCachedMatchedSeries(catalogFreshness.seriesSyncedAt())
         val matches = cached ?: buildSeriesMatches().also { fresh ->
             if (fresh.isNotEmpty()) popularRepository.saveMatchedSeries(fresh)
         }
@@ -71,7 +70,7 @@ class GetPopularTop10InCatalogUseCase @Inject constructor(
     private suspend fun buildMovieMatches(): List<PopularCatalogItem> {
         val popular = popularRepository.getPopularMovies()
         if (popular.isEmpty()) return emptyList()
-        val streams = vodRepository.getVodStreams("all", false)
+        val streams = vodRepository.getCachedVodStreams("all")
         return withContext(Dispatchers.Default) {
             match(popular, TmdbCatalogMatcher.prepareMovies(streams)) { it.streamId }
         }
@@ -80,7 +79,7 @@ class GetPopularTop10InCatalogUseCase @Inject constructor(
     private suspend fun buildSeriesMatches(): List<PopularCatalogItem> {
         val popular = popularRepository.getPopularSeries()
         if (popular.isEmpty()) return emptyList()
-        val streams = seriesRepository.getSeriesStreams("all", false)
+        val streams = seriesRepository.getCachedSeriesStreams("all")
         return withContext(Dispatchers.Default) {
             match(popular, TmdbCatalogMatcher.prepareSeries(streams)) { it.seriesId }
         }

@@ -17,6 +17,9 @@ interface VodDao {
     @Query("SELECT * FROM vod_categories ORDER BY orderIndex ASC")
     suspend fun getAllCategories(): List<VodCategoryEntity>
 
+    @Query("SELECT * FROM vod_categories ORDER BY orderIndex ASC")
+    fun observeAllCategories(): Flow<List<VodCategoryEntity>>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertCategories(categories: List<VodCategoryEntity>)
 
@@ -28,6 +31,9 @@ interface VodDao {
     suspend fun getAllStreams(): List<VodStreamEntity>
 
     @Query("SELECT * FROM vod_streams ORDER BY orderIndex ASC")
+    fun observeAllStreams(): Flow<List<VodStreamEntity>>
+
+    @Query("SELECT * FROM vod_streams ORDER BY orderIndex ASC")
     fun getAllStreamsPaged(): androidx.paging.PagingSource<Int, VodStreamEntity>
 
     // Compteurs du sélecteur de catégorie (basés sur le cache local).
@@ -36,6 +42,9 @@ interface VodDao {
 
     @Query("SELECT * FROM vod_streams WHERE categoryId = :categoryId ORDER BY orderIndex ASC")
     suspend fun getStreamsByCategory(categoryId: String): List<VodStreamEntity>
+
+    @Query("SELECT * FROM vod_streams WHERE categoryId = :categoryId ORDER BY orderIndex ASC")
+    fun observeStreamsByCategory(categoryId: String): Flow<List<VodStreamEntity>>
 
     @Query("SELECT * FROM vod_streams WHERE categoryId = :categoryId ORDER BY orderIndex ASC")
     fun getStreamsByCategoryPaged(categoryId: String): androidx.paging.PagingSource<Int, VodStreamEntity>
@@ -73,6 +82,33 @@ interface VodDao {
     suspend fun insertStreamsWithFts(streams: List<VodStreamEntity>) {
         insertStreams(streams)
         streams.forEach { upsertVodFts(it.streamId, it.name, it.actors, it.director, it.genre, it.categoryId) }
+    }
+
+    /**
+     * Une réponse vide ne remplace jamais un catalogue connu : une erreur de
+     * panel ne doit pas transformer le cache local en catalogue vide.
+     */
+    @Transaction
+    suspend fun replaceAllCategories(categories: List<VodCategoryEntity>) {
+        if (categories.isEmpty()) return
+        clearCategories()
+        insertCategories(categories)
+    }
+
+    @Transaction
+    suspend fun replaceAllStreamsWithFts(streams: List<VodStreamEntity>) {
+        if (streams.isEmpty()) return
+        clearAllStreams()
+        clearAllFts()
+        streams.chunked(INSERT_CHUNK_SIZE).forEach { insertStreamsWithFts(it) }
+    }
+
+    @Transaction
+    suspend fun replaceStreamsByCategoryWithFts(categoryId: String, streams: List<VodStreamEntity>) {
+        if (streams.isEmpty()) return
+        clearStreamsByCategory(categoryId)
+        clearFtsByCategory(categoryId)
+        streams.chunked(INSERT_CHUNK_SIZE).forEach { insertStreamsWithFts(it) }
     }
 
     @Query("SELECT * FROM vod_streams WHERE actors IS NULL OR director IS NULL OR genre IS NULL OR releaseYear IS NULL LIMIT :limit")
@@ -119,4 +155,9 @@ interface VodDao {
 
     @Query("DELETE FROM playback_positions WHERE streamId IN (:streamIds) AND profileId = :profileId")
     suspend fun deletePlaybackPositionsByStreamIds(streamIds: Set<Int>, profileId: Int)
+
+    companion object {
+        /** Borne le pic mémoire d'une transaction sur un catalogue de dizaines de milliers d'entrées. */
+        const val INSERT_CHUNK_SIZE = 500
+    }
 }

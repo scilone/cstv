@@ -5,6 +5,7 @@ import androidx.paging.PagingConfig
 import androidx.paging.PagingData
 import androidx.paging.map
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import com.cstv.app.data.local.dao.SeriesDao
 import com.cstv.app.data.local.dao.VodDao
@@ -12,10 +13,11 @@ import com.cstv.app.data.local.entity.PlaybackPositionEntity
 import com.cstv.app.data.local.entity.SeriesCategoryEntity
 import com.cstv.app.data.local.entity.SeriesStreamEntity
 import com.cstv.app.data.local.storage.CredentialsManager
-import com.cstv.app.data.local.storage.SettingsManager
 import com.cstv.app.data.remote.api.RequestPriority
 import com.cstv.app.data.remote.api.XtreamApiService
 import com.cstv.app.data.remote.api.XtreamRequestGate
+import com.cstv.app.data.sync.CacheTtl
+import com.cstv.app.domain.network.NetworkMonitor
 import com.cstv.app.domain.model.*
 import com.cstv.app.domain.repository.SeriesRepository
 import com.google.gson.JsonElement
@@ -31,7 +33,7 @@ class SeriesRepositoryImpl @Inject constructor(
     private val credentialsManager: CredentialsManager,
     private val profileManager: com.cstv.app.data.local.storage.ProfileManager,
     private val requestGate: XtreamRequestGate,
-    private val settingsManager: SettingsManager
+    private val networkMonitor: NetworkMonitor
 ) : SeriesRepository {
 
     private var enrichmentDispatcher: CoroutineDispatcher = Dispatchers.IO
@@ -51,9 +53,9 @@ class SeriesRepositoryImpl @Inject constructor(
         credentialsManager: CredentialsManager,
         profileManager: com.cstv.app.data.local.storage.ProfileManager,
         requestGate: XtreamRequestGate,
-        settingsManager: SettingsManager,
+        networkMonitor: NetworkMonitor,
         dispatcher: CoroutineDispatcher
-    ) : this(apiService, seriesDao, vodDao, credentialsManager, profileManager, requestGate, settingsManager) {
+    ) : this(apiService, seriesDao, vodDao, credentialsManager, profileManager, requestGate, networkMonitor) {
         this.enrichmentDispatcher = dispatcher
     }
 
@@ -132,7 +134,9 @@ class SeriesRepositoryImpl @Inject constructor(
     }
 
     companion object {
-        private const val CACHE_EXPIRY_MILLIS = 24 * 60 * 60 * 1000L // 24 hours
+        const val ALL_CATEGORIES = "all"
+        // Les durées de vie du cache vivent désormais dans CacheTtl : la
+        // constante locale d'origine était déclarée ici mais jamais lue.
         private const val ENRICHMENT_BATCH_SIZE = 50
         private const val ENRICHMENT_REQUEST_SPACING_MS = 500L
     }
@@ -186,18 +190,36 @@ class SeriesRepositoryImpl @Inject constructor(
         return String.format(java.util.Locale.US, "%.1f", doubleVal)
     }
 
-    override suspend fun getSeriesCategories(forceRefresh: Boolean): List<SeriesCategory> {
+    private fun SeriesCategoryEntity.toDomain() = SeriesCategory(categoryId, categoryName, parentId)
+
+    private fun SeriesStreamEntity.toDomain() = SeriesStream(
+        seriesId, name, cover, rating, added, categoryId, genre,
+        releaseYear?.takeIf { it > 0 }, actors, director
+    )
+
+    // --- Lecture locale ---
+
+    override fun observeSeriesCategories(): Flow<List<SeriesCategory>> =
+        seriesDao.observeAllCategories()
+            .distinctUntilChanged()
+            .map { categories -> categories.map { it.toDomain() } }
+
+    override fun observeSeriesStreams(categoryId: String): Flow<List<SeriesStream>> =
+        (if (categoryId == ALL_CATEGORIES) seriesDao.observeAllStreams() else seriesDao.observeStreamsByCategory(categoryId))
+            .distinctUntilChanged()
+            .map { streams -> streams.map { it.toDomain() } }
+
+    override suspend fun getCachedSeriesCategories(): List<SeriesCategory> =
+        seriesDao.getAllCategories().map { it.toDomain() }
+
+    override suspend fun getCachedSeriesStreams(categoryId: String): List<SeriesStream> =
+        (if (categoryId == ALL_CATEGORIES) seriesDao.getAllStreams() else seriesDao.getStreamsByCategory(categoryId))
+            .map { it.toDomain() }
+
+    // --- Écriture (synchronisation) ---
+
+    override suspend fun syncSeriesCategories(): List<SeriesCategory> {
         val currentTime = System.currentTimeMillis()
-
-        if (!forceRefresh) {
-            val localCategories = seriesDao.getAllCategories()
-            if (localCategories.isNotEmpty()) {
-                return localCategories.map { 
-                    SeriesCategory(it.categoryId, it.categoryName, it.parentId)
-                }
-            }
-        }
-
         val creds = credentialsManager.getCredentials()
             ?: throw InvalidCredentialsException("Utilisateur non connecté.")
 
@@ -217,37 +239,13 @@ class SeriesRepositoryImpl @Inject constructor(
             } else null
         }
 
-        if (entities.isNotEmpty()) {
-            seriesDao.clearCategories()
-            seriesDao.insertCategories(entities)
-        }
-
-        return entities.map { 
-            SeriesCategory(it.categoryId, it.categoryName, it.parentId)
-        }
+        seriesDao.replaceAllCategories(entities)
+        return entities.map { it.toDomain() }
     }
 
-    override suspend fun getSeriesStreams(categoryId: String, forceRefresh: Boolean): List<SeriesStream> {
+    override suspend fun syncSeriesStreams(categoryId: String): List<SeriesStream> {
         val currentTime = System.currentTimeMillis()
-        val apiCategoryId = if (categoryId == "all") null else categoryId
-
-        if (!forceRefresh) {
-            if (categoryId == "all") {
-                val localStreams = seriesDao.getAllStreams()
-                if (localStreams.isNotEmpty()) {
-                    return localStreams.map {
-                        SeriesStream(it.seriesId, it.name, it.cover, it.rating, it.added, it.categoryId, it.genre, it.releaseYear?.takeIf { y -> y > 0 }, it.actors, it.director)
-                    }
-                }
-            } else {
-                val localStreams = seriesDao.getStreamsByCategory(categoryId)
-                if (localStreams.isNotEmpty()) {
-                    return localStreams.map {
-                        SeriesStream(it.seriesId, it.name, it.cover, it.rating, it.added, it.categoryId, it.genre, it.releaseYear?.takeIf { y -> y > 0 }, it.actors, it.director)
-                    }
-                }
-            }
-        }
+        val apiCategoryId = if (categoryId == ALL_CATEGORIES) null else categoryId
 
         val creds = credentialsManager.getCredentials()
             ?: throw InvalidCredentialsException("Utilisateur non connecté.")
@@ -256,7 +254,7 @@ class SeriesRepositoryImpl @Inject constructor(
 
         // Preserve actors/director/genre enrichment (only ever fetched via getSeriesDetails,
         // never part of this bulk list response) so a routine cache refresh doesn't wipe it.
-        val existingById = (if (categoryId == "all") seriesDao.getAllStreams() else seriesDao.getStreamsByCategory(categoryId))
+        val existingById = (if (categoryId == ALL_CATEGORIES) seriesDao.getAllStreams() else seriesDao.getStreamsByCategory(categoryId))
             .associateBy { it.seriesId }
 
         val entities = remoteStreams.mapIndexedNotNull { index, dto ->
@@ -265,7 +263,7 @@ class SeriesRepositoryImpl @Inject constructor(
             // In "all" mode there's no known category to fall back to; a stream without
             // a category_id would otherwise be tagged with the literal "all" and become
             // invisible in every section, so skip it instead.
-            val itemCategoryId = dto.categoryId ?: categoryId.takeIf { it != "all" }
+            val itemCategoryId = dto.categoryId ?: categoryId.takeIf { it != ALL_CATEGORIES }
             if (id != null && name != null && itemCategoryId != null) {
                 val existing = existingById[id]
                 SeriesStreamEntity(
@@ -280,32 +278,25 @@ class SeriesRepositoryImpl @Inject constructor(
                     director = existing?.director,
                     genre = existing?.genre,
                     orderIndex = index,
-                    releaseYear = existing?.releaseYear
+                    releaseYear = existing?.releaseYear,
+                    plot = existing?.plot,
+                    detailsCachedAt = existing?.detailsCachedAt
                 )
             } else null
         }
 
-        if (categoryId == "all") {
-            seriesDao.clearAllStreams()
-            seriesDao.clearAllFts()
+        // Remplacement atomique : effacement et repeuplement (FTS comprise) dans
+        // la même transaction, et jamais sur une réponse vide.
+        if (categoryId == ALL_CATEGORIES) {
+            seriesDao.replaceAllStreamsWithFts(entities)
         } else {
-            seriesDao.clearStreamsByCategory(categoryId)
-            seriesDao.clearFtsByCategory(categoryId)
+            seriesDao.replaceStreamsByCategoryWithFts(categoryId, entities)
         }
 
-        if (entities.isNotEmpty()) {
-            seriesDao.insertStreamsWithFts(entities)
-        }
-
-        if (categoryId == "all") {
-            settingsManager.setSeriesAllStreamsSyncedAt(currentTime)
-        }
 
         startBackgroundEnrichment()
 
-        return entities.map { 
-            SeriesStream(it.seriesId, it.name, it.cover, it.rating, it.added, it.categoryId, it.genre, it.releaseYear?.takeIf { y -> y > 0 }, it.actors, it.director)
-        }
+        return entities.map { it.toDomain() }
     }
 
     override fun getSeriesStreamsPaged(categoryId: String): Flow<PagingData<SeriesStream>> {
@@ -316,27 +307,14 @@ class SeriesRepositoryImpl @Inject constructor(
                 initialLoadSize = 100
             ),
             pagingSourceFactory = {
-                if (categoryId == "all") {
+                if (categoryId == ALL_CATEGORIES) {
                     seriesDao.getAllStreamsPaged()
                 } else {
                     seriesDao.getStreamsByCategoryPaged(categoryId)
                 }
             }
         ).flow.map { pagingData ->
-            pagingData.map { entity ->
-                SeriesStream(
-                    seriesId = entity.seriesId,
-                    name = entity.name,
-                    cover = entity.cover,
-                    rating = entity.rating,
-                    added = entity.added,
-                    categoryId = entity.categoryId,
-                    genre = entity.genre,
-                    releaseYear = entity.releaseYear?.takeIf { it > 0 },
-                    actors = entity.actors,
-                    director = entity.director
-                )
-            }
+            pagingData.map { entity -> entity.toDomain() }
         }
     }
 
@@ -388,11 +366,93 @@ class SeriesRepositoryImpl @Inject constructor(
             .map { SeriesStream(it.seriesId, it.name, it.cover, it.rating, it.added, it.categoryId, it.genre, it.releaseYear?.takeIf { y -> y > 0 }, it.actors, it.director) }
     }
 
-    override suspend fun getSeriesDetails(seriesId: Int): SeriesDetails {
-        val creds = credentialsManager.getCredentials()
-            ?: throw InvalidCredentialsException("Utilisateur non connecté.")
+    /**
+     * Fiche reconstruite depuis la base locale.
+     *
+     * Les saisons et épisodes ne sont présents que si la série a déjà été
+     * ouverte en ligne : les persister par balayage exigerait un
+     * `get_series_info` par série, soit des milliers de requêtes — le remède
+     * serait pire que le mal que T4 traite. Sans eux, la fiche reste affichable
+     * en mode dégradé, signalé par [SeriesDetails.isMetadataIncomplete].
+     */
+    private suspend fun cachedSeriesDetails(
+        cached: SeriesStreamEntity?,
+        seriesId: Int
+    ): SeriesDetails? {
+        if (cached == null) return null
 
-        val response = requestGate.acquire { apiService.getSeriesInfo(creds.username, creds.password, seriesId) }
+        val seasonEntities = seriesDao.getSeasons(seriesId)
+        val episodeEntities = seriesDao.getEpisodes(seriesId)
+        val savedPositions = vodDao.getAllPlaybackPositions(profileManager.currentProfileId())
+            .associateBy { it.streamId }
+
+        val episodesMap = episodeEntities
+            .groupBy { it.seasonNum }
+            .mapValues { (_, entities) ->
+                entities.sortedBy { it.episodeNum }.map { e ->
+                    val savedPosition = savedPositions[e.episodeId]
+                    SeriesEpisode(
+                        id = e.episodeId,
+                        episodeNum = e.episodeNum,
+                        title = e.title,
+                        containerExtension = e.containerExtension,
+                        plot = e.plot ?: "Aucun résumé disponible.",
+                        duration = e.duration ?: "00:00",
+                        releaseDate = e.releaseDate ?: "",
+                        resumePositionMs = savedPosition?.positionMs ?: 0L,
+                        durationMs = savedPosition?.durationMs ?: 0L,
+                        movieImage = e.movieImage,
+                        lastAccessedAt = savedPosition?.lastAccessedAt ?: 0L,
+                        seasonNum = e.seasonNum
+                    )
+                }
+            }
+
+        return SeriesDetails(
+            seriesId = seriesId,
+            name = cached.name,
+            cover = cached.cover,
+            rating = formatRating(cached.rating),
+            seasons = seasonEntities.map { SeriesSeason(it.seasonNumber, it.name, it.episodeCount, it.cover) },
+            episodes = episodesMap,
+            director = cached.director ?: "Inconnu",
+            releaseDate = cached.releaseYear?.takeIf { it > 0 }?.toString() ?: "Inconnu",
+            genre = cached.genre ?: "Inconnu",
+            plot = cached.plot ?: "Aucun résumé disponible.",
+            actors = cached.actors ?: "Inconnu",
+            isMetadataIncomplete = cached.detailsCachedAt == null || episodeEntities.isEmpty()
+        )
+    }
+
+    override suspend fun getSeriesDetails(seriesId: Int): SeriesDetails {
+        val cachedSeries = seriesDao.getStreamById(seriesId)
+
+        // Cache d'abord : une fiche déjà persistée et encore fraîche n'a aucune
+        // raison de redemander get_series_info. Hors ligne, elle est servie quel
+        // que soit son âge — c'est ce qui rend la fiche consultable sans réseau.
+        if (cachedSeries?.detailsCachedAt != null) {
+            val fresh = !CacheTtl.isExpired(
+                cachedSeries.detailsCachedAt,
+                CacheTtl.DETAILS_MILLIS,
+                System.currentTimeMillis()
+            )
+            if (fresh || !networkMonitor.isCurrentlyOnline()) {
+                cachedSeriesDetails(cachedSeries, seriesId)?.let { return it }
+            }
+        }
+
+        val creds = credentialsManager.getCredentials()
+            ?: return cachedSeriesDetails(cachedSeries, seriesId)
+                ?: throw InvalidCredentialsException("Utilisateur non connecté.")
+
+        // Un panel qui refuse ou ne répond pas ne doit pas rendre la fiche
+        // inaccessible : on retombe sur ce qui est déjà en base.
+        val response = try {
+            requestGate.acquire { apiService.getSeriesInfo(creds.username, creds.password, seriesId) }
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            return cachedSeriesDetails(cachedSeries, seriesId) ?: throw e
+        }
         val infoDto = response.info
 
         // Parse series metadata
@@ -457,9 +517,10 @@ class SeriesRepositoryImpl @Inject constructor(
         }
 
         // Fetch series cover and name from cached stream entity
-        val cachedSeries = seriesDao.getStreamById(seriesId)
         val seriesName = infoDto?.name ?: cachedSeries?.name ?: seasons.firstOrNull()?.name?.substringBefore(" Season") ?: "Série"
         val coverUrl = infoDto?.cover ?: cachedSeries?.cover ?: seasons.firstOrNull()?.cover
+
+        val now = System.currentTimeMillis()
 
         // Sensationally enrich cached stream entity with actors, director, and genre details
         if (cachedSeries != null) {
@@ -468,10 +529,17 @@ class SeriesRepositoryImpl @Inject constructor(
                     actors = actors,
                     director = director,
                     genre = genre,
-                    releaseYear = ReleaseYearParser.parseYear(releaseDate) ?: 0
+                    releaseYear = ReleaseYearParser.parseYear(releaseDate) ?: 0,
+                    plot = plot,
+                    detailsCachedAt = now
                 )
             ))
         }
+
+        // Persistance à la consultation : c'est la seule alimentation des tables
+        // saisons/épisodes. Hors ligne, seules les séries déjà ouvertes ont donc
+        // leur détail complet, les autres retombent sur la fiche dégradée.
+        persistSeriesDetail(seriesId, seasons, episodesMap, now)
 
         return SeriesDetails(
             seriesId = seriesId,
@@ -486,6 +554,45 @@ class SeriesRepositoryImpl @Inject constructor(
             plot = plot,
             actors = actors
         )
+    }
+
+    private suspend fun persistSeriesDetail(
+        seriesId: Int,
+        seasons: List<SeriesSeason>,
+        episodesMap: Map<Int, List<SeriesEpisode>>,
+        cachedAt: Long
+    ) {
+        val seasonEntities = seasons.map { season ->
+            com.cstv.app.data.local.entity.SeriesSeasonEntity(
+                seriesId = seriesId,
+                seasonNumber = season.seasonNumber,
+                name = season.name,
+                episodeCount = season.episodeCount,
+                cover = season.cover,
+                cachedAt = cachedAt
+            )
+        }
+
+        val episodeEntities = episodesMap.flatMap { (seasonNum, episodes) ->
+            episodes.mapIndexed { index, episode ->
+                com.cstv.app.data.local.entity.SeriesEpisodeEntity(
+                    episodeId = episode.id,
+                    seriesId = seriesId,
+                    seasonNum = seasonNum,
+                    episodeNum = episode.episodeNum,
+                    title = episode.title,
+                    containerExtension = episode.containerExtension,
+                    plot = episode.plot,
+                    duration = episode.duration,
+                    releaseDate = episode.releaseDate,
+                    movieImage = episode.movieImage,
+                    orderIndex = index,
+                    cachedAt = cachedAt
+                )
+            }
+        }
+
+        seriesDao.replaceSeriesDetail(seriesId, seasonEntities, episodeEntities)
     }
 
     override suspend fun savePlaybackPosition(episodeStreamId: Int, positionMs: Long, durationMs: Long) {

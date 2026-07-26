@@ -94,14 +94,14 @@ class GetRecommendationsUseCase @Inject constructor(
 
             // 2. Fetch full catalog
             val allMovies = try {
-                vodRepository.getVodStreams("all", forceRefresh = false)
+                vodRepository.getCachedVodStreams("all")
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
                 emptyList()
             }
 
             val allSeries = try {
-                seriesRepository.getSeriesStreams("all", forceRefresh = false)
+                seriesRepository.getCachedSeriesStreams("all")
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
                 emptyList()

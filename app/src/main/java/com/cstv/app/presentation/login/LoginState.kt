@@ -12,6 +12,11 @@ sealed interface LoginState {
 sealed interface AutoLoginState {
     object Checking : AutoLoginState
     object NoCredentials : AutoLoginState
-    data class Success(val userInfo: UserInfo) : AutoLoginState
+
+    /**
+     * [offline] a une valeur par défaut : les branches `when` existantes
+     * compilent sans modification structurelle.
+     */
+    data class Success(val userInfo: UserInfo, val offline: Boolean = false) : AutoLoginState
     data class Error(val message: String) : AutoLoginState
 }

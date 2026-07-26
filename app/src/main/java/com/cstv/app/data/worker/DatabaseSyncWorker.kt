@@ -6,6 +6,7 @@ import androidx.work.WorkerParameters
 import com.cstv.app.data.remote.api.RequestPriority
 import com.cstv.app.domain.usecase.SyncCacheResult
 import com.cstv.app.domain.usecase.SyncCacheUseCase
+import com.cstv.app.domain.sync.SyncTrigger
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
@@ -32,10 +33,11 @@ class DatabaseSyncWorker(
             DatabaseSyncWorkerEntryPoint::class.java
         )
 
-        when (entryPoint.syncCacheUseCase().invoke()) {
+        when (entryPoint.syncCacheUseCase().invoke(SyncTrigger.SCHEDULED)) {
             SyncCacheResult.SUCCESS -> Result.success()
             SyncCacheResult.SKIPPED_NO_CREDENTIALS -> Result.success()
-            SyncCacheResult.FAILED -> Result.retry()
+            SyncCacheResult.FAILED_RETRYABLE -> Result.retry()
+            SyncCacheResult.FAILED_PERMANENT -> Result.failure()
         }
     }
 }

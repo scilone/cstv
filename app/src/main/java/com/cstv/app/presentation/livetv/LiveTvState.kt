@@ -17,5 +17,7 @@ data class LiveTvState(
     // Compteur de chaînes par categoryId (cache local), pour la bottom sheet.
     val categoryCounts: Map<String, Int> = emptyMap(),
     val isRemovingHistory: Boolean = false,
-    val historyRemovalError: String? = null
+    val historyRemovalError: String? = null,
+    /** Fraîcheur du catalogue local : alimente la bannière hors ligne. */
+    val catalogStatus: com.cstv.app.domain.sync.CatalogStatus = com.cstv.app.domain.sync.CatalogStatus()
 )

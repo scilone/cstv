@@ -43,6 +43,20 @@ class AuthRepositoryImplTest {
     @Mock
     private lateinit var trailerRepository: TrailerRepository
 
+    @Mock
+    private lateinit var networkMonitor: com.cstv.app.domain.network.NetworkMonitor
+
+    @Mock
+    private lateinit var syncStateDao: com.cstv.app.data.local.dao.CatalogSyncStateDao
+
+    @Mock
+    private lateinit var settingsManager: com.cstv.app.data.local.storage.SettingsManager
+
+    @Mock
+    private lateinit var catalogSyncManager: com.cstv.app.domain.sync.CatalogSyncManager
+
+    private lateinit var syncStateInitializer: com.cstv.app.data.sync.CatalogSyncStateInitializer
+
     private lateinit var authRepository: AuthRepositoryImpl
 
     private val credentials = Credentials("test.com", 80, "username", "password", true)
@@ -53,7 +67,20 @@ class AuthRepositoryImplTest {
         // Set TimeZone to UTC to make date parsing tests deterministic across all machines
         TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
         apiService = FakeXtreamApiService()
-        authRepository = AuthRepositoryImpl(apiService, credentialsManager, baseUrlInterceptor, com.cstv.app.data.remote.api.XtreamRequestGate(), trailerRepository)
+        syncStateInitializer = com.cstv.app.data.sync.CatalogSyncStateInitializer(
+            syncStateDao, settingsManager, credentialsManager
+        )
+        authRepository = AuthRepositoryImpl(
+            apiService,
+            credentialsManager,
+            baseUrlInterceptor,
+            com.cstv.app.data.remote.api.XtreamRequestGate(),
+            trailerRepository,
+            networkMonitor,
+            syncStateDao,
+            syncStateInitializer,
+            catalogSyncManager
+        )
     }
 
     @Test
@@ -233,5 +260,186 @@ class AuthRepositoryImplTest {
         ): EpgResponseDto {
             return EpgResponseDto(emptyList())
         }
+    }
+
+    // --- T4 : connexion automatique et démarrage sans réseau ---
+
+    private fun stubCompleteCatalog(forKey: String) {
+        val states = com.cstv.app.data.local.entity.CatalogSection.CATALOG_SECTIONS.map {
+            com.cstv.app.data.local.entity.CatalogSyncStateEntity(
+                section = it, accountKey = forKey, lastSuccessAt = 1L
+            )
+        }
+        runBlocking { org.mockito.kotlin.whenever(syncStateDao.getAll()).thenReturn(states) }
+    }
+
+    @Test
+    fun autoLogin_withoutStoredCredentials_returnsNoCredentials() = runTest {
+        org.mockito.kotlin.whenever(credentialsManager.getCredentials()).thenReturn(null)
+
+        assertTrue(authRepository.autoLogin() is AutoLoginOutcome.NoCredentials)
+    }
+
+    @Test
+    fun autoLogin_withRememberMeDisabled_returnsNoCredentials() = runTest {
+        org.mockito.kotlin.whenever(credentialsManager.getCredentials())
+            .thenReturn(credentials.copy(rememberMe = false))
+
+        assertTrue(authRepository.autoLogin() is AutoLoginOutcome.NoCredentials)
+    }
+
+    @Test
+    fun autoLogin_online_validatesAgainstThePanel() = runTest {
+        org.mockito.kotlin.whenever(credentialsManager.getCredentials()).thenReturn(credentials)
+        org.mockito.kotlin.whenever(networkMonitor.isCurrentlyOnline()).thenReturn(true)
+        org.mockito.kotlin.whenever(syncStateDao.getAll()).thenReturn(emptyList())
+        apiService.loginResult = {
+            LoginResponseDto(
+                UserInfoDto("username", "password", "Hello", 1, "Active", 2000000000L, 0, 1, 2),
+                null
+            )
+        }
+
+        val outcome = authRepository.autoLogin()
+
+        assertTrue(outcome is AutoLoginOutcome.Online)
+        assertFalse((outcome as AutoLoginOutcome.Online).userInfo.isOfflineSession)
+    }
+
+    /**
+     * Repli hors ligne : accordé uniquement parce qu'une validation réseau a
+     * déjà réussi **et** que le catalogue est complet pour ce compte.
+     */
+    @Test
+    fun autoLogin_offline_withPriorValidationAndCompleteCatalog_grantsOfflineSession() = runTest {
+        org.mockito.kotlin.whenever(credentialsManager.getCredentials()).thenReturn(credentials)
+        org.mockito.kotlin.whenever(networkMonitor.isCurrentlyOnline()).thenReturn(false)
+        org.mockito.kotlin.whenever(credentialsManager.getLastSuccessfulLoginAt()).thenReturn(1L)
+        org.mockito.kotlin.whenever(credentialsManager.getLastUserInfo())
+            .thenReturn(UserInfo("username", true, "Active", "18/05/2033", 2, 1, "", isOfflineSession = true))
+        stubCompleteCatalog(com.cstv.app.data.sync.CatalogServerKey.from(credentials))
+        org.mockito.kotlin.whenever(credentialsManager.getLastValidatedAccountKey())
+            .thenReturn(com.cstv.app.data.sync.AccountKey.from(credentials))
+
+        val outcome = authRepository.autoLogin()
+
+        assertTrue(outcome is AutoLoginOutcome.OfflineSession)
+        assertTrue((outcome as AutoLoginOutcome.OfflineSession).userInfo.isOfflineSession)
+    }
+
+    /** Sans validation antérieure, la première connexion exige Internet. */
+    @Test
+    fun autoLogin_offline_withoutPriorValidation_isRejected() = runTest {
+        org.mockito.kotlin.whenever(credentialsManager.getCredentials()).thenReturn(credentials)
+        org.mockito.kotlin.whenever(networkMonitor.isCurrentlyOnline()).thenReturn(false)
+        org.mockito.kotlin.whenever(credentialsManager.getLastSuccessfulLoginAt()).thenReturn(0L)
+        stubCompleteCatalog(com.cstv.app.data.sync.CatalogServerKey.from(credentials))
+
+        val outcome = authRepository.autoLogin()
+
+        assertEquals(AutoLoginRejection.NO_LOCAL_SESSION, (outcome as AutoLoginOutcome.Rejected).reason)
+    }
+
+    /**
+     * Cas limite §5.5 : un catalogue partiel issu d'une première
+     * synchronisation interrompue n'ouvre pas le mode hors-ligne.
+     */
+    @Test
+    fun autoLogin_offline_withPartialCatalog_isRejected() = runTest {
+        org.mockito.kotlin.whenever(credentialsManager.getCredentials()).thenReturn(credentials)
+        org.mockito.kotlin.whenever(networkMonitor.isCurrentlyOnline()).thenReturn(false)
+        org.mockito.kotlin.whenever(credentialsManager.getLastSuccessfulLoginAt()).thenReturn(1L)
+        org.mockito.kotlin.whenever(credentialsManager.getLastUserInfo())
+            .thenReturn(UserInfo("username", true, "Active", "18/05/2033", 2, 1, ""))
+        val key = com.cstv.app.data.sync.CatalogServerKey.from(credentials)
+        org.mockito.kotlin.whenever(syncStateDao.getAll()).thenReturn(
+            listOf(
+                com.cstv.app.data.local.entity.CatalogSyncStateEntity(
+                    section = com.cstv.app.data.local.entity.CatalogSection.LIVE_STREAMS,
+                    accountKey = key,
+                    lastSuccessAt = 1L
+                )
+            )
+        )
+
+        val outcome = authRepository.autoLogin()
+
+        assertEquals(AutoLoginRejection.NO_LOCAL_SESSION, (outcome as AutoLoginOutcome.Rejected).reason)
+    }
+
+    /** Un refus explicite du panel n'est jamais contourné par un repli local. */
+    @Test
+    fun autoLogin_invalidCredentials_isRejectedWithoutFallback() = runTest {
+        org.mockito.kotlin.whenever(credentialsManager.getCredentials()).thenReturn(credentials)
+        org.mockito.kotlin.whenever(networkMonitor.isCurrentlyOnline()).thenReturn(true)
+        org.mockito.kotlin.whenever(syncStateDao.getAll()).thenReturn(emptyList())
+        org.mockito.kotlin.whenever(credentialsManager.getLastSuccessfulLoginAt()).thenReturn(1L)
+        apiService.loginResult = {
+            LoginResponseDto(
+                UserInfoDto("username", "password", "", 0, "Active", 2000000000L, 0, 0, 1),
+                null
+            )
+        }
+
+        val outcome = authRepository.autoLogin()
+
+        assertEquals(AutoLoginRejection.INVALID_CREDENTIALS, (outcome as AutoLoginOutcome.Rejected).reason)
+        org.mockito.kotlin.verify(credentialsManager).clearOfflineSessionValidation()
+    }
+
+    /** Un compte expiré est une réponse du serveur, pas une panne. */
+    @Test
+    fun autoLogin_expiredAccount_isRejectedWithoutFallback() = runTest {
+        org.mockito.kotlin.whenever(credentialsManager.getCredentials()).thenReturn(credentials)
+        org.mockito.kotlin.whenever(networkMonitor.isCurrentlyOnline()).thenReturn(true)
+        org.mockito.kotlin.whenever(syncStateDao.getAll()).thenReturn(emptyList())
+        org.mockito.kotlin.whenever(credentialsManager.getLastSuccessfulLoginAt()).thenReturn(1L)
+        apiService.loginResult = {
+            LoginResponseDto(
+                UserInfoDto("username", "password", "", 1, "Expired", 1000L, 0, 0, 1),
+                null
+            )
+        }
+
+        val outcome = authRepository.autoLogin()
+
+        assertEquals(AutoLoginRejection.ACCOUNT_EXPIRED, (outcome as AutoLoginOutcome.Rejected).reason)
+        org.mockito.kotlin.verify(credentialsManager).clearOfflineSessionValidation()
+    }
+
+    /** Un serveur injoignable est une panne : le repli local reste possible. */
+    @Test
+    fun autoLogin_serverUnreachable_fallsBackToOfflineSession() = runTest {
+        org.mockito.kotlin.whenever(credentialsManager.getCredentials()).thenReturn(credentials)
+        org.mockito.kotlin.whenever(networkMonitor.isCurrentlyOnline()).thenReturn(true)
+        org.mockito.kotlin.whenever(credentialsManager.getLastSuccessfulLoginAt()).thenReturn(1L)
+        org.mockito.kotlin.whenever(credentialsManager.getLastUserInfo())
+            .thenReturn(UserInfo("username", true, "Active", "18/05/2033", 2, 1, ""))
+        stubCompleteCatalog(com.cstv.app.data.sync.CatalogServerKey.from(credentials))
+        org.mockito.kotlin.whenever(credentialsManager.getLastValidatedAccountKey())
+            .thenReturn(com.cstv.app.data.sync.AccountKey.from(credentials))
+        apiService.loginResult = { throw ConnectException("injoignable") }
+
+        assertTrue(authRepository.autoLogin() is AutoLoginOutcome.OfflineSession)
+    }
+
+    /** Une connexion réussie horodate la validation et contrôle le compte. */
+    @Test
+    fun login_success_recordsValidationAndChecksAccountChange() = runTest {
+        apiService.loginResult = {
+            LoginResponseDto(
+                UserInfoDto("username", "password", "", 1, "Active", 2000000000L, 0, 0, 1),
+                null
+            )
+        }
+
+        authRepository.login(credentials)
+
+        org.mockito.kotlin.verify(credentialsManager).setLastSuccessfulLoginAt(org.mockito.kotlin.any())
+        org.mockito.kotlin.verify(credentialsManager)
+            .setLastValidatedAccountKey(com.cstv.app.data.sync.AccountKey.from(credentials))
+        org.mockito.kotlin.verify(credentialsManager).saveLastUserInfo(org.mockito.kotlin.any())
+        org.mockito.kotlin.verify(catalogSyncManager)
+            .onAccountAuthenticated(com.cstv.app.data.sync.CatalogServerKey.from(credentials))
     }
 }

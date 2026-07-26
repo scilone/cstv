@@ -285,4 +285,110 @@ val MIGRATION_16_17 = object : Migration(16, 17) {
     }
 }
 
-val ALL_MIGRATIONS = arrayOf(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17)
+/**
+ * T4 : le cache Room devient la source unique de vérité et doit survivre à une
+ * absence de réseau. La migration n'utilise que des `CREATE TABLE` et des
+ * `ALTER TABLE ADD COLUMN` de colonnes nullables — les deux formes de migration
+ * SQLite qui ne peuvent pas perdre de données existantes. Aucune recopie de
+ * table, donc aucun risque de se tromper silencieusement de colonne.
+ *
+ * Seule exception : `epg_cache` passe à une clé primaire composite, impossible
+ * par `ALTER TABLE`. Le patron `_new` + `INSERT … SELECT` n'a pas lieu d'être
+ * ici parce que c'est du cache pur et jetable, périmé sous le quart d'heure et
+ * reconstruit au premier `get_short_epg`. Catalogue, profils, favoris,
+ * historique, positions et téléchargements sont intouchés.
+ */
+val MIGRATION_17_18 = object : Migration(17, 18) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        // 1. Fraîcheur par section et par compte (remplace les clés *_ALL_SYNCED_AT
+        //    de SettingsManager). Créée vide : la reprise des horodatages existants
+        //    ne peut pas se faire en SQL, elle est faite par CatalogSyncStateInitializer.
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS catalog_sync_state (
+                section TEXT NOT NULL,
+                accountKey TEXT NOT NULL,
+                lastSuccessAt INTEGER NOT NULL DEFAULT 0,
+                lastAttemptAt INTEGER NOT NULL DEFAULT 0,
+                lastFailureAt INTEGER NOT NULL DEFAULT 0,
+                lastFailureKind TEXT,
+                itemCount INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY(section)
+            )
+            """.trimIndent()
+        )
+
+        // 2. Détail film complet hors ligne. containerExtension est la colonne
+        //    critique : sans elle, la fiche de repli devine "mp4" et une reprise
+        //    hors ligne sur un .mkv échoue.
+        db.execSQL("ALTER TABLE vod_streams ADD COLUMN plot TEXT")
+        db.execSQL("ALTER TABLE vod_streams ADD COLUMN duration TEXT")
+        db.execSQL("ALTER TABLE vod_streams ADD COLUMN containerExtension TEXT")
+        db.execSQL("ALTER TABLE vod_streams ADD COLUMN detailsCachedAt INTEGER")
+
+        // 3. Détail série.
+        db.execSQL("ALTER TABLE series_streams ADD COLUMN plot TEXT")
+        db.execSQL("ALTER TABLE series_streams ADD COLUMN detailsCachedAt INTEGER")
+
+        // 4. Saisons et épisodes, peuplés à la consultation d'une fiche en ligne.
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS series_seasons (
+                seriesId INTEGER NOT NULL,
+                seasonNumber INTEGER NOT NULL,
+                name TEXT NOT NULL,
+                episodeCount INTEGER NOT NULL DEFAULT 0,
+                cover TEXT,
+                cachedAt INTEGER NOT NULL,
+                PRIMARY KEY(seriesId, seasonNumber)
+            )
+            """.trimIndent()
+        )
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS series_episodes (
+                episodeId INTEGER NOT NULL,
+                seriesId INTEGER NOT NULL,
+                seasonNum INTEGER NOT NULL,
+                episodeNum INTEGER NOT NULL,
+                title TEXT NOT NULL,
+                containerExtension TEXT NOT NULL,
+                plot TEXT,
+                duration TEXT,
+                releaseDate TEXT,
+                movieImage TEXT,
+                orderIndex INTEGER NOT NULL DEFAULT 0,
+                cachedAt INTEGER NOT NULL,
+                PRIMARY KEY(episodeId)
+            )
+            """.trimIndent()
+        )
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS index_series_episodes_seriesId_seasonNum " +
+                "ON series_episodes(seriesId, seasonNum)"
+        )
+
+        // 5. Fenêtre EPG : clé composite (streamId, startTimestamp) au lieu du
+        //    streamId seul, qui ne mémorisait qu'un unique programme par chaîne.
+        db.execSQL("DROP TABLE IF EXISTS epg_cache")
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS epg_cache (
+                streamId INTEGER NOT NULL,
+                startTimestamp INTEGER NOT NULL,
+                endTimestamp INTEGER NOT NULL,
+                title TEXT NOT NULL,
+                description TEXT,
+                cachedAt INTEGER NOT NULL,
+                PRIMARY KEY(streamId, startTimestamp)
+            )
+            """.trimIndent()
+        )
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS index_epg_cache_streamId_endTimestamp " +
+                "ON epg_cache(streamId, endTimestamp)"
+        )
+    }
+}
+
+val ALL_MIGRATIONS = arrayOf(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18)

@@ -23,6 +23,9 @@ import org.mockito.kotlin.*
 @OptIn(ExperimentalCoroutinesApi::class)
 class VodViewModelTest {
 
+    @Mock private lateinit var canPlayContentUseCase: com.cstv.app.domain.usecase.CanPlayContentUseCase
+    @Mock private lateinit var observeCatalogStatusUseCase: com.cstv.app.domain.usecase.ObserveCatalogStatusUseCase
+    @Mock private lateinit var catalogSyncManager: com.cstv.app.domain.sync.CatalogSyncManager
     @Mock private lateinit var getVodCategoriesUseCase: GetVodCategoriesUseCase
     @Mock private lateinit var getVodCategoryCountsUseCase: GetVodCategoryCountsUseCase
     @Mock private lateinit var getVodStreamsUseCase: GetVodStreamsUseCase
@@ -46,11 +49,12 @@ class VodViewModelTest {
         MockitoAnnotations.openMocks(this@VodViewModelTest)
         Dispatchers.setMain(testDispatcher)
 
-        whenever(getVodCategoriesUseCase(any())).thenReturn(listOf(VodCategory("all", "Tout", 0)))
-        whenever(getVodStreamsUseCase(any(), any())).thenReturn(emptyList())
+        whenever(getVodCategoriesUseCase()).thenReturn(flowOf(listOf(VodCategory("all", "Tout", 0))))
+        whenever(getVodStreamsUseCase(any())).thenReturn(flowOf(emptyList()))
         whenever(categoryPreferenceRepository.changes).thenReturn(flowOf(Unit))
+        whenever(observeCatalogStatusUseCase()).thenReturn(flowOf(com.cstv.app.domain.sync.CatalogStatus()))
         whenever(categoryPreferenceRepository.getPreferences(any())).thenReturn(emptyMap())
-        whenever(vodRepository.getVodStreams(any(), any())).thenReturn(emptyList())
+        whenever(vodRepository.getCachedVodStreams(any())).thenReturn(emptyList())
     }
 
     @After
@@ -81,7 +85,10 @@ class VodViewModelTest {
             vodRepository,
             removeFromContinueWatchingUseCase,
             mediaRatingRepository,
-            setMediaRatingUseCase
+            setMediaRatingUseCase,
+            observeCatalogStatusUseCase,
+            catalogSyncManager,
+            canPlayContentUseCase
         )
         runCurrent()
 
@@ -100,7 +107,8 @@ class VodViewModelTest {
         viewModel = VodViewModel(getVodCategoriesUseCase, getVodCategoryCountsUseCase, getVodStreamsUseCase,
             getVodDetailsUseCase, getRelatedMoviesUseCase, savePlaybackPositionUseCase, credentialsManager,
             settingsManager, trackPreferenceRepository, categoryPreferenceRepository, vodRepository,
-            removeFromContinueWatchingUseCase, mediaRatingRepository, setMediaRatingUseCase)
+            removeFromContinueWatchingUseCase, mediaRatingRepository, setMediaRatingUseCase,
+            observeCatalogStatusUseCase, catalogSyncManager, canPlayContentUseCase)
         runCurrent()
 
         viewModel.selectStreamId(42)
@@ -120,7 +128,8 @@ class VodViewModelTest {
         viewModel = VodViewModel(getVodCategoriesUseCase, getVodCategoryCountsUseCase, getVodStreamsUseCase,
             getVodDetailsUseCase, getRelatedMoviesUseCase, savePlaybackPositionUseCase, credentialsManager,
             settingsManager, trackPreferenceRepository, categoryPreferenceRepository, vodRepository,
-            removeFromContinueWatchingUseCase, mediaRatingRepository, setMediaRatingUseCase)
+            removeFromContinueWatchingUseCase, mediaRatingRepository, setMediaRatingUseCase,
+            observeCatalogStatusUseCase, catalogSyncManager, canPlayContentUseCase)
         runCurrent()
 
         viewModel.selectStreamId(42)
@@ -141,7 +150,8 @@ class VodViewModelTest {
         viewModel = VodViewModel(getVodCategoriesUseCase, getVodCategoryCountsUseCase, getVodStreamsUseCase,
             getVodDetailsUseCase, getRelatedMoviesUseCase, savePlaybackPositionUseCase, credentialsManager,
             settingsManager, trackPreferenceRepository, categoryPreferenceRepository, vodRepository,
-            removeFromContinueWatchingUseCase, mediaRatingRepository, setMediaRatingUseCase)
+            removeFromContinueWatchingUseCase, mediaRatingRepository, setMediaRatingUseCase,
+            observeCatalogStatusUseCase, catalogSyncManager, canPlayContentUseCase)
         runCurrent()
 
         viewModel.selectStreamId(42)

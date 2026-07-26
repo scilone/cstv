@@ -597,12 +597,6 @@ fun PlayerScreen(
         if (showChannelList && activeStreamsList.isNotEmpty() && !isInPipMode) {
             val liveTvState by viewModel.state.collectAsStateWithLifecycle()
 
-            LaunchedEffect(Unit) {
-                if (viewModel.state.value.categories.isEmpty()) {
-                    viewModel.loadCategories()
-                }
-            }
-
             val initialListCategory = remember { LiveCategory("initial", "Liste de zapping", 0) }
             var selectedDrawerCategory by remember { mutableStateOf(initialListCategory) }
 

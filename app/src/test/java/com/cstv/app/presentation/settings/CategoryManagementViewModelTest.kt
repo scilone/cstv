@@ -63,7 +63,7 @@ class CategoryManagementViewModelTest {
     }
 
     private suspend fun stubLiveCategories() {
-        whenever(liveTvRepository.getLiveCategories(false)).thenReturn(
+        whenever(liveTvRepository.getCachedLiveCategories()).thenReturn(
             listOf(
                 LiveCategory("1", "Sports", 0),
                 LiveCategory("2", "Cinéma", 0),
@@ -96,7 +96,7 @@ class CategoryManagementViewModelTest {
     fun test_selectType_switchesToVodCategories() = runTest {
         stubLiveCategories()
         whenever(categoryPreferenceRepository.getPreferences(any())).thenReturn(emptyMap())
-        whenever(vodRepository.getVodCategories(false)).thenReturn(
+        whenever(vodRepository.getCachedVodCategories()).thenReturn(
             listOf(VodCategory("10", "Action", 0))
         )
 
@@ -159,7 +159,7 @@ class CategoryManagementViewModelTest {
 
     @Test
     fun test_loadFailure_setsErrorMessage() = runTest {
-        whenever(liveTvRepository.getLiveCategories(false)).thenThrow(RuntimeException("boom"))
+        whenever(liveTvRepository.getCachedLiveCategories()).thenThrow(RuntimeException("boom"))
 
         val viewModel = createViewModel()
 

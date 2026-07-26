@@ -76,8 +76,8 @@ class AdvancedSearchDomainTest {
             SeriesStream(2, "Series B", null, null, null, "1", genre = "Thriller, COMÉDIE")
         )
 
-        whenever(vodRepository.getVodStreams(eq("all"), eq(false))).thenReturn(movies)
-        whenever(seriesRepository.getSeriesStreams(eq("all"), eq(false))).thenReturn(series)
+        whenever(vodRepository.getCachedVodStreams(eq("all"))).thenReturn(movies)
+        whenever(seriesRepository.getCachedSeriesStreams(eq("all"))).thenReturn(series)
 
         val topGenres = getTopGenresUseCase()
         println("DEBUG: topGenres = $topGenres")
@@ -104,7 +104,7 @@ class AdvancedSearchDomainTest {
         )
         val vodCounts = mapOf("cat1" to 10, "cat2" to 5, "cat3" to 8)
 
-        whenever(vodRepository.getVodCategories(false)).thenReturn(rawVodCategories)
+        whenever(vodRepository.getCachedVodCategories()).thenReturn(rawVodCategories)
         whenever(vodRepository.getCategoryCounts()).thenReturn(vodCounts)
         whenever(categoryPreferenceRepository.getPreferences(CategoryType.VOD)).thenReturn(
             mapOf("cat3" to CategoryPreference("cat3", hidden = true, sortOrder = null))
@@ -132,8 +132,8 @@ class AdvancedSearchDomainTest {
             SeriesStream(202, "Another Series", null, "6.1", "2018", "cat3", genre = "Comedy", releaseYear = 2018)
         )
 
-        whenever(vodRepository.getVodStreams(eq("all"), eq(false))).thenReturn(vodList)
-        whenever(seriesRepository.getSeriesStreams(eq("all"), eq(false))).thenReturn(seriesList)
+        whenever(vodRepository.getCachedVodStreams(eq("all"))).thenReturn(vodList)
+        whenever(seriesRepository.getCachedSeriesStreams(eq("all"))).thenReturn(seriesList)
         whenever(categoryPreferenceRepository.getPreferences(any())).thenReturn(emptyMap())
 
         // 1. Query "Dragon Ball" with no other filter (MediaType = null)
@@ -182,8 +182,8 @@ class AdvancedSearchDomainTest {
             VodStream(2, "Old classic", null, "8.0", "1975", "cat1", genre = "Drama", releaseYear = 1975),
             VodStream(3, "Recent", null, "8.0", "2020", "cat1", genre = "Action", releaseYear = 2020)
         )
-        whenever(vodRepository.getVodStreams(eq("all"), eq(false))).thenReturn(vodList)
-        whenever(seriesRepository.getSeriesStreams(eq("all"), eq(false))).thenReturn(emptyList())
+        whenever(vodRepository.getCachedVodStreams(eq("all"))).thenReturn(vodList)
+        whenever(seriesRepository.getCachedSeriesStreams(eq("all"))).thenReturn(emptyList())
         whenever(categoryPreferenceRepository.getPreferences(any())).thenReturn(emptyMap())
 
         val result = advancedCatalogSearchUseCase("", AdvancedSearchFilter.DEFAULT)
@@ -206,8 +206,8 @@ class AdvancedSearchDomainTest {
             VodStream(3, "Action + Comedy", null, null, null, "cat1", genre = "Action, Comédie"),
             VodStream(4, "Neither", null, null, null, "cat1", genre = "Drame")
         )
-        whenever(vodRepository.getVodStreams(eq("all"), eq(false))).thenReturn(vodList)
-        whenever(seriesRepository.getSeriesStreams(eq("all"), eq(false))).thenReturn(emptyList())
+        whenever(vodRepository.getCachedVodStreams(eq("all"))).thenReturn(vodList)
+        whenever(seriesRepository.getCachedSeriesStreams(eq("all"))).thenReturn(emptyList())
         whenever(categoryPreferenceRepository.getPreferences(any())).thenReturn(emptyMap())
 
         val filter = AdvancedSearchFilter.DEFAULT.copy(genres = setOf("Action", "Comédie"))
@@ -230,8 +230,8 @@ class AdvancedSearchDomainTest {
             SeriesStream(6, "Other series", null, null, null, "cat2", director = "Jean Dupont"),
             SeriesStream(7, "Genre series", null, null, null, "cat2", genre = "Science-Fiction")
         )
-        whenever(vodRepository.getVodStreams(eq("all"), eq(false))).thenReturn(vodList)
-        whenever(seriesRepository.getSeriesStreams(eq("all"), eq(false))).thenReturn(seriesList)
+        whenever(vodRepository.getCachedVodStreams(eq("all"))).thenReturn(vodList)
+        whenever(seriesRepository.getCachedSeriesStreams(eq("all"))).thenReturn(seriesList)
         whenever(categoryPreferenceRepository.getPreferences(any())).thenReturn(emptyMap())
 
         val creditResult = advancedCatalogSearchUseCase("élodie martin", AdvancedSearchFilter.DEFAULT)

@@ -89,7 +89,8 @@ class HomeViewModel @Inject constructor(
     private val getPopularTop10InCatalogUseCase: GetPopularTop10InCatalogUseCase,
     private val removeFromContinueWatchingUseCase: com.cstv.app.domain.usecase.RemoveFromContinueWatchingUseCase,
     private val getTrailerPreviewUseCase: GetTrailerPreviewUseCase,
-    private val profileManager: ProfileManager
+    private val profileManager: ProfileManager,
+    private val canPlayContentUseCase: com.cstv.app.domain.usecase.CanPlayContentUseCase
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(HomeState())
@@ -103,6 +104,27 @@ class HomeViewModel @Inject constructor(
     private var catalogJob: Job? = null
     private var recommendationsJob: Job? = null
     private var hasActiveProfile = false
+
+    /**
+     * Point de passage unique avant toute lecture lancée depuis l'Accueil
+     * (« Continuer à regarder », rangées de contenus, chaîne Live). Hors ligne,
+     * un flux non téléchargé n'est pas lancé : le player n'a jamais à échouer
+     * avec une erreur brute.
+     *
+     * [contentId] suit la convention des téléchargements (`movie_123`,
+     * `episode_456`) ; `null` pour un flux Live, jamais téléchargeable.
+     */
+    fun requestPlayback(contentId: String?, onAllowed: () -> Unit) {
+        viewModelScope.launch {
+            when (canPlayContentUseCase(contentId)) {
+                com.cstv.app.domain.usecase.PlaybackAvailability.Allowed -> onAllowed()
+                com.cstv.app.domain.usecase.PlaybackAvailability.RequiresConnection ->
+                    _state.update { it.copy(error = com.cstv.app.presentation.OFFLINE_PLAYBACK_MESSAGE) }
+                com.cstv.app.domain.usecase.PlaybackAvailability.RequiresReauthentication ->
+                    _state.update { it.copy(error = com.cstv.app.presentation.REAUTHENTICATION_MESSAGE) }
+            }
+        }
+    }
 
     fun selectTrendingPreview(item: TrendingCatalogItem?) {
         val media = item?.toTrailerMedia()
@@ -225,12 +247,12 @@ class HomeViewModel @Inject constructor(
                 val hiddenVod = hiddenCategoryIds(CategoryType.VOD)
                 val hiddenSeries = hiddenCategoryIds(CategoryType.SERIES)
                 val vodMap = try {
-                    vodRepository.getVodStreams("all", false).associate { it.streamId to it.categoryId }
+                    vodRepository.getCachedVodStreams("all").associate { it.streamId to it.categoryId }
                 } catch (e: Exception) {
                     emptyMap()
                 }
                 val seriesMap = try {
-                    seriesRepository.getSeriesStreams("all", false).associate { it.seriesId to it.categoryId }
+                    seriesRepository.getCachedSeriesStreams("all").associate { it.seriesId to it.categoryId }
                 } catch (e: Exception) {
                     emptyMap()
                 }
@@ -441,7 +463,7 @@ class HomeViewModel @Inject constructor(
                 // 3. Fetch TV - First Live Category and its Streams
                 // (catégories filtrées/ordonnées selon les préférences du profil, Phase 58)
                 val liveCategories = try {
-                    getLiveCategoriesUseCase(forceRefresh = false)
+                    getLiveCategoriesUseCase.once()
                 } catch (e: Exception) {
                     if (e is kotlinx.coroutines.CancellationException) throw e
                     emptyList()
@@ -449,7 +471,7 @@ class HomeViewModel @Inject constructor(
                 val firstLiveCat = liveCategories.firstOrNull()
                 val firstLiveStreams = if (firstLiveCat != null) {
                     try {
-                        liveTvRepository.getLiveStreams(firstLiveCat.categoryId, forceRefresh = false)
+                        liveTvRepository.getCachedLiveStreams(firstLiveCat.categoryId)
                     } catch (e: Exception) {
                         if (e is kotlinx.coroutines.CancellationException) throw e
                         emptyList()
@@ -458,7 +480,7 @@ class HomeViewModel @Inject constructor(
 
                 // 4. Fetch Movies - Latest additions (toutes catégories confondues)
                 val allVodStreams = try {
-                    vodRepository.getVodStreams("all", forceRefresh = false)
+                    vodRepository.getCachedVodStreams("all")
                 } catch (e: Exception) {
                     if (e is kotlinx.coroutines.CancellationException) throw e
                     emptyList()
@@ -477,7 +499,7 @@ class HomeViewModel @Inject constructor(
 
                 // 5. Fetch Series - Latest additions (toutes catégories confondues)
                 val allSeriesStreams = try {
-                    seriesRepository.getSeriesStreams("all", forceRefresh = false)
+                    seriesRepository.getCachedSeriesStreams("all")
                 } catch (e: Exception) {
                     if (e is kotlinx.coroutines.CancellationException) throw e
                     emptyList()

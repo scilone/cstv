@@ -2,6 +2,10 @@ package com.cstv.app
 
 import android.app.Application
 import androidx.work.*
+import coil.ImageLoader
+import coil.ImageLoaderFactory
+import coil.disk.DiskCache
+import coil.memory.MemoryCache
 import com.cstv.app.data.local.storage.SettingsManager
 import com.cstv.app.data.local.storage.SyncFrequency
 import com.cstv.app.data.worker.DatabaseSyncWorker
@@ -12,15 +16,51 @@ import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 
 @HiltAndroidApp
-class IptvApplication : Application() {
+class IptvApplication : Application(), ImageLoaderFactory {
 
     @Inject
     lateinit var settingsManager: SettingsManager
+
+    /**
+     * Injecté ici uniquement pour forcer la création du singleton au démarrage :
+     * c'est sa construction qui arme la veille de reconnexion (déclencheur
+     * RECONNECT), laquelle doit survivre à toute navigation.
+     */
+    @Inject
+    lateinit var catalogSyncManager: com.cstv.app.domain.sync.CatalogSyncManager
 
     override fun onCreate() {
         super.onCreate()
         scheduleDefaultBackgroundSync()
     }
+
+    /**
+     * Cache d'images explicite.
+     *
+     * `respectCacheHeaders(false)` est le réglage décisif du mode hors-ligne :
+     * les panels Xtream servent les jaquettes sans `Cache-Control` ou avec un
+     * âge très court, ce qui pousse Coil à revalider en réseau — hors ligne,
+     * l'image en cache serait alors ignorée au profit du placeholder.
+     *
+     * 256 Mo est un plafond prévisible, là où le défaut (2 % du disque) varie
+     * d'un appareil à l'autre. Le cache reste dans `cacheDir` : le système peut
+     * le purger sous pression disque, sans autre conséquence qu'un retour au
+     * visuel de remplacement.
+     */
+    override fun newImageLoader(): ImageLoader = ImageLoader.Builder(this)
+        .memoryCache {
+            MemoryCache.Builder(this)
+                .maxSizePercent(0.25)
+                .build()
+        }
+        .diskCache {
+            DiskCache.Builder()
+                .directory(cacheDir.resolve("image_cache"))
+                .maxSizeBytes(256L * 1024 * 1024)
+                .build()
+        }
+        .respectCacheHeaders(false)
+        .build()
 
     private fun scheduleDefaultBackgroundSync() {
         val frequency = try {

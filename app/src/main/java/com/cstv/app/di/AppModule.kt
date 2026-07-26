@@ -114,6 +114,46 @@ object AppModule {
 
     @Provides
     @Singleton
+    fun provideCatalogSyncStateDao(database: AppDatabase): com.cstv.app.data.local.dao.CatalogSyncStateDao =
+        database.catalogSyncStateDao()
+
+    // Interface plutôt que classe concrète : isCurrentlyOnline() retourne un
+    // Boolean primitif, et un mock de classe Kotlin sur retour primitif
+    // provoque un NPE d'unboxing avec la config Mockito du projet (AGENTS.md).
+    @Provides
+    @Singleton
+    fun provideNetworkMonitor(
+        @ApplicationContext context: Context
+    ): com.cstv.app.domain.network.NetworkMonitor =
+        com.cstv.app.data.network.NetworkMonitorImpl(context)
+
+    @Provides
+    @Singleton
+    fun provideCatalogSyncManager(
+        liveTvRepository: LiveTvRepository,
+        vodRepository: VodRepository,
+        seriesRepository: SeriesRepository,
+        syncStateDao: com.cstv.app.data.local.dao.CatalogSyncStateDao,
+        credentialsManager: CredentialsManager,
+        settingsManager: SettingsManager,
+        networkMonitor: com.cstv.app.domain.network.NetworkMonitor,
+        syncStateInitializer: com.cstv.app.data.sync.CatalogSyncStateInitializer,
+        clearCatalogCacheUseCase: com.cstv.app.domain.usecase.ClearCatalogCacheUseCase
+    ): com.cstv.app.domain.sync.CatalogSyncManager =
+        com.cstv.app.data.sync.CatalogSyncManagerImpl(
+            liveTvRepository,
+            vodRepository,
+            seriesRepository,
+            syncStateDao,
+            credentialsManager,
+            settingsManager,
+            networkMonitor,
+            syncStateInitializer,
+            clearCatalogCacheUseCase
+        )
+
+    @Provides
+    @Singleton
     fun provideTrackPreferenceDao(database: AppDatabase): com.cstv.app.data.local.dao.TrackPreferenceDao {
         return database.trackPreferenceDao()
     }
@@ -288,9 +328,23 @@ object AppModule {
         credentialsManager: CredentialsManager,
         baseUrlInterceptor: DynamicBaseUrlInterceptor,
         requestGate: XtreamRequestGate,
-        trailerRepository: com.cstv.app.domain.repository.TrailerRepository
+        trailerRepository: com.cstv.app.domain.repository.TrailerRepository,
+        networkMonitor: com.cstv.app.domain.network.NetworkMonitor,
+        syncStateDao: com.cstv.app.data.local.dao.CatalogSyncStateDao,
+        syncStateInitializer: com.cstv.app.data.sync.CatalogSyncStateInitializer,
+        catalogSyncManager: com.cstv.app.domain.sync.CatalogSyncManager
     ): AuthRepository {
-        return AuthRepositoryImpl(apiService, credentialsManager, baseUrlInterceptor, requestGate, trailerRepository)
+        return AuthRepositoryImpl(
+            apiService,
+            credentialsManager,
+            baseUrlInterceptor,
+            requestGate,
+            trailerRepository,
+            networkMonitor,
+            syncStateDao,
+            syncStateInitializer,
+            catalogSyncManager
+        )
     }
 
     @Provides
@@ -301,9 +355,9 @@ object AppModule {
         credentialsManager: CredentialsManager,
         profileManager: ProfileManager,
         requestGate: XtreamRequestGate,
-        settingsManager: SettingsManager
+        networkMonitor: com.cstv.app.domain.network.NetworkMonitor
     ): LiveTvRepository {
-        return LiveTvRepositoryImpl(apiService, liveTvDao, credentialsManager, profileManager, requestGate, settingsManager)
+        return LiveTvRepositoryImpl(apiService, liveTvDao, credentialsManager, profileManager, requestGate, networkMonitor)
     }
 
     @Provides
@@ -314,9 +368,9 @@ object AppModule {
         credentialsManager: CredentialsManager,
         profileManager: ProfileManager,
         requestGate: XtreamRequestGate,
-        settingsManager: SettingsManager
+        networkMonitor: com.cstv.app.domain.network.NetworkMonitor
     ): VodRepository {
-        return VodRepositoryImpl(apiService, vodDao, credentialsManager, profileManager, requestGate, settingsManager)
+        return VodRepositoryImpl(apiService, vodDao, credentialsManager, profileManager, requestGate, networkMonitor)
     }
 
     @Provides
@@ -328,9 +382,9 @@ object AppModule {
         credentialsManager: CredentialsManager,
         profileManager: ProfileManager,
         requestGate: XtreamRequestGate,
-        settingsManager: SettingsManager
+        networkMonitor: com.cstv.app.domain.network.NetworkMonitor
     ): SeriesRepository {
-        return SeriesRepositoryImpl(apiService, seriesDao, vodDao, credentialsManager, profileManager, requestGate, settingsManager)
+        return SeriesRepositoryImpl(apiService, seriesDao, vodDao, credentialsManager, profileManager, requestGate, networkMonitor)
     }
 
     @Provides

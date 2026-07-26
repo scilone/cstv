@@ -9,10 +9,11 @@ import com.cstv.app.data.local.entity.PlaybackPositionEntity
 import com.cstv.app.data.local.entity.VodCategoryEntity
 import com.cstv.app.data.local.entity.VodStreamEntity
 import com.cstv.app.data.local.storage.CredentialsManager
-import com.cstv.app.data.local.storage.SettingsManager
 import com.cstv.app.data.remote.api.XtreamApiService
 import com.cstv.app.data.remote.api.RequestPriority
 import com.cstv.app.data.remote.api.XtreamRequestGate
+import com.cstv.app.data.sync.CacheTtl
+import com.cstv.app.domain.network.NetworkMonitor
 import com.cstv.app.domain.model.PlaybackPosition
 import com.cstv.app.domain.model.Credentials
 import com.cstv.app.domain.model.InvalidCredentialsException
@@ -24,6 +25,7 @@ import com.cstv.app.domain.repository.VodRepository
 import com.google.gson.JsonElement
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
@@ -36,7 +38,7 @@ class VodRepositoryImpl @Inject constructor(
     private val credentialsManager: CredentialsManager,
     private val profileManager: com.cstv.app.data.local.storage.ProfileManager,
     private val requestGate: XtreamRequestGate,
-    private val settingsManager: SettingsManager
+    private val networkMonitor: NetworkMonitor
 ) : VodRepository {
 
     private var enrichmentDispatcher: CoroutineDispatcher = Dispatchers.IO
@@ -55,9 +57,9 @@ class VodRepositoryImpl @Inject constructor(
         credentialsManager: CredentialsManager,
         profileManager: com.cstv.app.data.local.storage.ProfileManager,
         requestGate: XtreamRequestGate,
-        settingsManager: SettingsManager,
+        networkMonitor: NetworkMonitor,
         dispatcher: CoroutineDispatcher
-    ) : this(apiService, vodDao, credentialsManager, profileManager, requestGate, settingsManager) {
+    ) : this(apiService, vodDao, credentialsManager, profileManager, requestGate, networkMonitor) {
         this.enrichmentDispatcher = dispatcher
     }
 
@@ -135,7 +137,9 @@ class VodRepositoryImpl @Inject constructor(
     }
 
     companion object {
-        private const val CACHE_EXPIRY_MILLIS = 24 * 60 * 60 * 1000L // 24 hours
+        const val ALL_CATEGORIES = "all"
+        // Les durées de vie du cache vivent désormais dans CacheTtl : la
+        // constante locale d'origine était déclarée ici mais jamais lue.
         private const val ENRICHMENT_BATCH_SIZE = 50
         private const val ENRICHMENT_REQUEST_SPACING_MS = 500L
         private const val DEFAULT_CONTAINER_EXTENSION = "mp4"
@@ -246,69 +250,47 @@ class VodRepositoryImpl @Inject constructor(
         return String.format(java.util.Locale.US, "%.1f", doubleVal)
     }
 
-    override suspend fun getVodCategories(forceRefresh: Boolean): List<VodCategory> {
+    private fun VodCategoryEntity.toDomain() = VodCategory(categoryId, categoryName, parentId)
+
+    private fun VodStreamEntity.toDomain() = VodStream(
+        streamId, name, streamIcon, rating, added, categoryId, genre,
+        releaseYear?.takeIf { it > 0 }, actors, director
+    )
+
+    override fun observeVodCategories(): Flow<List<VodCategory>> =
+        vodDao.observeAllCategories()
+            .distinctUntilChanged()
+            .map { categories -> categories.map { it.toDomain() } }
+
+    override fun observeVodStreams(categoryId: String): Flow<List<VodStream>> =
+        (if (categoryId == ALL_CATEGORIES) vodDao.observeAllStreams() else vodDao.observeStreamsByCategory(categoryId))
+            .distinctUntilChanged()
+            .map { streams -> streams.map { it.toDomain() } }
+
+    override suspend fun getCachedVodCategories(): List<VodCategory> =
+        vodDao.getAllCategories().map { it.toDomain() }
+
+    override suspend fun getCachedVodStreams(categoryId: String): List<VodStream> =
+        (if (categoryId == ALL_CATEGORIES) vodDao.getAllStreams() else vodDao.getStreamsByCategory(categoryId))
+            .map { it.toDomain() }
+
+    override suspend fun syncVodCategories(): List<VodCategory> {
         val currentTime = System.currentTimeMillis()
-
-        if (!forceRefresh) {
-            val localCategories = vodDao.getAllCategories()
-            if (localCategories.isNotEmpty()) {
-                return localCategories.map { 
-                    VodCategory(it.categoryId, it.categoryName, it.parentId)
-                }
-            }
-        }
-
         val creds = credentialsManager.getCredentials()
             ?: throw InvalidCredentialsException("Utilisateur non connecté.")
-
-        val remoteCategories = requestGate.acquire { apiService.getVodCategories(creds.username, creds.password) }
-
-        val entities = remoteCategories.mapIndexedNotNull { index, dto ->
-            val id = dto.categoryId
-            val name = dto.categoryName
-            if (id != null && name != null) {
-                VodCategoryEntity(
-                    categoryId = id,
-                    categoryName = name,
-                    parentId = dto.parentId ?: 0,
-                    cachedAt = currentTime,
-                    orderIndex = index
-                )
-            } else null
-        }
-
-        if (entities.isNotEmpty()) {
-            vodDao.clearCategories()
-            vodDao.insertCategories(entities)
-        }
-
-        return entities.map { 
-            VodCategory(it.categoryId, it.categoryName, it.parentId)
-        }
+        val entities = requestGate.acquire { apiService.getVodCategories(creds.username, creds.password) }
+            .mapIndexedNotNull { index, dto ->
+                val id = dto.categoryId
+                val name = dto.categoryName
+                if (id != null && name != null) VodCategoryEntity(id, name, dto.parentId ?: 0, currentTime, index) else null
+            }
+        vodDao.replaceAllCategories(entities)
+        return entities.map { it.toDomain() }
     }
 
-    override suspend fun getVodStreams(categoryId: String, forceRefresh: Boolean): List<VodStream> {
+    override suspend fun syncVodStreams(categoryId: String): List<VodStream> {
         val currentTime = System.currentTimeMillis()
-        val apiCategoryId = if (categoryId == "all") null else categoryId
-
-        if (!forceRefresh) {
-            if (categoryId == "all") {
-                val localStreams = vodDao.getAllStreams()
-                if (localStreams.isNotEmpty()) {
-                    return localStreams.map {
-                        VodStream(it.streamId, it.name, it.streamIcon, it.rating, it.added, it.categoryId, it.genre, it.releaseYear?.takeIf { y -> y > 0 }, it.actors, it.director)
-                    }
-                }
-            } else {
-                val localStreams = vodDao.getStreamsByCategory(categoryId)
-                if (localStreams.isNotEmpty()) {
-                    return localStreams.map {
-                        VodStream(it.streamId, it.name, it.streamIcon, it.rating, it.added, it.categoryId, it.genre, it.releaseYear?.takeIf { y -> y > 0 }, it.actors, it.director)
-                    }
-                }
-            }
-        }
-
+        val apiCategoryId = if (categoryId == ALL_CATEGORIES) null else categoryId
         val creds = credentialsManager.getCredentials()
             ?: throw InvalidCredentialsException("Utilisateur non connecté.")
 
@@ -316,7 +298,7 @@ class VodRepositoryImpl @Inject constructor(
 
         // Preserve actors/director/genre enrichment (only ever fetched via getVodDetails,
         // never part of this bulk list response) so a routine cache refresh doesn't wipe it.
-        val existingById = (if (categoryId == "all") vodDao.getAllStreams() else vodDao.getStreamsByCategory(categoryId))
+        val existingById = (if (categoryId == ALL_CATEGORIES) vodDao.getAllStreams() else vodDao.getStreamsByCategory(categoryId))
             .associateBy { it.streamId }
 
         val entities = remoteStreams.mapIndexedNotNull { index, dto ->
@@ -325,7 +307,7 @@ class VodRepositoryImpl @Inject constructor(
             // In "all" mode there's no known category to fall back to; a stream without
             // a category_id would otherwise be tagged with the literal "all" and become
             // invisible in every section, so skip it instead.
-            val itemCategoryId = dto.categoryId ?: categoryId.takeIf { it != "all" }
+            val itemCategoryId = dto.categoryId ?: categoryId.takeIf { it != ALL_CATEGORIES }
             if (id != null && name != null && itemCategoryId != null) {
                 val existing = existingById[id]
                 VodStreamEntity(
@@ -340,32 +322,27 @@ class VodRepositoryImpl @Inject constructor(
                     director = existing?.director,
                     genre = existing?.genre,
                     orderIndex = index,
-                    releaseYear = existing?.releaseYear
+                    releaseYear = existing?.releaseYear,
+                    plot = existing?.plot,
+                    duration = existing?.duration,
+                    containerExtension = existing?.containerExtension,
+                    detailsCachedAt = existing?.detailsCachedAt
                 )
             } else null
         }
 
-        if (categoryId == "all") {
-            vodDao.clearAllStreams()
-            vodDao.clearAllFts()
+        // Remplacement atomique : effacement et repeuplement (FTS comprise) dans
+        // la même transaction, et jamais sur une réponse vide.
+        if (categoryId == ALL_CATEGORIES) {
+            vodDao.replaceAllStreamsWithFts(entities)
         } else {
-            vodDao.clearStreamsByCategory(categoryId)
-            vodDao.clearFtsByCategory(categoryId)
+            vodDao.replaceStreamsByCategoryWithFts(categoryId, entities)
         }
 
-        if (entities.isNotEmpty()) {
-            vodDao.insertStreamsWithFts(entities)
-        }
-
-        if (categoryId == "all") {
-            settingsManager.setVodAllStreamsSyncedAt(currentTime)
-        }
 
         startBackgroundEnrichment()
 
-        return entities.map { 
-            VodStream(it.streamId, it.name, it.streamIcon, it.rating, it.added, it.categoryId, it.genre, it.releaseYear?.takeIf { y -> y > 0 }, it.actors, it.director)
-        }
+        return entities.map { it.toDomain() }
     }
 
     override fun getVodStreamsPaged(categoryId: String): Flow<PagingData<VodStream>> {
@@ -376,7 +353,7 @@ class VodRepositoryImpl @Inject constructor(
                 initialLoadSize = 100
             ),
             pagingSourceFactory = {
-                if (categoryId == "all") {
+                if (categoryId == ALL_CATEGORIES) {
                     vodDao.getAllStreamsPaged()
                 } else {
                     vodDao.getStreamsByCategoryPaged(categoryId)
@@ -384,18 +361,7 @@ class VodRepositoryImpl @Inject constructor(
             }
         ).flow.map { pagingData ->
             pagingData.map { entity ->
-                VodStream(
-                    streamId = entity.streamId,
-                    name = entity.name,
-                    streamIcon = entity.streamIcon,
-                    rating = entity.rating,
-                    added = entity.added,
-                    categoryId = entity.categoryId,
-                    genre = entity.genre,
-                    releaseYear = entity.releaseYear?.takeIf { it > 0 },
-                    actors = entity.actors,
-                    director = entity.director
-                )
+                entity.toDomain()
             }
         }
     }
@@ -450,8 +416,7 @@ class VodRepositoryImpl @Inject constructor(
 
     /**
      * Fiche de repli quand le panel refuse les métadonnées : tout ce qui est
-     * connu localement, et une extension de conteneur par défaut puisque seul
-     * `movie_data` la porte. [VodDetails.isMetadataIncomplete] permet à l'écran
+     * connu localement. [VodDetails.isMetadataIncomplete] permet à l'écran
      * de le signaler plutôt que de faire passer les trous pour des vraies valeurs.
      */
     private suspend fun cachedVodDetails(
@@ -466,19 +431,37 @@ class VodRepositoryImpl @Inject constructor(
             actors = cached.actors ?: "Inconnu",
             releaseDate = cached.releaseYear?.takeIf { it > 0 }?.toString() ?: "Inconnu",
             genre = cached.genre ?: "Inconnu",
-            plot = "Aucun résumé disponible.",
+            plot = cached.plot ?: "Aucun résumé disponible.",
             rating = formatRating(cached.rating),
             coverBig = cached.streamIcon,
-            containerExtension = DEFAULT_CONTAINER_EXTENSION,
+            containerExtension = cached.containerExtension ?: DEFAULT_CONTAINER_EXTENSION,
             resumePositionMs = savedPosition?.positionMs ?: 0L,
             durationMs = savedPosition?.durationMs ?: 0L,
-            isMetadataIncomplete = true
+            duration = cached.duration,
+            isMetadataIncomplete = cached.detailsCachedAt == null
         )
     }
 
     override suspend fun getVodDetails(streamId: Int): VodDetails {
+        val cachedStream = vodDao.getStreamById(streamId)
+
+        // Cache d'abord : une fiche déjà enrichie et encore fraîche n'a aucune
+        // raison de redemander get_vod_info, principal contributeur au
+        // bannissement. Hors ligne, elle est servie quel que soit son âge.
+        if (cachedStream?.detailsCachedAt != null) {
+            val fresh = !CacheTtl.isExpired(
+                cachedStream.detailsCachedAt,
+                CacheTtl.DETAILS_MILLIS,
+                System.currentTimeMillis()
+            )
+            if (fresh || !networkMonitor.isCurrentlyOnline()) {
+                return cachedVodDetails(cachedStream, streamId)
+            }
+        }
+
         val creds = credentialsManager.getCredentials()
-            ?: throw InvalidCredentialsException("Utilisateur non connecté.")
+            ?: return cachedStream?.let { cachedVodDetails(it, streamId) }
+                ?: throw InvalidCredentialsException("Utilisateur non connecté.")
 
         // Certains panels refusent `get_vod_info` sur des titres précis (403
         // reproductible) alors que le flux reste lisible. La fiche est reconstruite
@@ -488,7 +471,7 @@ class VodRepositoryImpl @Inject constructor(
             requestGate.acquire { apiService.getVodInfo(creds.username, creds.password, streamId) }
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
-            return vodDao.getStreamById(streamId)?.let { cached -> cachedVodDetails(cached, streamId) }
+            return cachedStream?.let { cached -> cachedVodDetails(cached, streamId) }
                 ?: throw e
         }
         val infoDto = response.info
@@ -510,14 +493,17 @@ class VodRepositoryImpl @Inject constructor(
         val savedPosition = vodDao.getPlaybackPosition(streamId, profileManager.currentProfileId())
 
         // Sensationally enrich cached stream entity with actors, director, and genre details
-        val cachedStream = vodDao.getStreamById(streamId)
         if (cachedStream != null) {
             vodDao.insertStreamsWithFts(listOf(
                 cachedStream.copy(
                     actors = actors,
                     director = director,
                     genre = genre,
-                    releaseYear = ReleaseYearParser.parseYear(releaseDate) ?: 0
+                    releaseYear = ReleaseYearParser.parseYear(releaseDate) ?: 0,
+                    plot = plot,
+                    duration = duration,
+                    containerExtension = extension,
+                    detailsCachedAt = System.currentTimeMillis()
                 )
             ))
         }

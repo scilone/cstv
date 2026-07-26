@@ -45,11 +45,17 @@ class LiveTvViewModel @Inject constructor(
     private val credentialsManager: CredentialsManager,
     private val categoryPreferenceRepository: com.cstv.app.domain.repository.CategoryPreferenceRepository,
     private val settingsManager: SettingsManager,
-    private val liveTvRepository: com.cstv.app.domain.repository.LiveTvRepository
+    private val liveTvRepository: com.cstv.app.domain.repository.LiveTvRepository,
+    private val observeCatalogStatusUseCase: com.cstv.app.domain.usecase.ObserveCatalogStatusUseCase,
+    private val catalogSyncManager: com.cstv.app.domain.sync.CatalogSyncManager,
+    private val canPlayContentUseCase: com.cstv.app.domain.usecase.CanPlayContentUseCase
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(LiveTvState())
     val state: StateFlow<LiveTvState> = _state.asStateFlow()
+
+    private var streamsJob: kotlinx.coroutines.Job? = null
+    private var observedCategoryId: String? = null
 
     fun getResizeMode(): ResizeMode = settingsManager.getResizeMode()
     fun setResizeMode(mode: ResizeMode) {
@@ -98,17 +104,12 @@ class LiveTvViewModel @Inject constructor(
         }
 
     init {
-        loadCategories()
+        observeCategories()
+        observeCatalogStatus()
         viewModelScope.launch {
             observeRecentlyWatchedUseCase().collect { list ->
                 _state.update { it.copy(recentlyWatched = list) }
             }
-        }
-        // Recharge les catégories quand les préférences (masquage/ordre, Phase 58)
-        // changent : ce ViewModel survit en backstack pendant le passage par les
-        // Paramètres, l'init seul ne suffit pas.
-        viewModelScope.launch {
-            categoryPreferenceRepository.changes.collect { loadCategories() }
         }
     }
 
@@ -167,11 +168,11 @@ class LiveTvViewModel @Inject constructor(
 
     fun consumeHistoryRemovalError() { _state.update { it.copy(historyRemovalError = null) } }
 
-    fun loadCategories(forceRefresh: Boolean = false) {
+    /** Voir `VodViewModel.observeCategories` : lecture Room, jamais réseau. */
+    private fun observeCategories() {
         viewModelScope.launch {
-            _state.update { it.copy(isLoadingCategories = _state.value.categories.isEmpty(), error = null) }
-            try {
-                val categories = getLiveCategoriesUseCase(forceRefresh)
+            _state.update { it.copy(isLoadingCategories = it.categories.isEmpty()) }
+            getLiveCategoriesUseCase().collect { categories ->
                 val finalCategories = listOf(LiveCategory("all", "Tout", 0)) + categories
                 val previousSelectedId = _state.value.selectedCategory?.categoryId
                 val newSelected = finalCategories.find { it.categoryId == previousSelectedId } ?: finalCategories.firstOrNull()
@@ -182,31 +183,55 @@ class LiveTvViewModel @Inject constructor(
                         isLoadingCategories = false
                     )
                 }
-                newSelected?.let {
-                    loadStreams(it.categoryId, forceRefresh)
-                }
-            } catch (e: Exception) {
-                if (e is kotlinx.coroutines.CancellationException) throw e
-                _state.update { it.copy(isLoadingCategories = false, error = e.message ?: "Une erreur est survenue.") }
+                newSelected?.let { observeStreams(it.categoryId) }
+            }
+        }
+    }
+
+    private fun observeCatalogStatus() {
+        viewModelScope.launch {
+            observeCatalogStatusUseCase().collect { status ->
+                _state.update { it.copy(catalogStatus = status) }
             }
         }
     }
 
     fun selectCategory(category: LiveCategory) {
         _state.update { it.copy(selectedCategory = category, streams = emptyList()) }
-        loadStreams(category.categoryId)
+        observeStreams(category.categoryId)
     }
 
-    fun loadStreams(categoryId: String, forceRefresh: Boolean = false) {
-        viewModelScope.launch {
-            _state.update { it.copy(isLoadingStreams = _state.value.streams.isEmpty(), error = null) }
-            try {
-                val streams = getLiveStreamsUseCase(categoryId, forceRefresh)
+    private fun observeStreams(categoryId: String) {
+        if (observedCategoryId == categoryId && streamsJob?.isActive == true) return
+        observedCategoryId = categoryId
+        streamsJob?.cancel()
+        streamsJob = viewModelScope.launch {
+            _state.update { it.copy(isLoadingStreams = it.streams.isEmpty(), error = null) }
+            getLiveStreamsUseCase(categoryId).collect { streams ->
                 _state.update { it.copy(streams = streams, isLoadingStreams = false) }
                 refreshCategoryCounts()
-            } catch (e: Exception) {
-                if (e is kotlinx.coroutines.CancellationException) throw e
-                _state.update { it.copy(isLoadingStreams = false, error = e.message ?: "Impossible de charger les chaînes.") }
+            }
+        }
+    }
+
+    fun refresh() {
+        viewModelScope.launch {
+            catalogSyncManager.syncNow(com.cstv.app.domain.sync.SyncTrigger.MANUAL)
+        }
+    }
+
+    /**
+     * Un flux Live n'est jamais téléchargeable : hors ligne, la lecture est
+     * toujours refusée, avec un message qui le dit plutôt qu'un échec du player.
+     */
+    fun requestPlayback(onAllowed: () -> Unit) {
+        viewModelScope.launch {
+            when (canPlayContentUseCase(null)) {
+                com.cstv.app.domain.usecase.PlaybackAvailability.Allowed -> onAllowed()
+                com.cstv.app.domain.usecase.PlaybackAvailability.RequiresConnection ->
+                    _state.update { it.copy(error = com.cstv.app.presentation.OFFLINE_PLAYBACK_MESSAGE) }
+                com.cstv.app.domain.usecase.PlaybackAvailability.RequiresReauthentication ->
+                    _state.update { it.copy(error = com.cstv.app.presentation.REAUTHENTICATION_MESSAGE) }
             }
         }
     }

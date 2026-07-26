@@ -48,6 +48,9 @@ class FavoritesViewModelTest {
     @Mock
     private lateinit var categoryPreferenceRepository: com.cstv.app.domain.repository.CategoryPreferenceRepository
 
+    @Mock
+    private lateinit var canPlayContentUseCase: com.cstv.app.domain.usecase.CanPlayContentUseCase
+
     private val testDispatcher = StandardTestDispatcher()
     private lateinit var viewModel: FavoritesViewModel
 
@@ -78,7 +81,8 @@ class FavoritesViewModelTest {
             getCategoriesForTypeUseCase,
             advancedCatalogSearchUseCase,
             getCatalogYearRangeUseCase,
-            categoryPreferenceRepository
+            categoryPreferenceRepository,
+            canPlayContentUseCase
         )
         runCurrent()
     }
@@ -263,5 +267,18 @@ class FavoritesViewModelTest {
         assertEquals(1, finalState.searchResult.seriesResults.size)
         verify(advancedCatalogSearchUseCase).invoke("Élodie Martin", AdvancedSearchFilter.DEFAULT)
         verify(searchUnifiedUseCase, never()).invoke(any())
+    }
+
+    @Test
+    fun requestPlayback_offlineLive_setsAnExplicitErrorWithoutCallingTheNavigation() = runTest(testDispatcher) {
+        whenever(canPlayContentUseCase(null))
+            .thenReturn(com.cstv.app.domain.usecase.PlaybackAvailability.RequiresConnection)
+        var navigationCalls = 0
+
+        viewModel.requestPlayback(null) { navigationCalls++ }
+        runCurrent()
+
+        assertEquals(0, navigationCalls)
+        assertEquals(com.cstv.app.presentation.OFFLINE_PLAYBACK_MESSAGE, viewModel.state.value.playbackError)
     }
 }

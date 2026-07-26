@@ -2,9 +2,10 @@ package com.cstv.app.domain.usecase
 
 import com.cstv.app.data.local.storage.CredentialsManager
 import com.cstv.app.domain.model.Credentials
-import com.cstv.app.domain.repository.LiveTvRepository
-import com.cstv.app.domain.repository.SeriesRepository
-import com.cstv.app.domain.repository.VodRepository
+import com.cstv.app.domain.sync.CatalogSyncManager
+import com.cstv.app.domain.sync.SyncFailureKind
+import com.cstv.app.domain.sync.SyncOutcome
+import com.cstv.app.domain.sync.SyncTrigger
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -14,6 +15,11 @@ import org.mockito.Mock
 import org.mockito.MockitoAnnotations
 import org.mockito.kotlin.*
 
+/**
+ * Depuis T4, ce use case n'orchestre plus rien : il ne fait que traduire le
+ * verdict du [CatalogSyncManager] pour le worker. L'orchestration elle-même est
+ * couverte par `CatalogSyncManagerImplTest`.
+ */
 @OptIn(ExperimentalCoroutinesApi::class)
 class SyncCacheUseCaseTest {
 
@@ -21,13 +27,7 @@ class SyncCacheUseCaseTest {
     private lateinit var credentialsManager: CredentialsManager
 
     @Mock
-    private lateinit var liveTvRepository: LiveTvRepository
-
-    @Mock
-    private lateinit var vodRepository: VodRepository
-
-    @Mock
-    private lateinit var seriesRepository: SeriesRepository
+    private lateinit var catalogSyncManager: CatalogSyncManager
 
     private lateinit var useCase: SyncCacheUseCase
 
@@ -36,7 +36,7 @@ class SyncCacheUseCaseTest {
     @Before
     fun setUp() {
         MockitoAnnotations.openMocks(this)
-        useCase = SyncCacheUseCase(credentialsManager, liveTvRepository, vodRepository, seriesRepository)
+        useCase = SyncCacheUseCase(credentialsManager, catalogSyncManager)
     }
 
     @Test
@@ -46,47 +46,54 @@ class SyncCacheUseCaseTest {
         val result = useCase()
 
         assertEquals(SyncCacheResult.SKIPPED_NO_CREDENTIALS, result)
-        verifyNoInteractions(liveTvRepository, vodRepository, seriesRepository)
+        verifyNoInteractions(catalogSyncManager)
     }
 
     @Test
-    fun test_invoke_forceRefreshesAllCatalogSources_whenCredentialsPresent() = runTest {
+    fun test_invoke_delegatesToManager_withGivenTrigger() = runTest {
         whenever(credentialsManager.getCredentials()).thenReturn(credentials)
+        whenever(catalogSyncManager.syncNow(SyncTrigger.SCHEDULED)).thenReturn(SyncOutcome.Success(1L))
 
-        val result = useCase()
+        val result = useCase(SyncTrigger.SCHEDULED)
 
         assertEquals(SyncCacheResult.SUCCESS, result)
-        verify(liveTvRepository).getLiveCategories(forceRefresh = true)
-        verify(liveTvRepository).getLiveStreams(categoryId = "all", forceRefresh = true)
-        verify(vodRepository).getVodCategories(forceRefresh = true)
-        verify(vodRepository).getVodStreams(categoryId = "all", forceRefresh = true)
-        verify(seriesRepository).getSeriesCategories(forceRefresh = true)
-        verify(seriesRepository).getSeriesStreams(categoryId = "all", forceRefresh = true)
-        verify(vodRepository).enrichPendingMovies()
-        verify(seriesRepository).enrichPendingSeries()
+        verify(catalogSyncManager).syncNow(SyncTrigger.SCHEDULED)
     }
 
     @Test
-    fun test_invoke_returnsFailed_whenRepositoryThrows() = runTest {
+    fun test_invoke_returnsFailed_whenSyncFails() = runTest {
         whenever(credentialsManager.getCredentials()).thenReturn(credentials)
-        whenever(liveTvRepository.getLiveCategories(forceRefresh = true))
-            .thenThrow(RuntimeException("Network timeout"))
+        whenever(catalogSyncManager.syncNow(any()))
+            .thenReturn(SyncOutcome.Failure(SyncFailureKind.NETWORK, 1L))
 
-        val result = useCase()
-
-        assertEquals(SyncCacheResult.FAILED, result)
+        assertEquals(SyncCacheResult.FAILED_RETRYABLE, useCase())
     }
 
     @Test
-    fun test_invoke_returnsFailed_whenLaterRepositoryCallThrows() = runTest {
+    fun test_invoke_returnsPermanentFailure_forStorageAndAuthentication() = runTest {
         whenever(credentialsManager.getCredentials()).thenReturn(credentials)
-        whenever(seriesRepository.getSeriesStreams(categoryId = "all", forceRefresh = true))
-            .thenThrow(RuntimeException("Malformed response"))
 
-        val result = useCase()
+        whenever(catalogSyncManager.syncNow(any()))
+            .thenReturn(SyncOutcome.Failure(SyncFailureKind.STORAGE, 1L))
+        assertEquals(SyncCacheResult.FAILED_PERMANENT, useCase())
 
-        assertEquals(SyncCacheResult.FAILED, result)
-        verify(liveTvRepository).getLiveStreams(categoryId = "all", forceRefresh = true)
-        verify(vodRepository).getVodStreams(categoryId = "all", forceRefresh = true)
+        whenever(catalogSyncManager.syncNow(any()))
+            .thenReturn(SyncOutcome.Failure(SyncFailureKind.AUTH, 1L))
+        assertEquals(SyncCacheResult.FAILED_PERMANENT, useCase())
+    }
+
+    /**
+     * Une synchronisation déjà en cours n'est pas un échec : la signaler comme
+     * tel ferait retenter le worker, donc générer le trafic panel que T4 supprime.
+     */
+    @Test
+    fun test_invoke_treatsAlreadyRunningAndSkippedAsSuccess() = runTest {
+        whenever(credentialsManager.getCredentials()).thenReturn(credentials)
+
+        whenever(catalogSyncManager.syncNow(any())).thenReturn(SyncOutcome.AlreadyRunning)
+        assertEquals(SyncCacheResult.SUCCESS, useCase())
+
+        whenever(catalogSyncManager.syncNow(any())).thenReturn(SyncOutcome.Skipped)
+        assertEquals(SyncCacheResult.SUCCESS, useCase())
     }
 }

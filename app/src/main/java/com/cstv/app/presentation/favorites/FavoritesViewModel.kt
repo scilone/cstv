@@ -39,7 +39,9 @@ data class FavoritesUiState(
     // Passe à true dès que l'utilisateur clique "Voir les résultats" (même
     // sans filtre ni texte saisi) : affiche alors tout le catalogue au lieu
     // de l'invite initiale "Saisissez un mot-clé...".
-    val hasBrowsedAll: Boolean = false
+    val hasBrowsedAll: Boolean = false,
+    /** Motif d'un refus de lecture (hors ligne, ou session à revalider). */
+    val playbackError: String? = null
 )
 
 @HiltViewModel
@@ -53,8 +55,28 @@ class FavoritesViewModel @Inject constructor(
     private val getCategoriesForTypeUseCase: GetCategoriesForTypeUseCase,
     private val advancedCatalogSearchUseCase: AdvancedCatalogSearchUseCase,
     private val getCatalogYearRangeUseCase: GetCatalogYearRangeUseCase,
-    private val categoryPreferenceRepository: com.cstv.app.domain.repository.CategoryPreferenceRepository
+    private val categoryPreferenceRepository: com.cstv.app.domain.repository.CategoryPreferenceRepository,
+    private val canPlayContentUseCase: com.cstv.app.domain.usecase.CanPlayContentUseCase
 ) : ViewModel() {
+
+    /**
+     * Une chaîne favorite reste un flux Live : jamais téléchargeable, donc
+     * jamais lisible hors ligne. Le refus est explicite plutôt que laissé au
+     * player.
+     */
+    fun requestPlayback(contentId: String?, onAllowed: () -> Unit) {
+        viewModelScope.launch {
+            when (canPlayContentUseCase(contentId)) {
+                com.cstv.app.domain.usecase.PlaybackAvailability.Allowed -> onAllowed()
+                com.cstv.app.domain.usecase.PlaybackAvailability.RequiresConnection ->
+                    _state.update { it.copy(playbackError = com.cstv.app.presentation.OFFLINE_PLAYBACK_MESSAGE) }
+                com.cstv.app.domain.usecase.PlaybackAvailability.RequiresReauthentication ->
+                    _state.update { it.copy(playbackError = com.cstv.app.presentation.REAUTHENTICATION_MESSAGE) }
+            }
+        }
+    }
+
+    fun consumePlaybackError() { _state.update { it.copy(playbackError = null) } }
 
     private val _state = MutableStateFlow(FavoritesUiState())
     val state: StateFlow<FavoritesUiState> = _state.asStateFlow()

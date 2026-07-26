@@ -51,7 +51,10 @@ class VodViewModel @Inject constructor(
     private val vodRepository: com.cstv.app.domain.repository.VodRepository,
     private val removeFromContinueWatchingUseCase: RemoveFromContinueWatchingUseCase,
     private val mediaRatingRepository: com.cstv.app.domain.repository.MediaRatingRepository,
-    private val setMediaRatingUseCase: com.cstv.app.domain.usecase.SetMediaRatingUseCase
+    private val setMediaRatingUseCase: com.cstv.app.domain.usecase.SetMediaRatingUseCase,
+    private val observeCatalogStatusUseCase: com.cstv.app.domain.usecase.ObserveCatalogStatusUseCase,
+    private val catalogSyncManager: com.cstv.app.domain.sync.CatalogSyncManager,
+    private val canPlayContentUseCase: com.cstv.app.domain.usecase.CanPlayContentUseCase
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(VodState())
@@ -59,6 +62,8 @@ class VodViewModel @Inject constructor(
 
     private val scrollPositions = mutableMapOf<String, Pair<Int, Int>>()
     private var ratingObservation: Job? = null
+    private var streamsJob: Job? = null
+    private var observedCategoryId: String? = null
 
     fun saveScrollPosition(key: String, index: Int, offset: Int) {
         scrollPositions[key] = Pair(index, offset)
@@ -96,12 +101,8 @@ class VodViewModel @Inject constructor(
         }
 
     init {
-        loadCategories()
-        // Recharge les catégories au changement de préférences (masquage/ordre,
-        // Phase 58) : le ViewModel survit en backstack pendant les Paramètres.
-        viewModelScope.launch {
-            categoryPreferenceRepository.changes.collect { loadCategories() }
-        }
+        observeCategories()
+        observeCatalogStatus()
         // Observe et filtre les positions de lecture en temps réel (F5)
         viewModelScope.launch {
             kotlinx.coroutines.flow.combine(
@@ -123,7 +124,7 @@ class VodViewModel @Inject constructor(
                 }
 
                 val vodMap = try {
-                    vodRepository.getVodStreams("all", false).associate { it.streamId to it.categoryId }
+                    vodRepository.getCachedVodStreams("all").associate { it.streamId to it.categoryId }
                 } catch (e: Exception) {
                     emptyMap()
                 }
@@ -182,11 +183,15 @@ class VodViewModel @Inject constructor(
         settingsManager.setResizeMode(mode)
     }
 
-    fun loadCategories(forceRefresh: Boolean = false) {
+    /**
+     * Les catégories viennent de Room et sont ré-émises à chaque écriture de
+     * synchronisation : les listes déjà affichées se mettent à jour sans
+     * réinitialiser la navigation ni le profil actif.
+     */
+    private fun observeCategories() {
         viewModelScope.launch {
-            _state.update { it.copy(isLoadingCategories = _state.value.categories.isEmpty(), error = null) }
-            try {
-                val categories = getVodCategoriesUseCase(forceRefresh)
+            _state.update { it.copy(isLoadingCategories = it.categories.isEmpty()) }
+            getVodCategoriesUseCase().collect { categories ->
                 val finalCategories = listOf(VodCategory("all", "Tout", 0)) + categories
                 val previousSelectedId = _state.value.selectedCategory?.categoryId
                 val newSelected = finalCategories.find { it.categoryId == previousSelectedId } ?: finalCategories.firstOrNull()
@@ -197,31 +202,63 @@ class VodViewModel @Inject constructor(
                         isLoadingCategories = false
                     )
                 }
-                newSelected?.let {
-                    loadStreams(it.categoryId, forceRefresh)
-                }
-            } catch (e: Exception) {
-                if (e is kotlinx.coroutines.CancellationException) throw e
-                _state.update { it.copy(isLoadingCategories = false, error = e.message ?: "Impossible de charger les catégories VOD.") }
+                newSelected?.let { observeStreams(it.categoryId) }
+            }
+        }
+    }
+
+    private fun observeCatalogStatus() {
+        viewModelScope.launch {
+            observeCatalogStatusUseCase().collect { status ->
+                _state.update { it.copy(catalogStatus = status) }
             }
         }
     }
 
     fun selectCategory(category: VodCategory) {
         _state.update { it.copy(selectedCategory = category, streams = emptyList()) }
-        loadStreams(category.categoryId)
+        observeStreams(category.categoryId)
     }
 
-    fun loadStreams(categoryId: String, forceRefresh: Boolean = false) {
-        viewModelScope.launch {
-            _state.update { it.copy(isLoadingStreams = _state.value.streams.isEmpty(), error = null) }
-            try {
-                val streams = getVodStreamsUseCase(categoryId, forceRefresh)
+    private fun observeStreams(categoryId: String) {
+        if (observedCategoryId == categoryId && streamsJob?.isActive == true) return
+        observedCategoryId = categoryId
+        streamsJob?.cancel()
+        streamsJob = viewModelScope.launch {
+            // Chargement affiché uniquement tant que Room n'a rien émis : une
+            // synchronisation en cours n'a plus le droit de bloquer l'écran.
+            _state.update { it.copy(isLoadingStreams = it.streams.isEmpty(), error = null) }
+            getVodStreamsUseCase(categoryId).collect { streams ->
                 _state.update { it.copy(streams = streams, isLoadingStreams = false) }
                 refreshCategoryCounts()
-            } catch (e: Exception) {
-                if (e is kotlinx.coroutines.CancellationException) throw e
-                _state.update { it.copy(isLoadingStreams = false, error = e.message ?: "Impossible de charger les films.") }
+            }
+        }
+    }
+
+    /**
+     * Actualisation explicite. Le catalogue local reste servi pendant la
+     * synchronisation ; seul l'indicateur de la bannière en rend compte.
+     */
+    fun refresh() {
+        viewModelScope.launch {
+            catalogSyncManager.syncNow(com.cstv.app.domain.sync.SyncTrigger.MANUAL)
+        }
+    }
+
+    /**
+     * Point de passage unique avant toute lecture d'un film : hors ligne, un
+     * flux non téléchargé n'est pas lancé du tout, plutôt que de laisser
+     * ExoPlayer échouer avec une erreur brute.
+     */
+    fun requestPlayback(streamId: Int, onAllowed: () -> Unit) {
+        viewModelScope.launch {
+            val contentId = com.cstv.app.domain.model.DownloadedItem.movieContentId(streamId)
+            when (canPlayContentUseCase(contentId)) {
+                com.cstv.app.domain.usecase.PlaybackAvailability.Allowed -> onAllowed()
+                com.cstv.app.domain.usecase.PlaybackAvailability.RequiresConnection ->
+                    _state.update { it.copy(error = com.cstv.app.presentation.OFFLINE_PLAYBACK_MESSAGE) }
+                com.cstv.app.domain.usecase.PlaybackAvailability.RequiresReauthentication ->
+                    _state.update { it.copy(error = com.cstv.app.presentation.REAUTHENTICATION_MESSAGE) }
             }
         }
     }

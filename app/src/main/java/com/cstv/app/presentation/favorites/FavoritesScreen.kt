@@ -47,6 +47,14 @@ fun FavoritesScreen(
     // Phase 41 : state.favorites vient d'un Flow Room observé en continu
     // (FavoritesViewModel.init), plus besoin de reload manuel à l'entrée écran.
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val playbackSnackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(state.playbackError) {
+        state.playbackError?.let { message ->
+            playbackSnackbarHostState.showSnackbar(message)
+            viewModel.consumePlaybackError()
+        }
+    }
 
     val liveFavorites = remember(state.favorites) { state.favorites.filter { it.type == "live" } }
     val movieFavorites = remember(state.favorites) { state.favorites.filter { it.type == "movie" } }
@@ -129,6 +137,10 @@ fun FavoritesScreen(
                 }
             }
         }
+        SnackbarHost(
+            hostState = playbackSnackbarHostState,
+            modifier = Modifier.align(Alignment.BottomCenter)
+        )
     }
 }
 

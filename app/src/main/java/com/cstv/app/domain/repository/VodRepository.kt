@@ -7,9 +7,19 @@ import com.cstv.app.domain.model.VodStream
 import kotlinx.coroutines.flow.Flow
 
 interface VodRepository {
-    suspend fun getVodCategories(forceRefresh: Boolean): List<VodCategory>
-    suspend fun getVodStreams(categoryId: String, forceRefresh: Boolean): List<VodStream>
+
+    // --- Lecture : strictement locale, jamais de réseau, jamais d'exception réseau ---
+    fun observeVodCategories(): Flow<List<VodCategory>>
+    fun observeVodStreams(categoryId: String): Flow<List<VodStream>>
     fun getVodStreamsPaged(categoryId: String): Flow<androidx.paging.PagingData<VodStream>>
+
+    /** Lecture ponctuelle du cache local (aucun appel réseau). */
+    suspend fun getCachedVodCategories(): List<VodCategory>
+    suspend fun getCachedVodStreams(categoryId: String): List<VodStream>
+
+    // --- Écriture : réseau → Room, jamais consommée directement par l'UI ---
+    suspend fun syncVodCategories(): List<VodCategory>
+    suspend fun syncVodStreams(categoryId: String = "all"): List<VodStream>
     suspend fun getVodDetails(streamId: Int): VodDetails
     suspend fun savePlaybackPosition(
         streamId: Int,

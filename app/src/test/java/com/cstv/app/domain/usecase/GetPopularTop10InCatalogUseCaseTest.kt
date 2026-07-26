@@ -1,6 +1,5 @@
 package com.cstv.app.domain.usecase
 
-import com.cstv.app.data.local.storage.SettingsManager
 import com.cstv.app.domain.model.SeriesStream
 import com.cstv.app.domain.model.TrendingTitle
 import com.cstv.app.domain.model.VodStream
@@ -42,15 +41,15 @@ class GetPopularTop10InCatalogUseCaseTest {
             override suspend fun saveMatchedMovies(items: List<com.cstv.app.domain.model.PopularCatalogItem>) = Unit
             override suspend fun saveMatchedSeries(items: List<com.cstv.app.domain.model.PopularCatalogItem>) = Unit
         }
-        val settings = mock<SettingsManager>()
-        whenever(settings.getVodAllStreamsSyncedAt()).thenReturn(0L)
-        whenever(settings.getSeriesAllStreamsSyncedAt()).thenReturn(0L)
+        val catalogFreshness = mock<com.cstv.app.data.sync.CatalogFreshness>()
+        whenever(catalogFreshness.vodSyncedAt()).thenReturn(0L)
+        whenever(catalogFreshness.seriesSyncedAt()).thenReturn(0L)
         val useCase = GetPopularTop10InCatalogUseCase(
             popularRepository,
             mock<VodRepository>(),
             mock<SeriesRepository>(),
             mock<CategoryPreferenceRepository>(),
-            settings
+            catalogFreshness
         )
 
         val result = async { useCase() }
@@ -65,9 +64,9 @@ class GetPopularTop10InCatalogUseCaseTest {
         val vodRepository = mock<VodRepository>()
         val seriesRepository = mock<SeriesRepository>()
         val preferences = mock<CategoryPreferenceRepository>()
-        val settings = mock<SettingsManager>()
-        whenever(settings.getVodAllStreamsSyncedAt()).thenReturn(0L)
-        whenever(settings.getSeriesAllStreamsSyncedAt()).thenReturn(0L)
+        val catalogFreshness = mock<com.cstv.app.data.sync.CatalogFreshness>()
+        whenever(catalogFreshness.vodSyncedAt()).thenReturn(0L)
+        whenever(catalogFreshness.seriesSyncedAt()).thenReturn(0L)
         whenever(popularRepository.getCachedMatchedMovies(0L)).thenReturn(null)
         whenever(popularRepository.getCachedMatchedSeries(0L)).thenReturn(null)
         whenever(popularRepository.getPopularMovies()).thenReturn(emptyList())
@@ -79,13 +78,13 @@ class GetPopularTop10InCatalogUseCaseTest {
         )
         val second = SeriesStream(2, "Second", null, null, null, "visible", releaseYear = 2024)
         val first = SeriesStream(1, "First", null, null, null, "visible", releaseYear = 2024)
-        whenever(seriesRepository.getSeriesStreams(eq("all"), eq(false))).thenReturn(listOf(second, first))
+        whenever(seriesRepository.getCachedSeriesStreams(eq("all"))).thenReturn(listOf(second, first))
         whenever(seriesRepository.getStreamById(2)).thenReturn(second)
         whenever(seriesRepository.getStreamById(1)).thenReturn(first)
         whenever(preferences.getPreferences(any())).thenReturn(emptyMap())
 
         val result = GetPopularTop10InCatalogUseCase(
-            popularRepository, vodRepository, seriesRepository, preferences, settings
+            popularRepository, vodRepository, seriesRepository, preferences, catalogFreshness
         )()
 
         assertNull(result.movies)
@@ -99,9 +98,9 @@ class GetPopularTop10InCatalogUseCaseTest {
         val vodRepository = mock<VodRepository>()
         val seriesRepository = mock<SeriesRepository>()
         val preferences = mock<CategoryPreferenceRepository>()
-        val settings = mock<SettingsManager>()
-        whenever(settings.getVodAllStreamsSyncedAt()).thenReturn(0L)
-        whenever(settings.getSeriesAllStreamsSyncedAt()).thenReturn(0L)
+        val catalogFreshness = mock<com.cstv.app.data.sync.CatalogFreshness>()
+        whenever(catalogFreshness.vodSyncedAt()).thenReturn(0L)
+        whenever(catalogFreshness.seriesSyncedAt()).thenReturn(0L)
         whenever(popularRepository.getCachedMatchedMovies(0L)).thenReturn(
             listOf(com.cstv.app.domain.model.PopularCatalogItem(listOf(404)))
         )
@@ -110,7 +109,7 @@ class GetPopularTop10InCatalogUseCaseTest {
         whenever(preferences.getPreferences(any())).thenReturn(emptyMap())
 
         val result = GetPopularTop10InCatalogUseCase(
-            popularRepository, vodRepository, seriesRepository, preferences, settings
+            popularRepository, vodRepository, seriesRepository, preferences, catalogFreshness
         )()
 
         assertNull(result.movies)

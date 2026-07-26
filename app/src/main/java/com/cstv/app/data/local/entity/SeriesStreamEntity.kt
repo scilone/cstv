@@ -16,5 +16,8 @@ data class SeriesStreamEntity(
     val director: String? = null,
     val genre: String? = null,
     val orderIndex: Int = 0,
-    val releaseYear: Int? = null
+    val releaseYear: Int? = null,
+    /** Métadonnées de get_series_info conservées pour la fiche hors ligne. */
+    val plot: String? = null,
+    val detailsCachedAt: Long? = null
 )

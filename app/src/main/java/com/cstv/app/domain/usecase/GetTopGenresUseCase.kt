@@ -13,12 +13,12 @@ class GetTopGenresUseCase @Inject constructor(
 ) {
     suspend operator fun invoke(): List<String> = withContext(Dispatchers.Default) {
         val vodStreams = try {
-            vodRepository.getVodStreams("all", forceRefresh = false)
+            vodRepository.getCachedVodStreams("all")
         } catch (e: Exception) {
             emptyList()
         }
         val seriesStreams = try {
-            seriesRepository.getSeriesStreams("all", forceRefresh = false)
+            seriesRepository.getCachedSeriesStreams("all")
         } catch (e: Exception) {
             emptyList()
         }

@@ -48,16 +48,20 @@ class LiveTvViewModelTest {
     private val categoryPreferences: CategoryPreferenceRepository = mock()
     private val settingsManager: SettingsManager = mock()
     private val liveTvRepository: LiveTvRepository = mock()
+    private val observeCatalogStatusUseCase: com.cstv.app.domain.usecase.ObserveCatalogStatusUseCase = mock()
+    private val catalogSyncManager: com.cstv.app.domain.sync.CatalogSyncManager = mock()
+    private val canPlayContentUseCase: com.cstv.app.domain.usecase.CanPlayContentUseCase = mock()
 
     @Before
     fun setUp() = runTest(dispatcher) {
         MockitoAnnotations.openMocks(this@LiveTvViewModelTest)
         Dispatchers.setMain(dispatcher)
-        whenever(getCategories(any())).thenReturn(listOf(LiveCategory("all", "Tout", 0)))
-        whenever(getStreams(any(), any())).thenReturn(emptyList())
+        whenever(getCategories()).thenReturn(flowOf(listOf(LiveCategory("all", "Tout", 0))))
+        whenever(getStreams(any())).thenReturn(flowOf(emptyList()))
         whenever(getCategoryCounts()).thenReturn(emptyMap())
         whenever(observeRecentlyWatched()).thenReturn(flowOf(emptyList()))
         whenever(categoryPreferences.changes).thenReturn(flowOf(Unit))
+        whenever(observeCatalogStatusUseCase()).thenReturn(flowOf(com.cstv.app.domain.sync.CatalogStatus()))
     }
 
     @After
@@ -93,6 +97,7 @@ class LiveTvViewModelTest {
     private fun createViewModel() = LiveTvViewModel(
         getCategories, getCategoryCounts, getStreams, observeRecentlyWatched,
         removeRecentlyWatched, saveRecentlyWatched, getEpg, getEpgNowNext,
-        credentialsManager, categoryPreferences, settingsManager, liveTvRepository
+        credentialsManager, categoryPreferences, settingsManager, liveTvRepository,
+        observeCatalogStatusUseCase, catalogSyncManager, canPlayContentUseCase
     )
 }

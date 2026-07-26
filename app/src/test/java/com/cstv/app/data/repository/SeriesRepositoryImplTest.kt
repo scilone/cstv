@@ -43,6 +43,9 @@ class SeriesRepositoryImplTest {
     @Mock
     private lateinit var settingsManager: SettingsManager
 
+    @Mock
+    private lateinit var networkMonitor: com.cstv.app.domain.network.NetworkMonitor
+
     private lateinit var repository: SeriesRepositoryImpl
 
     private val credentials = Credentials("test.com", 80, "username", "password", true)
@@ -53,8 +56,8 @@ class SeriesRepositoryImplTest {
         MockitoAnnotations.openMocks(this)
         whenever(credentialsManager.getCredentials()).thenReturn(credentials)
         doReturn(activeProfileId).whenever(profileManager).currentProfileId()
-        doReturn(0L).whenever(settingsManager).getSeriesAllStreamsSyncedAt()
-        repository = SeriesRepositoryImpl(apiService, seriesDao, vodDao, credentialsManager, profileManager, com.cstv.app.data.remote.api.XtreamRequestGate(), settingsManager)
+        whenever(networkMonitor.isCurrentlyOnline()).thenReturn(true)
+        repository = SeriesRepositoryImpl(apiService, seriesDao, vodDao, credentialsManager, profileManager, com.cstv.app.data.remote.api.XtreamRequestGate(), networkMonitor)
     }
 
     // --- 1. PLAY URL CONSTRUCTION TESTS ---
@@ -90,7 +93,7 @@ class SeriesRepositoryImplTest {
 
         whenever(seriesDao.getAllCategories()).thenReturn(cachedCategories)
 
-        val result = repository.getSeriesCategories(forceRefresh = false)
+        val result = repository.getCachedSeriesCategories()
 
         assertEquals(1, result.size)
         assertEquals("10", result[0].categoryId)
@@ -115,14 +118,13 @@ class SeriesRepositoryImplTest {
         )
         whenever(apiService.getSeriesCategories("username", "password")).thenReturn(remoteCategories)
 
-        val result = repository.getSeriesCategories(forceRefresh = true)
+        val result = repository.syncSeriesCategories()
 
         assertEquals(2, result.size)
         assertEquals("Drames Updated", result[0].categoryName)
         assertEquals("Comédies", result[1].categoryName)
 
-        verify(seriesDao).clearCategories()
-        verify(seriesDao).insertCategories(any())
+        verify(seriesDao).replaceAllCategories(any())
     }
 
     // --- 3. DIRTY PARSING / MAPPING TESTS ---
@@ -137,7 +139,7 @@ class SeriesRepositoryImplTest {
         )
         whenever(apiService.getSeriesStreams("username", "password", "10")).thenReturn(remoteStreamsWithDirtyData)
 
-        val result = repository.getSeriesStreams("10", forceRefresh = false)
+        val result = repository.syncSeriesStreams("10")
 
         // Dirty items should be silently and defensively ignored (only 1 valid series remains)
         assertEquals(1, result.size)
@@ -156,10 +158,10 @@ class SeriesRepositoryImplTest {
         )
         whenever(apiService.getSeriesStreams("username", "password", "5")).thenReturn(remoteStreams)
 
-        repository.getSeriesStreams("5", forceRefresh = true)
+        repository.syncSeriesStreams("5")
 
         val entitiesCaptor = argumentCaptor<List<SeriesStreamEntity>>()
-        verify(seriesDao).insertStreamsWithFts(entitiesCaptor.capture())
+        verify(seriesDao).replaceStreamsByCategoryWithFts(eq("5"), entitiesCaptor.capture())
 
         val inserted = entitiesCaptor.firstValue
         assertEquals(3, inserted.size)
@@ -276,7 +278,7 @@ class SeriesRepositoryImplTest {
     @Test
     fun test_backgroundEnrichment_triggersAndSavesDetails() = runTest {
         val testDispatcher = kotlinx.coroutines.test.UnconfinedTestDispatcher(testScheduler)
-        val localRepository = SeriesRepositoryImpl(apiService, seriesDao, vodDao, credentialsManager, profileManager, com.cstv.app.data.remote.api.XtreamRequestGate(), settingsManager, testDispatcher)
+        val localRepository = SeriesRepositoryImpl(apiService, seriesDao, vodDao, credentialsManager, profileManager, com.cstv.app.data.remote.api.XtreamRequestGate(), networkMonitor, testDispatcher)
 
         val remoteStreams = listOf(
             SeriesStreamDto(12, "Game of Thrones", "cover.png", "9.0", "added", "5")
@@ -307,7 +309,7 @@ class SeriesRepositoryImplTest {
         whenever(apiService.getSeriesInfo("username", "password", 12)).thenReturn(infoResponse)
         whenever(seriesDao.getStreamById(12)).thenReturn(unenrichedEntity)
 
-        localRepository.getSeriesStreams("5", forceRefresh = true)
+        localRepository.syncSeriesStreams("5")
 
         verify(seriesDao).insertStreamsWithFts(argThat {
             size == 1 && get(0).seriesId == 12 && get(0).actors == "Kit Harington, Emilia Clarke" && get(0).director == "David Benioff" && get(0).genre == "Fantasy"
@@ -317,13 +319,13 @@ class SeriesRepositoryImplTest {
     @Test
     fun test_backgroundEnrichment_requestsBoundedBatch() = runTest {
         val testDispatcher = kotlinx.coroutines.test.UnconfinedTestDispatcher(testScheduler)
-        val localRepository = SeriesRepositoryImpl(apiService, seriesDao, vodDao, credentialsManager, profileManager, com.cstv.app.data.remote.api.XtreamRequestGate(), settingsManager, testDispatcher)
+        val localRepository = SeriesRepositoryImpl(apiService, seriesDao, vodDao, credentialsManager, profileManager, com.cstv.app.data.remote.api.XtreamRequestGate(), networkMonitor, testDispatcher)
 
         whenever(apiService.getSeriesStreams("username", "password", "5")).thenReturn(emptyList())
         whenever(seriesDao.getStreamsByCategory("5")).thenReturn(emptyList())
         whenever(seriesDao.getStreamsNeedingEnrichment(any())).thenReturn(emptyList())
 
-        localRepository.getSeriesStreams("5", forceRefresh = true)
+        localRepository.syncSeriesStreams("5")
 
         // Le balayage d'enrichissement doit demander un lot borné (LIMIT SQL),
         // jamais l'intégralité du catalogue non enrichi d'un coup.
@@ -423,5 +425,139 @@ class SeriesRepositoryImplTest {
 
         assertEquals(1, result.size)
         assertEquals(20, result[0].seriesId)
+    }
+
+    // --- T4 : lecture locale, saisons/épisodes persistés et fiche dégradée ---
+
+    /** Les lectures de catalogue ne doivent jamais toucher au panel. */
+    @Test
+    fun test_localReadsNeverHitTheNetwork() = runTest {
+        whenever(seriesDao.getAllCategories()).thenReturn(
+            listOf(SeriesCategoryEntity("1", "Drame", 0, 0L, 0))
+        )
+        whenever(seriesDao.getAllStreams()).thenReturn(
+            listOf(SeriesStreamEntity(1, "Série", null, null, null, "1", 0L))
+        )
+
+        assertEquals(1, repository.getCachedSeriesCategories().size)
+        assertEquals(1, repository.getCachedSeriesStreams("all").size)
+
+        verifyNoInteractions(apiService)
+    }
+
+    /**
+     * Une série jamais ouverte en ligne n'a ni saison ni épisode en base : la
+     * fiche reste affichable, mais explicitement marquée incomplète.
+     */
+    @Test
+    fun test_getSeriesDetails_returnsDegradedCardWhenNeverEnriched() = runTest {
+        whenever(networkMonitor.isCurrentlyOnline()).thenReturn(false)
+        whenever(seriesDao.getStreamById(12)).thenReturn(
+            SeriesStreamEntity(12, "Série", "cover.jpg", "9.0", null, "1", 0L, detailsCachedAt = 1L)
+        )
+        whenever(seriesDao.getSeasons(12)).thenReturn(emptyList())
+        whenever(seriesDao.getEpisodes(12)).thenReturn(emptyList())
+        whenever(vodDao.getAllPlaybackPositions(any())).thenReturn(emptyList())
+
+        val details = repository.getSeriesDetails(12)
+
+        assertEquals("Série", details.name)
+        assertTrue(details.isMetadataIncomplete)
+        verifyNoInteractions(apiService)
+    }
+
+    /**
+     * Une fiche déjà consultée en ligne est relue depuis Room, saisons et
+     * épisodes compris : c'est ce qui la rend complète hors ligne.
+     */
+    @Test
+    fun test_getSeriesDetails_readsPersistedSeasonsAndEpisodesOffline() = runTest {
+        whenever(networkMonitor.isCurrentlyOnline()).thenReturn(false)
+        whenever(seriesDao.getStreamById(12)).thenReturn(
+            SeriesStreamEntity(12, "Série", "cover.jpg", "9.0", null, "1", 0L, plot = "Résumé", detailsCachedAt = 1L)
+        )
+        whenever(seriesDao.getSeasons(12)).thenReturn(
+            listOf(com.cstv.app.data.local.entity.SeriesSeasonEntity(12, 1, "Saison 1", 2, null, 0L))
+        )
+        whenever(seriesDao.getEpisodes(12)).thenReturn(
+            listOf(
+                com.cstv.app.data.local.entity.SeriesEpisodeEntity(101, 12, 1, 1, "E1", "mkv", cachedAt = 0L),
+                com.cstv.app.data.local.entity.SeriesEpisodeEntity(102, 12, 1, 2, "E2", "mkv", cachedAt = 0L)
+            )
+        )
+        whenever(vodDao.getAllPlaybackPositions(any())).thenReturn(emptyList())
+
+        val details = repository.getSeriesDetails(12)
+
+        assertEquals("Résumé", details.plot)
+        assertEquals(1, details.seasons.size)
+        assertEquals(2, details.episodes[1]?.size)
+        // containerExtension réel, pas deviné : une reprise hors ligne sur un
+        // .mkv échouerait avec un repli "mp4".
+        assertEquals("mkv", details.episodes[1]?.first()?.containerExtension)
+        assertFalse(details.isMetadataIncomplete)
+        verifyNoInteractions(apiService)
+    }
+
+    /** Toute ouverture réussie en ligne persiste le détail pour plus tard. */
+    @Test
+    fun test_getSeriesDetails_persistsSeasonsAndEpisodesOnSuccess() = runTest {
+        whenever(seriesDao.getStreamById(12)).thenReturn(
+            SeriesStreamEntity(12, "Série", null, "9.0", null, "1", 0L)
+        )
+        whenever(vodDao.getAllPlaybackPositions(any())).thenReturn(emptyList())
+        whenever(apiService.getSeriesInfo("username", "password", 12)).thenReturn(
+            SeriesInfoResponseDto(
+                seasons = listOf(SeriesSeasonDto(null, "Saison 1", 1, 1, null)),
+                episodes = mapOf(
+                    "1" to listOf(
+                        SeriesEpisodeDto("101", "1", "E1", "mkv", null, null)
+                    )
+                ),
+                info = SeriesInfoMetadataDto(
+                    name = "Série", cover = null, plot = "Résumé", cast = null, actors = null,
+                    director = "Réalisateur", releaseDate = "2020-01-01", releaseDate2 = null,
+                    genre = "Drame", rating = "9.0", rating5 = null
+                )
+            )
+        )
+
+        repository.getSeriesDetails(12)
+
+        val episodesCaptor = argumentCaptor<List<com.cstv.app.data.local.entity.SeriesEpisodeEntity>>()
+        verify(seriesDao).replaceSeriesDetail(eq(12), any(), episodesCaptor.capture())
+        assertEquals(1, episodesCaptor.firstValue.size)
+        assertEquals("mkv", episodesCaptor.firstValue.first().containerExtension)
+    }
+
+    /** Panel en échec : repli sur ce qui est déjà en base, pas d'exception. */
+    @Test
+    fun test_getSeriesDetails_fallsBackToCacheWhenPanelFails() = runTest {
+        whenever(seriesDao.getStreamById(12)).thenReturn(
+            SeriesStreamEntity(12, "Série", null, "9.0", null, "1", 0L)
+        )
+        whenever(seriesDao.getSeasons(12)).thenReturn(emptyList())
+        whenever(seriesDao.getEpisodes(12)).thenReturn(emptyList())
+        whenever(vodDao.getAllPlaybackPositions(any())).thenReturn(emptyList())
+        whenever(apiService.getSeriesInfo("username", "password", 12))
+            .thenAnswer { throw java.io.IOException("panel injoignable") }
+
+        val details = repository.getSeriesDetails(12)
+
+        assertEquals("Série", details.name)
+        assertTrue(details.isMetadataIncomplete)
+    }
+
+    /** Critère §5.4 : un échec de synchronisation n'efface pas le catalogue. */
+    @Test
+    fun test_failedSyncNeverClearsTheCatalog() = runTest {
+        whenever(apiService.getSeriesStreams(any(), any(), eq("5"), any()))
+            .thenAnswer { throw java.io.IOException("panel injoignable") }
+
+        runCatching { repository.syncSeriesStreams("5") }
+
+        verify(seriesDao, never()).clearAllStreams()
+        verify(seriesDao, never()).clearStreamsByCategory(any())
+        verify(seriesDao, never()).clearAllFts()
     }
 }

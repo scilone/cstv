@@ -40,6 +40,9 @@ class VodRepositoryImplTest {
     @Mock
     private lateinit var settingsManager: SettingsManager
 
+    @Mock
+    private lateinit var networkMonitor: com.cstv.app.domain.network.NetworkMonitor
+
     private lateinit var repository: VodRepositoryImpl
 
     private val credentials = Credentials("test.com", 80, "username", "password", true)
@@ -50,8 +53,8 @@ class VodRepositoryImplTest {
         MockitoAnnotations.openMocks(this)
         whenever(credentialsManager.getCredentials()).thenReturn(credentials)
         doReturn(activeProfileId).whenever(profileManager).currentProfileId()
-        doReturn(0L).whenever(settingsManager).getVodAllStreamsSyncedAt()
-        repository = VodRepositoryImpl(apiService, vodDao, credentialsManager, profileManager, com.cstv.app.data.remote.api.XtreamRequestGate(), settingsManager)
+        whenever(networkMonitor.isCurrentlyOnline()).thenReturn(true)
+        repository = VodRepositoryImpl(apiService, vodDao, credentialsManager, profileManager, com.cstv.app.data.remote.api.XtreamRequestGate(), networkMonitor)
     }
 
     // --- 1. PLAY URL CONSTRUCTION TESTS ---
@@ -85,7 +88,7 @@ class VodRepositoryImplTest {
 
         whenever(vodDao.getAllCategories()).thenReturn(cachedCategories)
 
-        val result = repository.getVodCategories(forceRefresh = false)
+        val result = repository.getCachedVodCategories()
 
         assertEquals(1, result.size)
         assertEquals("1", result[0].categoryId)
@@ -110,14 +113,15 @@ class VodRepositoryImplTest {
         )
         whenever(apiService.getVodCategories("username", "password")).thenReturn(remoteCategories)
 
-        val result = repository.getVodCategories(forceRefresh = true)
+        val result = repository.syncVodCategories()
 
         assertEquals(2, result.size)
         assertEquals("Action Updated", result[0].categoryName)
         assertEquals("Sci-Fi", result[1].categoryName)
 
-        verify(vodDao).clearCategories()
-        verify(vodDao).insertCategories(any())
+        val categoriesCaptor = argumentCaptor<List<VodCategoryEntity>>()
+        verify(vodDao).replaceAllCategories(categoriesCaptor.capture())
+        assertEquals(2, categoriesCaptor.firstValue.size)
     }
 
     // --- 3. DIRTY PARSING / MAPPING TESTS ---
@@ -132,7 +136,7 @@ class VodRepositoryImplTest {
         )
         whenever(apiService.getVodStreams("username", "password", "5")).thenReturn(remoteStreamsWithDirtyData)
 
-        val result = repository.getVodStreams("5", forceRefresh = false)
+        val result = repository.syncVodStreams("5")
 
         // Slices out dirty inputs defensively (only 1 valid film remains)
         assertEquals(1, result.size)
@@ -151,10 +155,10 @@ class VodRepositoryImplTest {
         )
         whenever(apiService.getVodStreams("username", "password", "5")).thenReturn(remoteStreams)
 
-        repository.getVodStreams("5", forceRefresh = true)
+        repository.syncVodStreams("5")
 
         val entitiesCaptor = argumentCaptor<List<VodStreamEntity>>()
-        verify(vodDao).insertStreamsWithFts(entitiesCaptor.capture())
+        verify(vodDao).replaceStreamsByCategoryWithFts(eq("5"), entitiesCaptor.capture())
 
         val inserted = entitiesCaptor.firstValue
         assertEquals(3, inserted.size)
@@ -361,7 +365,7 @@ class VodRepositoryImplTest {
     @Test
     fun test_backgroundEnrichment_triggersAndSavesDetails() = runTest {
         val testDispatcher = kotlinx.coroutines.test.UnconfinedTestDispatcher(testScheduler)
-        val localRepository = VodRepositoryImpl(apiService, vodDao, credentialsManager, profileManager, com.cstv.app.data.remote.api.XtreamRequestGate(), settingsManager, testDispatcher)
+        val localRepository = VodRepositoryImpl(apiService, vodDao, credentialsManager, profileManager, com.cstv.app.data.remote.api.XtreamRequestGate(), networkMonitor, testDispatcher)
 
         val remoteStreams = listOf(
             VodStreamDto(12, "Star Wars", "icon.png", "8.0", "added", "5")
@@ -392,7 +396,7 @@ class VodRepositoryImplTest {
         whenever(apiService.getVodInfo("username", "password", 12)).thenReturn(infoResponse)
         whenever(vodDao.getStreamById(12)).thenReturn(unenrichedEntity)
 
-        localRepository.getVodStreams("5", forceRefresh = true)
+        localRepository.syncVodStreams("5")
 
         verify(vodDao).insertStreamsWithFts(argThat {
             size == 1 && get(0).streamId == 12 && get(0).actors == "Mark Hamill, Harrison Ford" && get(0).director == "George Lucas" && get(0).genre == "Sci-Fi"
@@ -402,13 +406,13 @@ class VodRepositoryImplTest {
     @Test
     fun test_backgroundEnrichment_requestsBoundedBatch() = runTest {
         val testDispatcher = kotlinx.coroutines.test.UnconfinedTestDispatcher(testScheduler)
-        val localRepository = VodRepositoryImpl(apiService, vodDao, credentialsManager, profileManager, com.cstv.app.data.remote.api.XtreamRequestGate(), settingsManager, testDispatcher)
+        val localRepository = VodRepositoryImpl(apiService, vodDao, credentialsManager, profileManager, com.cstv.app.data.remote.api.XtreamRequestGate(), networkMonitor, testDispatcher)
 
         whenever(apiService.getVodStreams("username", "password", "5")).thenReturn(emptyList())
         whenever(vodDao.getStreamsByCategory("5")).thenReturn(emptyList())
         whenever(vodDao.getStreamsNeedingEnrichment(any())).thenReturn(emptyList())
 
-        localRepository.getVodStreams("5", forceRefresh = true)
+        localRepository.syncVodStreams("5")
 
         // Le balayage d'enrichissement doit demander un lot borné (LIMIT SQL),
         // jamais l'intégralité du catalogue non enrichi d'un coup.
@@ -535,5 +539,126 @@ class VodRepositoryImplTest {
 
         assertEquals(1, result.size)
         assertEquals(2, result[0].streamId)
+    }
+
+    // --- T4 : lecture locale, repli et persistance du détail ---
+
+    /** Les lectures de catalogue ne doivent jamais toucher au panel. */
+    @Test
+    fun test_localReadsNeverHitTheNetwork() = runTest {
+        whenever(vodDao.getAllCategories()).thenReturn(
+            listOf(VodCategoryEntity("1", "Action", 0, 0L, 0))
+        )
+        whenever(vodDao.getAllStreams()).thenReturn(
+            listOf(VodStreamEntity(1, "Film", null, null, null, "1", 0L))
+        )
+
+        assertEquals(1, repository.getCachedVodCategories().size)
+        assertEquals(1, repository.getCachedVodStreams("all").size)
+
+        verifyNoInteractions(apiService)
+    }
+
+    /**
+     * Une fiche enrichie et fraîche est servie depuis Room : c'est ce qui évite
+     * de multiplier les get_vod_info, principal contributeur au bannissement.
+     */
+    @Test
+    fun test_getVodDetails_servesFreshCacheWithoutCallingPanel() = runTest {
+        whenever(vodDao.getStreamById(7)).thenReturn(
+            VodStreamEntity(
+                streamId = 7, name = "Film", streamIcon = null, rating = "8.0", added = null,
+                categoryId = "1", cachedAt = 0L, plot = "Résumé", duration = "1h 47min",
+                containerExtension = "mkv", detailsCachedAt = System.currentTimeMillis()
+            )
+        )
+
+        val details = repository.getVodDetails(7)
+
+        assertEquals("Résumé", details.plot)
+        assertEquals("mkv", details.containerExtension)
+        assertFalse(details.isMetadataIncomplete)
+        verifyNoInteractions(apiService)
+    }
+
+    /** Hors ligne, la fiche est servie quel que soit son âge. */
+    @Test
+    fun test_getVodDetails_servesStaleCacheWhenOffline() = runTest {
+        whenever(networkMonitor.isCurrentlyOnline()).thenReturn(false)
+        whenever(vodDao.getStreamById(7)).thenReturn(
+            VodStreamEntity(
+                streamId = 7, name = "Film", streamIcon = null, rating = null, added = null,
+                categoryId = "1", cachedAt = 0L, plot = "Vieux résumé",
+                containerExtension = "mkv", detailsCachedAt = 1L
+            )
+        )
+
+        val details = repository.getVodDetails(7)
+
+        assertEquals("Vieux résumé", details.plot)
+        verifyNoInteractions(apiService)
+    }
+
+    /**
+     * Panel en échec : la fiche est reconstruite depuis le catalogue local et
+     * signalée comme incomplète plutôt que de rester inaccessible.
+     */
+    @Test
+    fun test_getVodDetails_fallsBackToCacheWhenPanelFails() = runTest {
+        whenever(vodDao.getStreamById(7)).thenReturn(
+            VodStreamEntity(7, "Film", null, "8.0", null, "1", 0L)
+        )
+        whenever(apiService.getVodInfo(any(), any(), eq(7), any()))
+            .thenAnswer { throw java.io.IOException("panel injoignable") }
+
+        val details = repository.getVodDetails(7)
+
+        assertEquals("Film", details.name)
+        assertTrue(details.isMetadataIncomplete)
+    }
+
+    /** plot / duration / containerExtension doivent survivre à la fermeture de la fiche. */
+    @Test
+    fun test_getVodDetails_persistsPlotDurationAndContainerExtension() = runTest {
+        whenever(vodDao.getStreamById(7)).thenReturn(
+            VodStreamEntity(7, "Film", null, "8.0", null, "1", 0L)
+        )
+        whenever(apiService.getVodInfo(any(), any(), eq(7), any())).thenReturn(
+            VodInfoResponseDto(
+                info = VodInfoDto(
+                    name = "Film", plot = "Un résumé", director = "Réalisateur",
+                    actors = JsonPrimitive("Acteur"), cast = null, releaseDate = "2020-01-01",
+                    genre = "Action", rating = "8.0", rating5 = null, coverBig = null,
+                    movieImage = null, duration = JsonPrimitive(6420)
+                ),
+                movieData = VodMovieDataDto(streamId = 7, containerExtension = "mkv")
+            )
+        )
+
+        repository.getVodDetails(7)
+
+        val captor = argumentCaptor<List<VodStreamEntity>>()
+        verify(vodDao).insertStreamsWithFts(captor.capture())
+        val persisted = captor.firstValue.first()
+        assertEquals("Un résumé", persisted.plot)
+        assertEquals("mkv", persisted.containerExtension)
+        assertNotNull(persisted.detailsCachedAt)
+    }
+
+    /**
+     * Critère §5.4 : un échec ne doit effacer aucun catalogue déjà synchronisé.
+     * Le garde de remplacement vit dans le DAO ; on vérifie ici que le
+     * repository n'émet pas d'ordre d'effacement séparé.
+     */
+    @Test
+    fun test_failedSyncNeverClearsTheCatalog() = runTest {
+        whenever(apiService.getVodStreams(any(), any(), eq("5"), any()))
+            .thenAnswer { throw java.io.IOException("panel injoignable") }
+
+        runCatching { repository.syncVodStreams("5") }
+
+        verify(vodDao, never()).clearAllStreams()
+        verify(vodDao, never()).clearStreamsByCategory(any())
+        verify(vodDao, never()).clearAllFts()
     }
 }

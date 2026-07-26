@@ -42,12 +42,17 @@ class SettingsManager @Inject constructor(context: Context) {
         private const val KEY_RESIZE_MODE = "player_resize_mode"
     }
 
-    // --- Horodatage du dernier fetch complet ("Tout") par type de média ---
-    // Persisté (au lieu d'une simple variable en mémoire) pour que la
-    // fraîcheur du cache "Tout" survive à un redémarrage du process : sans
-    // ça, tuer puis relancer l'app faisait recroire à un cache jamais
-    // rempli et déclenchait un refetch réseau complet inutile, alors que
-    // les données en base étaient encore parfaitement valides.
+    // --- Horodatages hérités d'avant T4 (obsolètes) ---
+    // La fraîcheur du catalogue vit désormais dans la table Room
+    // `catalog_sync_state` : elle est écrite dans la même transaction que les
+    // données qu'elle décrit, purgée avec elles et liée au compte — trois
+    // propriétés qu'une préférence en clair ne donne pas.
+    //
+    // Ces trois clés ne sont plus écrites par les repositories. Elles ne
+    // subsistent que pour deux usages ponctuels : la reprise unique effectuée
+    // par CatalogSyncStateInitializer sur une installation mise à jour, et leur
+    // neutralisation lors d'une purge de catalogue. À supprimer une fois le
+    // parc migré.
     fun getLiveAllStreamsSyncedAt(): Long = sharedPreferences.getLong(KEY_LIVE_ALL_SYNCED_AT, 0L)
     fun setLiveAllStreamsSyncedAt(timestamp: Long) {
         sharedPreferences.edit().putLong(KEY_LIVE_ALL_SYNCED_AT, timestamp).apply()

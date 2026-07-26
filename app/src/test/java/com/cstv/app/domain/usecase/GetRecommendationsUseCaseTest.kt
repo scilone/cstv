@@ -47,7 +47,7 @@ class GetRecommendationsUseCaseTest {
         assertTrue(result.movies.isEmpty())
         assertTrue(result.series.isEmpty())
         // Should not even try to fetch the massive catalog
-        verify(vodRepository, times(0)).getVodStreams(any(), any())
+        verify(vodRepository, times(0)).getCachedVodStreams(any())
     }
 
     @Test
@@ -66,8 +66,8 @@ class GetRecommendationsUseCaseTest {
             PlaybackPosition(streamId = 12, positionMs = 1000L, durationMs = 5000L, lastAccessedAt = 0L, type = "movie")
         )
         whenever(vodRepository.getAllPlaybackPositions()).thenReturn(history)
-        whenever(vodRepository.getVodStreams("all", false)).thenReturn(emptyList())
-        whenever(seriesRepository.getSeriesStreams("all", false)).thenReturn(emptyList())
+        whenever(vodRepository.getCachedVodStreams("all")).thenReturn(emptyList())
+        whenever(seriesRepository.getCachedSeriesStreams("all")).thenReturn(emptyList())
         whenever(categoryPreferenceRepository.getPreferences(any())).thenReturn(emptyMap())
 
         val useCase = GetRecommendationsUseCase(vodRepository, seriesRepository, categoryPreferenceRepository, profileManager, mediaRatingRepository)
@@ -80,16 +80,16 @@ class GetRecommendationsUseCaseTest {
         useCase(currentTimeMs = 2000L)
         
         // Repo should only be called once so far
-        verify(vodRepository, times(1)).getVodStreams("all", false)
+        verify(vodRepository, times(1)).getCachedVodStreams("all")
 
         // 3rd call for Profile 1 but 25 hours later -> cache expired
         useCase(currentTimeMs = 1000L + (25L * 3600 * 1000L))
-        verify(vodRepository, times(2)).getVodStreams("all", false)
+        verify(vodRepository, times(2)).getCachedVodStreams("all")
 
         // 4th call immediately, but for Profile 2 -> cache invalidate due to profile switch
         whenever(profileManager.currentProfileId()).thenReturn(2)
         useCase(currentTimeMs = 1000L + (25L * 3600 * 1000L) + 10L)
-        verify(vodRepository, times(3)).getVodStreams("all", false)
+        verify(vodRepository, times(3)).getCachedVodStreams("all")
     }
 
     @Test
@@ -114,8 +114,8 @@ class GetRecommendationsUseCaseTest {
         val movieCatOk = VodStream(10, "Ok Movie", "icon", "5", "0", "cat_ok")
         val movieCatHidden = VodStream(11, "Hidden Movie", "icon", "5", "0", "cat_hidden")
 
-        whenever(vodRepository.getVodStreams("all", false)).thenReturn(listOf(movieCatOk, movieCatHidden))
-        whenever(seriesRepository.getSeriesStreams("all", false)).thenReturn(emptyList())
+        whenever(vodRepository.getCachedVodStreams("all")).thenReturn(listOf(movieCatOk, movieCatHidden))
+        whenever(seriesRepository.getCachedSeriesStreams("all")).thenReturn(emptyList())
         
         // "cat_hidden" is marked as hidden
         whenever(categoryPreferenceRepository.getPreferences(CategoryType.VOD)).thenReturn(

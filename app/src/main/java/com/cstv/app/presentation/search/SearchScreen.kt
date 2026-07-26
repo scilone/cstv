@@ -60,6 +60,14 @@ fun SearchScreen(
     modifier: Modifier = Modifier
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val playbackSnackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(state.playbackError) {
+        state.playbackError?.let { message ->
+            playbackSnackbarHostState.showSnackbar(message)
+            viewModel.consumePlaybackError()
+        }
+    }
 
     // Vue "Voir tout" : on ne montre qu'un type de média en grille verticale.
     var expandedType by remember { mutableStateOf<SearchExpandedType?>(null) }
@@ -305,6 +313,10 @@ fun SearchScreen(
                 onDismiss = { viewModel.setFilterSheetOpen(false) }
             )
         }
+        SnackbarHost(
+            hostState = playbackSnackbarHostState,
+            modifier = Modifier.align(Alignment.BottomCenter)
+        )
     }
 }
 

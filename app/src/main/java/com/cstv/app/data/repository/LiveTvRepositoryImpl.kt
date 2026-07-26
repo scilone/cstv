@@ -5,6 +5,7 @@ import androidx.paging.PagingConfig
 import androidx.paging.PagingData
 import androidx.paging.map
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import com.google.gson.JsonElement
 import com.cstv.app.data.local.dao.LiveTvDao
@@ -12,14 +13,15 @@ import com.cstv.app.data.local.entity.LiveCategoryEntity
 import com.cstv.app.data.local.entity.LiveStreamEntity
 import com.cstv.app.data.local.entity.EpgCacheEntity
 import com.cstv.app.data.local.storage.CredentialsManager
-import com.cstv.app.data.local.storage.SettingsManager
 import com.cstv.app.data.remote.api.XtreamApiService
 import com.cstv.app.data.remote.api.XtreamRequestGate
+import com.cstv.app.data.sync.CacheTtl
 import com.cstv.app.domain.model.InvalidCredentialsException
 import com.cstv.app.domain.model.LiveCategory
 import com.cstv.app.domain.model.LiveEpgProgram
 import com.cstv.app.domain.model.LiveEpgNowNext
 import com.cstv.app.domain.model.LiveStream
+import com.cstv.app.domain.network.NetworkMonitor
 import com.cstv.app.domain.repository.LiveTvRepository
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -31,33 +33,43 @@ class LiveTvRepositoryImpl @Inject constructor(
     private val credentialsManager: CredentialsManager,
     private val profileManager: com.cstv.app.data.local.storage.ProfileManager,
     private val requestGate: XtreamRequestGate,
-    private val settingsManager: SettingsManager
+    private val networkMonitor: NetworkMonitor
 ) : LiveTvRepository {
 
-    companion object {
-        // Cache expiry: 24 hours
-        private const val CACHE_EXPIRY_MILLIS = 24 * 60 * 60 * 1000L
-    }
+    private fun LiveCategoryEntity.toDomain() = LiveCategory(categoryId, categoryName, parentId)
 
-    override suspend fun getLiveCategories(forceRefresh: Boolean): List<LiveCategory> {
+    private fun LiveStreamEntity.toDomain() =
+        LiveStream(streamId, name, streamIcon, epgChannelId, num, categoryId)
+
+    // --- Lecture locale ---
+
+    override fun observeLiveCategories(): Flow<List<LiveCategory>> =
+        liveTvDao.observeAllCategories()
+            .distinctUntilChanged()
+            .map { categories -> categories.map { it.toDomain() } }
+
+    override fun observeLiveStreams(categoryId: String): Flow<List<LiveStream>> =
+        (if (categoryId == ALL_CATEGORIES) liveTvDao.observeAllStreams() else liveTvDao.observeStreamsByCategory(categoryId))
+            .distinctUntilChanged()
+            .map { streams -> streams.map { it.toDomain() } }
+
+    override suspend fun getCachedLiveCategories(): List<LiveCategory> =
+        liveTvDao.getAllCategories().map { it.toDomain() }
+
+    override suspend fun getCachedLiveStreams(categoryId: String): List<LiveStream> =
+        (if (categoryId == ALL_CATEGORIES) liveTvDao.getAllStreams() else liveTvDao.getStreamsByCategory(categoryId))
+            .map { it.toDomain() }
+
+    // --- Écriture (synchronisation) ---
+
+    override suspend fun syncLiveCategories(): List<LiveCategory> {
         val currentTime = System.currentTimeMillis()
-        
-        if (!forceRefresh) {
-            val localCategories = liveTvDao.getAllCategories()
-            if (localCategories.isNotEmpty()) {
-                return localCategories.map { 
-                    LiveCategory(it.categoryId, it.categoryName, it.parentId)
-                }
-            }
-        }
-
-        // Fetch from Network
-        val creds = credentialsManager.getCredentials() 
+        val creds = credentialsManager.getCredentials()
             ?: throw InvalidCredentialsException("Utilisateur non connecté ou session expirée.")
 
         val remoteCategories = requestGate.acquire { apiService.getLiveCategories(creds.username, creds.password) }
-        
-        // Defensive Mapping & Storage
+
+        // Mapping défensif : un panel peut renvoyer un id ou un nom absent.
         val entities = remoteCategories.mapIndexedNotNull { index, dto ->
             val id = dto.categoryId
             val name = dto.categoryName
@@ -72,52 +84,26 @@ class LiveTvRepositoryImpl @Inject constructor(
             } else null
         }
 
-        if (entities.isNotEmpty()) {
-            liveTvDao.clearCategories()
-            liveTvDao.insertCategories(entities)
-        }
-
-        return entities.map { 
-            LiveCategory(it.categoryId, it.categoryName, it.parentId)
-        }
+        liveTvDao.replaceAllCategories(entities)
+        return entities.map { it.toDomain() }
     }
 
-    override suspend fun getLiveStreams(categoryId: String, forceRefresh: Boolean): List<LiveStream> {
+    override suspend fun syncLiveStreams(categoryId: String): List<LiveStream> {
         val currentTime = System.currentTimeMillis()
-        val apiCategoryId = if (categoryId == "all") null else categoryId
+        val apiCategoryId = if (categoryId == ALL_CATEGORIES) null else categoryId
 
-        if (!forceRefresh) {
-            if (categoryId == "all") {
-                val localStreams = liveTvDao.getAllStreams()
-                if (localStreams.isNotEmpty()) {
-                    return localStreams.map {
-                        LiveStream(it.streamId, it.name, it.streamIcon, it.epgChannelId, it.num, it.categoryId)
-                    }
-                }
-            } else {
-                val localStreams = liveTvDao.getStreamsByCategory(categoryId)
-                if (localStreams.isNotEmpty()) {
-                    return localStreams.map {
-                        LiveStream(it.streamId, it.name, it.streamIcon, it.epgChannelId, it.num, it.categoryId)
-                    }
-                }
-            }
-        }
-
-        // Fetch from Network
-        val creds = credentialsManager.getCredentials() 
+        val creds = credentialsManager.getCredentials()
             ?: throw InvalidCredentialsException("Utilisateur non connecté ou session expirée.")
 
         val remoteStreams = requestGate.acquire { apiService.getLiveStreams(creds.username, creds.password, apiCategoryId) }
 
-        // Defensive Mapping & Storage
         val entities = remoteStreams.mapNotNull { dto ->
             val id = dto.streamId
             val name = dto.name
             // In "all" mode there's no known category to fall back to; a stream without
             // a category_id would otherwise be tagged with the literal "all" and become
             // invisible in every section, so skip it instead.
-            val itemCategoryId = dto.categoryId ?: categoryId.takeIf { it != "all" }
+            val itemCategoryId = dto.categoryId ?: categoryId.takeIf { it != ALL_CATEGORIES }
             if (id != null && name != null && itemCategoryId != null) {
                 LiveStreamEntity(
                     streamId = id,
@@ -131,26 +117,17 @@ class LiveTvRepositoryImpl @Inject constructor(
             } else null
         }
 
-        // Insert into cache
-        if (categoryId == "all") {
-            liveTvDao.clearAllStreams()
-            liveTvDao.clearAllFts()
+        // Remplacement atomique : effacement et repeuplement (FTS comprise) dans
+        // la même transaction. Une annulation entre les deux laissait auparavant
+        // le catalogue vide.
+        if (categoryId == ALL_CATEGORIES) {
+            liveTvDao.replaceAllStreamsWithFts(entities)
         } else {
-            liveTvDao.clearStreamsByCategory(categoryId)
-            liveTvDao.clearFtsByCategory(categoryId)
+            liveTvDao.replaceStreamsByCategoryWithFts(categoryId, entities)
         }
 
-        if (entities.isNotEmpty()) {
-            liveTvDao.insertStreamsWithFts(entities)
-        }
 
-        if (categoryId == "all") {
-            settingsManager.setLiveAllStreamsSyncedAt(currentTime)
-        }
-
-        return entities.map { 
-            LiveStream(it.streamId, it.name, it.streamIcon, it.epgChannelId, it.num, it.categoryId)
-        }
+        return entities.map { it.toDomain() }
     }
 
     override fun getLiveStreamsPaged(categoryId: String): Flow<PagingData<LiveStream>> {
@@ -161,23 +138,14 @@ class LiveTvRepositoryImpl @Inject constructor(
                 initialLoadSize = 100
             ),
             pagingSourceFactory = {
-                if (categoryId == "all") {
+                if (categoryId == ALL_CATEGORIES) {
                     liveTvDao.getAllStreamsPaged()
                 } else {
                     liveTvDao.getStreamsByCategoryPaged(categoryId)
                 }
             }
         ).flow.map { pagingData ->
-            pagingData.map { entity ->
-                LiveStream(
-                    streamId = entity.streamId,
-                    name = entity.name,
-                    streamIcon = entity.streamIcon,
-                    epgChannelId = entity.epgChannelId,
-                    num = entity.num,
-                    categoryId = entity.categoryId
-                )
-            }
+            pagingData.map { entity -> entity.toDomain() }
         }
     }
 
@@ -200,7 +168,7 @@ class LiveTvRepositoryImpl @Inject constructor(
 
     override suspend fun getRecentlyWatched(): List<LiveStream> {
         val entities = liveTvDao.getRecentlyWatched(profileManager.currentProfileId(), limit = 10)
-        return entities.map { 
+        return entities.map {
             LiveStream(
                 streamId = it.streamId,
                 name = it.name,
@@ -212,106 +180,121 @@ class LiveTvRepositoryImpl @Inject constructor(
         }
     }
 
+    // --- EPG ---
+
+    override suspend fun getEpgCachedAt(streamId: Int): Long? = liveTvDao.getEpgCachedAt(streamId)
+
+    override suspend fun purgeExpiredEpg() {
+        liveTvDao.purgeExpiredEpg((System.currentTimeMillis() - CacheTtl.EPG_RETENTION_MILLIS) / 1000L)
+    }
+
     override suspend fun getLiveEpg(streamId: Int, forceRefresh: Boolean): LiveEpgProgram? {
         val currentTime = System.currentTimeMillis()
-        val cacheExpiry = 5 * 60 * 1000L // 5 minutes
+        val nowSec = currentTime / 1000L
 
-        if (!forceRefresh) {
-            val cached = liveTvDao.getEpgCache(streamId)
-            if (cached != null && currentTime - cached.cachedAt < cacheExpiry) {
-                val nowSec = currentTime / 1000L
-                if (nowSec < cached.endTimestamp) {
-                    return LiveEpgProgram(
-                        title = cached.title,
-                        description = cached.description,
-                        startTimestamp = cached.startTimestamp,
-                        endTimestamp = cached.endTimestamp
-                    )
-                }
-            }
+        val cachedNow = liveTvDao.getEpgNow(streamId, nowSec)
+        if (!forceRefresh && cachedNow != null && isEpgUsable(cachedNow.cachedAt, currentTime)) {
+            return cachedNow.toDomain()
         }
 
-        val creds = credentialsManager.getCredentials() ?: return null
+        val creds = credentialsManager.getCredentials() ?: return cachedNow?.toDomain()
 
         return try {
-            val response = requestGate.acquire { apiService.getShortEpg(creds.username, creds.password, streamId) }
-            val listings = response.epgListings
-            if (!listings.isNullOrEmpty()) {
-                val nowSec = System.currentTimeMillis() / 1000L
-                
-                val activeListing = listings.find { dto ->
-                    val start = parseJsonTimestamp(dto.startTimestamp)
-                    val end = parseJsonTimestamp(dto.endTimestamp)
-                    nowSec in start..end
-                } ?: listings.firstOrNull()
-
-                if (activeListing != null) {
-                    val decodedTitle = decodeBase64OrReturnRaw(activeListing.title)
-                    val decodedDesc = decodeBase64OrReturnRaw(activeListing.description)
-                    val startSec = parseJsonTimestamp(activeListing.startTimestamp)
-                    val endSec = parseJsonTimestamp(activeListing.endTimestamp)
-
-                    val program = LiveEpgProgram(
-                        title = if (decodedTitle.isBlank()) "Aucun titre" else decodedTitle,
-                        description = decodedDesc,
-                        startTimestamp = startSec,
-                        endTimestamp = endSec
-                    )
-
-                    liveTvDao.insertEpgCache(
-                        EpgCacheEntity(
-                            streamId = streamId,
-                            title = program.title,
-                            description = program.description,
-                            startTimestamp = program.startTimestamp,
-                            endTimestamp = program.endTimestamp,
-                            cachedAt = currentTime
-                        )
-                    )
-
-                    program
-                } else null
-            } else null
+            val programs = fetchEpgWindow(creds.username, creds.password, streamId, currentTime)
+            if (programs.isEmpty()) {
+                cachedNow?.toDomain()
+            } else {
+                programs.firstOrNull { nowSec in it.startTimestamp..it.endTimestamp }?.toDomain()
+                    ?: programs.first().toDomain()
+            }
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
-            null
+            // Repli explicite : hors ligne ou panel en erreur, l'EPG local reste
+            // consultable quel que soit son âge.
+            cachedNow?.toDomain()
         }
     }
 
     override suspend fun getLiveEpgNowNext(streamId: Int, forceRefresh: Boolean): LiveEpgNowNext {
-        val creds = credentialsManager.getCredentials() ?: return LiveEpgNowNext(null, null)
+        val currentTime = System.currentTimeMillis()
+        val nowSec = currentTime / 1000L
+
+        val cachedWindow = liveTvDao.getEpgWindow(streamId)
+        val cachedResult = cachedWindow.toNowNext(nowSec)
+        val cachedAt = cachedWindow.maxOfOrNull { it.cachedAt } ?: 0L
+        if (!forceRefresh && cachedResult.current != null && isEpgUsable(cachedAt, currentTime)) {
+            return cachedResult
+        }
+
+        val creds = credentialsManager.getCredentials() ?: return cachedResult
+
         return try {
-            val response = requestGate.acquire { apiService.getShortEpg(creds.username, creds.password, streamId) }
-            val listings = response.epgListings ?: return LiveEpgNowNext(null, null)
-            if (listings.isEmpty()) return LiveEpgNowNext(null, null)
-
-            val nowSec = System.currentTimeMillis() / 1000L
-
-            // Programmes triés par heure de début, pour identifier « en cours »
-            // (now ∈ [start, end]) puis le premier qui commence après lui.
-            val programs = listings
-                .map { dto ->
-                    LiveEpgProgram(
-                        title = decodeBase64OrReturnRaw(dto.title).ifBlank { "Aucun titre" },
-                        description = decodeBase64OrReturnRaw(dto.description),
-                        startTimestamp = parseJsonTimestamp(dto.startTimestamp),
-                        endTimestamp = parseJsonTimestamp(dto.endTimestamp)
-                    )
-                }
-                .sortedBy { it.startTimestamp }
-
-            val current = programs.find { nowSec in it.startTimestamp..it.endTimestamp }
-            val next = when {
-                current != null -> programs.firstOrNull { it.startTimestamp > current.endTimestamp - 1 && it != current }
-                    ?: programs.firstOrNull { it.startTimestamp >= nowSec }
-                else -> programs.firstOrNull { it.startTimestamp >= nowSec }
-            }
-
-            LiveEpgNowNext(current = current, next = next)
+            val programs = fetchEpgWindow(creds.username, creds.password, streamId, currentTime)
+            if (programs.isEmpty()) cachedResult else programs.toNowNext(nowSec)
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
-            LiveEpgNowNext(null, null)
+            cachedResult
         }
+    }
+
+    /**
+     * Un EPG en cache est réutilisable s'il est frais, ou dès lors que
+     * l'appareil est hors ligne : mieux vaut un programme daté qu'aucun.
+     */
+    private fun isEpgUsable(cachedAt: Long, now: Long): Boolean =
+        !networkMonitor.isCurrentlyOnline() || !CacheTtl.isExpired(cachedAt, CacheTtl.EPG_MILLIS, now)
+
+    /**
+     * Récupère et persiste la fenêtre complète de `get_short_epg`. L'ancien
+     * cache ne retenait qu'un programme par chaîne, ce qui interdisait tout
+     * « en cours + suivant » hors ligne.
+     */
+    private suspend fun fetchEpgWindow(
+        username: String,
+        password: String,
+        streamId: Int,
+        currentTime: Long
+    ): List<EpgCacheEntity> {
+        val response = requestGate.acquire { apiService.getShortEpg(username, password, streamId) }
+        val listings = response.epgListings ?: return emptyList()
+
+        val entities = listings.mapNotNull { dto ->
+            val start = parseJsonTimestamp(dto.startTimestamp)
+            val end = parseJsonTimestamp(dto.endTimestamp)
+            // Sans borne de début exploitable, la ligne ne peut ni être clé
+            // primaire ni servir à situer un programme dans le temps.
+            if (start <= 0L) return@mapNotNull null
+            EpgCacheEntity(
+                streamId = streamId,
+                startTimestamp = start,
+                endTimestamp = end,
+                title = decodeBase64OrReturnRaw(dto.title).ifBlank { "Aucun titre" },
+                description = decodeBase64OrReturnRaw(dto.description),
+                cachedAt = currentTime
+            )
+        }.sortedBy { it.startTimestamp }
+
+        liveTvDao.replaceEpgForStream(streamId, entities)
+        return entities
+    }
+
+    private fun EpgCacheEntity.toDomain() = LiveEpgProgram(
+        title = title,
+        description = description,
+        startTimestamp = startTimestamp,
+        endTimestamp = endTimestamp
+    )
+
+    private fun List<EpgCacheEntity>.toNowNext(nowSec: Long): LiveEpgNowNext {
+        if (isEmpty()) return LiveEpgNowNext(null, null)
+        val sorted = sortedBy { it.startTimestamp }
+        val current = sorted.find { nowSec in it.startTimestamp..it.endTimestamp }
+        val next = if (current != null) {
+            sorted.firstOrNull { it.startTimestamp > current.startTimestamp }
+        } else {
+            sorted.firstOrNull { it.startTimestamp >= nowSec }
+        }
+        return LiveEpgNowNext(current = current?.toDomain(), next = next?.toDomain())
     }
 
     private fun parseJsonTimestamp(element: JsonElement?): Long {
@@ -351,5 +334,9 @@ class LiveTvRepositoryImpl @Inject constructor(
         } catch (e: Exception) {
             trimmed
         }
+    }
+
+    companion object {
+        const val ALL_CATEGORIES = "all"
     }
 }

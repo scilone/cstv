@@ -6,7 +6,10 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
 import com.cstv.app.data.local.entity.SeriesCategoryEntity
+import com.cstv.app.data.local.entity.SeriesEpisodeEntity
+import com.cstv.app.data.local.entity.SeriesSeasonEntity
 import com.cstv.app.data.local.entity.SeriesStreamEntity
+import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface SeriesDao {
@@ -14,6 +17,9 @@ interface SeriesDao {
     // --- Categories ---
     @Query("SELECT * FROM series_categories ORDER BY orderIndex ASC")
     suspend fun getAllCategories(): List<SeriesCategoryEntity>
+
+    @Query("SELECT * FROM series_categories ORDER BY orderIndex ASC")
+    fun observeAllCategories(): Flow<List<SeriesCategoryEntity>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertCategories(categories: List<SeriesCategoryEntity>)
@@ -26,6 +32,9 @@ interface SeriesDao {
     suspend fun getAllStreams(): List<SeriesStreamEntity>
 
     @Query("SELECT * FROM series_streams ORDER BY orderIndex ASC")
+    fun observeAllStreams(): Flow<List<SeriesStreamEntity>>
+
+    @Query("SELECT * FROM series_streams ORDER BY orderIndex ASC")
     fun getAllStreamsPaged(): androidx.paging.PagingSource<Int, SeriesStreamEntity>
 
     // Compteurs du sélecteur de catégorie (basés sur le cache local).
@@ -34,6 +43,9 @@ interface SeriesDao {
 
     @Query("SELECT * FROM series_streams WHERE categoryId = :categoryId ORDER BY orderIndex ASC")
     suspend fun getStreamsByCategory(categoryId: String): List<SeriesStreamEntity>
+
+    @Query("SELECT * FROM series_streams WHERE categoryId = :categoryId ORDER BY orderIndex ASC")
+    fun observeStreamsByCategory(categoryId: String): Flow<List<SeriesStreamEntity>>
 
     @Query("SELECT * FROM series_streams WHERE categoryId = :categoryId ORDER BY orderIndex ASC")
     fun getStreamsByCategoryPaged(categoryId: String): androidx.paging.PagingSource<Int, SeriesStreamEntity>
@@ -66,8 +78,81 @@ interface SeriesDao {
         streams.forEach { upsertSeriesFts(it.seriesId, it.name, it.actors, it.director, it.genre, it.categoryId) }
     }
 
+    /**
+     * Une réponse vide ne remplace jamais un catalogue connu : une erreur de
+     * panel ne doit pas transformer le cache local en catalogue vide.
+     */
+    @Transaction
+    suspend fun replaceAllCategories(categories: List<SeriesCategoryEntity>) {
+        if (categories.isEmpty()) return
+        clearCategories()
+        insertCategories(categories)
+    }
+
+    @Transaction
+    suspend fun replaceAllStreamsWithFts(streams: List<SeriesStreamEntity>) {
+        if (streams.isEmpty()) return
+        clearAllStreams()
+        clearAllFts()
+        streams.chunked(VodDao.INSERT_CHUNK_SIZE).forEach { insertStreamsWithFts(it) }
+    }
+
+    @Transaction
+    suspend fun replaceStreamsByCategoryWithFts(categoryId: String, streams: List<SeriesStreamEntity>) {
+        if (streams.isEmpty()) return
+        clearStreamsByCategory(categoryId)
+        clearFtsByCategory(categoryId)
+        streams.chunked(VodDao.INSERT_CHUNK_SIZE).forEach { insertStreamsWithFts(it) }
+    }
+
     @Query("SELECT * FROM series_streams WHERE seriesId = :seriesId LIMIT 1")
     suspend fun getStreamById(seriesId: Int): SeriesStreamEntity?
+
+    // --- Saisons et épisodes (T4 : fiche série hors ligne) ---
+    // Peuplés à la consultation d'une fiche en ligne, jamais par balayage.
+    @Query("SELECT * FROM series_seasons WHERE seriesId = :seriesId ORDER BY seasonNumber ASC")
+    suspend fun getSeasons(seriesId: Int): List<SeriesSeasonEntity>
+
+    @Query("SELECT * FROM series_episodes WHERE seriesId = :seriesId ORDER BY seasonNum ASC, orderIndex ASC")
+    suspend fun getEpisodes(seriesId: Int): List<SeriesEpisodeEntity>
+
+    @Query("SELECT * FROM series_episodes WHERE episodeId = :episodeId LIMIT 1")
+    suspend fun getEpisodeById(episodeId: Int): SeriesEpisodeEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertSeasons(seasons: List<SeriesSeasonEntity>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertEpisodes(episodes: List<SeriesEpisodeEntity>)
+
+    @Query("DELETE FROM series_seasons WHERE seriesId = :seriesId")
+    suspend fun clearSeasons(seriesId: Int)
+
+    @Query("DELETE FROM series_episodes WHERE seriesId = :seriesId")
+    suspend fun clearEpisodes(seriesId: Int)
+
+    @Query("DELETE FROM series_seasons")
+    suspend fun clearAllSeasons()
+
+    @Query("DELETE FROM series_episodes")
+    suspend fun clearAllEpisodes()
+
+    /**
+     * Remplace le détail d'une seule série. Une liste d'épisodes vide n'efface
+     * rien : `get_series_info` peut répondre sans épisodes sur un panel fautif.
+     */
+    @Transaction
+    suspend fun replaceSeriesDetail(
+        seriesId: Int,
+        seasons: List<SeriesSeasonEntity>,
+        episodes: List<SeriesEpisodeEntity>
+    ) {
+        if (episodes.isEmpty()) return
+        clearSeasons(seriesId)
+        clearEpisodes(seriesId)
+        insertSeasons(seasons)
+        episodes.chunked(VodDao.INSERT_CHUNK_SIZE).forEach { insertEpisodes(it) }
+    }
 
     @Query("SELECT * FROM series_streams WHERE actors IS NULL OR director IS NULL OR genre IS NULL OR releaseYear IS NULL LIMIT :limit")
     suspend fun getStreamsNeedingEnrichment(limit: Int): List<SeriesStreamEntity>

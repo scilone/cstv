@@ -72,6 +72,10 @@ L'application est entièrement optimisée pour deux types d'appareils :
 * **Consulter ses vidéos hors-ligne** : Rendez-vous dans la section **Téléchargements** de l'application. Vous y retrouverez tous vos fichiers téléchargés localement.
 * **Lecture sans connexion** : Les vidéos de cette section peuvent être lues à tout moment, même si votre appareil n'est absolument pas connecté à internet.
 
+## Catalogue sans connexion
+
+Après avoir ouvert l'application en ligne et laissé le catalogue se synchroniser, vous pouvez continuer à parcourir les chaînes, films, séries, favoris, recherches et fiches déjà consultées sans connexion. Une bannière indique que les données sont locales et la date de leur dernière synchronisation. Les téléchargements restent lisibles ; pour une chaîne Live ou une vidéo non téléchargée, l'application affiche qu'une connexion est nécessaire.
+
 ---
 
 ## 7. Recherche Avancée
@@ -172,5 +176,4 @@ Si aucun trailer n'est configuré par votre fournisseur IPTV ou trouvé sur TMDB
 
 ### 📺 Version Android TV
 Afin de préserver la navigation par focus au bouton (D-pad) caractéristique des téléviseurs, l'autoplay des trailers est **désactivé** sur Android TV. Le carrousel y reste statique et fidèle à l'expérience d'origine.
-
 

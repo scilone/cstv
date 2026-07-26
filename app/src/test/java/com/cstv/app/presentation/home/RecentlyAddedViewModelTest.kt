@@ -55,7 +55,7 @@ class RecentlyAddedViewModelTest {
             VodStream(streamId = 2, name = "Movie B", streamIcon = null, rating = null, added = "300", categoryId = "cat2"),
             VodStream(streamId = 3, name = "Movie C", streamIcon = null, rating = null, added = "100", categoryId = "cat3")
         )
-        whenever(vodRepository.getVodStreams("all", false)).thenReturn(movies)
+        whenever(vodRepository.getCachedVodStreams("all")).thenReturn(movies)
         whenever(categoryPreferenceRepository.getPreferences(CategoryType.VOD)).thenReturn(emptyMap())
 
         viewModel.loadRecentlyAdded(false)
@@ -76,7 +76,7 @@ class RecentlyAddedViewModelTest {
             SeriesStream(seriesId = 1, name = "Series A", cover = null, rating = null, added = "1000", categoryId = "cat1"),
             SeriesStream(seriesId = 2, name = "Series B", cover = null, rating = null, added = "1500", categoryId = "cat2")
         )
-        whenever(seriesRepository.getSeriesStreams("all", false)).thenReturn(series)
+        whenever(seriesRepository.getCachedSeriesStreams("all")).thenReturn(series)
         whenever(categoryPreferenceRepository.getPreferences(CategoryType.SERIES)).thenReturn(emptyMap())
 
         viewModel.loadRecentlyAdded(true)
@@ -96,7 +96,7 @@ class RecentlyAddedViewModelTest {
             VodStream(streamId = 1, name = "Movie A", streamIcon = null, rating = null, added = "300", categoryId = "cat1"),
             VodStream(streamId = 2, name = "Movie B", streamIcon = null, rating = null, added = "200", categoryId = "cat2")
         )
-        whenever(vodRepository.getVodStreams("all", false)).thenReturn(movies)
+        whenever(vodRepository.getCachedVodStreams("all")).thenReturn(movies)
         whenever(categoryPreferenceRepository.getPreferences(CategoryType.VOD))
             .thenReturn(mapOf("cat1" to CategoryPreference("cat1", hidden = true, sortOrder = null)))
 
@@ -114,7 +114,7 @@ class RecentlyAddedViewModelTest {
             SeriesStream(seriesId = 1, name = "Series A", cover = null, rating = null, added = "1000", categoryId = "cat1"),
             SeriesStream(seriesId = 2, name = "Series B", cover = null, rating = null, added = "500", categoryId = "cat2")
         )
-        whenever(seriesRepository.getSeriesStreams("all", false)).thenReturn(series)
+        whenever(seriesRepository.getCachedSeriesStreams("all")).thenReturn(series)
         whenever(categoryPreferenceRepository.getPreferences(CategoryType.SERIES))
             .thenReturn(mapOf("cat2" to CategoryPreference("cat2", hidden = true, sortOrder = null)))
 
@@ -131,7 +131,7 @@ class RecentlyAddedViewModelTest {
         val movies = (1..150).map {
             VodStream(streamId = it, name = "Movie $it", streamIcon = null, rating = null, added = it.toString(), categoryId = "cat1")
         }
-        whenever(vodRepository.getVodStreams("all", false)).thenReturn(movies)
+        whenever(vodRepository.getCachedVodStreams("all")).thenReturn(movies)
         whenever(categoryPreferenceRepository.getPreferences(CategoryType.VOD)).thenReturn(emptyMap())
 
         viewModel.loadRecentlyAdded(false)
@@ -144,7 +144,7 @@ class RecentlyAddedViewModelTest {
 
     @Test
     fun test_loadRecentlyAdded_repositoryThrows_setsErrorState() = runTest {
-        whenever(vodRepository.getVodStreams("all", false)).thenThrow(RuntimeException("Panel injoignable"))
+        whenever(vodRepository.getCachedVodStreams("all")).thenThrow(RuntimeException("Panel injoignable"))
 
         viewModel.loadRecentlyAdded(false)
         testScheduler.advanceUntilIdle()
@@ -160,7 +160,7 @@ class RecentlyAddedViewModelTest {
         val movies = listOf(
             VodStream(streamId = 1, name = "Movie A", streamIcon = null, rating = null, added = "100", categoryId = "cat1")
         )
-        whenever(vodRepository.getVodStreams("all", false)).thenReturn(movies)
+        whenever(vodRepository.getCachedVodStreams("all")).thenReturn(movies)
         whenever(categoryPreferenceRepository.getPreferences(CategoryType.VOD)).thenThrow(RuntimeException("DB error"))
 
         viewModel.loadRecentlyAdded(false)

@@ -24,6 +24,9 @@ import org.mockito.kotlin.*
 @OptIn(ExperimentalCoroutinesApi::class)
 class SeriesViewModelTest {
 
+    @Mock private lateinit var canPlayContentUseCase: com.cstv.app.domain.usecase.CanPlayContentUseCase
+    @Mock private lateinit var observeCatalogStatusUseCase: com.cstv.app.domain.usecase.ObserveCatalogStatusUseCase
+    @Mock private lateinit var catalogSyncManager: com.cstv.app.domain.sync.CatalogSyncManager
     @Mock private lateinit var getSeriesCategoriesUseCase: GetSeriesCategoriesUseCase
     @Mock private lateinit var getSeriesCategoryCountsUseCase: GetSeriesCategoryCountsUseCase
     @Mock private lateinit var getSeriesStreamsUseCase: GetSeriesStreamsUseCase
@@ -48,11 +51,12 @@ class SeriesViewModelTest {
         MockitoAnnotations.openMocks(this@SeriesViewModelTest)
         Dispatchers.setMain(testDispatcher)
 
-        whenever(getSeriesCategoriesUseCase(any())).thenReturn(listOf(SeriesCategory("all", "Tout", 0)))
-        whenever(getSeriesStreamsUseCase(any(), any())).thenReturn(emptyList())
+        whenever(getSeriesCategoriesUseCase()).thenReturn(flowOf(listOf(SeriesCategory("all", "Tout", 0))))
+        whenever(getSeriesStreamsUseCase(any())).thenReturn(flowOf(emptyList()))
         whenever(categoryPreferenceRepository.changes).thenReturn(flowOf(Unit))
+        whenever(observeCatalogStatusUseCase()).thenReturn(flowOf(com.cstv.app.domain.sync.CatalogStatus()))
         whenever(categoryPreferenceRepository.getPreferences(any())).thenReturn(emptyMap())
-        whenever(seriesRepository.getSeriesStreams(any(), any())).thenReturn(emptyList())
+        whenever(seriesRepository.getCachedSeriesStreams(any())).thenReturn(emptyList())
     }
 
     @After
@@ -84,7 +88,10 @@ class SeriesViewModelTest {
             seriesRepository,
             removeFromContinueWatchingUseCase,
             mediaRatingRepository,
-            setMediaRatingUseCase
+            setMediaRatingUseCase,
+            observeCatalogStatusUseCase,
+            catalogSyncManager,
+            canPlayContentUseCase
         )
         runCurrent()
 
@@ -103,7 +110,8 @@ class SeriesViewModelTest {
         viewModel = SeriesViewModel(getSeriesCategoriesUseCase, getSeriesCategoryCountsUseCase, getSeriesStreamsUseCase,
             getSeriesDetailsUseCase, getRelatedSeriesUseCase, savePlaybackPositionUseCase, credentialsManager,
             settingsManager, trackPreferenceRepository, categoryPreferenceRepository, vodRepository, seriesRepository,
-            removeFromContinueWatchingUseCase, mediaRatingRepository, setMediaRatingUseCase)
+            removeFromContinueWatchingUseCase, mediaRatingRepository, setMediaRatingUseCase,
+            observeCatalogStatusUseCase, catalogSyncManager, canPlayContentUseCase)
         runCurrent()
 
         viewModel.selectStreamId(42)
@@ -123,7 +131,8 @@ class SeriesViewModelTest {
         viewModel = SeriesViewModel(getSeriesCategoriesUseCase, getSeriesCategoryCountsUseCase, getSeriesStreamsUseCase,
             getSeriesDetailsUseCase, getRelatedSeriesUseCase, savePlaybackPositionUseCase, credentialsManager,
             settingsManager, trackPreferenceRepository, categoryPreferenceRepository, vodRepository, seriesRepository,
-            removeFromContinueWatchingUseCase, mediaRatingRepository, setMediaRatingUseCase)
+            removeFromContinueWatchingUseCase, mediaRatingRepository, setMediaRatingUseCase,
+            observeCatalogStatusUseCase, catalogSyncManager, canPlayContentUseCase)
         runCurrent()
 
         viewModel.selectStreamId(42)
@@ -144,7 +153,8 @@ class SeriesViewModelTest {
         viewModel = SeriesViewModel(getSeriesCategoriesUseCase, getSeriesCategoryCountsUseCase, getSeriesStreamsUseCase,
             getSeriesDetailsUseCase, getRelatedSeriesUseCase, savePlaybackPositionUseCase, credentialsManager,
             settingsManager, trackPreferenceRepository, categoryPreferenceRepository, vodRepository, seriesRepository,
-            removeFromContinueWatchingUseCase, mediaRatingRepository, setMediaRatingUseCase)
+            removeFromContinueWatchingUseCase, mediaRatingRepository, setMediaRatingUseCase,
+            observeCatalogStatusUseCase, catalogSyncManager, canPlayContentUseCase)
         runCurrent()
 
         viewModel.selectStreamId(42)

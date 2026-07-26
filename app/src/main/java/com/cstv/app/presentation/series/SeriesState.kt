@@ -25,5 +25,7 @@ data class SeriesState(
     val historyRemovalError: String? = null,
     val mediaRating: MediaRatingValue? = null,
     val isRatingSaving: Boolean = false,
-    val ratingError: String? = null
+    val ratingError: String? = null,
+    /** Fraîcheur du catalogue local : alimente la bannière hors ligne. */
+    val catalogStatus: com.cstv.app.domain.sync.CatalogStatus = com.cstv.app.domain.sync.CatalogStatus()
 )

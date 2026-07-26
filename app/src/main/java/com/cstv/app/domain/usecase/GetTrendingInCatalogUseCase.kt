@@ -7,7 +7,6 @@ import com.cstv.app.domain.repository.TrendingRepository
 import com.cstv.app.domain.repository.VodRepository
 import com.cstv.app.domain.repository.SeriesRepository
 import com.cstv.app.domain.repository.CategoryPreferenceRepository
-import com.cstv.app.data.local.storage.SettingsManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.util.concurrent.CancellationException
@@ -18,15 +17,15 @@ class GetTrendingInCatalogUseCase @Inject constructor(
     private val vodRepository: VodRepository,
     private val seriesRepository: SeriesRepository,
     private val categoryPreferenceRepository: CategoryPreferenceRepository,
-    private val settingsManager: SettingsManager
+    private val catalogFreshness: com.cstv.app.data.sync.CatalogFreshness
 ) {
 
     suspend operator fun invoke(): List<TrendingCatalogItem> = withContext(Dispatchers.Default) {
         com.cstv.app.di.IptvLog.d("TMDB", "🚀 GetTrendingInCatalogUseCase triggered.")
 
         // Invalidate cache if catalog was resynchronized after cache generation (Bug B-3)
-        val lastVodSync = settingsManager.getVodAllStreamsSyncedAt()
-        val lastSeriesSync = settingsManager.getSeriesAllStreamsSyncedAt()
+        val lastVodSync = catalogFreshness.vodSyncedAt()
+        val lastSeriesSync = catalogFreshness.seriesSyncedAt()
         val lastCatalogSyncTime = maxOf(lastVodSync, lastSeriesSync)
 
         // 1. Check persistent global device cache
@@ -53,7 +52,7 @@ class GetTrendingInCatalogUseCase @Inject constructor(
 
             // Fetch ALL local catalog items (without filtering hidden categories yet)
             val allMovies = try {
-                val list = vodRepository.getVodStreams("all", false)
+                val list = vodRepository.getCachedVodStreams("all")
                 com.cstv.app.di.IptvLog.d("TMDB", "📦 Loaded ${list.size} movies from local database cache.")
                 list
             } catch (e: Exception) {
@@ -63,7 +62,7 @@ class GetTrendingInCatalogUseCase @Inject constructor(
             }
 
             val allSeries = try {
-                val list = seriesRepository.getSeriesStreams("all", false)
+                val list = seriesRepository.getCachedSeriesStreams("all")
                 com.cstv.app.di.IptvLog.d("TMDB", "📦 Loaded ${list.size} series from local database cache.")
                 list
             } catch (e: Exception) {

@@ -41,6 +41,9 @@ class LiveTvRepositoryImplTest {
     @Mock
     private lateinit var settingsManager: SettingsManager
 
+    @Mock
+    private lateinit var networkMonitor: com.cstv.app.domain.network.NetworkMonitor
+
     private lateinit var repository: LiveTvRepositoryImpl
 
     private val credentials = Credentials("test.com", 80, "username", "password", true)
@@ -50,8 +53,8 @@ class LiveTvRepositoryImplTest {
         MockitoAnnotations.openMocks(this)
         whenever(credentialsManager.getCredentials()).thenReturn(credentials)
         doReturn(1).whenever(profileManager).currentProfileId()
-        doReturn(0L).whenever(settingsManager).getLiveAllStreamsSyncedAt()
-        repository = LiveTvRepositoryImpl(apiService, liveTvDao, credentialsManager, profileManager, com.cstv.app.data.remote.api.XtreamRequestGate(), settingsManager)
+        whenever(networkMonitor.isCurrentlyOnline()).thenReturn(true)
+        repository = LiveTvRepositoryImpl(apiService, liveTvDao, credentialsManager, profileManager, com.cstv.app.data.remote.api.XtreamRequestGate(), networkMonitor)
     }
 
     // --- 1. PLAY URL CONSTRUCTION TESTS ---
@@ -85,7 +88,7 @@ class LiveTvRepositoryImplTest {
 
         whenever(liveTvDao.getAllCategories()).thenReturn(cachedCategories)
 
-        val result = repository.getLiveCategories(forceRefresh = false)
+        val result = repository.getCachedLiveCategories()
 
         // Should return the cached categories
         assertEquals(1, result.size)
@@ -112,7 +115,7 @@ class LiveTvRepositoryImplTest {
         )
         whenever(apiService.getLiveCategories("username", "password")).thenReturn(remoteCategories)
 
-        val result = repository.getLiveCategories(forceRefresh = true)
+        val result = repository.syncLiveCategories()
 
         // Should return fresh fetched categories
         assertEquals(2, result.size)
@@ -120,8 +123,7 @@ class LiveTvRepositoryImplTest {
         assertEquals("Sports", result[1].categoryName)
 
         // Verify that categories cache was cleared and fresh entries were inserted
-        verify(liveTvDao).clearCategories()
-        verify(liveTvDao).insertCategories(any())
+        verify(liveTvDao).replaceAllCategories(any())
     }
 
     @Test
@@ -138,7 +140,7 @@ class LiveTvRepositoryImplTest {
         )
         whenever(apiService.getLiveCategories("username", "password")).thenReturn(remoteCategories)
 
-        val result = repository.getLiveCategories(forceRefresh = true)
+        val result = repository.syncLiveCategories()
 
         assertEquals(1, result.size)
         assertEquals("Général Updated", result[0].categoryName)
@@ -158,7 +160,7 @@ class LiveTvRepositoryImplTest {
         )
         whenever(apiService.getLiveStreams("username", "password", "10")).thenReturn(remoteStreamsWithDirtyData)
 
-        val result = repository.getLiveStreams("10", forceRefresh = false)
+        val result = repository.syncLiveStreams("10")
 
         // Dirty items should be silently and defensively ignored (only 1 valid stream remains)
         assertEquals(1, result.size)
@@ -228,7 +230,7 @@ class LiveTvRepositoryImplTest {
             )
         )
 
-        whenever(liveTvDao.getEpgCache(streamId)).thenReturn(null)
+        whenever(liveTvDao.getEpgNow(eq(streamId), any())).thenReturn(null)
         whenever(apiService.getShortEpg(any(), any(), eq(streamId), any())).thenReturn(response)
 
         val program = repository.getLiveEpg(streamId, forceRefresh = false)
@@ -240,6 +242,6 @@ class LiveTvRepositoryImplTest {
         assertEquals(endSec, program.endTimestamp)
 
         // Verify it was saved to local cache
-        verify(liveTvDao).insertEpgCache(any())
+        verify(liveTvDao).replaceEpgForStream(eq(streamId), any())
     }
 }

@@ -2,7 +2,9 @@ package com.cstv.app.presentation.login
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.cstv.app.domain.model.AutoLoginOutcome
 import com.cstv.app.domain.model.Credentials
+import com.cstv.app.domain.usecase.AutoLoginUseCase
 import com.cstv.app.domain.usecase.GetSavedCredentialsUseCase
 import com.cstv.app.domain.usecase.LoginUseCase
 import com.cstv.app.domain.usecase.LogoutUseCase
@@ -17,7 +19,9 @@ import javax.inject.Inject
 class LoginViewModel @Inject constructor(
     private val loginUseCase: LoginUseCase,
     private val getSavedCredentialsUseCase: GetSavedCredentialsUseCase,
-    private val logoutUseCase: LogoutUseCase
+    private val logoutUseCase: LogoutUseCase,
+    private val autoLoginUseCase: AutoLoginUseCase,
+    private val catalogSyncManager: com.cstv.app.domain.sync.CatalogSyncManager
 ) : ViewModel() {
 
     private val _loginState = MutableStateFlow<LoginState>(LoginState.Idle)
@@ -34,21 +38,27 @@ class LoginViewModel @Inject constructor(
     }
 
     private fun checkAutoLogin() {
-        val creds = getSavedCredentialsUseCase()
-        _savedCredentials.value = creds
-        if (creds != null && creds.rememberMe) {
-            _autoLoginState.value = AutoLoginState.Checking
-            viewModelScope.launch {
-                try {
-                    val userInfo = loginUseCase(creds)
-                    _autoLoginState.value = AutoLoginState.Success(userInfo)
-                } catch (e: Exception) {
-                    if (e is kotlinx.coroutines.CancellationException) throw e
-                    _autoLoginState.value = AutoLoginState.Error(e.message ?: "La connexion automatique a échoué.")
-                }
+        _savedCredentials.value = getSavedCredentialsUseCase()
+        _autoLoginState.value = AutoLoginState.Checking
+        viewModelScope.launch {
+            // Le repli hors ligne est décidé côté AuthRepository : un échec
+            // réseau ne renvoie plus systématiquement à l'écran de connexion,
+            // ce qui empêchait l'application d'atteindre ses écrans sans réseau.
+            val outcome = autoLoginUseCase()
+            _autoLoginState.value = when (outcome) {
+                is AutoLoginOutcome.NoCredentials -> AutoLoginState.NoCredentials
+                is AutoLoginOutcome.Online -> AutoLoginState.Success(outcome.userInfo, offline = false)
+                is AutoLoginOutcome.OfflineSession -> AutoLoginState.Success(outcome.userInfo, offline = true)
+                is AutoLoginOutcome.Rejected -> AutoLoginState.Error(outcome.message)
             }
-        } else {
-            _autoLoginState.value = AutoLoginState.NoCredentials
+
+            // Déclencheur STARTUP : jamais bloquant, jamais attendu par l'UI, et
+            // sans effet si le catalogue est frais ou l'appareil hors ligne.
+            // C'est aussi lui qui rattrape une synchronisation planifiée en
+            // échec, puisqu'un échec ne renouvelle pas la date de fraîcheur.
+            if (outcome is AutoLoginOutcome.Online) {
+                runCatching { catalogSyncManager.syncIfStale() }
+            }
         }
     }
 
@@ -58,6 +68,18 @@ class LoginViewModel @Inject constructor(
             try {
                 val userInfo = loginUseCase(credentials)
                 _loginState.value = LoginState.Success(userInfo)
+
+                // Une connexion manuelle est le seul moment où le catalogue peut
+                // être vide alors que le réseau est disponible : première
+                // installation, ou purge qui vient de suivre un changement de
+                // compte. Sans ce déclencheur, les écrans resteraient vides
+                // jusqu'au worker planifié ou à un rafraîchissement manuel.
+                // syncIfStale() ne coûte rien si le catalogue est déjà frais —
+                // cas d'une reconnexion au même compte.
+                //
+                // runCatching : un échec de synchronisation ne doit pas faire
+                // basculer en erreur une connexion qui, elle, a réussi.
+                runCatching { catalogSyncManager.syncIfStale() }
             } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException) throw e
                 _loginState.value = LoginState.Error(e.message ?: "Une erreur inconnue est survenue.")

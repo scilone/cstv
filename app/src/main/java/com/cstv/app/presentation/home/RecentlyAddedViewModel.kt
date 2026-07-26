@@ -38,7 +38,7 @@ class RecentlyAddedViewModel @Inject constructor(
             _state.update { it.copy(isLoading = true, error = null) }
             try {
                 if (isSeries) {
-                    val allSeries = seriesRepository.getSeriesStreams("all", forceRefresh = false)
+                    val allSeries = seriesRepository.getCachedSeriesStreams("all")
                     val hiddenCategories = getHiddenCategoryIds(CategoryType.SERIES)
                     val recent = allSeries
                         .filter { it.categoryId !in hiddenCategories }
@@ -48,7 +48,7 @@ class RecentlyAddedViewModel @Inject constructor(
                         it.copy(isLoading = false, seriesStreams = recent, vodStreams = emptyList())
                     }
                 } else {
-                    val allVod = vodRepository.getVodStreams("all", forceRefresh = false)
+                    val allVod = vodRepository.getCachedVodStreams("all")
                     val hiddenCategories = getHiddenCategoryIds(CategoryType.VOD)
                     val recent = allVod
                         .filter { it.categoryId !in hiddenCategories }
