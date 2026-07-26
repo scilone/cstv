@@ -118,46 +118,79 @@ fun SeriesDetailsScreen(
                     .alpha(0.18f)
             )
         }
-        MediaDetailsTrailerBackdrop(
+        // La résolution démarre dès l'affichage de la fiche ; l'attente perçue
+        // est portée par le poster de couverture interne au lecteur.
+        com.cstv.app.presentation.components.TrailerAutoStartEffect(
             media = trailerMedia,
-            state = trailerState,
-            posterUrl = details.cover,
             onContextReady = onTrailerReady,
-            onContextEnded = onTrailerEnded,
-            onPlaybackFailed = onTrailerFailed,
-            muted = trailerMuted,
-            modifier = Modifier.fillMaxSize()
+            onContextEnded = onTrailerEnded
         )
+
+        // Sur TV le trailer reste un fond plein écran ; sur mobile il devient un
+        // bandeau 16:9 en tête de fiche, qui se substitue à l'affiche.
+        val showTrailerHero = !isTv &&
+            (trailerState as? TrailerPreviewUiState.Playing)?.preview?.media == trailerMedia
+
+        if (isTv) {
+            MediaDetailsTrailerBackdrop(
+                media = trailerMedia,
+                state = trailerState,
+                posterUrl = details.cover,
+                onPlaybackFailed = onTrailerFailed,
+                muted = trailerMuted,
+                scrimAlpha = 0.62f,
+                modifier = Modifier.fillMaxSize()
+            )
+        }
 
         // 2. Content Structure
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(24.dp)
+            modifier = Modifier.fillMaxSize()
         ) {
-            // Header with Back action
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(
-                    onClick = onBack,
-                    modifier = Modifier.background(Color(0x33FFFFFF), shape = RoundedCornerShape(12.dp))
-                ) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Retour", tint = Color.White)
-                }
-                if (trailerState is TrailerPreviewUiState.Playing) {
-                    IconButton(onClick = { trailerMuted = !trailerMuted }) {
-                        Icon(
-                            if (trailerMuted) Icons.Filled.VolumeOff else Icons.Filled.VolumeUp,
-                            contentDescription = if (trailerMuted) "Activer le son du trailer" else "Couper le son du trailer",
-                            tint = Color.White
-                        )
-                    }
-                }
+            if (showTrailerHero) {
+                com.cstv.app.presentation.components.MediaDetailsTrailerHero(
+                    media = trailerMedia,
+                    state = trailerState,
+                    posterUrl = details.cover,
+                    muted = trailerMuted,
+                    onMutedChange = { trailerMuted = it },
+                    onPlaybackFailed = onTrailerFailed,
+                    onBack = onBack
+                )
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .padding(horizontal = 24.dp)
+                    .padding(top = if (showTrailerHero) 16.dp else 24.dp, bottom = 24.dp)
+            ) {
+            // Header with Back action
+            if (!showTrailerHero) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(
+                        onClick = onBack,
+                        modifier = Modifier.background(Color(0x33FFFFFF), shape = RoundedCornerShape(12.dp))
+                    ) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Retour", tint = Color.White)
+                    }
+                    if (trailerState is TrailerPreviewUiState.Playing) {
+                        IconButton(onClick = { trailerMuted = !trailerMuted }) {
+                            Icon(
+                                if (trailerMuted) Icons.Filled.VolumeOff else Icons.Filled.VolumeUp,
+                                contentDescription = if (trailerMuted) "Activer le son du trailer" else "Couper le son du trailer",
+                                tint = Color.White
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+            }
 
             if (isTv) {
                 TvLayout(
@@ -197,8 +230,12 @@ fun SeriesDetailsScreen(
                     mediaRating = mediaRating,
                     isRatingSaving = isRatingSaving,
                     onLike = onLike,
-                    onDislike = onDislike
+                    onDislike = onDislike,
+                    // Le bandeau trailer occupe déjà la tête de fiche : garder
+                    // l'affiche ferait doublon et repousserait les infos.
+                    showPoster = !showTrailerHero
                 )
+            }
             }
         }
         SnackbarHost(hostState = snackbarHostState, modifier = Modifier.align(Alignment.BottomCenter))
@@ -491,14 +528,15 @@ private fun MobileLayout(
     mediaRating: MediaRatingValue?,
     isRatingSaving: Boolean,
     onLike: () -> Unit,
-    onDislike: () -> Unit
+    onDislike: () -> Unit,
+    showPoster: Boolean = true
 ) {
     val allEpisodes = details.episodes.values.flatten()
     val incompleteEpisodes = allEpisodes.filter { ep ->
         ep.resumePositionMs > 1000L && (ep.durationMs <= 0L || ep.resumePositionMs < ep.durationMs - 5000L)
     }
     val resumeEpisode = incompleteEpisodes.maxByOrNull { it.lastAccessedAt }
-    
+
     val firstSeasonNum = details.seasons.firstOrNull()?.seasonNumber
     val firstEpisode = firstSeasonNum?.let { details.episodes[it]?.firstOrNull() } ?: allEpisodes.firstOrNull()
     val targetEpisode = resumeEpisode ?: firstEpisode
@@ -509,30 +547,32 @@ private fun MobileLayout(
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
     ) {
-        Spacer(modifier = Modifier.height(12.dp))
+        if (showPoster) {
+            Spacer(modifier = Modifier.height(12.dp))
 
-        // Centered Poster Card (just like in the movie details layout)
-        Card(
-            modifier = Modifier
-                .width(180.dp)
-                .height(270.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .border(1.dp, Color.DarkGray, RoundedCornerShape(12.dp))
-                .align(Alignment.CenterHorizontally)
-        ) {
-            Box(
-                modifier = Modifier.fillMaxSize().background(Surface3),
-                contentAlignment = Alignment.Center
+            // Centered Poster Card (just like in the movie details layout)
+            Card(
+                modifier = Modifier
+                    .width(180.dp)
+                    .height(270.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .border(1.dp, Color.DarkGray, RoundedCornerShape(12.dp))
+                    .align(Alignment.CenterHorizontally)
             ) {
-                if (!details.cover.isNullOrBlank()) {
-                    AsyncImage(
-                        model = details.cover,
-                        contentDescription = details.name,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                } else {
-                    Icon(Icons.Default.Warning, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(54.dp))
+                Box(
+                    modifier = Modifier.fillMaxSize().background(Surface3),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (!details.cover.isNullOrBlank()) {
+                        AsyncImage(
+                            model = details.cover,
+                            contentDescription = details.name,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    } else {
+                        Icon(Icons.Default.Warning, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(54.dp))
+                    }
                 }
             }
         }

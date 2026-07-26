@@ -109,42 +109,75 @@ fun VodDetailsScreen(
                     .alpha(0.18f)
             )
         }
-        MediaDetailsTrailerBackdrop(
+        // La résolution démarre dès l'affichage de la fiche ; l'attente perçue
+        // est portée par le poster de couverture interne au lecteur.
+        com.cstv.app.presentation.components.TrailerAutoStartEffect(
             media = trailerMedia,
-            state = trailerState,
-            posterUrl = details.coverBig,
             onContextReady = onTrailerReady,
-            onContextEnded = onTrailerEnded,
-            onPlaybackFailed = onTrailerFailed,
-            muted = trailerMuted,
-            modifier = Modifier.fillMaxSize()
+            onContextEnded = onTrailerEnded
         )
+
+        // Sur TV le trailer reste un fond plein écran ; sur mobile il devient un
+        // bandeau 16:9 en tête de fiche, qui se substitue à l'affiche.
+        val showTrailerHero = !isTv &&
+            (trailerState as? TrailerPreviewUiState.Playing)?.preview?.media == trailerMedia
+
+        if (isTv) {
+            MediaDetailsTrailerBackdrop(
+                media = trailerMedia,
+                state = trailerState,
+                posterUrl = details.coverBig,
+                onPlaybackFailed = onTrailerFailed,
+                muted = trailerMuted,
+                scrimAlpha = 0.62f,
+                modifier = Modifier.fillMaxSize()
+            )
+        }
 
         // 2. Content Column/Scroll
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(24.dp)
         ) {
-            // Back Button
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
+            if (showTrailerHero) {
+                com.cstv.app.presentation.components.MediaDetailsTrailerHero(
+                    media = trailerMedia,
+                    state = trailerState,
+                    posterUrl = details.coverBig,
+                    muted = trailerMuted,
+                    onMutedChange = { trailerMuted = it },
+                    onPlaybackFailed = onTrailerFailed,
+                    onBack = onBack
+                )
+            }
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp)
+                    .padding(top = if (showTrailerHero) 16.dp else 24.dp, bottom = 24.dp)
             ) {
-                IconButton(
-                    onClick = onBack,
-                    modifier = Modifier.background(Color(0x33FFFFFF), shape = RoundedCornerShape(12.dp))
+            // Back Button
+            if (!showTrailerHero) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Retour", tint = Color.White)
-                }
-                if (trailerState is TrailerPreviewUiState.Playing) {
-                    IconButton(onClick = { trailerMuted = !trailerMuted }) {
-                        Icon(
-                            if (trailerMuted) Icons.Filled.VolumeOff else Icons.Filled.VolumeUp,
-                            contentDescription = if (trailerMuted) "Activer le son du trailer" else "Couper le son du trailer",
-                            tint = Color.White
-                        )
+                    IconButton(
+                        onClick = onBack,
+                        modifier = Modifier.background(Color(0x33FFFFFF), shape = RoundedCornerShape(12.dp))
+                    ) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Retour", tint = Color.White)
+                    }
+                    if (trailerState is TrailerPreviewUiState.Playing) {
+                        IconButton(onClick = { trailerMuted = !trailerMuted }) {
+                            Icon(
+                                if (trailerMuted) Icons.Filled.VolumeOff else Icons.Filled.VolumeUp,
+                                contentDescription = if (trailerMuted) "Activer le son du trailer" else "Couper le son du trailer",
+                                tint = Color.White
+                            )
+                        }
                     }
                 }
             }
@@ -173,7 +206,10 @@ fun VodDetailsScreen(
                     mediaRating = mediaRating,
                     isRatingSaving = isRatingSaving,
                     onLike = onLike,
-                    onDislike = onDislike
+                    onDislike = onDislike,
+                    // Le bandeau trailer occupe déjà la tête de fiche : garder
+                    // l'affiche ferait doublon et repousserait les infos.
+                    showPoster = !showTrailerHero
                 )
             }
 
@@ -198,6 +234,7 @@ fun VodDetailsScreen(
                     label = { it.name },
                     onClick = onSelectRelated
                 )
+            }
             }
         }
         SnackbarHost(hostState = snackbarHostState, modifier = Modifier.align(Alignment.BottomCenter))
@@ -362,38 +399,41 @@ private fun MobileLayoutDetails(
     mediaRating: MediaRatingValue?,
     isRatingSaving: Boolean,
     onLike: () -> Unit,
-    onDislike: () -> Unit
+    onDislike: () -> Unit,
+    showPoster: Boolean = true
 ) {
     Column(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         // Centered Poster Card (just like in the movie details layout)
-        Card(
-            modifier = Modifier
-                .width(180.dp)
-                .height(270.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .border(1.dp, Color.DarkGray, RoundedCornerShape(12.dp))
-        ) {
-            Box(
-                modifier = Modifier.fillMaxSize().background(Surface3),
-                contentAlignment = Alignment.Center
+        if (showPoster) {
+            Card(
+                modifier = Modifier
+                    .width(180.dp)
+                    .height(270.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .border(1.dp, Color.DarkGray, RoundedCornerShape(12.dp))
             ) {
-                if (!details.coverBig.isNullOrBlank()) {
-                    AsyncImage(
-                        model = details.coverBig,
-                        contentDescription = details.name,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                } else {
-                    Icon(Icons.Default.Warning, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(54.dp))
+                Box(
+                    modifier = Modifier.fillMaxSize().background(Surface3),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (!details.coverBig.isNullOrBlank()) {
+                        AsyncImage(
+                            model = details.coverBig,
+                            contentDescription = details.name,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    } else {
+                        Icon(Icons.Default.Warning, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(54.dp))
+                    }
                 }
             }
-        }
 
-        Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(20.dp))
+        }
 
         // Text details
         Row(
