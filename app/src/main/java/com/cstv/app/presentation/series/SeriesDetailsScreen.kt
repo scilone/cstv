@@ -154,25 +154,19 @@ fun SeriesDetailsScreen(
         // LazyColumn à hauteur pondérée, qui ne peuvent pas être mesurées sous
         // une contrainte de hauteur infinie.
         val scrollState = rememberScrollState()
-        // Épinglé dès qu'un trailer est disponible, sans attendre son
-        // apparition : basculer en cours de défilement recalait le bloc sous
-        // les doigts. La règle est donc binaire à l'arrivée sur la fiche, et
-        // ne change plus ensuite. Une fiche sans trailer défile normalement :
-        // figer une affiche statique coûterait la moitié de l'écran pour rien.
-        val pinHeader = !isTv && trailerPlaying
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .then(if (isTv) Modifier else Modifier.verticalScroll(scrollState))
         ) {
-            // Zone de tête. Sur mobile, l'image occupe toute la largeur sur
-            // environ un tiers de la hauteur, et le trailer vient s'y
-            // substituer une fois prêt.
+            // Zone de tête, épinglée en haut sur mobile quel que soit le
+            // média : l'image occupe toute la largeur sur environ un tiers de
+            // la hauteur, et le trailer vient s'y substituer une fois prêt.
             //
-            // L'épinglage compense le défilement au lieu de sortir le bloc de
-            // la zone défilante : le déplacer dans l'arbre recréerait la
-            // WebView, ce qui relancerait le trailer depuis sa phase de
-            // chargement.
+            // L'épinglage compense le défilement (graphicsLayer) au lieu de
+            // sortir le bloc de la zone défilante : le déplacer dans l'arbre
+            // recréerait la WebView le jour où un trailer devient disponible,
+            // ce qui relancerait sa lecture depuis la phase de chargement.
             if (isTv) {
                 Column(
                     modifier = Modifier
@@ -215,10 +209,8 @@ fun SeriesDetailsScreen(
                     onBack = onBack,
                     height = rootHeight * com.cstv.app.presentation.components.MEDIA_DETAILS_HEADER_HEIGHT_FRACTION,
                     modifier = Modifier
-                        .zIndex(if (pinHeader) 1f else 0f)
-                        .graphicsLayer {
-                            translationY = if (pinHeader) scrollState.value.toFloat() else 0f
-                        }
+                        .zIndex(1f)
+                        .graphicsLayer { translationY = scrollState.value.toFloat() }
                 )
             }
 
