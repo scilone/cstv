@@ -24,7 +24,14 @@ jobs:
           # Nécessaire à « Determine Build Mode » : sans cela, le checkout du
           # run de main ne rapatrie aucun tag et ne peut pas détecter qu'un run
           # de tag traite déjà ce commit.
-          fetch-tags: true
+          #
+          # Restreint à main : sur un run de tag, actions/checkout rapatrie déjà
+          # la ref sous `+<sha>:refs/tags/<tag>`, et fetch-tags ajoute un second
+          # refspec visant cette même ref — le fetch échoue alors sur
+          # « Cannot fetch both <sha> and refs/tags/<tag> to refs/tags/<tag> ».
+          # La détection n'a de toute façon de sens que sur main : un run de tag
+          # compile toujours et ne consulte jamais les tags.
+          fetch-tags: ${{ github.ref == 'refs/heads/main' }}
 
       # Deux scénarios de push mènent ici, et un seul build doit compiler :
       #  - main puis tag séparément : le run de main compile et amorce le cache
