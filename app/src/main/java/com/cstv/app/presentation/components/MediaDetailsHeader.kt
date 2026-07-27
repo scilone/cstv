@@ -30,8 +30,15 @@ import coil.compose.AsyncImage
 import com.cstv.app.domain.model.TrailerMedia
 import com.cstv.app.presentation.theme.Surface1
 
-/** Part de la hauteur d'écran occupée par la zone de tête des fiches mobiles. */
-const val MEDIA_DETAILS_HEADER_HEIGHT_FRACTION = 0.34f
+/**
+ * Part de la hauteur utile occupée par la zone de tête des fiches mobiles.
+ *
+ * Rapportée au conteneur — l'écran moins la barre d'état et la barre de
+ * navigation — et non à l'écran entier : à 0,45, le bas de l'image tombe au
+ * même niveau que sur les applications de référence, dont le visuel occupe
+ * environ 45 % de la dalle en débordant sous la barre d'état.
+ */
+const val MEDIA_DETAILS_HEADER_HEIGHT_FRACTION = 0.45f
 
 /**
  * Zone de tête des fiches de détail **mobile** : l'image du média occupe toute
