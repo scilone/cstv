@@ -115,52 +115,94 @@ fun VodDetailsScreen(
             onContextEnded = onTrailerEnded
         )
 
-        // Fiche strictement identique avec ou sans trailer : celui-ci n'est
-        // qu'un fond plein écran qui se substitue à l'affiche floutée derrière
-        // le contenu, jamais un réarrangement de la fiche. La seule différence
-        // perceptible est temporelle (le trailer démarre après quelques
-        // secondes), pas structurelle.
         val trailerPlaying = (trailerState as? TrailerPreviewUiState.Playing)?.preview?.media == trailerMedia
-        MediaDetailsTrailerBackdrop(
-            media = trailerMedia,
-            state = trailerState,
-            posterUrl = details.coverBig,
-            onPlaybackFailed = onTrailerFailed,
-            muted = trailerMuted,
-            scrimAlpha = 0.62f,
-            modifier = Modifier.fillMaxSize()
-        )
+        var trailerRevealed by remember(trailerMedia) { mutableStateOf(false) }
+
+        // Sur TV le trailer reste un fond plein écran assombri, derrière un
+        // layout en deux colonnes qui ne lui laisse pas d'autre place.
+        if (isTv) {
+            MediaDetailsTrailerBackdrop(
+                media = trailerMedia,
+                state = trailerState,
+                posterUrl = details.coverBig,
+                onPlaybackFailed = onTrailerFailed,
+                muted = trailerMuted,
+                scrimAlpha = 0.62f,
+                modifier = Modifier.fillMaxSize()
+            )
+        }
 
         // 2. Content Column/Scroll
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(24.dp)
         ) {
-            // Back Button
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(
-                    onClick = onBack,
-                    modifier = Modifier.background(Color(0x33FFFFFF), shape = RoundedCornerShape(12.dp))
-                ) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Retour", tint = Color.White)
+            // Bloc de tête : bouton Retour + affiche. Sur mobile, c'est cette
+            // zone — et elle seule — qu'occupe le trailer une fois révélé. Sa
+            // hauteur est dictée par son contenu, donc identique avec ou sans
+            // trailer : `matchParentSize` fait épouser au lecteur exactement le
+            // bloc, sans constante à maintenir et sans décaler le titre.
+            Box(modifier = Modifier.fillMaxWidth()) {
+                if (!isTv && trailerPlaying) {
+                    MediaDetailsTrailerBackdrop(
+                        media = trailerMedia,
+                        state = trailerState,
+                        // L'affiche du bloc sert de couverture pendant le
+                        // chargement : le lecteur n'a pas besoin de la sienne.
+                        posterUrl = null,
+                        onPlaybackFailed = onTrailerFailed,
+                        muted = trailerMuted,
+                        onRevealed = { trailerRevealed = true },
+                        fadeInOnReveal = true,
+                        modifier = Modifier.matchParentSize()
+                    )
                 }
-                if (trailerPlaying) {
-                    Spacer(modifier = Modifier.weight(1f))
-                    IconButton(onClick = { trailerMuted = !trailerMuted }) {
-                        Icon(
-                            if (trailerMuted) Icons.Filled.VolumeOff else Icons.Filled.VolumeUp,
-                            contentDescription = if (trailerMuted) "Activer le son du trailer" else "Couper le son du trailer",
-                            tint = Color.White
-                        )
+
+                // Pas de marge basse ici : l'espacement avant le titre est
+                // porté par le Spacer final, comme sur une fiche sans trailer.
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp)
+                        .padding(top = 24.dp)
+                ) {
+                    // Back Button
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        IconButton(
+                            onClick = onBack,
+                            modifier = Modifier.background(Color(0x33FFFFFF), shape = RoundedCornerShape(12.dp))
+                        ) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Retour", tint = Color.White)
+                        }
+                        if (trailerPlaying && (isTv || trailerRevealed)) {
+                            Spacer(modifier = Modifier.weight(1f))
+                            IconButton(onClick = { trailerMuted = !trailerMuted }) {
+                                Icon(
+                                    if (trailerMuted) Icons.Filled.VolumeOff else Icons.Filled.VolumeUp,
+                                    contentDescription = if (trailerMuted) "Activer le son du trailer" else "Couper le son du trailer",
+                                    tint = Color.White
+                                )
+                            }
+                        }
+                    }
+
+                    if (!isTv) {
+                        VodPosterSlot(details = details, visible = !trailerRevealed)
+                        Spacer(modifier = Modifier.height(20.dp))
                     }
                 }
             }
 
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp)
+                    .padding(bottom = 24.dp)
+            ) {
             if (isTv) {
                 TvLayoutDetails(
                     details = details,
@@ -211,8 +253,47 @@ fun VodDetailsScreen(
                     onClick = onSelectRelated
                 )
             }
+            }
         }
         SnackbarHost(hostState = snackbarHostState, modifier = Modifier.align(Alignment.BottomCenter))
+    }
+}
+
+/**
+ * Emplacement de l'affiche dans le bloc de tête. Conserve toujours sa place
+ * dans la mesure : quand le trailer prend le relais, l'affiche s'efface sans
+ * que le titre ni les infos ne remontent.
+ */
+@Composable
+private fun VodPosterSlot(details: VodDetails, visible: Boolean) {
+    Box(
+        modifier = Modifier.fillMaxWidth(),
+        contentAlignment = Alignment.Center
+    ) {
+        Card(
+            modifier = Modifier
+                .width(180.dp)
+                .height(270.dp)
+                .alpha(if (visible) 1f else 0f)
+                .clip(RoundedCornerShape(12.dp))
+                .border(1.dp, Color.DarkGray, RoundedCornerShape(12.dp))
+        ) {
+            Box(
+                modifier = Modifier.fillMaxSize().background(Surface3),
+                contentAlignment = Alignment.Center
+            ) {
+                if (!details.coverBig.isNullOrBlank()) {
+                    AsyncImage(
+                        model = details.coverBig,
+                        contentDescription = details.name,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    Icon(Icons.Default.Warning, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(54.dp))
+                }
+            }
+        }
     }
 }
 
@@ -377,32 +458,8 @@ private fun MobileLayoutDetails(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // Centered Poster Card (just like in the movie details layout)
-        Card(
-            modifier = Modifier
-                .width(180.dp)
-                .height(270.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .border(1.dp, Color.DarkGray, RoundedCornerShape(12.dp))
-        ) {
-            Box(
-                modifier = Modifier.fillMaxSize().background(Surface3),
-                contentAlignment = Alignment.Center
-            ) {
-                if (!details.coverBig.isNullOrBlank()) {
-                    AsyncImage(
-                        model = details.coverBig,
-                        contentDescription = details.name,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                } else {
-                    Icon(Icons.Default.Warning, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(54.dp))
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(20.dp))
+        // L'affiche est rendue par le bloc de tête de l'écran (VodPosterSlot),
+        // qui la cède au trailer une fois celui-ci révélé.
 
         // Text details
         Row(

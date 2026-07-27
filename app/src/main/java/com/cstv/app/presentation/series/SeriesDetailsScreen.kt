@@ -124,53 +124,103 @@ fun SeriesDetailsScreen(
             onContextEnded = onTrailerEnded
         )
 
-        // Fiche strictement identique avec ou sans trailer : celui-ci n'est
-        // qu'un fond plein écran qui se substitue à l'affiche floutée derrière
-        // le contenu, jamais un réarrangement de la fiche. La seule différence
-        // perceptible est temporelle (le trailer démarre après quelques
-        // secondes), pas structurelle.
         val trailerPlaying = (trailerState as? TrailerPreviewUiState.Playing)?.preview?.media == trailerMedia
-        MediaDetailsTrailerBackdrop(
-            media = trailerMedia,
-            state = trailerState,
-            posterUrl = details.cover,
-            onPlaybackFailed = onTrailerFailed,
-            muted = trailerMuted,
-            scrimAlpha = 0.62f,
-            modifier = Modifier.fillMaxSize()
-        )
+        var trailerRevealed by remember(trailerMedia) { mutableStateOf(false) }
+
+        // Sur TV le trailer reste un fond plein écran assombri, derrière un
+        // layout en deux colonnes qui ne lui laisse pas d'autre place.
+        if (isTv) {
+            MediaDetailsTrailerBackdrop(
+                media = trailerMedia,
+                state = trailerState,
+                posterUrl = details.cover,
+                onPlaybackFailed = onTrailerFailed,
+                muted = trailerMuted,
+                scrimAlpha = 0.62f,
+                modifier = Modifier.fillMaxSize()
+            )
+        }
 
         // 2. Content Structure
+        // Le défilement n'est monté que sur mobile : le layout TV contient des
+        // LazyColumn à hauteur pondérée, qui ne peuvent pas être mesurées sous
+        // une contrainte de hauteur infinie.
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(24.dp)
+                .then(if (isTv) Modifier else Modifier.verticalScroll(rememberScrollState()))
         ) {
-            // Header with Back action
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(
-                    onClick = onBack,
-                    modifier = Modifier.background(Color(0x33FFFFFF), shape = RoundedCornerShape(12.dp))
-                ) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Retour", tint = Color.White)
+            // Bloc de tête : bouton Retour + affiche. Sur mobile, c'est cette
+            // zone — et elle seule — qu'occupe le trailer une fois révélé. Sa
+            // hauteur est dictée par son contenu, donc identique avec ou sans
+            // trailer : `matchParentSize` fait épouser au lecteur exactement le
+            // bloc, sans constante à maintenir et sans décaler le titre.
+            Box(modifier = Modifier.fillMaxWidth()) {
+                if (!isTv && trailerPlaying) {
+                    MediaDetailsTrailerBackdrop(
+                        media = trailerMedia,
+                        state = trailerState,
+                        // L'affiche du bloc sert de couverture pendant le
+                        // chargement : le lecteur n'a pas besoin de la sienne.
+                        posterUrl = null,
+                        onPlaybackFailed = onTrailerFailed,
+                        muted = trailerMuted,
+                        onRevealed = { trailerRevealed = true },
+                        fadeInOnReveal = true,
+                        modifier = Modifier.matchParentSize()
+                    )
                 }
-                if (trailerPlaying) {
-                    Spacer(modifier = Modifier.weight(1f))
-                    IconButton(onClick = { trailerMuted = !trailerMuted }) {
-                        Icon(
-                            if (trailerMuted) Icons.Filled.VolumeOff else Icons.Filled.VolumeUp,
-                            contentDescription = if (trailerMuted) "Activer le son du trailer" else "Couper le son du trailer",
-                            tint = Color.White
-                        )
+
+                // Pas de marge basse ici : l'espacement avant le titre est
+                // porté par le Spacer final, comme sur une fiche sans trailer.
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp)
+                        .padding(top = 24.dp)
+                ) {
+                    // Header with Back action
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        IconButton(
+                            onClick = onBack,
+                            modifier = Modifier.background(Color(0x33FFFFFF), shape = RoundedCornerShape(12.dp))
+                        ) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Retour", tint = Color.White)
+                        }
+                        if (trailerPlaying && (isTv || trailerRevealed)) {
+                            Spacer(modifier = Modifier.weight(1f))
+                            IconButton(onClick = { trailerMuted = !trailerMuted }) {
+                                Icon(
+                                    if (trailerMuted) Icons.Filled.VolumeOff else Icons.Filled.VolumeUp,
+                                    contentDescription = if (trailerMuted) "Activer le son du trailer" else "Couper le son du trailer",
+                                    tint = Color.White
+                                )
+                            }
+                        }
+                    }
+
+                    if (!isTv) {
+                        Spacer(modifier = Modifier.height(28.dp))
+                        SeriesPosterSlot(details = details, visible = !trailerRevealed)
+                        Spacer(modifier = Modifier.height(20.dp))
+                    } else {
+                        Spacer(modifier = Modifier.height(16.dp))
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
-
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    // Sur TV, sans défilement, c'est ce bloc qui doit borner la
+                    // hauteur laissée aux listes d'épisodes.
+                    .then(if (isTv) Modifier.weight(1f) else Modifier)
+                    .padding(horizontal = 24.dp)
+                    .padding(bottom = 24.dp)
+            ) {
             if (isTv) {
                 TvLayout(
                     details = details,
@@ -212,8 +262,47 @@ fun SeriesDetailsScreen(
                     onDislike = onDislike
                 )
             }
+            }
         }
         SnackbarHost(hostState = snackbarHostState, modifier = Modifier.align(Alignment.BottomCenter))
+    }
+}
+
+/**
+ * Emplacement de l'affiche dans le bloc de tête. Conserve toujours sa place
+ * dans la mesure : quand le trailer prend le relais, l'affiche s'efface sans
+ * que le titre ni les infos ne remontent.
+ */
+@Composable
+private fun SeriesPosterSlot(details: SeriesDetails, visible: Boolean) {
+    Box(
+        modifier = Modifier.fillMaxWidth(),
+        contentAlignment = Alignment.Center
+    ) {
+        Card(
+            modifier = Modifier
+                .width(180.dp)
+                .height(270.dp)
+                .alpha(if (visible) 1f else 0f)
+                .clip(RoundedCornerShape(12.dp))
+                .border(1.dp, Color.DarkGray, RoundedCornerShape(12.dp))
+        ) {
+            Box(
+                modifier = Modifier.fillMaxSize().background(Surface3),
+                contentAlignment = Alignment.Center
+            ) {
+                if (!details.cover.isNullOrBlank()) {
+                    AsyncImage(
+                        model = details.cover,
+                        contentDescription = details.name,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    Icon(Icons.Default.Warning, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(54.dp))
+                }
+            }
+        }
     }
 }
 
@@ -516,40 +605,11 @@ private fun MobileLayout(
     val targetEpisode = resumeEpisode ?: firstEpisode
     val hasResume = resumeEpisode != null
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-    ) {
-        Spacer(modifier = Modifier.height(12.dp))
-
-        // Centered Poster Card (just like in the movie details layout)
-        Card(
-            modifier = Modifier
-                .width(180.dp)
-                .height(270.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .border(1.dp, Color.DarkGray, RoundedCornerShape(12.dp))
-                .align(Alignment.CenterHorizontally)
-        ) {
-            Box(
-                modifier = Modifier.fillMaxSize().background(Surface3),
-                contentAlignment = Alignment.Center
-            ) {
-                if (!details.cover.isNullOrBlank()) {
-                    AsyncImage(
-                        model = details.cover,
-                        contentDescription = details.name,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                } else {
-                    Icon(Icons.Default.Warning, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(54.dp))
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(20.dp))
+    // Le défilement est porté par l'écran, qui englobe aussi le bloc de tête :
+    // le trailer doit défiler avec l'affiche qu'il remplace.
+    Column(modifier = Modifier.fillMaxWidth()) {
+        // L'affiche est rendue par le bloc de tête de l'écran
+        // (SeriesPosterSlot), qui la cède au trailer une fois celui-ci révélé.
 
         // Title & Favorite row
         Row(

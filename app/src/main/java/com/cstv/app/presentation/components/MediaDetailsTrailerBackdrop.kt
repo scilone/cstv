@@ -1,5 +1,7 @@
 package com.cstv.app.presentation.components
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -11,6 +13,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalLifecycleOwner
@@ -64,12 +67,17 @@ fun TrailerAutoStartEffect(
  *
  * Ne porte aucune logique de déclenchement (voir [TrailerAutoStartEffect]) : ce
  * composable peut donc être monté seulement quand un trailer est effectivement
- * disponible, ce qui permet à la fiche mobile de basculer de l'affiche vers un
- * bandeau 16:9 sans jamais empêcher la résolution de démarrer.
+ * disponible, sans jamais empêcher la résolution de démarrer.
  *
  * [scrimAlpha] assombrit le trailer pour préserver la lisibilité du texte posé
- * par-dessus (fond plein écran TV). En bandeau, aucun texte ne le recouvre :
+ * par-dessus (fond plein écran TV). Quand aucun texte ne le recouvre,
  * l'appelant passe `0f` pour laisser l'image intacte.
+ *
+ * [fadeInOnReveal] garde le lecteur totalement invisible tant que la vidéo n'a
+ * pas remplacé l'écran de chargement, puis le fait apparaître en fondu. C'est
+ * ce qui permet à la fiche mobile d'afficher son affiche habituelle pendant
+ * toute la phase de chargement : la fiche reste identique à une fiche sans
+ * trailer, et ne change qu'au moment où il y a réellement quelque chose à voir.
  */
 @Composable
 fun MediaDetailsTrailerBackdrop(
@@ -80,19 +88,32 @@ fun MediaDetailsTrailerBackdrop(
     muted: Boolean,
     modifier: Modifier = Modifier,
     onRevealed: () -> Unit = {},
-    scrimAlpha: Float = 0f
+    scrimAlpha: Float = 0f,
+    fadeInOnReveal: Boolean = false
 ) {
     Box(modifier) {
         val preview = (state as? TrailerPreviewUiState.Playing)?.preview
         val source = preview?.source as? TrailerSource.YouTube
         if (preview?.media == media && source != null) {
+            var revealed by remember(source.videoId) { mutableStateOf(false) }
+            val playerAlpha by animateFloatAsState(
+                targetValue = if (!fadeInOnReveal || revealed) 1f else 0f,
+                animationSpec = tween(durationMillis = 400),
+                label = "trailerPlayerAlpha"
+            )
             YouTubeTrailerPreview(
                 videoId = source.videoId,
                 muted = muted,
                 posterUrl = posterUrl,
                 onPlaybackError = { onPlaybackFailed(media) },
-                onRevealed = onRevealed,
-                modifier = Modifier.fillMaxSize().focusProperties { canFocus = false }
+                onRevealed = {
+                    revealed = true
+                    onRevealed()
+                },
+                modifier = Modifier
+                    .fillMaxSize()
+                    .alpha(playerAlpha)
+                    .focusProperties { canFocus = false }
             )
             if (scrimAlpha > 0f) {
                 Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = scrimAlpha)))
