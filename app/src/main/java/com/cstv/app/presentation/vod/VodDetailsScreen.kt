@@ -136,11 +136,12 @@ fun VodDetailsScreen(
 
         // 2. Content Column/Scroll
         val scrollState = rememberScrollState()
-        // Bloc de tête épinglé uniquement pendant la lecture du trailer : figer
-        // une affiche statique coûterait la moitié de l'écran sans rien
-        // apporter, alors qu'une vidéo en cours mérite de rester visible
-        // pendant qu'on parcourt le synopsis.
-        val pinHeader = !isTv && trailerRevealed
+        // Épinglé dès qu'un trailer est disponible, sans attendre son
+        // apparition : basculer en cours de défilement recalait le bloc sous
+        // les doigts. La règle est donc binaire à l'arrivée sur la fiche, et
+        // ne change plus ensuite. Une fiche sans trailer défile normalement :
+        // figer une affiche statique coûterait la moitié de l'écran pour rien.
+        val pinHeader = !isTv && trailerPlaying
         Column(
             modifier = Modifier
                 .fillMaxSize()
