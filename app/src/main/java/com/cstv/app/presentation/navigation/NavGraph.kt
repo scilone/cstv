@@ -6,6 +6,8 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -15,7 +17,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -23,8 +24,12 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.lifecycle.ViewModelStoreOwner
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.Dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavBackStackEntry
+import androidx.navigation.NamedNavArgument
+import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -35,7 +40,6 @@ import com.cstv.app.domain.model.VodStream
 import com.cstv.app.domain.model.SeriesStream
 import com.cstv.app.domain.model.SeriesDetails
 import com.cstv.app.domain.model.SeriesEpisode
-import com.cstv.app.presentation.components.LocalTopSystemInset
 import com.cstv.app.presentation.home.HomeScreen
 import com.cstv.app.presentation.home.HomeViewModel
 import com.cstv.app.presentation.home.RecentlyAddedScreen
@@ -132,6 +136,24 @@ private fun rememberTabViewModelOwner(
     tabEntry: NavBackStackEntry
 ): ViewModelStoreOwner = remember(tabEntry) { navController.getBackStackEntry(MobileNavigation.ROOT_ROUTE) }
 
+/**
+ * Déclare une route dont le contenu commence sous la barre d'état.
+ *
+ * L'inset est posé dans la page et non sur le conteneur de navigation. Appliqué
+ * au NavHost, il devrait varier selon la route affichée — or la destination
+ * bascule dès le début d'une transition, si bien que l'écran sortant, encore
+ * visible, se décalait d'un coup. Les fiches de détail, qui laissent leur image
+ * courir sous la barre d'état, sont simplement déclarées avec `composable`.
+ */
+private fun NavGraphBuilder.composableBelowStatusBar(
+    route: String,
+    topInset: Dp,
+    arguments: List<NamedNavArgument> = emptyList(),
+    content: @Composable (NavBackStackEntry) -> Unit
+) = composable(route, arguments) { entry ->
+    Box(modifier = Modifier.fillMaxSize().padding(top = topInset)) { content(entry) }
+}
+
 @Composable
 fun AppNavGraph(
     navController: NavHostController,
@@ -172,25 +194,29 @@ fun AppNavGraph(
     val downloadsViewModel: com.cstv.app.presentation.downloads.DownloadsViewModel = hiltViewModel()
     val downloadsState by downloadsViewModel.state.collectAsStateWithLifecycle()
 
-    // L'inset du haut est publié ici plutôt que relu par chaque écran : à ce
-    // niveau il est déjà résolu, alors qu'un `WindowInsets` lu à l'ouverture
-    // d'un écran vaut zéro le temps d'un layout et le ferait grandir après coup.
-    CompositionLocalProvider(LocalTopSystemInset provides paddingValues.calculateTopPadding()) {
+    val layoutDirection = LocalLayoutDirection.current
+    val topInset = paddingValues.calculateTopPadding()
+
     NavHost(
         navController = navController,
         startDestination = if (loggedInUser == null) "login" else "home",
         // Player routes intentionally ignore system insets so their video can fill the display.
         //
-        // Le padding ne dépend volontairement pas de la route courante : la
-        // faire varier créait un à-coup à chaque navigation depuis ou vers une
-        // fiche de détail. La destination bascule dès le début de la
-        // transition, alors que l'écran sortant est encore à l'écran — il se
-        // décalait donc brutalement de la hauteur de la barre d'état pendant
-        // l'animation. Les fiches qui débordent sous la barre d'état s'en
-        // chargent elles-mêmes (voir `Modifier.extendUnderTopInset`).
-        modifier = Modifier.padding(if (isPlayerRoute) PaddingValues(0.dp) else paddingValues)
+        //
+        // L'inset du haut est délibérément absent ici : il est posé route par
+        // route (voir `composableBelowStatusBar`), pour que les fiches de détail
+        // puissent occuper la zone de la barre d'état sans qu'aucun padding ne
+        // change en cours de transition.
+        modifier = Modifier.padding(
+            if (isPlayerRoute) PaddingValues(0.dp)
+            else PaddingValues(
+                start = paddingValues.calculateStartPadding(layoutDirection),
+                end = paddingValues.calculateEndPadding(layoutDirection),
+                bottom = paddingValues.calculateBottomPadding()
+            )
+        )
     ) {
-        composable("login") {
+        composableBelowStatusBar("login", topInset) {
             LoginScreen(
                 viewModel = loginViewModel,
                 isTv = isTv,
@@ -202,7 +228,7 @@ fun AppNavGraph(
                 }
             )
         }
-        composable("home") {
+        composableBelowStatusBar("home", topInset) {
             val activeProfile = profileState.profiles.find { it.id == profileState.activeProfileId }
             HomeScreen(
                 userInfo = loggedInUser ?: UserInfo("User", true, "Active", "Inconnue", 1, 0, "Connecté"),
@@ -322,7 +348,7 @@ fun AppNavGraph(
                 }
             )
         }
-        composable("tv") { tabEntry ->
+        composableBelowStatusBar("tv", topInset) { tabEntry ->
             val liveTvViewModel: LiveTvViewModel = hiltViewModel(rememberTabViewModelOwner(navController, tabEntry))
             LiveTvScreen(
                 viewModel = liveTvViewModel,
@@ -344,7 +370,7 @@ fun AppNavGraph(
                 }
             )
         }
-        composable("movies") { tabEntry ->
+        composableBelowStatusBar("movies", topInset) { tabEntry ->
             val vodViewModel: VodViewModel = hiltViewModel(rememberTabViewModelOwner(navController, tabEntry))
             VodScreen(
                 viewModel = vodViewModel,
@@ -357,7 +383,7 @@ fun AppNavGraph(
                 onNavigateToFavorites = { navController.navigate("favorites") }
             )
         }
-        composable("series") { tabEntry ->
+        composableBelowStatusBar("series", topInset) { tabEntry ->
             val seriesViewModel: SeriesViewModel = hiltViewModel(rememberTabViewModelOwner(navController, tabEntry))
             SeriesScreen(
                 viewModel = seriesViewModel,
@@ -370,7 +396,7 @@ fun AppNavGraph(
                 onNavigateToFavorites = { navController.navigate("favorites") }
             )
         }
-        composable("search") {
+        composableBelowStatusBar("search", topInset) {
             SearchScreen(
                 viewModel = favoritesViewModel,
                 isTv = isTv,
@@ -394,7 +420,7 @@ fun AppNavGraph(
                 }
             )
         }
-        composable("favorites") {
+        composableBelowStatusBar("favorites", topInset) {
             FavoritesScreen(
                 viewModel = favoritesViewModel,
                 isTv = isTv,
@@ -419,7 +445,7 @@ fun AppNavGraph(
                 }
             )
         }
-        composable("settings") {
+        composableBelowStatusBar("settings", topInset) {
             val settingsViewModel: SettingsViewModel = hiltViewModel()
             SettingsScreen(
                 viewModel = settingsViewModel,
@@ -442,7 +468,7 @@ fun AppNavGraph(
                 }
             )
         }
-        composable("downloads") {
+        composableBelowStatusBar("downloads", topInset) {
             com.cstv.app.presentation.downloads.DownloadsScreen(
                 viewModel = downloadsViewModel,
                 isTv = isTv,
@@ -460,7 +486,7 @@ fun AppNavGraph(
                 onBack = { navController.popBackStack() }
             )
         }
-        composable("category_management") {
+        composableBelowStatusBar("category_management", topInset) {
             val categoryManagementViewModel: com.cstv.app.presentation.settings.CategoryManagementViewModel = hiltViewModel()
             com.cstv.app.presentation.settings.CategoryManagementScreen(
                 viewModel = categoryManagementViewModel,
@@ -470,7 +496,7 @@ fun AppNavGraph(
                 }
             )
         }
-        composable("profile_selection") {
+        composableBelowStatusBar("profile_selection", topInset) {
             com.cstv.app.presentation.profile.ProfileSelectionScreen(
                 profiles = profileState.profiles,
                 isTv = isTv,
@@ -490,7 +516,7 @@ fun AppNavGraph(
                 }
             )
         }
-        composable("profile_management") {
+        composableBelowStatusBar("profile_management", topInset) {
             com.cstv.app.presentation.profile.ProfileManagementScreen(
                 viewModel = profileViewModel,
                 isTv = isTv,
@@ -785,8 +811,9 @@ fun AppNavGraph(
                 navController.popBackStack()
             }
         }
-        composable(
+        composableBelowStatusBar(
             "recently_added/{isSeries}",
+            topInset,
             arguments = listOf(navArgument("isSeries") { type = NavType.BoolType })
         ) { backStackEntry ->
             val isSeriesParam = backStackEntry.arguments?.getBoolean("isSeries") ?: false
@@ -808,6 +835,5 @@ fun AppNavGraph(
                 }
             )
         }
-    }
     }
 }

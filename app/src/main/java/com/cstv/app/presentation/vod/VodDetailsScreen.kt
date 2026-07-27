@@ -57,7 +57,6 @@ import com.cstv.app.domain.model.VodStream
 import com.cstv.app.domain.model.MediaRatingValue
 import com.cstv.app.presentation.components.MediaRatingControls
 import com.cstv.app.presentation.components.MediaDetailsTrailerBackdrop
-import com.cstv.app.presentation.components.extendUnderTopInset
 import com.cstv.app.domain.model.TrailerMedia
 import com.cstv.app.presentation.components.TrailerPreviewUiState
 
@@ -101,9 +100,6 @@ fun VodDetailsScreen(
     BoxWithConstraints(
         modifier = modifier
             .fillMaxSize()
-            // Mobile : l'image de tête court jusqu'en haut de la dalle. Sur TV
-            // les barres système sont masquées, l'inset y est nul de toute façon.
-            .then(if (isTv) Modifier else Modifier.extendUnderTopInset())
             .background(if (isTv) Surface1 else Color.Transparent)
     ) {
         val rootHeight = maxHeight
