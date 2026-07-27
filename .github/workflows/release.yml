@@ -30,6 +30,20 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      # Le runner ubuntu-latest offre 4 vCPU / 16 Go : on relève le heap bien
+      # au-delà des 3 Go du gradle.properties du projet, car R8 tourne dans le
+      # process Gradle et passait l'essentiel de son temps en GC. Écrit dans
+      # GRADLE_USER_HOME, qui a priorité sur le gradle.properties du dépôt :
+      # les machines de dev ne sont pas impactées.
+      - name: Tune Gradle for CI
+        run: |
+          mkdir -p ~/.gradle
+          cat >> ~/.gradle/gradle.properties <<'EOF'
+          org.gradle.jvmargs=-Xmx6g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8
+          kotlin.daemon.jvm.options=-Xmx3g
+          kotlin.compiler.execution.strategy=in-process
+          EOF
+
       - name: Grant Execute Permission for Gradlew
         run: chmod +x gradlew
 
@@ -62,8 +76,11 @@ jobs:
             exit 1
           fi
 
+      # Également exécuté sur main : le build de main sert à amorcer le cache
+      # Gradle (voir « Build Release APK »), et validateSigningRelease échoue
+      # sans keystore.
       - name: Decode Keystore File
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main'
         shell: python
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
@@ -99,15 +116,20 @@ jobs:
                   print(f"Error details: {e2}")
                   exit(1)
 
+      # Exécuté aussi sur main, et pas uniquement sur les tags : gradle/actions
+      # n'écrit le cache Gradle que depuis la branche par défaut (les caches
+      # créés sur un ref refs/tags/* ne sont pas lisibles par le tag suivant).
+      # Tant que main ne compilait rien, chaque tag repartait d'un cache vide de
+      # 85 Ko et retéléchargeait toutes les dépendances Maven (~2 min).
       - name: Build Release APK
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main'
         env:
           KEYSTORE_FILE: release-keystore.jks
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
           TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
-        run: ./gradlew :app:assembleRelease --no-daemon
+        run: ./gradlew :app:assembleRelease
 
       - name: Upload Release APK as Artifact
         if: startsWith(github.ref, 'refs/tags/v')
