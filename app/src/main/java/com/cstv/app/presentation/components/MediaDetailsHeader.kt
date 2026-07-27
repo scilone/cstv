@@ -22,14 +22,19 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.cstv.app.domain.model.TrailerMedia
-import com.cstv.app.presentation.theme.DarkBackground
 import com.cstv.app.presentation.theme.Surface1
 
 /**
@@ -41,6 +46,9 @@ import com.cstv.app.presentation.theme.Surface1
  * sur les applications de référence.
  */
 const val MEDIA_DETAILS_HEADER_HEIGHT_FRACTION = 0.5f
+
+/** Hauteur sur laquelle le bas de la zone de tête s'efface vers le fond. */
+private val HEADER_FADE_HEIGHT = 160.dp
 
 /**
  * Zone de tête des fiches de détail **mobile** : l'image du média occupe toute
@@ -74,6 +82,28 @@ fun MediaDetailsHeader(
         modifier = modifier
             .fillMaxWidth()
             .height(height)
+            // Le bas de la zone s'efface au lieu d'être assombri : un voile
+            // dégradé vers le noir laissait une bande plus sombre que le fond,
+            // lui-même teinté par l'affiche floutée du décor. En rendant la
+            // zone progressivement transparente, c'est le fond réel qui
+            // réapparaît — la jonction devient invisible quelle que soit
+            // l'image. `Offscreen` est requis pour que le masque s'applique à
+            // la zone composée, décor et lecteur compris.
+            .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+            .drawWithContent {
+                drawContent()
+                val fade = HEADER_FADE_HEIGHT.toPx().coerceAtMost(size.height)
+                drawRect(
+                    brush = Brush.verticalGradient(
+                        colors = listOf(Color.Black, Color.Transparent),
+                        startY = size.height - fade,
+                        endY = size.height
+                    ),
+                    topLeft = Offset(0f, size.height - fade),
+                    size = Size(size.width, fade),
+                    blendMode = BlendMode.DstIn
+                )
+            }
             .background(Surface1)
     ) {
         if (!imageUrl.isNullOrBlank()) {
@@ -111,19 +141,6 @@ fun MediaDetailsHeader(
                 .background(
                     Brush.verticalGradient(
                         listOf(Color.Black.copy(alpha = 0.55f), Color.Transparent)
-                    )
-                )
-        )
-
-        // Adoucit la jonction avec le contenu, qui reprend juste en dessous.
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(120.dp)
-                .align(Alignment.BottomCenter)
-                .background(
-                    Brush.verticalGradient(
-                        listOf(Color.Transparent, DarkBackground)
                     )
                 )
         )
