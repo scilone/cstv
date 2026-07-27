@@ -102,6 +102,93 @@ class RelatedTitlesSelectorTest {
     }
 
     @Test
+    fun penalizesExtraCandidateGenresInAcceptanceCriteriaOrder() {
+        val candidates = listOf(
+            cand(1, listOf("Drame"), categoryId = "popular"),
+            cand(2, listOf("Drame"), categoryId = "other"),
+            cand(3, listOf("Drame", "Action"), categoryId = "popular"),
+            cand(4, listOf("Drame", "Action", "Thriller"), categoryId = "popular"),
+            cand(5, listOf("Action", "Aventure"), categoryId = "popular")
+        )
+
+        assertEquals(listOf(1, 3, 4, 2), RelatedTitlesSelector.select(listOf("Drame"), "popular", candidates, 10))
+    }
+
+    @Test
+    fun extraGenrePenaltyOutranksSecondaryScore() {
+        val candidates = listOf(
+            cand(1, listOf("Drame"), rating = 1.0, categoryId = "popular"),
+            cand(2, listOf("Drame", "Action"), rating = 10.0, categoryId = "popular")
+        )
+
+        assertEquals(listOf(1, 2), RelatedTitlesSelector.select(listOf("Drame"), "popular", candidates, 10))
+    }
+
+    @Test
+    fun extraGenrePenaltyCanBreakCategoryBonusTie() {
+        val candidates = listOf(
+            cand(1, listOf("Action", "Thriller", "Comédie"), rating = 10.0, categoryId = "other"),
+            cand(2, listOf("Action"), rating = 1.0, categoryId = "popular")
+        )
+
+        assertEquals(listOf(2, 1), RelatedTitlesSelector.select(listOf("Action", "Thriller"), "popular", candidates, 10))
+    }
+
+    @Test
+    fun cappedPenaltyCannotOvertakeOneMoreSharedGenre() {
+        val manyExtraGenres = (1..40).map { "Extra$it" }
+        val candidates = listOf(
+            cand(1, listOf("Drame", "Action") + manyExtraGenres),
+            cand(2, listOf("Drame"), rating = 10.0)
+        )
+
+        assertEquals(listOf(1, 2), RelatedTitlesSelector.select(listOf("Drame", "Action"), null, candidates, 10))
+    }
+
+    @Test
+    fun heavilyPenalizedCandidateRemainsEligible() {
+        val candidates = listOf(cand(1, listOf("Drame") + (1..40).map { "Extra$it" }))
+
+        assertEquals(listOf(1), RelatedTitlesSelector.select(listOf("Drame"), null, candidates, 10))
+    }
+
+    @Test
+    fun normalizationAndDuplicatesDoNotCreateExtraPenalty() {
+        val candidates = listOf(
+            cand(1, listOf("Drame"), rating = 1.0),
+            cand(2, listOf(" Drame ", "drame", " DRAME "), rating = 10.0)
+        )
+
+        assertEquals(listOf(2, 1), RelatedTitlesSelector.select(listOf("drame"), null, candidates, 10))
+    }
+
+    @Test
+    fun genresOnlyPresentOnCurrentMediaDoNotChangeOrdering() {
+        val candidates = listOf(
+            cand(1, listOf("Drame"), rating = 1.0),
+            cand(2, listOf("Drame", "Romance"), rating = 10.0)
+        )
+
+        val orderWithOnlySharedGenre = RelatedTitlesSelector.select(listOf("Drame"), null, candidates, 10)
+        val orderWithExtraCurrentGenres = RelatedTitlesSelector.select(listOf("Drame", "Action", "Thriller"), null, candidates, 10)
+
+        assertEquals(listOf(1, 2), orderWithOnlySharedGenre)
+        assertEquals(orderWithOnlySharedGenre, orderWithExtraCurrentGenres)
+    }
+
+    @Test
+    fun blankCurrentGenres_returnEmpty() {
+        assertTrue(RelatedTitlesSelector.select(listOf(" ", ""), null, listOf(cand(1, listOf("Drame"))), 10).isEmpty())
+    }
+
+    @Test
+    fun blankCandidateGenres_areExcluded() {
+        val candidates = listOf(cand(1, listOf(" ", "")), cand(2, listOf("Drame")))
+
+        assertEquals(listOf(2), RelatedTitlesSelector.select(listOf("Drame"), null, candidates, 10))
+    }
+
+    @Test
     fun emptyCurrentGenres_returnsEmpty() {
         assertTrue(RelatedTitlesSelector.select(emptyList(), null, listOf(cand(1, listOf("Action"))), 10).isEmpty())
     }

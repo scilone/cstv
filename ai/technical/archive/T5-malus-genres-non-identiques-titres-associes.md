@@ -6,7 +6,7 @@ Type:
 Technical
 
 Status:
-TASK BREAKDOWN
+RELEASED (v1.61.0 - 2026-07-27)
 
 Created:
 2026-07-27
@@ -256,11 +256,10 @@ Tous en JVM pur (`RelatedTitlesSelectorTest`), conformément à `AGENTS.md` — 
 2. **Malus discriminant à profil égal** : deux candidats à 1 genre commun et même catégorie, l'un sans genre additionnel, l'autre avec un — le premier passe devant, alors que la note du second est meilleure (prouve que le malus agit sur le rang, pas sur le score secondaire).
 3. **Plafond du malus** : candidat à 2 genres communs et 40 genres additionnels vs candidat à 1 genre commun sans genre additionnel — le premier reste devant (`11 > 10`).
 4. **Le malus n'exclut pas** : un candidat lourdement pénalisé reste présent dans la liste tant que `shared >= 1`.
-5. **Normalisation sans malus parasite** : candidat `[" Drame "]` face à une cible `["drame"]` → `extras = 0`, rang identique à un candidat `["Drame"]`.
-6. **Doublons comptés une fois** : candidat `["Drame", "drame", " DRAME "]` → `shared = 1`, `extras = 0`.
-7. **Genres additionnels de la cible sans effet** : cible `["Drame", "Action", "Thriller"]`, candidat `["Drame"]` → `extras = 0`, aucun malus.
-8. **Cible composée uniquement de valeurs vides** (`[" ", ""]`) → aucun candidat éligible (D4).
-9. **Candidat composé uniquement de valeurs vides** → exclu, même face à une cible non vide (D4).
+5. **Normalisation et doublons sans malus parasite** : candidat `[" Drame ", "drame", " DRAME "]` face à une cible `["drame"]` → `shared = 1`, `extras = 0`, rang identique à un candidat `["Drame"]`. Ces deux cas sont volontairement couverts par le même test.
+6. **Genres additionnels de la cible sans effet** : l'ordre entre les candidats est identique avec la cible `["Drame"]` puis `["Drame", "Action", "Thriller"]` lorsque ces genres ajoutés ne figurent chez aucun candidat.
+7. **Cible composée uniquement de valeurs vides** (`[" ", ""]`) → aucun candidat éligible (D4).
+8. **Candidat composé uniquement de valeurs vides** → exclu, même face à une cible non vide (D4).
 
 Validation finale : `./gradlew testDebugUnitTest` (non-régression complète) puis `./gradlew assembleDebug` et `./gradlew lintDebug`, sans désactivation d'un test existant.
 
@@ -268,7 +267,7 @@ Validation finale : `./gradlew testDebugUnitTest` (non-régression complète) pu
 
 # 6. Plan de développement
 
-- [ ] Tâche 1 — Écrire les tests de non-régression du classement par genres
+- [x] Tâche 1 — Écrire les tests de non-régression du classement par genres
 
 Objectif :
 Encoder dans les tests unitaires le malus de `0,1`, son plafond à `0,9`, l'ordre A/C/D/B des critères d'acceptation, ainsi que les cas de normalisation, doublons, listes vides et exclusion des candidats sans genre commun.
@@ -281,7 +280,7 @@ Validation :
 - Les tests vérifient que le bonus de catégorie est conservé et que des genres communs supplémentaires restent prioritaires à catégorie égale malgré le malus plafonné.
 - Les tests vérifient que casse, espaces, doublons et genres vides ne modifient pas indûment le classement ni l'éligibilité.
 
-- [ ] Tâche 2 — Appliquer le malus dans le sélecteur de titres associés
+- [x] Tâche 2 — Appliquer le malus dans le sélecteur de titres associés
 
 Objectif :
 Faire évoluer le calcul de rang de `RelatedTitlesSelector` pour retirer `0,1` par genre candidat non partagé, avec un plafond cumulé de `0,9`, tout en conservant le préfiltre, le bonus de catégorie, le départage secondaire et la limite existants.
@@ -295,7 +294,7 @@ Validation :
 - Le malus ne fait pas reculer, à catégorie égale, un candidat ayant un genre commun supplémentaire derrière un candidat qui en a moins.
 - Aucun changement n'est requis dans `VodRepositoryImpl` ni `SeriesRepositoryImpl`, qui continuent d'appeler la même signature publique.
 
-- [ ] Tâche 3 — Vérifier la non-régression automatisée ciblée
+- [x] Tâche 3 — Vérifier la non-régression automatisée ciblée
 
 Objectif :
 Exécuter la suite unitaire ciblée puis la non-régression JVM du projet après l'implémentation.
@@ -309,7 +308,171 @@ Validation :
 
 ---
 
-# 7. Hypothèses et questions ouvertes
+# 7. Notes de développement
+
+- Implémentation localisée à `RelatedTitlesSelector` : le rang est désormais calculé en dixièmes pour appliquer exactement le malus de `0,1` par genre candidat non partagé, plafonné à `0,9`, sans utiliser de flottants.
+- Les genres cible et candidat sont normalisés par `GenreParser.normalize`, puis les valeurs vides sont écartées avant le calcul de l'éligibilité, des genres communs et des genres supplémentaires.
+- Ce filtrage des valeurs vides est défensif : les appelants passent déjà par `GenreParser.parseGenres`, qui écarte ces valeurs dans le flux applicatif courant.
+- Les tests JVM couvrent l'ordre A/C/D/B, le départage avant le score secondaire, le plafond, l'éligibilité malgré le malus, la normalisation, les doublons et les listes vides.
+- Validation effectuée le 2026-07-27 : `./gradlew testDebugUnitTest --tests com.cstv.app.domain.model.RelatedTitlesSelectorTest`, `./gradlew testDebugUnitTest assembleDebug lintDebug` réussissent. Lint signale 55 avertissements préexistants, sans erreur.
+
+---
+
+# 8. Review
+
+Revue technique du 2026-07-27 (Opus). Portée : `domain/model/RelatedTitlesSelector.kt`,
+`RelatedTitlesSelectorTest.kt`, et les deux appelants `VodRepositoryImpl` /
+`SeriesRepositoryImpl`. Aucune modification de code effectuée.
+
+Status: RESOLVED
+
+Vérification exécutée : `./gradlew testDebugUnitTest --tests com.cstv.app.domain.model.RelatedTitlesSelectorTest`
+→ `BUILD SUCCESSFUL`, rapport JUnit `tests="20" skipped="0" failures="0" errors="0"`.
+
+## Points positifs
+
+- **Conformité à la formule §4.2** : `rankTenths = (shared + catBonus) * RANK_SCALE - min(MALUS_CAP_TENTHS, extras * MALUS_PER_EXTRA_TENTHS)`
+  est implémenté littéralement (`RelatedTitlesSelector.kt:54-56`), avec les trois constantes
+  annoncées (l. 26-28). Aucun flottant introduit : la règle métier 4 est garantie par
+  construction (`9 < 10`), pas par un test.
+- **Périmètre tenu** : un seul fichier de production modifié. Les deux appelants
+  (`VodRepositoryImpl.kt:417`, `SeriesRepositoryImpl.kt:369`) sont inchangés, la signature
+  publique de `select(...)` est stable (D5 respecté). Aucune dépendance, migration Room ni
+  règle ProGuard touchée.
+- **Non-régression réelle** : `git diff` sur le fichier de test est un **ajout pur** (+73/-0) ;
+  les 12 tests existants ne sont ni modifiés ni désactivés, conformément à §5.3.
+- **Normalisation centralisée** (D3) : le `trim().lowercase()` inline a disparu au profit de
+  `GenreParser.normalize`, avec filtrage des vides côté cible **et** candidat (D4). La cible
+  vide court-circuite avant toute allocation (l. 41).
+- **`extras` par soustraction** (D2) : `candidateGenres.size - shared` sur l'ensemble déjà
+  construit — aucun parcours supplémentaire, complexité inchangée, divergence de
+  normalisation entre les deux compteurs structurellement impossible.
+- **Couverture des critères d'acceptation** : l'ordre A/C/D/B et l'exclusion de E sont
+  encodés dans un test unique et lisible (`penalizesExtraCandidateGenresInAcceptanceCriteriaOrder`) ;
+  `extraGenrePenaltyOutranksSecondaryScore` prouve que le malus agit sur le rang et non sur
+  le score secondaire (D6) en donnant volontairement la meilleure note au candidat pénalisé.
+
+## Critique
+
+Aucun.
+
+## Majeur
+
+Aucun. Le calcul, l'éligibilité, le bonus de catégorie et le départage secondaire sont
+conformes aux règles métier §3 et à la spécification technique §4 ; aucun chemin ne peut
+produire d'exception ni de classement incohérent.
+
+## Mineur
+
+### MIN-1 — Frontière « genre commun supplémentaire vs bonus de catégorie » non testée sous malus
+
+Description : §5.3 désigne `categoryBonusTiesWithAnExtraCommonGenre` comme le test le plus
+sensible au malus, et souligne qu'il conserve son égalité parce que le candidat 1 a
+`extras = 0`. Le cas symétrique — candidat porteur du genre commun supplémentaire **et**
+d'un genre additionnel — n'est couvert par aucun test. Exemple : cible `["Action","Thriller"]`,
+candidat 1 `["Action","Thriller","Comédie"]` autre catégorie → `19` ; candidat 2 `["Action"]`
+même catégorie → `20` : le malus renverse l'égalité documentée.
+
+Impact : faible. Le comportement est conforme (la règle métier 4 ne protège qu'à catégorie
+égale), mais c'est le seul arbitrage que T5 déplace entre deux profils différents et il
+n'a pas de harnais.
+
+Correction attendue : ajouter un test encodant explicitement cet arbitrage, pour figer la
+décision plutôt que de la laisser émerger de la formule.
+
+### MIN-2 — `extraCurrentGenresDoNotPenalizeCandidate` ne teste pas isolément le cas §5.4-7
+
+Description : le test compare un candidat sans genre additionnel (note 1,0) à un candidat
+avec un genre additionnel (note 10,0) face à une cible large. L'assertion `[1, 2]` est bien
+discriminante contre un malus symétrique façon Jaccard, mais elle mélange l'effet « genres
+additionnels de la cible » et l'effet « genre additionnel du candidat », alors que §5.4-7
+demandait d'isoler le premier.
+
+Impact : très faible. Lisibilité de l'intention du test, pas de trou de couverture réel.
+
+Correction attendue : soit comparer deux candidats identiques face à des cibles de tailles
+différentes, soit renommer le test pour refléter ce qu'il vérifie réellement.
+
+### MIN-3 — Écart entre les 9 cas prévus en §5.4 et les 8 tests écrits
+
+Description : les cas §5.4-5 (normalisation) et §5.4-6 (doublons) sont fusionnés dans
+`normalizationAndDuplicatesDoNotCreateExtraPenalty`. La fusion est légitime — le candidat
+`[" Drame ", "drame", " DRAME "]` couvre les deux — mais §5.4 n'a pas été mis à jour.
+
+Impact : très faible, purement documentaire.
+
+Correction attendue : noter la fusion en §5.4 ou dans les notes de développement.
+
+### MIN-4 — Formule absente du KDoc, constantes sans commentaire d'unité
+
+Description : la mitigation du risque « mauvaise lecture de l'échelle en dixièmes » (§4.5)
+prévoyait de « documenter la formule dans le KDoc de l'objet ». Le KDoc la décrit en prose
+(« chaque genre commun et la catégorie commune valent 1,0 … retire 0,1 … limite de 0,9 »)
+mais ne montre pas l'expression. Par ailleurs `RANK_SCALE`, `MALUS_PER_EXTRA_TENTHS` et
+`MALUS_CAP_TENTHS` (l. 26-28) n'ont aucun commentaire, alors que `W_RATING` / `W_ADDED`
+juste au-dessus en ont un.
+
+Impact : faible, mais c'est exactement le vecteur de régression identifié en §4.5 (ajout
+futur d'un critère « valant 1 » écrit `+ 1` au lieu de `+ RANK_SCALE`).
+
+Correction attendue : ajouter la formule en clair dans le KDoc et une ligne de commentaire
+sur l'unité des trois constantes.
+
+### MIN-5 — Score secondaire recalculé à chaque comparaison du tri
+
+Description : `score(it)` est appelé dans le comparateur (l. 76) et non mémorisé dans
+`Scored`. Il est donc réévalué `O(n log n)` fois au lieu de `n`.
+
+Impact : négligeable au volume actuel (pool préfiltré, une exécution par ouverture de
+fiche), et **préexistant à T5**. Signalé pour mémoire.
+
+Correction attendue : aucune dans le cadre de T5 ; à traiter si le pool de candidats
+grossit (précalculer le score dans `Scored`).
+
+### MIN-6 — Effet réel de D4 nul en production, non signalé
+
+Description : le filtrage des genres vides (D4) corrige un écart réel du sélecteur, mais les
+deux appelants alimentent `genres` via `GenreParser.parseGenres`, qui écarte déjà blancs et
+placeholders (`"Inconnu"`, `"N/A"`). D4 est donc un durcissement défensif du domaine sans
+changement de comportement observable dans l'application.
+
+Impact : nul sur le produit. À préciser pour éviter qu'une note de version annonce une
+correction invisible pour l'utilisateur.
+
+Correction attendue : préciser en §7 que D4 est défensif et sans effet sur le flux réel.
+
+## Corrections demandées
+
+Aucune correction bloquante. Par ordre de valeur :
+
+1. MIN-1 — ajouter le test d'arbitrage « genre commun supplémentaire pénalisé vs bonus de
+   catégorie » (seul comportement déplacé par T5 sans harnais).
+2. MIN-4 — formule dans le KDoc + commentaire d'unité sur les trois constantes.
+3. MIN-2, MIN-3, MIN-6 — ajustements de nommage et de documentation.
+4. MIN-5 — hors périmètre T5, à conserver comme dette connue.
+
+## Corrections appliquées à l'étape 7
+
+1. **MIN-1** — ajout du test `extraGenrePenaltyCanBreakCategoryBonusTie`, qui fixe l'arbitrage `19` contre `20` entre un candidat avec un genre commun supplémentaire et un candidat de même catégorie.
+2. **MIN-2** — test remplacé par `genresOnlyPresentOnCurrentMediaDoNotChangeOrdering`, qui compare explicitement l'ordre avec une cible réduite puis enrichie de genres absents des candidats.
+3. **MIN-3** — §5.4 documente désormais que normalisation et doublons sont couverts par un test commun.
+4. **MIN-4** — formule ajoutée au KDoc et unité des constantes de rang explicitée.
+5. **MIN-5** — score secondaire précalculé une fois par candidat avant le tri.
+6. **MIN-6** — note défensive ajoutée dans les notes de développement.
+
+---
+
+# 9. Validation finale
+
+Status: VALIDATED
+
+- Comportement et règles métier vérifiés par les tests unitaires du sélecteur : éligibilité sur au moins un genre partagé, malus de `0,1` par genre candidat supplémentaire plafonné à `0,9`, bonus de catégorie et départage secondaire.
+- Non-régression automatisée rejouée après les six corrections de revue le 2026-07-27 : `./gradlew testDebugUnitTest assembleDebug lintDebug` réussit ; lint ne remonte aucune erreur.
+- Aucun test appareil ou émulateur n'est requis pour T5 : le changement est limité à un objet de domaine pur, sans interface, navigation, persistance ni intégration Android. ADB est disponible au SDK mais le daemon ne peut pas ouvrir son listener dans l'environnement isolé (`Operation not permitted`) ; cela n'affecte pas la validation JVM de T5.
+
+---
+
+# 10. Hypothèses et questions ouvertes
 
 ## Hypothèses
 * Les règles fonctionnelles arrêtées sont un malus de `0,1` par genre additionnel et un plafond de `0,9`.

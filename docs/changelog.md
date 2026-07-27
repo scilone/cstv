@@ -1,5 +1,13 @@
 # Journal des Modifications (Changelog) - CSTV IPTV
 
+## [v1.61.0] - 2026-07-27
+### ⚡ Malus pour les genres non identiques dans les titres associés (T5)
+* **Tri affiné par ressemblance thématique** : Introduction d'un léger malus de `0,1` par genre présent chez le candidat mais absent du média courant, afin de privilégier les titres aux profils de genres les plus proches possibles de l'œuvre d'origine.
+* **Malus cumulé plafonné** : Le malus cumulé est strictement limité à `0,9` (via un calcul en dixièmes sans impact de précision d'arrondi flottant) de sorte qu'il n'annule jamais le poids d'un genre commun supplémentaire ni n'altère le bonus de catégorie IPTV locale.
+* **Normalisation stricte** : Normalisation et dédoublonnage unifiés des genres cible et candidat via `GenreParser.normalize`, avec exclusion rigoureuse des valeurs vides.
+
+> Validation automatisée : `testDebugUnitTest` et compilation (`assembleDebug`, `lintDebug`) validées à 100% avec succès.
+
 ## [v1.60.0] - 2026-07-26
 ### ✨ Nouvelles Fonctionnalités
 * **Lecture automatique du trailer YouTube sur les fiches de détail (Films/Séries) (F13)** :
