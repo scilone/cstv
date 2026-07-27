@@ -35,10 +35,13 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.util.lerp
+import kotlin.math.absoluteValue
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.VolumeOff
 import androidx.compose.material.icons.filled.VolumeUp
@@ -47,6 +50,20 @@ import com.cstv.app.domain.model.TrendingCatalogItem
 import com.cstv.app.domain.model.TrailerSource
 import com.cstv.app.domain.model.TrailerMedia
 import com.cstv.app.presentation.components.TrailerPreviewUiState
+
+/**
+ * Nombre de répétitions de la liste exposées au pager pour simuler une boucle
+ * sans fin. Le pager ne sait pas boucler nativement : on lui présente la liste
+ * un grand nombre de fois et on ramène l'index par modulo. En démarrant au
+ * milieu, l'utilisateur atteindrait la borne après des centaines de swipes.
+ */
+private const val CAROUSEL_LOOPS = 1000
+
+/** Largeur de la tranche laissée visible de chaque slide voisine. */
+private val CAROUSEL_PEEK = 24.dp
+
+/** Échelle des slides voisines ; la slide courante reste à 1. */
+private const val CAROUSEL_SIDE_SCALE = 0.88f
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -60,9 +77,25 @@ fun HomeTrendingCarousel(
     onSeriesClick: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val pagerState = rememberPagerState(pageCount = { trendingItems.size })
+    val itemCount = trendingItems.size
+    // Une seule tendance ne boucle pas : répéter l'unique slide n'apporterait
+    // rien et laisserait croire à un défilement possible.
+    val loops = if (itemCount > 1) CAROUSEL_LOOPS else 1
+    val pageCount = itemCount * loops
+    // Démarrage aligné sur un début de cycle, pour que la première slide
+    // affichée soit bien la première tendance.
+    val initialPage = if (itemCount > 1) (pageCount / 2) - (pageCount / 2) % itemCount else 0
+
+    val pagerState = rememberPagerState(pageCount = { pageCount })
+    // `rememberPagerState` fige sa page initiale à la première composition, or
+    // la liste arrive après le chargement réseau : le recentrage doit donc être
+    // fait explicitement dès que la taille de la liste est connue.
+    LaunchedEffect(itemCount) {
+        if (itemCount > 0) pagerState.scrollToPage(initialPage)
+    }
+
     val lifecycleOwner = LocalLifecycleOwner.current
-    val activeItem = trendingItems.getOrNull(pagerState.currentPage)
+    val activeItem = trendingItems.getOrNull(pagerState.currentPage.floorModOrZero(itemCount))
     var lifecycleStarted by remember(lifecycleOwner) {
         mutableStateOf(lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED))
     }
@@ -92,14 +125,6 @@ fun HomeTrendingCarousel(
         }
     }
 
-    // Recale sur la première page si la liste rétrécit sous la page courante
-    // (ex. recalcul du filtre catégorie masquée) pour éviter une page vide.
-    LaunchedEffect(trendingItems.size) {
-        if (trendingItems.isNotEmpty() && pagerState.currentPage >= trendingItems.size) {
-            pagerState.scrollToPage(0)
-        }
-    }
-
     Box(
         modifier = modifier
             .height(420.dp)
@@ -107,6 +132,12 @@ fun HomeTrendingCarousel(
     ) {
         HorizontalPager(
             state = pagerState,
+            // Laisse dépasser une tranche des slides voisines de chaque côté.
+            contentPadding = PaddingValues(horizontal = CAROUSEL_PEEK),
+            // Les voisines ne sont que partiellement dans le viewport : sans
+            // cette marge de composition, elles apparaîtraient vides au début
+            // du geste, le temps que leur affiche se charge.
+            beyondBoundsPageCount = 1,
             modifier = Modifier.fillMaxSize()
         ) { page ->
             // trendingItems peut rétrécir entre deux recompositions (ex. filtre
@@ -114,7 +145,7 @@ fun HomeTrendingCarousel(
             // pagerState.currentPage garde un index désormais hors bornes ->
             // IndexOutOfBoundsException à la composition si on utilise [page] sans
             // garde-fou (crash "après un moment", hors de tout try/catch de fetch).
-            val item = trendingItems.getOrNull(page) ?: return@HorizontalPager
+            val item = trendingItems.getOrNull(page.floorModOrZero(itemCount)) ?: return@HorizontalPager
             val streamId = item.matchedMovie?.streamId ?: item.matchedSeries?.seriesId ?: 0
             val isMovie = item.matchedMovie != null
             val isActive = page == pagerState.currentPage
@@ -135,12 +166,24 @@ fun HomeTrendingCarousel(
             // la phase de cover.
             var previewVisible by remember(videoId) { mutableStateOf(false) }
 
+            // Distance à la slide courante, en pages : 0 au centre, 1 sur la
+            // voisine. Suit le geste en continu, d'où la transition progressive
+            // — la slide qui part rétrécit pendant que celle qui arrive grandit.
+            val pageOffset = ((pagerState.currentPage - page) + pagerState.currentPageOffsetFraction)
+                .absoluteValue
+                .coerceIn(0f, 1f)
+            val scale = lerp(CAROUSEL_SIDE_SCALE, 1f, 1f - pageOffset)
+
             Card(
                 shape = RoundedCornerShape(16.dp),
                 elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 8.dp)
+                    .graphicsLayer {
+                        scaleX = scale
+                        scaleY = scale
+                    }
+                    .padding(horizontal = 6.dp)
             ) {
                 Box(modifier = Modifier.fillMaxSize()) {
                     // 1. Poster backdrop
@@ -235,30 +278,14 @@ fun HomeTrendingCarousel(
                 }
             }
         }
-
-        // 4. Page indicator dots
-        Row(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            repeat(trendingItems.size) { index ->
-                val isActive = pagerState.currentPage == index
-                Box(
-                    modifier = Modifier
-                        .height(6.dp)
-                        .width(if (isActive) 20.dp else 6.dp)
-                        .clip(RoundedCornerShape(50))
-                        .background(
-                            if (isActive) MaterialTheme.colorScheme.primary
-                            else Color.Gray.copy(alpha = 0.5f)
-                        )
-                )
-            }
-        }
     }
 }
+
+/**
+ * Index dans la liste correspondant à une page virtuelle du carrousel infini.
+ * Renvoie 0 sur une liste vide plutôt que de lever une division par zéro.
+ */
+private fun Int.floorModOrZero(size: Int): Int = if (size <= 0) 0 else Math.floorMod(this, size)
 
 /**
  * Variante TV du carrousel tendances : une rangée horizontale de vignettes
