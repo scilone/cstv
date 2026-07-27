@@ -50,8 +50,12 @@ class TrailerRepositoryImpl @Inject constructor(
             synchronized(cache) { if (cache.containsKey(key)) return@withLock cache[key] }
             val stored = runCatching { trailerCacheDao.get(key.mediaType, key.catalogId) }.getOrNull()
             if (stored != null) {
-                val ttl = if (stored.videoId == null) NEGATIVE_TTL_MS else POSITIVE_TTL_MS
-                if (timeProvider.nowMillis() - stored.resolvedAt < ttl) {
+                // Un trailer trouvé ne se périme jamais : seul un échec de
+                // lecture le retire (voir invalidate()). Un résultat négatif,
+                // lui, peut changer (TMDB s'enrichit) et reste soumis au TTL.
+                val expired = stored.videoId == null &&
+                    timeProvider.nowMillis() - stored.resolvedAt >= NEGATIVE_TTL_MS
+                if (!expired) {
                     return@withLock stored.videoId?.toPreview(media).also { synchronized(cache) { cache[key] = it } }
                 }
                 runCatching { trailerCacheDao.delete(key.mediaType, key.catalogId) }
@@ -113,7 +117,6 @@ class TrailerRepositoryImpl @Inject constructor(
     private fun TrailerMedia.cacheKey() = CacheKey(if (this is TrailerMedia.Movie) "movie" else "series", catalogId)
 
     companion object {
-        private const val POSITIVE_TTL_MS = 30L * 24 * 60 * 60 * 1000
         private const val NEGATIVE_TTL_MS = 7L * 24 * 60 * 60 * 1000
         /** Accepte uniquement un ID YouTube ou les URLs youtube.com/youtu.be reconnues. */
         internal fun normalizeYouTubeId(value: String?): String? {
