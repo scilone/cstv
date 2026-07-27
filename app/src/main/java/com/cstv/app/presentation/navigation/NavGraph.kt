@@ -15,6 +15,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -34,6 +35,7 @@ import com.cstv.app.domain.model.VodStream
 import com.cstv.app.domain.model.SeriesStream
 import com.cstv.app.domain.model.SeriesDetails
 import com.cstv.app.domain.model.SeriesEpisode
+import com.cstv.app.presentation.components.LocalTopSystemInset
 import com.cstv.app.presentation.home.HomeScreen
 import com.cstv.app.presentation.home.HomeViewModel
 import com.cstv.app.presentation.home.RecentlyAddedScreen
@@ -170,6 +172,10 @@ fun AppNavGraph(
     val downloadsViewModel: com.cstv.app.presentation.downloads.DownloadsViewModel = hiltViewModel()
     val downloadsState by downloadsViewModel.state.collectAsStateWithLifecycle()
 
+    // L'inset du haut est publié ici plutôt que relu par chaque écran : à ce
+    // niveau il est déjà résolu, alors qu'un `WindowInsets` lu à l'ouverture
+    // d'un écran vaut zéro le temps d'un layout et le ferait grandir après coup.
+    CompositionLocalProvider(LocalTopSystemInset provides paddingValues.calculateTopPadding()) {
     NavHost(
         navController = navController,
         startDestination = if (loggedInUser == null) "login" else "home",
@@ -802,5 +808,6 @@ fun AppNavGraph(
                 }
             )
         }
+    }
     }
 }

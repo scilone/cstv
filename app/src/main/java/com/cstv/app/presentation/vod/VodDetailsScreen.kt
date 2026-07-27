@@ -33,8 +33,6 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.text.font.FontWeight
 import com.cstv.app.presentation.theme.AccentLavande
@@ -95,19 +93,21 @@ fun VodDetailsScreen(
     var trailerMuted by remember(trailerMedia) { mutableStateOf(true) }
     val snackbarHostState = remember { SnackbarHostState() }
     LaunchedEffect(ratingError) { ratingError?.let { snackbarHostState.showSnackbar(it); onConsumeRatingError() } }
-    // Hauteur réelle du conteneur : sert à redessiner le décor à l'identique
-    // dans le bloc de tête épinglé (voir plus bas).
-    var rootHeightPx by remember { mutableIntStateOf(0) }
-    val rootHeight = with(LocalDensity.current) { rootHeightPx.toDp() }
-    Box(
+    // `BoxWithConstraints` livre la hauteur du conteneur pendant la mesure, et
+    // non après un premier layout : la zone de tête, dimensionnée en fraction
+    // de cette hauteur, est donc correcte dès le premier rendu. Mesurée après
+    // coup, elle naissait à zéro puis surgissait à sa taille — l'à-coup visible
+    // à l'ouverture comme à la fermeture de la fiche.
+    BoxWithConstraints(
         modifier = modifier
             .fillMaxSize()
             // Mobile : l'image de tête court jusqu'en haut de la dalle. Sur TV
             // les barres système sont masquées, l'inset y est nul de toute façon.
             .then(if (isTv) Modifier else Modifier.extendUnderTopInset())
-            .onSizeChanged { rootHeightPx = it.height }
             .background(if (isTv) Surface1 else Color.Transparent)
     ) {
+        val rootHeight = maxHeight
+
         // 1. Cinematic Blurred Backdrop Cover Image
         if (!details.coverBig.isNullOrBlank()) {
             AsyncImage(
