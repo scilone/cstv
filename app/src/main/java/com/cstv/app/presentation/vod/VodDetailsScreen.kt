@@ -31,7 +31,9 @@ import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.text.font.FontWeight
 import com.cstv.app.presentation.theme.AccentLavande
 import com.cstv.app.presentation.theme.BricolageGrotesque
@@ -133,17 +135,35 @@ fun VodDetailsScreen(
         }
 
         // 2. Content Column/Scroll
+        val scrollState = rememberScrollState()
+        // Bloc de tête épinglé uniquement pendant la lecture du trailer : figer
+        // une affiche statique coûterait la moitié de l'écran sans rien
+        // apporter, alors qu'une vidéo en cours mérite de rester visible
+        // pendant qu'on parcourt le synopsis.
+        val pinHeader = !isTv && trailerRevealed
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(scrollState)
         ) {
             // Bloc de tête : bouton Retour + affiche. Sur mobile, c'est cette
             // zone — et elle seule — qu'occupe le trailer une fois révélé. Sa
             // hauteur est dictée par son contenu, donc identique avec ou sans
             // trailer : `matchParentSize` fait épouser au lecteur exactement le
             // bloc, sans constante à maintenir et sans décaler le titre.
-            Box(modifier = Modifier.fillMaxWidth()) {
+            //
+            // L'épinglage compense le défilement au lieu de sortir le bloc de
+            // la zone défilante : le déplacer dans l'arbre recréerait la
+            // WebView, ce qui relancerait le trailer et remettrait à zéro
+            // l'état de révélation dont dépend l'épinglage lui-même.
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .zIndex(if (pinHeader) 1f else 0f)
+                    .graphicsLayer {
+                        translationY = if (pinHeader) scrollState.value.toFloat() else 0f
+                    }
+            ) {
                 if (!isTv && trailerPlaying) {
                     MediaDetailsTrailerBackdrop(
                         media = trailerMedia,
