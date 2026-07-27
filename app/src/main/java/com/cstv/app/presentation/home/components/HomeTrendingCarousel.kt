@@ -35,6 +35,7 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -60,7 +61,7 @@ import com.cstv.app.presentation.components.TrailerPreviewUiState
 private const val CAROUSEL_LOOPS = 1000
 
 /** Largeur de la tranche laissée visible de chaque slide voisine. */
-private val CAROUSEL_PEEK = 24.dp
+private val CAROUSEL_PEEK = 20.dp
 
 /** Échelle des slides voisines ; la slide courante reste à 1. */
 private const val CAROUSEL_SIDE_SCALE = 0.88f
@@ -127,7 +128,7 @@ fun HomeTrendingCarousel(
 
     Box(
         modifier = modifier
-            .height(420.dp)
+            .height(470.dp)
             .fillMaxWidth()
     ) {
         HorizontalPager(
@@ -166,13 +167,13 @@ fun HomeTrendingCarousel(
             // la phase de cover.
             var previewVisible by remember(videoId) { mutableStateOf(false) }
 
-            // Distance à la slide courante, en pages : 0 au centre, 1 sur la
-            // voisine. Suit le geste en continu, d'où la transition progressive
-            // — la slide qui part rétrécit pendant que celle qui arrive grandit.
-            val pageOffset = ((pagerState.currentPage - page) + pagerState.currentPageOffsetFraction)
-                .absoluteValue
-                .coerceIn(0f, 1f)
-            val scale = lerp(CAROUSEL_SIDE_SCALE, 1f, 1f - pageOffset)
+            // Position relative à la slide courante, en pages : 0 au centre,
+            // -1 pour la voisine de droite, +1 pour celle de gauche. Suit le
+            // geste en continu, d'où la transition progressive — la slide qui
+            // part rétrécit pendant que celle qui arrive grandit.
+            val relativeOffset = ((pagerState.currentPage - page) + pagerState.currentPageOffsetFraction)
+                .coerceIn(-1f, 1f)
+            val scale = lerp(CAROUSEL_SIDE_SCALE, 1f, 1f - relativeOffset.absoluteValue)
 
             Card(
                 shape = RoundedCornerShape(16.dp),
@@ -182,8 +183,15 @@ fun HomeTrendingCarousel(
                     .graphicsLayer {
                         scaleX = scale
                         scaleY = scale
+                        // Chaque voisine se réduit vers le bord d'écran qui la
+                        // borde, et non vers son centre : autrement elle recule
+                        // d'autant que la réduction, ce qui consomme la tranche
+                        // laissée visible par `contentPadding` et la fait
+                        // pratiquement disparaître. Le pivot glisse avec le
+                        // geste, donc sans rupture au passage par le centre.
+                        transformOrigin = TransformOrigin(0.5f + 0.5f * relativeOffset, 0.5f)
                     }
-                    .padding(horizontal = 6.dp)
+                    .padding(horizontal = 4.dp)
             ) {
                 Box(modifier = Modifier.fillMaxSize()) {
                     // 1. Poster backdrop

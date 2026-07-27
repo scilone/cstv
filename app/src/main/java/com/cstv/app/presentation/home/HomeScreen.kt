@@ -207,7 +207,7 @@ fun HomeScreen(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(bottom = 8.dp)
+                            .padding(bottom = 2.dp)
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -216,7 +216,7 @@ fun HomeScreen(
                             com.cstv.app.presentation.profile.ProfileAvatar(
                                 avatarId = activeProfileAvatarId,
                                 name = activeProfileName,
-                                size = if (isTv) 54 else 40,
+                                size = if (isTv) 54 else 36,
                                 modifier = Modifier
                                     .clickable { onNavigateToProfileManagement() }
                             )
@@ -225,7 +225,7 @@ fun HomeScreen(
                                 if (!isTv) {
                                     Text(
                                         text = "Bonsoir",
-                                        fontSize = 11.sp,
+                                        fontSize = 10.sp,
                                         fontWeight = FontWeight.SemiBold,
                                         color = AccentLavande,
                                         letterSpacing = 0.04.sp,
@@ -233,7 +233,7 @@ fun HomeScreen(
                                     )
                                     Text(
                                         text = activeProfileName,
-                                        fontSize = 19.sp,
+                                        fontSize = 17.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = Color(0xFFF4F4F7),
                                         letterSpacing = (-0.01).sp,
@@ -242,7 +242,7 @@ fun HomeScreen(
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(7.dp),
-                                        modifier = Modifier.padding(top = 3.dp)
+                                        modifier = Modifier.padding(top = 1.dp)
                                     ) {
                                         Text(
                                             text = userInfo.username.uppercase(),
@@ -284,7 +284,7 @@ fun HomeScreen(
                             IconButton(
                                 onClick = onNavigateToSettings,
                                 modifier = Modifier
-                                    .size(40.dp)
+                                    .size(36.dp)
                                     .background(Surface3, shape = RoundedCornerShape(14.dp))
                                     .border(1.dp, Color.White.copy(alpha = 0.08f), shape = RoundedCornerShape(14.dp))
                             ) {
@@ -292,7 +292,7 @@ fun HomeScreen(
                                     Icons.Default.Settings,
                                     contentDescription = stringResource(R.string.home_see_all),
                                     tint = Color(0xFFC7C7D1),
-                                    modifier = Modifier.size(21.dp)
+                                    modifier = Modifier.size(19.dp)
                                 )
                             }
                         }
