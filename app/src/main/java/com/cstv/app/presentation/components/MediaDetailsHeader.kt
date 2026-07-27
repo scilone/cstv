@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -28,17 +29,18 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.cstv.app.domain.model.TrailerMedia
+import com.cstv.app.presentation.theme.DarkBackground
 import com.cstv.app.presentation.theme.Surface1
 
 /**
  * Part de la hauteur utile occupée par la zone de tête des fiches mobiles.
  *
- * Rapportée au conteneur — l'écran moins la barre d'état et la barre de
- * navigation — et non à l'écran entier : à 0,45, le bas de l'image tombe au
- * même niveau que sur les applications de référence, dont le visuel occupe
- * environ 45 % de la dalle en débordant sous la barre d'état.
+ * Rapportée au conteneur, qui couvre désormais la barre d'état — la fiche ne
+ * consomme plus cet inset (voir `AppNavGraph`) — mais pas la barre de
+ * navigation. À 0,5, l'image descend donc à environ 45 % de la dalle, comme
+ * sur les applications de référence.
  */
-const val MEDIA_DETAILS_HEADER_HEIGHT_FRACTION = 0.45f
+const val MEDIA_DETAILS_HEADER_HEIGHT_FRACTION = 0.5f
 
 /**
  * Zone de tête des fiches de détail **mobile** : l'image du média occupe toute
@@ -98,16 +100,30 @@ fun MediaDetailsHeader(
             )
         }
 
-        // Assombrit le haut de la zone pour garder les commandes lisibles quel
-        // que soit le visuel qui passe dessous.
+        // Assombrit le haut de la zone : l'image passe sous la barre d'état, il
+        // faut donc garder lisibles l'heure et les icônes système autant que les
+        // commandes de la fiche.
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(96.dp)
+                .height(140.dp)
                 .align(Alignment.TopCenter)
                 .background(
                     Brush.verticalGradient(
-                        listOf(Color.Black.copy(alpha = 0.45f), Color.Transparent)
+                        listOf(Color.Black.copy(alpha = 0.55f), Color.Transparent)
+                    )
+                )
+        )
+
+        // Adoucit la jonction avec le contenu, qui reprend juste en dessous.
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(120.dp)
+                .align(Alignment.BottomCenter)
+                .background(
+                    Brush.verticalGradient(
+                        listOf(Color.Transparent, DarkBackground)
                     )
                 )
         )
@@ -116,6 +132,7 @@ fun MediaDetailsHeader(
             onClick = onBack,
             modifier = Modifier
                 .align(Alignment.TopStart)
+                .statusBarsPadding()
                 .padding(12.dp)
                 .background(Color(0x33FFFFFF), shape = RoundedCornerShape(12.dp))
         ) {
@@ -127,6 +144,7 @@ fun MediaDetailsHeader(
                 onClick = { onMutedChange(!muted) },
                 modifier = Modifier
                     .align(Alignment.TopEnd)
+                    .statusBarsPadding()
                     .padding(12.dp)
                     .background(Color.Black.copy(alpha = .55f), CircleShape)
             ) {

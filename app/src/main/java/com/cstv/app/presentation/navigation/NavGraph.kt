@@ -4,9 +4,12 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.material3.Button
@@ -27,6 +30,7 @@ import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import com.cstv.app.domain.model.LiveStream
 import com.cstv.app.domain.model.UserInfo
 import com.cstv.app.domain.model.VodDetails
@@ -170,11 +174,31 @@ fun AppNavGraph(
     val downloadsViewModel: com.cstv.app.presentation.downloads.DownloadsViewModel = hiltViewModel()
     val downloadsState by downloadsViewModel.state.collectAsStateWithLifecycle()
 
+    // Les fiches de détail mobiles laissent leur image de tête passer sous la
+    // barre d'état : elles ne consomment donc pas l'inset du haut, et posent
+    // elles-mêmes un statusBarsPadding sur leurs commandes. Un simple décalage
+    // vers le haut ne suffirait pas — le défilement de la fiche rogne ce qui
+    // dépasse de ses bornes.
+    val currentDestination by navController.currentBackStackEntryAsState()
+    val isTopEdgeToEdgeRoute = !isTv && currentDestination?.destination?.route in
+        setOf("vod_details", "series_details")
+    val layoutDirection = LocalLayoutDirection.current
+
     NavHost(
         navController = navController,
         startDestination = if (loggedInUser == null) "login" else "home",
         // Player routes intentionally ignore system insets so their video can fill the display.
-        modifier = Modifier.padding(if (isPlayerRoute) PaddingValues(0.dp) else paddingValues)
+        modifier = Modifier.padding(
+            when {
+                isPlayerRoute -> PaddingValues(0.dp)
+                isTopEdgeToEdgeRoute -> PaddingValues(
+                    start = paddingValues.calculateStartPadding(layoutDirection),
+                    end = paddingValues.calculateEndPadding(layoutDirection),
+                    bottom = paddingValues.calculateBottomPadding()
+                )
+                else -> paddingValues
+            }
+        )
     ) {
         composable("login") {
             LoginScreen(
