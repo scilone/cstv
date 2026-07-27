@@ -32,7 +32,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -60,7 +59,6 @@ import com.cstv.app.presentation.theme.HankenGrotesk
 import com.cstv.app.presentation.theme.Surface1
 import com.cstv.app.presentation.theme.Surface2
 import com.cstv.app.presentation.theme.Surface3
-import com.cstv.app.presentation.theme.mobileBackground
 import com.cstv.app.domain.model.SeriesEpisode
 import com.cstv.app.domain.model.SeriesSeason
 import com.cstv.app.domain.model.MediaRatingValue
@@ -136,7 +134,6 @@ fun SeriesDetailsScreen(
         )
 
         val trailerPlaying = (trailerState as? TrailerPreviewUiState.Playing)?.preview?.media == trailerMedia
-        var trailerRevealed by remember(trailerMedia) { mutableStateOf(false) }
 
         // Sur TV le trailer reste un fond plein écran assombri, derrière un
         // layout en deux colonnes qui ne lui laisse pas d'autre place.
@@ -168,83 +165,21 @@ fun SeriesDetailsScreen(
                 .fillMaxSize()
                 .then(if (isTv) Modifier else Modifier.verticalScroll(scrollState))
         ) {
-            // Bloc de tête : bouton Retour + affiche. Sur mobile, c'est cette
-            // zone — et elle seule — qu'occupe le trailer une fois révélé. Sa
-            // hauteur est dictée par son contenu, donc identique avec ou sans
-            // trailer : `matchParentSize` fait épouser au lecteur exactement le
-            // bloc, sans constante à maintenir et sans décaler le titre.
+            // Zone de tête. Sur mobile, l'image occupe toute la largeur sur
+            // environ un tiers de la hauteur, et le trailer vient s'y
+            // substituer une fois prêt.
             //
             // L'épinglage compense le défilement au lieu de sortir le bloc de
             // la zone défilante : le déplacer dans l'arbre recréerait la
-            // WebView, ce qui relancerait le trailer et remettrait à zéro
-            // l'état de révélation dont dépend l'épinglage lui-même.
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .zIndex(if (pinHeader) 1f else 0f)
-                    .graphicsLayer {
-                        translationY = if (pinHeader) scrollState.value.toFloat() else 0f
-                    }
-                    .clipToBounds()
-            ) {
-                // Épinglé, le bloc doit être opaque : sans fond, le contenu
-                // défile visiblement autour de l'affiche. Le décor est
-                // redessiné à la taille du conteneur et aligné en haut, donc
-                // exactement superposé à celui de la fiche — un aplat de
-                // couleur trancherait avec le dégradé radial du thème.
-                if (pinHeader) {
-                    // `matchParentSize` : ce calque épouse le bloc sans peser
-                    // sur sa mesure. Les couches qu'il contient font la hauteur
-                    // de l'écran et débordent donc, mais sont rognées ici — sans
-                    // cette isolation, elles étireraient le bloc à l'écran entier.
-                    Box(modifier = Modifier.matchParentSize().clipToBounds()) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(rootHeight)
-                                .align(Alignment.TopCenter)
-                                .mobileBackground()
-                        )
-                        if (!details.cover.isNullOrBlank()) {
-                            AsyncImage(
-                                model = details.cover,
-                                contentDescription = null,
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(rootHeight)
-                                    .align(Alignment.TopCenter)
-                                    .blur(20.dp)
-                                    .alpha(0.18f)
-                            )
-                        }
-                    }
-                }
-
-                if (!isTv && trailerPlaying) {
-                    MediaDetailsTrailerBackdrop(
-                        media = trailerMedia,
-                        state = trailerState,
-                        // L'affiche du bloc sert de couverture pendant le
-                        // chargement : le lecteur n'a pas besoin de la sienne.
-                        posterUrl = null,
-                        onPlaybackFailed = onTrailerFailed,
-                        muted = trailerMuted,
-                        onRevealed = { trailerRevealed = true },
-                        fadeInOnReveal = true,
-                        modifier = Modifier.matchParentSize()
-                    )
-                }
-
-                // Pas de marge basse ici : l'espacement avant le titre est
-                // porté par le Spacer final, comme sur une fiche sans trailer.
+            // WebView, ce qui relancerait le trailer depuis sa phase de
+            // chargement.
+            if (isTv) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 24.dp)
                         .padding(top = 24.dp)
                 ) {
-                    // Header with Back action
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
@@ -255,7 +190,7 @@ fun SeriesDetailsScreen(
                         ) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Retour", tint = Color.White)
                         }
-                        if (trailerPlaying && (isTv || trailerRevealed)) {
+                        if (trailerPlaying) {
                             Spacer(modifier = Modifier.weight(1f))
                             IconButton(onClick = { trailerMuted = !trailerMuted }) {
                                 Icon(
@@ -266,15 +201,25 @@ fun SeriesDetailsScreen(
                             }
                         }
                     }
-
-                    if (!isTv) {
-                        Spacer(modifier = Modifier.height(28.dp))
-                        SeriesPosterSlot(details = details, visible = !trailerRevealed)
-                        Spacer(modifier = Modifier.height(20.dp))
-                    } else {
-                        Spacer(modifier = Modifier.height(16.dp))
-                    }
+                    Spacer(modifier = Modifier.height(16.dp))
                 }
+            } else {
+                com.cstv.app.presentation.components.MediaDetailsHeader(
+                    imageUrl = details.cover,
+                    contentDescription = details.name,
+                    media = trailerMedia,
+                    trailerState = trailerState,
+                    muted = trailerMuted,
+                    onMutedChange = { trailerMuted = it },
+                    onTrailerFailed = onTrailerFailed,
+                    onBack = onBack,
+                    height = rootHeight * com.cstv.app.presentation.components.MEDIA_DETAILS_HEADER_HEIGHT_FRACTION,
+                    modifier = Modifier
+                        .zIndex(if (pinHeader) 1f else 0f)
+                        .graphicsLayer {
+                            translationY = if (pinHeader) scrollState.value.toFloat() else 0f
+                        }
+                )
             }
 
             Column(
@@ -284,7 +229,7 @@ fun SeriesDetailsScreen(
                     // hauteur laissée aux listes d'épisodes.
                     .then(if (isTv) Modifier.weight(1f) else Modifier)
                     .padding(horizontal = 24.dp)
-                    .padding(bottom = 24.dp)
+                    .padding(top = if (isTv) 0.dp else 20.dp, bottom = 24.dp)
             ) {
             if (isTv) {
                 TvLayout(
@@ -330,44 +275,6 @@ fun SeriesDetailsScreen(
             }
         }
         SnackbarHost(hostState = snackbarHostState, modifier = Modifier.align(Alignment.BottomCenter))
-    }
-}
-
-/**
- * Emplacement de l'affiche dans le bloc de tête. Conserve toujours sa place
- * dans la mesure : quand le trailer prend le relais, l'affiche s'efface sans
- * que le titre ni les infos ne remontent.
- */
-@Composable
-private fun SeriesPosterSlot(details: SeriesDetails, visible: Boolean) {
-    Box(
-        modifier = Modifier.fillMaxWidth(),
-        contentAlignment = Alignment.Center
-    ) {
-        Card(
-            modifier = Modifier
-                .width(180.dp)
-                .height(270.dp)
-                .alpha(if (visible) 1f else 0f)
-                .clip(RoundedCornerShape(12.dp))
-                .border(1.dp, Color.DarkGray, RoundedCornerShape(12.dp))
-        ) {
-            Box(
-                modifier = Modifier.fillMaxSize().background(Surface3),
-                contentAlignment = Alignment.Center
-            ) {
-                if (!details.cover.isNullOrBlank()) {
-                    AsyncImage(
-                        model = details.cover,
-                        contentDescription = details.name,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                } else {
-                    Icon(Icons.Default.Warning, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(54.dp))
-                }
-            }
-        }
     }
 }
 
@@ -670,11 +577,11 @@ private fun MobileLayout(
     val targetEpisode = resumeEpisode ?: firstEpisode
     val hasResume = resumeEpisode != null
 
-    // Le défilement est porté par l'écran, qui englobe aussi le bloc de tête :
-    // le trailer doit défiler avec l'affiche qu'il remplace.
+    // Le défilement est porté par l'écran, qui englobe aussi la zone de tête :
+    // le trailer doit défiler avec l'image qu'il remplace.
     Column(modifier = Modifier.fillMaxWidth()) {
-        // L'affiche est rendue par le bloc de tête de l'écran
-        // (SeriesPosterSlot), qui la cède au trailer une fois celui-ci révélé.
+        // L'image est rendue par la zone de tête de l'écran
+        // (MediaDetailsHeader), qui la cède au trailer une fois celui-ci prêt.
 
         // Title & Favorite row
         Row(
