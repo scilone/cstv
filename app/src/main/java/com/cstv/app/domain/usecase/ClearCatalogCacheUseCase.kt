@@ -35,16 +35,13 @@ open class ClearCatalogCacheUseCase @Inject constructor(
         database.withTransaction {
             liveTvDao.clearCategories()
             liveTvDao.clearAllStreams()
-            liveTvDao.clearAllFts()
             liveTvDao.clearEpgCache()
 
             vodDao.clearCategories()
             vodDao.clearAllStreams()
-            vodDao.clearAllFts()
 
             seriesDao.clearCategories()
             seriesDao.clearAllStreams()
-            seriesDao.clearAllFts()
             seriesDao.clearAllSeasons()
             seriesDao.clearAllEpisodes()
 

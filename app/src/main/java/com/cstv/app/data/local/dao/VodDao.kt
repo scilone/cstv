@@ -8,6 +8,7 @@ import androidx.room.Transaction
 import com.cstv.app.data.local.entity.PlaybackPositionEntity
 import com.cstv.app.data.local.entity.VodCategoryEntity
 import com.cstv.app.data.local.entity.VodStreamEntity
+import com.cstv.app.domain.model.LocalSearchQuery
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -59,9 +60,6 @@ interface VodDao {
     @Query("SELECT * FROM vod_streams WHERE categoryId = :categoryId ORDER BY orderIndex ASC")
     fun getStreamsByCategoryPaged(categoryId: String): androidx.paging.PagingSource<Int, VodStreamEntity>
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertStreams(streams: List<VodStreamEntity>)
-
     @Query("SELECT * FROM vod_streams WHERE streamId = :streamId LIMIT 1")
     suspend fun getStreamById(streamId: Int): VodStreamEntity?
 
@@ -71,28 +69,16 @@ interface VodDao {
     @Query("DELETE FROM vod_streams")
     suspend fun clearAllStreams()
 
-    // --- FTS4 (Phase 40 : recherche globale) ---
-    // Table virtuelle déclarée en @Entity (VodStreamFtsEntity), pilotée ici
-    // par des @Query brutes (pas d'@Insert/@Delete générés). rowid de
-    // vod_streams_fts = streamId (INTEGER PRIMARY KEY = alias de rowid en
-    // SQLite), pour joindre sans colonne dédiée.
-    @Query(
-        "INSERT OR REPLACE INTO vod_streams_fts(rowid, name, actors, director, genre, categoryId) " +
-            "VALUES (:streamId, :name, :actors, :director, :genre, :categoryId)"
-    )
-    suspend fun upsertVodFts(streamId: Int, name: String, actors: String?, director: String?, genre: String?, categoryId: String)
-
-    @Query("DELETE FROM vod_streams_fts WHERE categoryId = :categoryId")
-    suspend fun clearFtsByCategory(categoryId: String)
-
-    @Query("DELETE FROM vod_streams_fts")
-    suspend fun clearAllFts()
-
     @Transaction
-    suspend fun insertStreamsWithFts(streams: List<VodStreamEntity>) {
-        insertStreams(streams)
-        streams.forEach { upsertVodFts(it.streamId, it.name, it.actors, it.director, it.genre, it.categoryId) }
+    suspend fun insertStreams(streams: List<VodStreamEntity>) {
+        insertStreamsRaw(streams.map {
+            it.copy(searchText = LocalSearchQuery.buildCatalogSearchText(it.name, it.actors, it.director, it.genre, it.categoryId))
+        })
     }
+
+    /** Ne jamais appeler directement : contourne le calcul de [VodStreamEntity.searchText]. */
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertStreamsRaw(streams: List<VodStreamEntity>)
 
     /**
      * Une réponse vide ne remplace jamais un catalogue connu : une erreur de
@@ -106,19 +92,17 @@ interface VodDao {
     }
 
     @Transaction
-    suspend fun replaceAllStreamsWithFts(streams: List<VodStreamEntity>) {
+    suspend fun replaceAllStreams(streams: List<VodStreamEntity>) {
         if (streams.isEmpty()) return
         clearAllStreams()
-        clearAllFts()
-        streams.chunked(INSERT_CHUNK_SIZE).forEach { insertStreamsWithFts(it) }
+        streams.chunked(INSERT_CHUNK_SIZE).forEach { insertStreams(it) }
     }
 
     @Transaction
-    suspend fun replaceStreamsByCategoryWithFts(categoryId: String, streams: List<VodStreamEntity>) {
+    suspend fun replaceStreamsByCategory(categoryId: String, streams: List<VodStreamEntity>) {
         if (streams.isEmpty()) return
         clearStreamsByCategory(categoryId)
-        clearFtsByCategory(categoryId)
-        streams.chunked(INSERT_CHUNK_SIZE).forEach { insertStreamsWithFts(it) }
+        streams.chunked(INSERT_CHUNK_SIZE).forEach { insertStreams(it) }
     }
 
     @Query("SELECT * FROM vod_streams WHERE actors IS NULL OR director IS NULL OR genre IS NULL OR releaseYear IS NULL LIMIT :limit")

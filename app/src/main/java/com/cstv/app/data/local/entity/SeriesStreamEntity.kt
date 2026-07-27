@@ -1,6 +1,7 @@
 package com.cstv.app.data.local.entity
 
 import androidx.room.Entity
+import androidx.room.ColumnInfo
 import androidx.room.Index
 import androidx.room.PrimaryKey
 
@@ -21,5 +22,6 @@ data class SeriesStreamEntity(
     val releaseYear: Int? = null,
     /** Métadonnées de get_series_info conservées pour la fiche hors ligne. */
     val plot: String? = null,
-    val detailsCachedAt: Long? = null
+    val detailsCachedAt: Long? = null,
+    @ColumnInfo(defaultValue = "''") val searchText: String = ""
 )

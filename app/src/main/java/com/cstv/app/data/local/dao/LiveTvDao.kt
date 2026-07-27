@@ -9,6 +9,7 @@ import com.cstv.app.data.local.entity.EpgCacheEntity
 import com.cstv.app.data.local.entity.LiveCategoryEntity
 import com.cstv.app.data.local.entity.LiveStreamEntity
 import com.cstv.app.data.local.entity.RecentlyWatchedLiveEntity
+import com.cstv.app.domain.model.LocalSearchQuery
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -51,30 +52,22 @@ interface LiveTvDao {
     @Query("SELECT * FROM live_streams WHERE streamId = :streamId LIMIT 1")
     suspend fun getStreamById(streamId: Int): LiveStreamEntity?
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertStreams(streams: List<LiveStreamEntity>)
-
     @Query("DELETE FROM live_streams WHERE categoryId = :categoryId")
     suspend fun clearStreamsByCategory(categoryId: String)
 
     @Query("DELETE FROM live_streams")
     suspend fun clearAllStreams()
 
-    // --- FTS4 (Phase 40 : recherche globale) --- voir VodDao pour le détail.
-    @Query("INSERT OR REPLACE INTO live_streams_fts(rowid, name, categoryId) VALUES (:streamId, :name, :categoryId)")
-    suspend fun upsertLiveFts(streamId: Int, name: String, categoryId: String)
-
-    @Query("DELETE FROM live_streams_fts WHERE categoryId = :categoryId")
-    suspend fun clearFtsByCategory(categoryId: String)
-
-    @Query("DELETE FROM live_streams_fts")
-    suspend fun clearAllFts()
-
     @Transaction
-    suspend fun insertStreamsWithFts(streams: List<LiveStreamEntity>) {
-        insertStreams(streams)
-        streams.forEach { upsertLiveFts(it.streamId, it.name, it.categoryId) }
+    suspend fun insertStreams(streams: List<LiveStreamEntity>) {
+        insertStreamsRaw(streams.map {
+            it.copy(searchText = LocalSearchQuery.buildLiveSearchText(it.name, it.categoryId))
+        })
     }
+
+    /** Ne jamais appeler directement : contourne le calcul de [LiveStreamEntity.searchText]. */
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertStreamsRaw(streams: List<LiveStreamEntity>)
 
     /**
      * Une réponse vide ne remplace jamais un catalogue connu : une erreur de
@@ -88,19 +81,17 @@ interface LiveTvDao {
     }
 
     @Transaction
-    suspend fun replaceAllStreamsWithFts(streams: List<LiveStreamEntity>) {
+    suspend fun replaceAllStreams(streams: List<LiveStreamEntity>) {
         if (streams.isEmpty()) return
         clearAllStreams()
-        clearAllFts()
-        streams.chunked(VodDao.INSERT_CHUNK_SIZE).forEach { insertStreamsWithFts(it) }
+        streams.chunked(VodDao.INSERT_CHUNK_SIZE).forEach { insertStreams(it) }
     }
 
     @Transaction
-    suspend fun replaceStreamsByCategoryWithFts(categoryId: String, streams: List<LiveStreamEntity>) {
+    suspend fun replaceStreamsByCategory(categoryId: String, streams: List<LiveStreamEntity>) {
         if (streams.isEmpty()) return
         clearStreamsByCategory(categoryId)
-        clearFtsByCategory(categoryId)
-        streams.chunked(VodDao.INSERT_CHUNK_SIZE).forEach { insertStreamsWithFts(it) }
+        streams.chunked(VodDao.INSERT_CHUNK_SIZE).forEach { insertStreams(it) }
     }
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)

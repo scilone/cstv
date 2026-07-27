@@ -161,7 +161,7 @@ class SeriesRepositoryImplTest {
         repository.syncSeriesStreams("5")
 
         val entitiesCaptor = argumentCaptor<List<SeriesStreamEntity>>()
-        verify(seriesDao).replaceStreamsByCategoryWithFts(eq("5"), entitiesCaptor.capture())
+        verify(seriesDao).replaceStreamsByCategory(eq("5"), entitiesCaptor.capture())
 
         val inserted = entitiesCaptor.firstValue
         assertEquals(3, inserted.size)
@@ -311,7 +311,7 @@ class SeriesRepositoryImplTest {
 
         localRepository.syncSeriesStreams("5")
 
-        verify(seriesDao).insertStreamsWithFts(argThat {
+        verify(seriesDao).insertStreams(argThat {
             size == 1 && get(0).seriesId == 12 && get(0).actors == "Kit Harington, Emilia Clarke" && get(0).director == "David Benioff" && get(0).genre == "Fantasy"
         })
     }
@@ -558,6 +558,5 @@ class SeriesRepositoryImplTest {
 
         verify(seriesDao, never()).clearAllStreams()
         verify(seriesDao, never()).clearStreamsByCategory(any())
-        verify(seriesDao, never()).clearAllFts()
     }
 }

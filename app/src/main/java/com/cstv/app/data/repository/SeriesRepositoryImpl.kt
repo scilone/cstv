@@ -97,7 +97,7 @@ class SeriesRepositoryImpl @Inject constructor(
 
                     val currentStream = seriesDao.getStreamById(stream.seriesId)
                     if (currentStream != null) {
-                        seriesDao.insertStreamsWithFts(listOf(
+                        seriesDao.insertStreams(listOf(
                             currentStream.copy(
                                 actors = actors,
                                 director = director,
@@ -194,7 +194,7 @@ class SeriesRepositoryImpl @Inject constructor(
 
     private fun SeriesStreamEntity.toDomain() = SeriesStream(
         seriesId, name, cover, rating, added, categoryId, genre,
-        releaseYear?.takeIf { it > 0 }, actors, director
+        releaseYear?.takeIf { it > 0 }, actors, director, searchText
     )
 
     // --- Lecture locale ---
@@ -289,12 +289,12 @@ class SeriesRepositoryImpl @Inject constructor(
             } else null
         }
 
-        // Remplacement atomique : effacement et repeuplement (FTS comprise) dans
+        // Remplacement atomique : effacement et repeuplement du catalogue dans
         // la même transaction, et jamais sur une réponse vide.
         if (categoryId == ALL_CATEGORIES) {
-            seriesDao.replaceAllStreamsWithFts(entities)
+            seriesDao.replaceAllStreams(entities)
         } else {
-            seriesDao.replaceStreamsByCategoryWithFts(categoryId, entities)
+            seriesDao.replaceStreamsByCategory(categoryId, entities)
         }
 
 
@@ -367,7 +367,7 @@ class SeriesRepositoryImpl @Inject constructor(
         }
 
         return RelatedTitlesSelector.select(genres, currentCategoryId, candidates, limit)
-            .map { SeriesStream(it.seriesId, it.name, it.cover, it.rating, it.added, it.categoryId, it.genre, it.releaseYear?.takeIf { y -> y > 0 }, it.actors, it.director) }
+            .map { SeriesStream(it.seriesId, it.name, it.cover, it.rating, it.added, it.categoryId, it.genre, it.releaseYear?.takeIf { y -> y > 0 }, it.actors, it.director, it.searchText) }
     }
 
     /**
@@ -528,7 +528,7 @@ class SeriesRepositoryImpl @Inject constructor(
 
         // Sensationally enrich cached stream entity with actors, director, and genre details
         if (cachedSeries != null) {
-            seriesDao.insertStreamsWithFts(listOf(
+            seriesDao.insertStreams(listOf(
                 cachedSeries.copy(
                     actors = actors,
                     director = director,
@@ -631,7 +631,8 @@ class SeriesRepositoryImpl @Inject constructor(
             genre = entity.genre,
             releaseYear = entity.releaseYear?.takeIf { it > 0 },
             actors = entity.actors,
-            director = entity.director
+            director = entity.director,
+            searchText = entity.searchText
         )
     }
 }

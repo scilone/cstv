@@ -79,12 +79,15 @@ Après avoir ouvert l'application en ligne et laissé le catalogue se synchronis
 
 ---
 
-## 7. Recherche Avancée
+## 7. Recherche Locale de Contenus (F17)
 
-Si vous cherchez un contenu spécifique dans le catalogue volumineux de votre abonnement :
-1. Accédez à la page de **Recherche**.
-2. Saisissez vos mots-clés (ou cliquez sur le nom d'un acteur ou réalisateur depuis une fiche de détails). Lors d'une recherche initiée depuis les crédits d'une fiche, vos anciens filtres de recherche avancée sont automatiquement réinitialisés pour éviter de fausser les résultats. Le moteur de recherche effectue une recherche complète (titre, acteurs, réalisateur, genre) et intègre un correcteur orthographique automatique pour tolérer les légères fautes de frappe lors des saisies manuelles.
-3. Utilisez le bouton **Recherche Avancée** pour restreindre les résultats par type de contenu (uniquement les chaînes en direct, uniquement les films ou uniquement les séries) ou pour filtrer par catégorie thématique. Vos filtres de recherche avancée s'appliqueront cumulativement à votre recherche.
+L'application dispose d'un moteur de recherche locale extrêmement flexible pour retrouver instantanément vos chaînes, films et séries :
+
+1. **Saisie par sous-chaînes (fragments de mots)** : Vous n'avez pas besoin de connaître le début exact d'un mot. La saisie d'une portion de mot, qu'elle soit située au début, au milieu ou à la fin (ex: chercher `pilami` ou `lami`), remontera correctement les médias associés (ex: `Le Marsupilami`).
+2. **Tolérance aux accents et à la casse** : La recherche est totalement insensible à la casse (majuscules/minuscules) et aux accents. Par exemple, saisir `odysee`, `ODYSEE` ou `odysée` affichera le programme `Odysée`. De même, les ligatures et caractères spéciaux courants sont gérés de manière transparente (ex: chercher `coeur` trouvera `Cœur`).
+3. **Mots multiples dans le désordre** : Si vous saisissez plusieurs mots séparés par des espaces, l'application s'assure que chaque mot est présent dans le média, peu importe leur ordre de saisie ou les champs dans lesquels ils se trouvent (ex: chercher `reno jean` affichera les films avec l'acteur `Jean Reno`).
+4. **Recherche étendue sur crédits** : Pour les films et séries, la recherche examine le titre, la catégorie thématique, mais également les acteurs, le réalisateur et le genre littéraire. Vous pouvez d'ailleurs cliquer directement sur le nom d'un acteur ou d'un réalisateur depuis une fiche de détails pour lancer une recherche instantanée de ses œuvres associées (ce qui réinitialise automatiquement vos anciens filtres de recherche pour éviter les résultats vides inattendus).
+5. **Filtres de recherche avancée** : En cliquant sur le bouton de filtre, vous pouvez restreindre les résultats par type de média (uniquement la TV en direct, uniquement les films, uniquement les séries), par catégorie d'abonnements, ou encore trier les résultats par date d'ajout, note ou nom. Ces filtres s'appliquent de manière cumulative avec votre saisie textuelle.
 
 ---
 

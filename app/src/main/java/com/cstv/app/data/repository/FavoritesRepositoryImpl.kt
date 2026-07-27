@@ -47,12 +47,15 @@ class FavoritesRepositoryImpl @Inject constructor(
     }
 
     override suspend fun searchUnified(query: String): SearchResult {
-        val matchQuery = buildFtsMatchQuery(query)
-        if (matchQuery.isBlank()) return SearchResult()
+        val searchQuery = LocalSearchQuery.parse(query)
+        if (searchQuery.isEmpty) return SearchResult()
 
-        val liveEntities = favoritesDao.searchLiveStreams(matchQuery)
-        val vodEntities = favoritesDao.searchVodStreams(matchQuery)
-        val seriesEntities = favoritesDao.searchSeriesStreams(matchQuery)
+        val liveEntities = favoritesDao.searchLiveStreams(searchQuery.likePattern)
+            .filter { searchQuery.matches(it.searchText) }
+        val vodEntities = favoritesDao.searchVodStreams(searchQuery.likePattern)
+            .filter { searchQuery.matches(it.searchText) }
+        val seriesEntities = favoritesDao.searchSeriesStreams(searchQuery.likePattern)
+            .filter { searchQuery.matches(it.searchText) }
 
         return SearchResult(
             liveResults = liveEntities.map {
@@ -61,30 +64,16 @@ class FavoritesRepositoryImpl @Inject constructor(
             vodResults = vodEntities.map {
                 VodStream(
                     it.streamId, it.name, it.streamIcon, it.rating, it.added, it.categoryId,
-                    it.genre, it.releaseYear?.takeIf { y -> y > 0 }, it.actors, it.director
+                    it.genre, it.releaseYear?.takeIf { y -> y > 0 }, it.actors, it.director, it.searchText
                 )
             },
             seriesResults = seriesEntities.map {
                 SeriesStream(
                     it.seriesId, it.name, it.cover, it.rating, it.added, it.categoryId,
-                    it.genre, it.releaseYear?.takeIf { y -> y > 0 }, it.actors, it.director
+                    it.genre, it.releaseYear?.takeIf { y -> y > 0 }, it.actors, it.director, it.searchText
                 )
             }
         )
     }
 
-    // Transforme la saisie libre en requête FTS4 : chaque mot devient un
-    // préfixe recherché ("bat man" -> "bat"* "man"*, ET implicite), pour
-    // matcher "Batman Begins" dès les premières lettres de chaque mot.
-    // Les guillemets internes sont échappés pour éviter toute erreur de
-    // syntaxe MATCH (FTS4 n'exécute pas de code, mais une requête malformée
-    // lèverait une SQLiteException).
-    private fun buildFtsMatchQuery(raw: String): String {
-        return raw.trim()
-            .split(Regex("\\s+"))
-            .filter { it.isNotBlank() }
-            .joinToString(" ") { token ->
-                "\"${token.replace("\"", "\"\"")}\"*"
-            }
-    }
 }

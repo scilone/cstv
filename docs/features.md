@@ -58,11 +58,15 @@ Introduits en Phase 27, les profils locaux permettent un partage personnalisé d
 
 ---
 
-## 6. Recherche Locale & Avancée (FTS)
-* **Moteur de recherche performant** : Utilisation des fonctionnalités FTS (Full-Text Search) de SQLite/Room pour une recherche instantanée dans tout le catalogue hors-ligne.
+## 6. Recherche Locale Globalisée par sous-chaîne (F17)
+Cette fonctionnalité remplace l'ancien moteur FTS par un système de recherche par sous-chaîne arbitraire (type `LIKE '%keyword%'`), garantissant une flexibilité totale de saisie.
+* **Recherche par sous-chaîne flexible** : Saisir un fragment placé au début, au milieu ou à la fin d'un mot (ex: `pilami` ou `lami` trouve `Marsupilami`) permet de retrouver immédiatement le média sans connaître le début exact des mots.
+* **Insensibilité complète à la casse et aux accents** : La normalisation de la recherche (minuscules, normalisation NFD, repli des diacritiques latins et des ligatures courantes comme `œ`→`oe`, `ß`→`ss`) garantit que des saisies comme `odysee`, `ODYSEE` ou `odysée` trouvent toutes `Odysée`, et que `rene` trouve `René`.
+* **Recherche multi-mots d'ordre libre** : Les requêtes contenant plusieurs mots sont découpées et exigent la présence de chaque fragment dans le média (sur tous les champs recherchables combinés), quel que soit leur ordre de saisie (ex: `jean reno` ou `reno jean` trouve le média).
+* **Champs indexés étendus** : La recherche s'effectue sur le titre, les catégories, ainsi que les acteurs, réalisateurs et genres pour les films et séries (lorsque disponibles localement).
 * **Recherche par crédit (acteur/réalisateur)** : Un clic sur le nom d'un acteur ou réalisateur depuis une fiche détaillée (Film ou Série) déclenche une recherche dédiée. Lors de cette transition, tous les filtres avancés précédemment actifs sont réinitialisés pour éviter d'exclure par erreur des résultats de l'acteur (prévention des faux positifs de résultats vides). Le moteur effectue une recherche exhaustive sur le titre, les acteurs, le réalisateur et le genre.
 * **Recherche Avancée** :
-  - Bouton d'action principal « Voir les résultats » rendu collant (sticky) en bas du volet de recherche pour rester visible en permanence pendant le défilement indépendant de tous les critères de filtres, réduisant la friction sur mobile et TV.
+  - Bouton d'action principal « Voir les résultats » rendu collant (sticky) en bas du volet de recherche pour rester visible en permanence pendant le défilement indépendant de tous les critères de filtres au-dessus, réduisant la friction sur mobile et TV.
   - Filtrage précis par type de média (Live, VOD, Séries).
   - Filtrage multicritères par catégorie.
   - Tri par date d'ajout, note ou titre.

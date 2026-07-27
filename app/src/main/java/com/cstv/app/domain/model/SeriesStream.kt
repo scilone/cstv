@@ -10,5 +10,7 @@ data class SeriesStream(
     val genre: String? = null,
     val releaseYear: Int? = null,
     val actors: String? = null,
-    val director: String? = null
+    val director: String? = null,
+    /** Blob local normalisé, réutilisé par la recherche avancée. */
+    val searchText: String = ""
 )

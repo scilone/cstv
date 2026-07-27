@@ -1,6 +1,7 @@
 package com.cstv.app.data.local.entity
 
 import androidx.room.Entity
+import androidx.room.ColumnInfo
 import androidx.room.Index
 import androidx.room.PrimaryKey
 
@@ -25,5 +26,6 @@ data class VodStreamEntity(
     val plot: String? = null,
     val duration: String? = null,
     val containerExtension: String? = null,
-    val detailsCachedAt: Long? = null
+    val detailsCachedAt: Long? = null,
+    @ColumnInfo(defaultValue = "''") val searchText: String = ""
 )

@@ -1,5 +1,16 @@
 # Journal des Modifications (Changelog) - CSTV IPTV
 
+## [v1.62.0] - 2026-07-27
+### ✨ Recherche globale de contenus par sous-chaînes (F17)
+* **Recherche globale par sous-chaîne (LIKE "%keyword%")** : Remplacement complet de FTS4 par des requêtes de type `LIKE` sur une colonne dénormalisée `searchText` présente dans les tables physiques `live_streams`, `vod_streams` et `series_streams`.
+* **Casse et accents neutralisés** : Normalisation unifiée en Kotlin via `LocalSearchQuery.normalize()` (minuscules, conversion NFD, retrait des accents et marques diacritiques, repli explicite de toutes les ligatures comme `œ`→`oe`, `ß`→`ss`). Cela élimine les limitations d'Unicode de SQLite et permet de rechercher indifféremment des accents ou non.
+* **Recherche multi-mots d'ordre libre** : Découpage de la requête en mots-clés exigeant la présence de chacun de ces fragments, peu importe leur ordre de saisie ou le champ source dans le média.
+* **Performance et architecture hybride** : Évaluation du mot-clé le plus long en SQL (avec échappement des métacaractères `_`, `%` et `\`) pour restreindre la sélection de lignes, suivie d'un filtrage en mémoire par Kotlin pour les autres mots-clés.
+* **Migration 20 → 21 non destructive** : Ajout de la colonne `searchText` aux tables physiques, backfill complet de la base de données via une table de repli de caractères en SQL, et suppression sécurisée des tables FTS4 obsolètes.
+* **Intégration et recalcul transparent** : Intégration du recalcul de `searchText` directement au sein des transactions d'écriture DAO, prévenant toute désynchronisation lors de l'enrichissement des données. Unification complète de la recherche unifiée et de la recherche avancée.
+
+> Validation automatisée : `testDebugUnitTest` et compilation validées à 100% avec succès.
+
 ## [v1.61.0] - 2026-07-27
 ### ⚡ Malus pour les genres non identiques dans les titres associés (T5)
 * **Tri affiné par ressemblance thématique** : Introduction d'un léger malus de `0,1` par genre présent chez le candidat mais absent du média courant, afin de privilégier les titres aux profils de genres les plus proches possibles de l'œuvre d'origine.

@@ -117,13 +117,13 @@ class LiveTvRepositoryImpl @Inject constructor(
             } else null
         }
 
-        // Remplacement atomique : effacement et repeuplement (FTS comprise) dans
+        // Remplacement atomique : effacement et repeuplement du catalogue dans
         // la même transaction. Une annulation entre les deux laissait auparavant
         // le catalogue vide.
         if (categoryId == ALL_CATEGORIES) {
-            liveTvDao.replaceAllStreamsWithFts(entities)
+            liveTvDao.replaceAllStreams(entities)
         } else {
-            liveTvDao.replaceStreamsByCategoryWithFts(categoryId, entities)
+            liveTvDao.replaceStreamsByCategory(categoryId, entities)
         }
 
 

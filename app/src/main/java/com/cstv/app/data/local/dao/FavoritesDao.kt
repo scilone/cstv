@@ -7,6 +7,8 @@ import com.cstv.app.data.local.entity.SeriesStreamEntity
 import com.cstv.app.data.local.entity.VodStreamEntity
 import kotlinx.coroutines.flow.Flow
 
+internal const val SEARCH_TEXT_LIKE_PREDICATE = "searchText LIKE :pattern ESCAPE '\\'"
+
 @Dao
 interface FavoritesDao {
 
@@ -30,35 +32,25 @@ interface FavoritesDao {
     @Query("DELETE FROM favorites WHERE profileId = :profileId")
     suspend fun deleteAllForProfile(profileId: Int)
 
-    // --- Unified Local Search (Phase 40 : FTS4 au lieu de LIKE '%x%', non
-    // indexable par SQLite en préfixe libre -> full scan à chaque frappe) ---
+    // --- Unified local substring search ---
     @Query(
         """
-        SELECT live_streams.* FROM live_streams
-        JOIN live_streams_fts ON live_streams.streamId = live_streams_fts.rowid
-        WHERE live_streams_fts MATCH :matchQuery
-        ORDER BY live_streams.name ASC
+        SELECT * FROM live_streams WHERE $SEARCH_TEXT_LIKE_PREDICATE ORDER BY name ASC
         """
     )
-    suspend fun searchLiveStreams(matchQuery: String): List<LiveStreamEntity>
+    suspend fun searchLiveStreams(pattern: String): List<LiveStreamEntity>
 
     @Query(
         """
-        SELECT vod_streams.* FROM vod_streams
-        JOIN vod_streams_fts ON vod_streams.streamId = vod_streams_fts.rowid
-        WHERE vod_streams_fts MATCH :matchQuery
-        ORDER BY vod_streams.name ASC
+        SELECT * FROM vod_streams WHERE $SEARCH_TEXT_LIKE_PREDICATE ORDER BY name ASC
         """
     )
-    suspend fun searchVodStreams(matchQuery: String): List<VodStreamEntity>
+    suspend fun searchVodStreams(pattern: String): List<VodStreamEntity>
 
     @Query(
         """
-        SELECT series_streams.* FROM series_streams
-        JOIN series_streams_fts ON series_streams.seriesId = series_streams_fts.rowid
-        WHERE series_streams_fts MATCH :matchQuery
-        ORDER BY series_streams.name ASC
+        SELECT * FROM series_streams WHERE $SEARCH_TEXT_LIKE_PREDICATE ORDER BY name ASC
         """
     )
-    suspend fun searchSeriesStreams(matchQuery: String): List<SeriesStreamEntity>
+    suspend fun searchSeriesStreams(pattern: String): List<SeriesStreamEntity>
 }

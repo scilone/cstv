@@ -100,7 +100,7 @@ class VodRepositoryImpl @Inject constructor(
 
                     val currentStream = vodDao.getStreamById(stream.streamId)
                     if (currentStream != null) {
-                        vodDao.insertStreamsWithFts(listOf(
+                        vodDao.insertStreams(listOf(
                             currentStream.copy(
                                 actors = actors,
                                 director = director,
@@ -254,7 +254,7 @@ class VodRepositoryImpl @Inject constructor(
 
     private fun VodStreamEntity.toDomain() = VodStream(
         streamId, name, streamIcon, rating, added, categoryId, genre,
-        releaseYear?.takeIf { it > 0 }, actors, director
+        releaseYear?.takeIf { it > 0 }, actors, director, searchText
     )
 
     override fun observeVodCategories(): Flow<List<VodCategory>> =
@@ -335,12 +335,12 @@ class VodRepositoryImpl @Inject constructor(
             } else null
         }
 
-        // Remplacement atomique : effacement et repeuplement (FTS comprise) dans
+        // Remplacement atomique : effacement et repeuplement du catalogue dans
         // la même transaction, et jamais sur une réponse vide.
         if (categoryId == ALL_CATEGORIES) {
-            vodDao.replaceAllStreamsWithFts(entities)
+            vodDao.replaceAllStreams(entities)
         } else {
-            vodDao.replaceStreamsByCategoryWithFts(categoryId, entities)
+            vodDao.replaceStreamsByCategory(categoryId, entities)
         }
 
 
@@ -415,7 +415,7 @@ class VodRepositoryImpl @Inject constructor(
         }
 
         return com.cstv.app.domain.model.RelatedTitlesSelector.select(genres, currentCategoryId, candidates, limit)
-            .map { VodStream(it.streamId, it.name, it.streamIcon, it.rating, it.added, it.categoryId, it.genre, it.releaseYear?.takeIf { y -> y > 0 }, it.actors, it.director) }
+            .map { VodStream(it.streamId, it.name, it.streamIcon, it.rating, it.added, it.categoryId, it.genre, it.releaseYear?.takeIf { y -> y > 0 }, it.actors, it.director, it.searchText) }
     }
 
     /**
@@ -498,7 +498,7 @@ class VodRepositoryImpl @Inject constructor(
 
         // Sensationally enrich cached stream entity with actors, director, and genre details
         if (cachedStream != null) {
-            vodDao.insertStreamsWithFts(listOf(
+            vodDao.insertStreams(listOf(
                 cachedStream.copy(
                     actors = actors,
                     director = director,
@@ -646,7 +646,8 @@ class VodRepositoryImpl @Inject constructor(
             genre = entity.genre,
             releaseYear = entity.releaseYear?.takeIf { it > 0 },
             actors = entity.actors,
-            director = entity.director
+            director = entity.director,
+            searchText = entity.searchText
         )
     }
 }

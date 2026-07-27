@@ -6,7 +6,7 @@ Type:
 Feature
 
 Status:
-TASK BREAKDOWN
+RELEASED
 
 Created:
 2026-07-27
@@ -366,7 +366,7 @@ Permettre à l'utilisateur de trouver des chaînes de télévision, des films et
 
 ## P1 — Créer le modèle pur de requête locale
 
-- [ ] Ajouter `LocalSearchQuery` avec la tokenisation, la normalisation, l'échappement SQL et le prédicat multi-mots.
+- [x] Ajouter `LocalSearchQuery` avec la tokenisation, la normalisation, l'échappement SQL et le prédicat multi-mots.
 
 Objectif : centraliser une sémantique identique de recherche par sous-chaîne pour la recherche unifiée et la recherche avancée, sans dépendance Android ou Room.
 
@@ -377,7 +377,7 @@ Validation : `LocalSearchQueryTest` couvre requête vide, espaces, sous-chaîne 
 
 ## P2 — Étendre les entités catalogue et préparer Room 21
 
-- [ ] Ajouter le champ dénormalisé `searchText` aux trois entités catalogue et déclarer la version 21 de Room.
+- [x] Ajouter le champ dénormalisé `searchText` aux trois entités catalogue et déclarer la version 21 de Room.
 
 Objectif : stocker, sur chaque ligne physique, le texte de recherche normalisé afin que SQLite n'ait pas à gérer la casse Unicode ni les diacritiques.
 
@@ -391,7 +391,7 @@ Validation : les entités conservent leurs clés et champs existants ; `searchTe
 
 ## P3 — Mettre en place la migration non destructive 20 → 21
 
-- [ ] Ajouter `MIGRATION_20_21`, le backfill de `searchText` et le retrait des trois tables FTS4.
+- [x] Ajouter `MIGRATION_20_21`, le backfill de `searchText` et le retrait des trois tables FTS4.
 
 Objectif : préserver le catalogue existant tout en supprimant uniquement les index FTS dérivés et devenus inutiles.
 
@@ -402,7 +402,7 @@ Validation : la migration ajoute les trois colonnes, remplit le texte normalisé
 
 ## P4 — Remplacer les lectures FTS par les requêtes LIKE statiques
 
-- [ ] Adapter `FavoritesDao` pour chercher dans les tables physiques avec `LIKE :pattern ESCAPE '\\'`.
+- [x] Adapter `FavoritesDao` pour chercher dans les tables physiques avec `LIKE :pattern ESCAPE '\\'`.
 
 Objectif : faire filtrer en SQLite le token ancre le plus sélectif, en garantissant que les métacaractères saisis restent littéraux.
 
@@ -413,7 +413,7 @@ Validation : chaque type de média est lu depuis sa table physique, sans jointur
 
 ## P5 — Simplifier les écritures catalogue et supprimer la double écriture FTS
 
-- [ ] Recalculer `searchText` dans les wrappers transactionnels des DAO et retirer les opérations de synchronisation FTS.
+- [x] Recalculer `searchText` dans les wrappers transactionnels des DAO et retirer les opérations de synchronisation FTS.
 
 Objectif : garantir que les enrichissements ultérieurs (acteurs, réalisateur, genre) ne laissent jamais un texte de recherche périmé.
 
@@ -429,7 +429,7 @@ Validation : chaque insertion, remplacement complet ou par catégorie reconstrui
 
 ## P6 — Raccorder les repositories et le nettoyage du catalogue
 
-- [ ] Employer `LocalSearchQuery` dans la recherche unifiée, renommer les appels DAO et retirer le nettoyage FTS.
+- [x] Employer `LocalSearchQuery` dans la recherche unifiée, renommer les appels DAO et retirer le nettoyage FTS.
 
 Objectif : appliquer l'AND de tous les tokens après la requête SQL ancre et conserver les filtres de catégories et le mapping existants.
 
@@ -444,7 +444,7 @@ Validation : une requête blanche n'appelle aucun DAO ; un token ancre produit l
 
 ## P7 — Unifier la recherche avancée
 
-- [ ] Déléguer le filtrage texte de `AdvancedCatalogSearchUseCase` à `LocalSearchQuery`.
+- [x] Déléguer le filtrage texte de `AdvancedCatalogSearchUseCase` à `LocalSearchQuery`.
 
 Objectif : éviter une divergence de résultat entre recherche unifiée et recherche avancée pour une même saisie multi-mots.
 
@@ -455,7 +455,7 @@ Validation : les filtres avancés existants restent inchangés et le prédicat t
 
 ## P8 — Ajouter et adapter la couverture JVM
 
-- [ ] Créer les tests du modèle pur et adapter les tests impactés par la disparition des méthodes FTS.
+- [x] Créer les tests du modèle pur et adapter les tests impactés par la disparition des méthodes FTS.
 
 Objectif : couvrir les règles fonctionnelles F17 et les renommages mécaniques sans nécessiter d'appareil ni de base Room instrumentée.
 
@@ -467,3 +467,268 @@ Fichiers :
 - tests DAO ou repository directement affectés par les wrappers d'écriture
 
 Validation : les critères d'acceptation `Marsupilami`, `Odysée`/`Rene`, multi-mots et métacaractères sont automatisés ; les tests existants ne référencent plus les API FTS supprimées.
+
+## Notes d'implémentation — étape 5 (2026-07-27)
+
+- FTS4 est remplacé par un blob `searchText` normalisé, reconstruit dans les DAO avant toute écriture catalogue.
+- La migration 20 → 21 conserve les tables physiques, peuple les blobs existants puis supprime seulement les index virtuels FTS dérivés.
+- Les tests JVM passent (446 tests, 0 échec). Les contrôles `assembleDebug` et `lintDebug` restent à confirmer séparément : l'exécuteur Gradle a interrompu leur remontée de résultat après démarrage.
+
+---
+
+# 10. Review
+
+Revue technique du 2026-07-27 (Opus). Portée : les 22 fichiers du diff de travail
+(`LocalSearchQuery`, `FavoritesDao`, `Migrations`, les 3 entités, les 3 DAO d'écriture,
+les 4 repositories, `AdvancedCatalogSearchUseCase`, `ClearCatalogCacheUseCase` et les
+tests). Aucune modification de code effectuée.
+
+Status: RESOLVED — corrections appliquées et couvertes par les tests.
+
+## Corrections — étape 7 (2026-07-27)
+
+- CRIT-1 : les trois requêtes Room partagent ESCAPE avec un seul antislash et
+  LocalSearchQueryTest l'exécute réellement avec SQLite JDBC, y compris les
+  métacaractères %, _ et antislash.
+- MAJ-1 / MAJ-2 : les tests couvrent le choix du token ancre, le filtrage résiduel dans
+  le repository et l'évaluation SQL de chaque entrée de SEARCH_FOLD_MAP, comparée à la
+  normalisation Kotlin.
+- MAJ-3 : normalize emploie un StringBuilder et une regex compilée une seule fois ; la
+  recherche avancée consomme searchText persisté. Le recalcul est limité au repli sûr des
+  objets de domaine sans blob (anciens appelants et doubles de test).
+- MIN-1 à MIN-6 : requête vide non correspondante, élargissement categoryId acté pour la
+  recherche avancée, garde-fous DAO, valeur par défaut Room cohérente, commentaires FTS
+  retirés, version Room et KDoc mis à jour.
+
+## Validation finale — étape 8 (2026-07-27)
+
+- Tests JVM : 450 tests, 0 échec, 0 erreur.
+- Build debug : assembleDebug exécuté avec succès pendant la validation Gradle.
+- git diff --check ne signale aucun défaut d'espacement.
+- Lint : le dernier rapport disponible indique 0 erreur et 55 avertissements préexistants.
+  Une relance complète après les corrections a été interrompue avant lintDebug par la limite
+  d'exécution de l'environnement ; les tests et la compilation des sources modifiées ont
+  bien été rejoués.
+
+Vérifications exécutées :
+
+- `./gradlew testDebugUnitTest assembleDebug lintDebug` → `BUILD SUCCESSFUL`.
+  Agrégat des rapports JUnit : **446 tests, 0 échec, 0 erreur, 0 ignoré**.
+  Lint : **0 erreur, 55 avertissements** (préexistants). Les contrôles laissés en suspens
+  à l'étape 5 sont donc confirmés.
+- Exécution du `LIKE … ESCAPE` du DAO sur un vrai moteur SQLite (3.40.1) — voir CRIT-1.
+- Micro-benchmark JVM de `normalize()` — voir MAJ-3.
+
+## Points positifs
+
+- **Suppression de FTS4 complète et propre** : 3 entités, 9 méthodes DAO de
+  synchronisation et les 3 `clearAllFts()` de `ClearCatalogCacheUseCase` ont disparu ;
+  plus aucune référence FTS active dans le code (seuls subsistent des commentaires,
+  cf. MIN-5, et le SQL historique de `MIGRATION_19_20`, normal). Bilan : **-223/+134 lignes**.
+- **D5 tenu sans faille** : `searchText` est recalculé dans les wrappers `@Transaction`
+  (`VodDao.insertStreams`, `SeriesDao`, `LiveTvDao`), jamais chez l'appelant. Vérifié :
+  aucun `@Update` ni `UPDATE` SQL sur les 3 tables catalogue, et `insertStreamsRaw` n'est
+  appelé que depuis le wrapper — les `copy(actors = …, genre = …)` d'enrichissement ne
+  peuvent pas laisser un blob périmé.
+- **Migration conforme aux règles impératives d'`AGENTS.md`** : `MIGRATION_20_21` réelle,
+  ajoutée à `ALL_MIGRATIONS`, sans `fallbackToDestructiveMigration()`,
+  `ALTER TABLE ADD COLUMN` + backfill + `DROP TABLE IF EXISTS`. `name` et `categoryId` étant
+  `NOT NULL` dans les 3 entités, la concaténation du backfill ne peut pas produire de `NULL`
+  et donc pas violer la contrainte `NOT NULL` de la nouvelle colonne.
+- **Ordre `replace()` puis `lower()`** correctement appliqué dans `searchFoldSql`, comme
+  exigé en §4.4 : `lower()` de SQLite étant ASCII-only, l'inverse aurait manqué les
+  majuscules accentuées.
+- **Symétrie de normalisation lecture/écriture** : la même fonction sert à construire le blob
+  et à normaliser les tokens ; les deux opérandes du `LIKE` sont en ASCII minuscule, ce qui
+  neutralise réellement les limites Unicode de SQLite (D2).
+- **`escapeLike` appliqué après normalisation** (ordre imposé §4.3), et `lowercase(Locale.ROOT)`
+  qui évite le piège du `I` turc.
+- **D7 tenu** : `AdvancedCatalogSearchUseCase` ne duplique plus de prédicat texte ; la
+  sémantique multi-mots est unique pour les deux chemins de recherche.
+
+## Critique
+
+### CRIT-1 — `ESCAPE '\\'` dans une raw string Kotlin : toute recherche unifiée échoue à l'exécution
+
+Description : les 3 `@Query` de `FavoritesDao` sont écrites dans des raw strings
+(`"""…"""`), où Kotlin **ne traite aucune séquence d'échappement**. Le SQL réellement
+envoyé à SQLite contient donc `ESCAPE '\\'`, soit une chaîne de **deux** caractères. Or
+SQLite exige un caractère unique. Vérifié sur le fichier (octets) et sur moteur réel :
+
+```
+DAO (octets) : SELECT * FROM live_streams WHERE searchText LIKE :pattern ESCAPE '\\' ORDER BY name ASC
+
+sqlite 3.40.1 :
+  … LIKE ? ESCAPE '\\'  -> OperationalError: ESCAPE expression must be a single character
+  … LIKE ? ESCAPE '\'   -> [('marsupilami',)]
+```
+
+Pourquoi la chaîne de validation ne l'a pas vu : le vérificateur Room de KSP ne fait que
+**préparer** la requête, et le contrôle du caractère d'échappement a lieu à **l'exécution**
+de la fonction `like()` (confirmé : `EXPLAIN` avec le `ESCAPE` à deux caractères compile sans
+erreur). Côté tests, `FavoritesRepositoryImplTest` **mocke `FavoritesDao`** : aucun test du
+projet n'exécute ce SQL. D'où 446 tests verts, `assembleDebug` et `lintDebug` verts, et un
+bug qui ne se manifeste que sur appareil.
+
+Impact : **bloquant**. `searchLiveStreams`, `searchVodStreams` et `searchSeriesStreams`
+lèvent une `SQLiteException` à chaque saisie. La recherche globale unifiée — l'objet même de
+F17 — est intégralement hors service, et l'exception remonte dans `searchUnified` sans
+`try/catch`. Aucun critère d'acceptation §3 n'est atteignable en l'état.
+
+Correction attendue : écrire `ESCAPE '\'` dans les 3 raw strings (un seul antislash), et
+ajouter au moins un test exécutant réellement la requête (Robolectric + Room in-memory, ou à
+défaut un test JVM qui prépare *et exécute* le SQL du DAO sur un SQLite embarqué) pour que
+cette classe de défaut ne puisse plus traverser la validation.
+
+## Majeur
+
+### MAJ-1 — Le mécanisme central « token ancre + filtrage résiduel » n'est couvert par aucun test
+
+Description : §5.5 prévoyait explicitement « pattern `LIKE` transmis au DAO pour le token
+ancre, filtrage résiduel des tokens restants ». Les 3 tests de `FavoritesRepositoryImplTest`
+touchant `searchUnified` utilisent tous une requête **à un seul mot** (`"t"`, `"movie"`, `"  "`).
+Aucun test ne vérifie que, pour `jean reno` :
+1. le motif envoyé au DAO est bien celui du token **le plus long** ;
+2. une ligne remontée par SQL mais ne contenant pas les autres tokens est bien écartée.
+Côté modèle, `LocalSearchQueryTest` ne teste pas non plus le choix de l'ancre — le seul test
+de `likePattern` porte sur un token unique.
+
+Impact : la partie du dispositif la plus susceptible de régresser (répartition du filtrage
+entre SQL et Kotlin) n'a pas de harnais. Une inversion `maxByOrNull` → `minByOrNull`, ou un
+`filter` supprimé, passerait la CI sans être vue — alors que le résultat utilisateur serait
+faux (résultats surnuméraires).
+
+Correction attendue : un test repository multi-mots vérifiant le motif transmis **et**
+l'élimination d'une entité ne contenant pas tous les tokens ; un test modèle sur le choix de
+l'ancre.
+
+### MAJ-2 — Test de cohérence entre la table de repli SQL et la normalisation Kotlin non implémenté
+
+Description : la table de repli existe désormais **en double** — `SEARCH_FOLD_MAP`
+(33 entrées, `Migrations.kt`) et `LocalSearchQuery.FOLD_MAP` (6 entrées + NFD). §4.7 et §5.5
+prévoyaient un test unitaire vérifiant que `foldSql` et `normalize` produisent le même
+résultat sur cette table ; il n'existe pas. `searchFoldSql` est de surcroît `private`, donc
+non testable en l'état.
+
+Impact : la divergence documentée comme « faible car couverte par un test » n'est en fait
+couverte par rien. Ajouter un caractère d'un côté sans l'autre produit des résultats
+manquants silencieux jusqu'à la resynchronisation du catalogue, sans aucun signal en CI.
+
+Correction attendue : implémenter le test annoncé (rendre la fonction ou la table
+`internal`), ou retirer la mitigation de §4.7 et assumer explicitement le risque.
+
+### MAJ-3 — La recherche avancée recalcule tout le blob du catalogue à chaque requête
+
+Description : `AdvancedCatalogSearchUseCase` appelle `LocalSearchQuery.buildCatalogSearchText(...)`
+**par item et par requête** (l. 62 et 65), soit 5 `normalize()` par item sur l'intégralité du
+catalogue en mémoire — alors que ce blob est déjà persisté dans la colonne `searchText`. Deux
+inefficacités s'y ajoutent dans `normalize()` : la concaténation `fold("") { result, char -> result + … }`
+est en O(n²), et `Regex("\\p{Mn}+")` est **recompilée à chaque appel**.
+
+Mesuré (JVM desktop, réplique fidèle des deux variantes, 5 000 items × 5 champs) :
+**23 ms** pour l'implémentation actuelle contre **8 ms** avec `StringBuilder` + `Pattern`
+statique, soit un facteur **×2,8** — à multiplier par l'écart ART / box Android TV. L'ancien
+prédicat ne faisait que 4 `contains(ignoreCase = true)` sans allocation.
+
+Impact : jank potentiel sur le chemin recherche avancée pour les gros catalogues, sur un
+travail intégralement redondant avec la base. Le chemin synchronisation, lui, reste gagnant
+(il remplace une écriture FTS par ligne).
+
+Correction attendue : `StringBuilder` + `Regex` hissée en constante dans `normalize()` ; et,
+pour la recherche avancée, exposer le `searchText` déjà calculé jusqu'au modèle domaine
+plutôt que le reconstruire (ou, a minima, filtrer en SQL comme le fait la recherche unifiée).
+
+## Mineur
+
+### MIN-1 — `matches()` et `likePattern` sont permissifs sur une requête vide
+
+Description : `tokens.all { … }` sur une liste vide renvoie `true`, et `anchor` vide produit
+le motif `"%%"`. Les deux appelants actuels gardent bien `isEmpty` en amont, donc le
+comportement observable est correct.
+
+Impact : nul aujourd'hui, mais l'objet pur est conçu pour être réutilisé et son API invite au
+faux positif silencieux « tout matche ».
+
+Correction attendue : faire renvoyer `false` à `matches()` quand `isEmpty`, ou documenter
+explicitement la précondition dans le KDoc.
+
+### MIN-2 — La recherche avancée indexe désormais `categoryId`, ce que l'ancien prédicat ne faisait pas
+
+Description : l'ancien `matchesTextQuery` couvrait `name`, `actors`, `director`, `genre`. Le
+nouveau blob y ajoute `categoryId` (§4.2 justifie ce périmètre pour la recherche **unifiée**,
+au titre de la parité avec FTS4 ; pour la recherche avancée c'est un élargissement).
+
+Impact : faible mais réel — les identifiants de catégorie étant numériques, une saisie courte
+comme `12` peut ramener toute une catégorie en plus des titres contenant « 12 ».
+
+Correction attendue : soit exclure `categoryId` du blob utilisé par la recherche avancée,
+soit acter l'élargissement dans §4.2 / §5.3.
+
+### MIN-3 — `insertStreamsRaw` est publique dans les 3 DAO
+
+Description : Room interdisant les méthodes privées dans une interface `@Dao`, le point
+d'entrée qui court-circuite le recalcul de `searchText` reste appelable. Vérifié : aucun
+appel hors des wrappers aujourd'hui.
+
+Impact : faible, mais c'est exactement le scénario que D5 cherche à rendre impossible.
+
+Correction attendue : commentaire d'interdiction explicite au-dessus des trois déclarations
+(« ne jamais appeler directement : contourne le calcul de searchText »).
+
+### MIN-4 — `searchText` sans `@ColumnInfo(defaultValue = "''")`
+
+Description : la migration crée la colonne avec `DEFAULT ''`, alors qu'une installation neuve
+la crée sans clause `DEFAULT` (l'entité ne la déclare pas). Room 2.6.1 ne compare la valeur
+par défaut que si l'entité en déclare une : la validation de schéma passe dans les deux cas.
+
+Impact : nul fonctionnellement ; deux schémas physiques légèrement différents selon
+l'historique de l'appareil, ce qui complique tout diagnostic ultérieur.
+
+Correction attendue : déclarer `@ColumnInfo(defaultValue = "''")` sur les trois champs.
+
+### MIN-5 — Commentaires obsolètes mentionnant FTS
+
+Description : `VodRepositoryImpl.kt:338`, `LiveTvRepositoryImpl.kt:120` et
+`SeriesRepositoryImpl.kt:292` décrivent encore un « remplacement atomique (FTS comprise) ».
+
+Impact : documentation trompeuse sur du code qui n'a plus de table FTS.
+
+Correction attendue : mise à jour des trois commentaires.
+
+### MIN-6 — Incohérences documentaires résiduelles
+
+Description : (a) `AGENTS.md` annonce toujours « `AppDatabase`, version **20** » alors que
+F17 la porte à 21 ; (b) le KDoc de `LocalSearchQuery` est en anglais, là où les objets purs
+voisins du même package (`GenreParser`, `RelatedTitlesSelector`) sont commentés en français.
+
+Impact : faible ; le point (a) concerne le fichier de règles permanentes lu à chaque session,
+donc à traiter au plus tard à l'étape Documentation.
+
+Correction attendue : mettre à jour la version dans `AGENTS.md` ; harmoniser la langue du KDoc.
+
+## Corrections demandées
+
+1. **CRIT-1 — bloquant** : `ESCAPE '\'` dans les 3 `@Query` de `FavoritesDao`, et un test qui
+   exécute réellement le SQL. À corriger avant toute validation ou livraison.
+2. **MAJ-1** : tests multi-mots (motif de l'ancre + filtrage résiduel) au niveau repository et
+   modèle.
+3. **MAJ-2** : test de cohérence `SEARCH_FOLD_MAP` ↔ `LocalSearchQuery.normalize`, ou retrait
+   assumé de la mitigation en §4.7.
+4. **MAJ-3** : `StringBuilder` + `Regex` en constante dans `normalize()` ; supprimer le
+   recalcul du blob pour tout le catalogue dans la recherche avancée.
+5. **MIN-1 à MIN-6** : durcissement de l'API pure, périmètre `categoryId` de la recherche
+   avancée, garde-fou sur `insertStreamsRaw`, `defaultValue` des colonnes, commentaires FTS
+   obsolètes, version de base dans `AGENTS.md`.
+
+---
+
+# 11. Release
+
+Version:
+v1.62.0
+
+Commit:
+:sparkles: feat(search): Implement global unified local substring search (F17)
+
+Date:
+2026-07-27

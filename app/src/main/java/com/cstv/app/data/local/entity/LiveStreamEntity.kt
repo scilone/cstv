@@ -1,6 +1,7 @@
 package com.cstv.app.data.local.entity
 
 import androidx.room.Entity
+import androidx.room.ColumnInfo
 import androidx.room.PrimaryKey
 
 @Entity(tableName = "live_streams")
@@ -11,5 +12,6 @@ data class LiveStreamEntity(
     val epgChannelId: String?,
     val num: Int,
     val categoryId: String,
-    val cachedAt: Long
+    val cachedAt: Long,
+    @ColumnInfo(defaultValue = "''") val searchText: String = ""
 )

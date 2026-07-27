@@ -76,23 +76,23 @@ class FavoritesRepositoryImplTest {
     // --- 2. UNIFIED SEARCH FILTERING TESTS ---
     @Test
     fun test_searchUnified_queriesAndReturnsAggregatedResults() = runTest {
-        val searchQuery = "tf"
-        val expectedSqlQuery = "\"tf\"*"
+        val searchQuery = "t"
+        val expectedSqlQuery = "%t%"
 
         // Mock database responses for Live, VOD, and Series tables
         val liveEntities = listOf(
-            LiveStreamEntity(1, "TF1 HD", null, null, 1, "10", 0L)
+            LiveStreamEntity(1, "TF1 HD", null, null, 1, "10", 0L, searchText = "tf1 hd\n10")
         )
         val vodEntities = listOf(
             VodStreamEntity(
                 2, "The Fast and the Furious", null, null, null, "5", 0L,
-                actors = "Vin Diesel", director = "Rob Cohen", genre = "Action", releaseYear = 2001
+                actors = "Vin Diesel", director = "Rob Cohen", genre = "Action", releaseYear = 2001, searchText = "the fast and the furious\nvin diesel\nrob cohen\naction\n5"
             )
         )
         val seriesEntities = listOf(
             SeriesStreamEntity(
                 3, "The Flash", null, null, null, "12", 0L,
-                actors = "Grant Gustin", director = "Greg Berlanti", genre = "Superhero", releaseYear = 2014
+                actors = "Grant Gustin", director = "Greg Berlanti", genre = "Superhero", releaseYear = 2014, searchText = "the flash\ngrant gustin\ngreg berlanti\nsuperhero\n12"
             )
         )
 
@@ -141,18 +141,38 @@ class FavoritesRepositoryImplTest {
 
     @Test
     fun test_searchUnified_keepsInvalidReleaseYearAsNull() = runTest {
-        val expectedSqlQuery = "\"movie\"*"
+        val expectedSqlQuery = "%movie%"
         whenever(favoritesDao.searchLiveStreams(expectedSqlQuery)).thenReturn(emptyList())
         whenever(favoritesDao.searchVodStreams(expectedSqlQuery)).thenReturn(
-            listOf(VodStreamEntity(2, "Movie", null, null, null, "5", 0L, releaseYear = 0))
+            listOf(VodStreamEntity(2, "Movie", null, null, null, "5", 0L, releaseYear = 0, searchText = "movie\n\n\n\n5"))
         )
         whenever(favoritesDao.searchSeriesStreams(expectedSqlQuery)).thenReturn(
-            listOf(SeriesStreamEntity(3, "Series", null, null, null, "12", 0L, releaseYear = -1))
+            listOf(SeriesStreamEntity(3, "Series", null, null, null, "12", 0L, releaseYear = -1, searchText = "movie\n\n\n\n12"))
         )
 
         val result = repository.searchUnified("movie")
 
         assertNull(result.vodResults.single().releaseYear)
         assertNull(result.seriesResults.single().releaseYear)
+    }
+    @Test
+    fun searchUnifiedUsesLongestTokenAndFiltersRemainingTokens() = runTest {
+        val expectedSqlQuery = "%jean%"
+        val matching = VodStreamEntity(
+            1, "Film", null, null, null, "5", 0L,
+            actors = "Jean Reno", searchText = "film\njean reno\n\n\n5"
+        )
+        val sqlOnlyMatch = VodStreamEntity(
+            2, "Autre", null, null, null, "5", 0L,
+            actors = "Jean Dujardin", searchText = "autre\njean dujardin\n\n\n5"
+        )
+        whenever(favoritesDao.searchLiveStreams(expectedSqlQuery)).thenReturn(emptyList())
+        whenever(favoritesDao.searchVodStreams(expectedSqlQuery)).thenReturn(listOf(matching, sqlOnlyMatch))
+        whenever(favoritesDao.searchSeriesStreams(expectedSqlQuery)).thenReturn(emptyList())
+
+        val result = repository.searchUnified("jean reno")
+
+        assertEquals(listOf(1), result.vodResults.map { it.streamId })
+        verify(favoritesDao).searchVodStreams(expectedSqlQuery)
     }
 }

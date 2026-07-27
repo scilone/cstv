@@ -158,7 +158,7 @@ class VodRepositoryImplTest {
         repository.syncVodStreams("5")
 
         val entitiesCaptor = argumentCaptor<List<VodStreamEntity>>()
-        verify(vodDao).replaceStreamsByCategoryWithFts(eq("5"), entitiesCaptor.capture())
+        verify(vodDao).replaceStreamsByCategory(eq("5"), entitiesCaptor.capture())
 
         val inserted = entitiesCaptor.firstValue
         assertEquals(3, inserted.size)
@@ -398,7 +398,7 @@ class VodRepositoryImplTest {
 
         localRepository.syncVodStreams("5")
 
-        verify(vodDao).insertStreamsWithFts(argThat {
+        verify(vodDao).insertStreams(argThat {
             size == 1 && get(0).streamId == 12 && get(0).actors == "Mark Hamill, Harrison Ford" && get(0).director == "George Lucas" && get(0).genre == "Sci-Fi"
         })
     }
@@ -638,7 +638,7 @@ class VodRepositoryImplTest {
         repository.getVodDetails(7)
 
         val captor = argumentCaptor<List<VodStreamEntity>>()
-        verify(vodDao).insertStreamsWithFts(captor.capture())
+        verify(vodDao).insertStreams(captor.capture())
         val persisted = captor.firstValue.first()
         assertEquals("Un résumé", persisted.plot)
         assertEquals("mkv", persisted.containerExtension)
@@ -659,6 +659,5 @@ class VodRepositoryImplTest {
 
         verify(vodDao, never()).clearAllStreams()
         verify(vodDao, never()).clearStreamsByCategory(any())
-        verify(vodDao, never()).clearAllFts()
     }
 }

@@ -415,4 +415,32 @@ val MIGRATION_19_20 = object : Migration(19, 20) {
     }
 }
 
-val ALL_MIGRATIONS = arrayOf(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20)
+internal val SEARCH_FOLD_MAP = listOf(
+    "à" to "a", "á" to "a", "â" to "a", "ã" to "a", "ä" to "a", "å" to "a",
+    "è" to "e", "é" to "e", "ê" to "e", "ë" to "e", "ì" to "i", "í" to "i", "î" to "i", "ï" to "i",
+    "ò" to "o", "ó" to "o", "ô" to "o", "õ" to "o", "ö" to "o", "ø" to "o",
+    "ù" to "u", "ú" to "u", "û" to "u", "ü" to "u", "ý" to "y", "ÿ" to "y", "ñ" to "n", "ç" to "c",
+    "œ" to "oe", "æ" to "ae", "ß" to "ss", "ł" to "l", "đ" to "d"
+)
+
+internal fun searchFoldSql(expression: String): String =
+    "lower(" + SEARCH_FOLD_MAP.fold(expression) { value, (from, to) ->
+        "replace(replace($value, '$from', '$to'), '${from.uppercase()}', '$to')"
+    } + ")"
+
+val MIGRATION_20_21 = object : Migration(20, 21) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE live_streams ADD COLUMN searchText TEXT NOT NULL DEFAULT ''")
+        db.execSQL("ALTER TABLE vod_streams ADD COLUMN searchText TEXT NOT NULL DEFAULT ''")
+        db.execSQL("ALTER TABLE series_streams ADD COLUMN searchText TEXT NOT NULL DEFAULT ''")
+        db.execSQL("UPDATE live_streams SET searchText = ${searchFoldSql("name || char(10) || categoryId")}")
+        val catalogFields = "name || char(10) || ifnull(actors,'') || char(10) || ifnull(director,'') || char(10) || ifnull(genre,'') || char(10) || categoryId"
+        db.execSQL("UPDATE vod_streams SET searchText = ${searchFoldSql(catalogFields)}")
+        db.execSQL("UPDATE series_streams SET searchText = ${searchFoldSql(catalogFields)}")
+        db.execSQL("DROP TABLE IF EXISTS live_streams_fts")
+        db.execSQL("DROP TABLE IF EXISTS vod_streams_fts")
+        db.execSQL("DROP TABLE IF EXISTS series_streams_fts")
+    }
+}
+
+val ALL_MIGRATIONS = arrayOf(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21)

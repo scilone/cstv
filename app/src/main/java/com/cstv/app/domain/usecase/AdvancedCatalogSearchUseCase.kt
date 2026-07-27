@@ -3,6 +3,7 @@ package com.cstv.app.domain.usecase
 import com.cstv.app.domain.model.AdvancedSearchFilter
 import com.cstv.app.domain.model.CategoryType
 import com.cstv.app.domain.model.GenreParser
+import com.cstv.app.domain.model.LocalSearchQuery
 import com.cstv.app.domain.model.SearchMediaType
 import com.cstv.app.domain.model.SearchResult
 import com.cstv.app.domain.repository.CategoryPreferenceRepository
@@ -55,9 +56,26 @@ class AdvancedCatalogSearchUseCase @Inject constructor(
         var seriesFiltered = rawSeries.filter { it.categoryId !in hiddenSeries }
 
         // Apply optional text query
-        if (!query.isNullOrBlank()) {
-            vodFiltered = vodFiltered.filter { stream -> stream.matchesTextQuery(query) }
-            seriesFiltered = seriesFiltered.filter { stream -> stream.matchesTextQuery(query) }
+        val textQuery = query?.let(LocalSearchQuery::parse)
+        if (textQuery != null && !textQuery.isEmpty) {
+            vodFiltered = vodFiltered.filter { stream ->
+                textQuery.matches(
+                    stream.searchText.ifEmpty {
+                        LocalSearchQuery.buildCatalogSearchText(
+                            stream.name, stream.actors, stream.director, stream.genre, stream.categoryId
+                        )
+                    }
+                )
+            }
+            seriesFiltered = seriesFiltered.filter { stream ->
+                textQuery.matches(
+                    stream.searchText.ifEmpty {
+                        LocalSearchQuery.buildCatalogSearchText(
+                            stream.name, stream.actors, stream.director, stream.genre, stream.categoryId
+                        )
+                    }
+                )
+            }
         }
 
         // Apply categoryId (only if a type is chosen and not null and not "all")
@@ -120,16 +138,4 @@ class AdvancedCatalogSearchUseCase @Inject constructor(
             emptySet()
         }
     }
-
-    private fun com.cstv.app.domain.model.VodStream.matchesTextQuery(query: String): Boolean =
-        name.contains(query, ignoreCase = true) ||
-            actors?.contains(query, ignoreCase = true) == true ||
-            director?.contains(query, ignoreCase = true) == true ||
-            genre?.contains(query, ignoreCase = true) == true
-
-    private fun com.cstv.app.domain.model.SeriesStream.matchesTextQuery(query: String): Boolean =
-        name.contains(query, ignoreCase = true) ||
-            actors?.contains(query, ignoreCase = true) == true ||
-            director?.contains(query, ignoreCase = true) == true ||
-            genre?.contains(query, ignoreCase = true) == true
 }

@@ -26,9 +26,6 @@ import com.cstv.app.data.local.entity.VodStreamEntity
 import com.cstv.app.data.local.entity.FavoriteEntity
 import com.cstv.app.data.local.entity.RecentlyWatchedLiveEntity
 import com.cstv.app.data.local.entity.EpgCacheEntity
-import com.cstv.app.data.local.entity.LiveStreamFtsEntity
-import com.cstv.app.data.local.entity.VodStreamFtsEntity
-import com.cstv.app.data.local.entity.SeriesStreamFtsEntity
 import com.cstv.app.data.local.entity.MediaRatingEntity
 import com.cstv.app.data.local.entity.CatalogSyncStateEntity
 import com.cstv.app.data.local.entity.SeriesSeasonEntity
@@ -50,9 +47,6 @@ import com.cstv.app.data.local.dao.TrailerCacheDao
         EpgCacheEntity::class,
         ProfileEntity::class,
         TrackPreferenceEntity::class,
-        LiveStreamFtsEntity::class,
-        VodStreamFtsEntity::class,
-        SeriesStreamFtsEntity::class,
         CategoryPreferenceEntity::class,
         DownloadedMediaEntity::class,
         MediaRatingEntity::class,
@@ -61,7 +55,7 @@ import com.cstv.app.data.local.dao.TrailerCacheDao
         SeriesEpisodeEntity::class,
         TrailerCacheEntity::class
     ],
-    version = 20,
+    version = 21,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

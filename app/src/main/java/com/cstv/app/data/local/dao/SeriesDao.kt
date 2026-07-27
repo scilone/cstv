@@ -9,6 +9,7 @@ import com.cstv.app.data.local.entity.SeriesCategoryEntity
 import com.cstv.app.data.local.entity.SeriesEpisodeEntity
 import com.cstv.app.data.local.entity.SeriesSeasonEntity
 import com.cstv.app.data.local.entity.SeriesStreamEntity
+import com.cstv.app.domain.model.LocalSearchQuery
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -59,33 +60,22 @@ interface SeriesDao {
     @Query("SELECT * FROM series_streams WHERE categoryId = :categoryId ORDER BY orderIndex ASC")
     fun getStreamsByCategoryPaged(categoryId: String): androidx.paging.PagingSource<Int, SeriesStreamEntity>
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertStreams(streams: List<SeriesStreamEntity>)
-
     @Query("DELETE FROM series_streams WHERE categoryId = :categoryId")
     suspend fun clearStreamsByCategory(categoryId: String)
 
     @Query("DELETE FROM series_streams")
     suspend fun clearAllStreams()
 
-    // --- FTS4 (Phase 40 : recherche globale) --- voir VodDao pour le détail.
-    @Query(
-        "INSERT OR REPLACE INTO series_streams_fts(rowid, name, actors, director, genre, categoryId) " +
-            "VALUES (:seriesId, :name, :actors, :director, :genre, :categoryId)"
-    )
-    suspend fun upsertSeriesFts(seriesId: Int, name: String, actors: String?, director: String?, genre: String?, categoryId: String)
-
-    @Query("DELETE FROM series_streams_fts WHERE categoryId = :categoryId")
-    suspend fun clearFtsByCategory(categoryId: String)
-
-    @Query("DELETE FROM series_streams_fts")
-    suspend fun clearAllFts()
-
     @Transaction
-    suspend fun insertStreamsWithFts(streams: List<SeriesStreamEntity>) {
-        insertStreams(streams)
-        streams.forEach { upsertSeriesFts(it.seriesId, it.name, it.actors, it.director, it.genre, it.categoryId) }
+    suspend fun insertStreams(streams: List<SeriesStreamEntity>) {
+        insertStreamsRaw(streams.map {
+            it.copy(searchText = LocalSearchQuery.buildCatalogSearchText(it.name, it.actors, it.director, it.genre, it.categoryId))
+        })
     }
+
+    /** Ne jamais appeler directement : contourne le calcul de [SeriesStreamEntity.searchText]. */
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertStreamsRaw(streams: List<SeriesStreamEntity>)
 
     /**
      * Une réponse vide ne remplace jamais un catalogue connu : une erreur de
@@ -99,19 +89,17 @@ interface SeriesDao {
     }
 
     @Transaction
-    suspend fun replaceAllStreamsWithFts(streams: List<SeriesStreamEntity>) {
+    suspend fun replaceAllStreams(streams: List<SeriesStreamEntity>) {
         if (streams.isEmpty()) return
         clearAllStreams()
-        clearAllFts()
-        streams.chunked(VodDao.INSERT_CHUNK_SIZE).forEach { insertStreamsWithFts(it) }
+        streams.chunked(VodDao.INSERT_CHUNK_SIZE).forEach { insertStreams(it) }
     }
 
     @Transaction
-    suspend fun replaceStreamsByCategoryWithFts(categoryId: String, streams: List<SeriesStreamEntity>) {
+    suspend fun replaceStreamsByCategory(categoryId: String, streams: List<SeriesStreamEntity>) {
         if (streams.isEmpty()) return
         clearStreamsByCategory(categoryId)
-        clearFtsByCategory(categoryId)
-        streams.chunked(VodDao.INSERT_CHUNK_SIZE).forEach { insertStreamsWithFts(it) }
+        streams.chunked(VodDao.INSERT_CHUNK_SIZE).forEach { insertStreams(it) }
     }
 
     @Query("SELECT * FROM series_streams WHERE seriesId = :seriesId LIMIT 1")
