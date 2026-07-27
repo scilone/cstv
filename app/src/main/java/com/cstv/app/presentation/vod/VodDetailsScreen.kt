@@ -181,25 +181,31 @@ fun VodDetailsScreen(
                 // exactement superposé à celui de la fiche — un aplat de
                 // couleur trancherait avec le dégradé radial du thème.
                 if (pinHeader) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(rootHeight)
-                            .align(Alignment.TopCenter)
-                            .mobileBackground()
-                    )
-                    if (!details.coverBig.isNullOrBlank()) {
-                        AsyncImage(
-                            model = details.coverBig,
-                            contentDescription = null,
-                            contentScale = ContentScale.Crop,
+                    // `matchParentSize` : ce calque épouse le bloc sans peser
+                    // sur sa mesure. Les couches qu'il contient font la hauteur
+                    // de l'écran et débordent donc, mais sont rognées ici — sans
+                    // cette isolation, elles étireraient le bloc à l'écran entier.
+                    Box(modifier = Modifier.matchParentSize().clipToBounds()) {
+                        Box(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(rootHeight)
                                 .align(Alignment.TopCenter)
-                                .blur(20.dp)
-                                .alpha(0.18f)
+                                .mobileBackground()
                         )
+                        if (!details.coverBig.isNullOrBlank()) {
+                            AsyncImage(
+                                model = details.coverBig,
+                                contentDescription = null,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(rootHeight)
+                                    .align(Alignment.TopCenter)
+                                    .blur(20.dp)
+                                    .alpha(0.18f)
+                            )
+                        }
                     }
                 }
 
