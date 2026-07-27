@@ -181,3 +181,19 @@ Pour livrer nouvelle version app, générer APK production signé automatiquemen
    - Attacher l'APK de release signé à la Release.
 
 Ne te fie jamais à un numéro de version écrit dans la documentation (il périme vite) : vérifie toujours `git tag --sort=-v:refname | head -1` avant de choisir le prochain numéro (patch pour un fix/correction, minor pour une nouvelle phase/fonctionnalité), et synchronise `versionCode`/`versionName` dans `app/build.gradle.kts` avant de tagger.
+
+### Ordre de push et durée du build
+
+Le cache Gradle n'est inscriptible que depuis `main` (GitHub isole les caches créés sur un ref `refs/tags/*`). Le run de `main` sert donc à amorcer le cache que le run du tag réutilise. Les deux ordres de push fonctionnent, avec des durées différentes :
+
+```bash
+# Rapide (~1 min de build) : laisser le run de main finir avant de tagger.
+git push origin main
+gh run watch "$(gh run list --branch main --limit 1 --json databaseId -q '.[0].databaseId')"
+git push origin v1.60.9
+
+# Simple (~7 min de build) : tout pousser d'un coup.
+git push origin main v1.60.9
+```
+
+Dans le second cas, le tag compile sans build cache à jour (le code vient de changer) : seules les dépendances Maven sont récupérées du cache. Le run de `main` détecte alors qu'un tag de release pointe sur le même commit et s'efface, pour ne pas compiler deux fois en parallèle (voir « Determine Build Mode » dans `release.yml`).
