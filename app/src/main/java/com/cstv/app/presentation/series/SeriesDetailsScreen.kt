@@ -32,10 +32,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -57,6 +60,7 @@ import com.cstv.app.presentation.theme.HankenGrotesk
 import com.cstv.app.presentation.theme.Surface1
 import com.cstv.app.presentation.theme.Surface2
 import com.cstv.app.presentation.theme.Surface3
+import com.cstv.app.presentation.theme.mobileBackground
 import com.cstv.app.domain.model.SeriesEpisode
 import com.cstv.app.domain.model.SeriesSeason
 import com.cstv.app.domain.model.MediaRatingValue
@@ -101,9 +105,14 @@ fun SeriesDetailsScreen(
         details.episodes[selectedSeasonNumber] ?: emptyList()
     }
 
+    // Hauteur réelle du conteneur : sert à redessiner le décor à l'identique
+    // dans le bloc de tête épinglé (voir plus bas).
+    var rootHeightPx by remember { mutableIntStateOf(0) }
+    val rootHeight = with(LocalDensity.current) { rootHeightPx.toDp() }
     Box(
         modifier = modifier
             .fillMaxSize()
+            .onSizeChanged { rootHeightPx = it.height }
             .background(if (isTv) Surface1 else Color.Transparent)
     ) {
         // 1. Cinematic Blurred Backdrop Cover Image
@@ -176,7 +185,36 @@ fun SeriesDetailsScreen(
                     .graphicsLayer {
                         translationY = if (pinHeader) scrollState.value.toFloat() else 0f
                     }
+                    .clipToBounds()
             ) {
+                // Épinglé, le bloc doit être opaque : sans fond, le contenu
+                // défile visiblement autour de l'affiche. Le décor est
+                // redessiné à la taille du conteneur et aligné en haut, donc
+                // exactement superposé à celui de la fiche — un aplat de
+                // couleur trancherait avec le dégradé radial du thème.
+                if (pinHeader) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(rootHeight)
+                            .align(Alignment.TopCenter)
+                            .mobileBackground()
+                    )
+                    if (!details.cover.isNullOrBlank()) {
+                        AsyncImage(
+                            model = details.cover,
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(rootHeight)
+                                .align(Alignment.TopCenter)
+                                .blur(20.dp)
+                                .alpha(0.18f)
+                        )
+                    }
+                }
+
                 if (!isTv && trailerPlaying) {
                     MediaDetailsTrailerBackdrop(
                         media = trailerMedia,
