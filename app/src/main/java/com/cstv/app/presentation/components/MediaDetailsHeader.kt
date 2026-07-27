@@ -48,7 +48,7 @@ import com.cstv.app.presentation.theme.Surface1
 const val MEDIA_DETAILS_HEADER_HEIGHT_FRACTION = 0.5f
 
 /** Hauteur sur laquelle le bas de la zone de tête s'efface vers le fond. */
-private val HEADER_FADE_HEIGHT = 160.dp
+private val HEADER_FADE_HEIGHT = 80.dp
 
 /**
  * Zone de tête des fiches de détail **mobile** : l'image du média occupe toute
