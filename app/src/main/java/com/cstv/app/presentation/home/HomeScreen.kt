@@ -204,8 +204,8 @@ fun HomeScreen(
                 modifier = Modifier.fillMaxSize().then(if (isTv) Modifier.padding(top = 24.dp) else Modifier),
                 contentPadding = if (isTv) {
                     // Marge basse généreuse : la dernière rangée arrivait au ras
-                    // du bord de l'écran, halo de focus compris.
-                    PaddingValues(start = 16.dp, end = 16.dp, bottom = 48.dp)
+                    // du bord de l'écran, bordure de focus comprise.
+                    PaddingValues(start = 16.dp, end = 16.dp, bottom = 96.dp)
                 } else {
                     PaddingValues(16.dp)
                 },
@@ -742,9 +742,13 @@ private fun HomeSectionRow(
                 letterSpacing = (-0.01).sp,
                 color = Color(0xFFF4F4F7)
             )
-            if (onSeeAll != null) {
+            // Pas de « Voir tout » sur TV : ces liens sont focusables et
+            // précèdent les vignettes, si bien qu'ils captaient le focus à
+            // l'arrivée sur l'écran. La rangée se parcourt de toute façon
+            // entièrement au pad, le raccourci n'y apporte rien.
+            if (onSeeAll != null && !isTv) {
                 Spacer(modifier = Modifier.weight(1f))
-                SeeAllLink(isTv = isTv, onClick = onSeeAll)
+                SeeAllLink(isTv = false, onClick = onSeeAll)
             }
         }
         content()
