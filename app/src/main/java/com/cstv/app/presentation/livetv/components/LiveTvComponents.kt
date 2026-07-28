@@ -2,6 +2,7 @@ package com.cstv.app.presentation.livetv.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import com.cstv.app.presentation.components.tvFocusHighlight
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -270,11 +271,7 @@ fun CategoryFilterChip(
         modifier = Modifier
             .clip(RoundedCornerShape(16.dp))
             .onFocusChanged { isFocused = it.isFocused }
-            .border(
-                width = 2.dp,
-                color = if (isFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
-                shape = RoundedCornerShape(16.dp)
-            )
+            .tvFocusHighlight(isFocused, RoundedCornerShape(16.dp))
             .background(
                 when {
                     isSelected -> MaterialTheme.colorScheme.primary
@@ -634,11 +631,7 @@ fun RecentlyWatchedTvItem(
             .width(180.dp)
             .height(72.dp)
             .onFocusChanged { isFocused = it.isFocused }
-            .border(
-                width = 2.dp,
-                color = if (isFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
-                shape = RoundedCornerShape(8.dp)
-            )
+            .tvFocusHighlight(isFocused, RoundedCornerShape(8.dp))
             .clip(RoundedCornerShape(8.dp))
             .historyItemActions(isTv = true, onClick = onClick, onLongClick = onLongClick)
     ) {
@@ -734,11 +727,7 @@ fun StreamTvCard(
             .fillMaxWidth()
             .height(84.dp)
             .onFocusChanged { isFocused = it.isFocused }
-            .border(
-                width = 2.dp,
-                color = if (isFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
-                shape = RoundedCornerShape(12.dp)
-            )
+            .tvFocusHighlight(isFocused, RoundedCornerShape(12.dp))
             .clip(RoundedCornerShape(12.dp))
             .clickable { onClick() }
     ) {

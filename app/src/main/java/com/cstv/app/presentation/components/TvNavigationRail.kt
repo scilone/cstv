@@ -30,14 +30,22 @@ import androidx.compose.material.icons.filled.Tv
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -67,17 +75,35 @@ fun TvNavigationRail(
     onExpandedChange: (Boolean) -> Unit,
     onDestinationClick: (TvRailDestination) -> Unit,
     onProfileClick: () -> Unit,
+    onCloseToContent: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val selectedFocusRequester = remember { FocusRequester() }
+    LaunchedEffect(expanded, selected) {
+        if (expanded && selected != null) {
+            runCatching { selectedFocusRequester.requestFocus() }
+        }
+    }
     val width = animateDpAsState(if (expanded) 260.dp else TV_RAIL_COLLAPSED_WIDTH_DP.dp, tween(200), label = "tvRailWidth")
     Column(
         modifier = modifier
             .width(width.value)
             .fillMaxHeight()
+            // Sans bordure : le liseré tranchait franchement sur le contenu.
             .background(Surface1)
-            .border(1.dp, Color.White.copy(alpha = 0.08f))
             .focusGroup()
             .onFocusChanged { onExpandedChange(it.hasFocus) }
+            .onKeyEvent { event ->
+                // La barre est superposée au contenu : la recherche de focus
+                // vers la droite ne trouve rien à côté d'elle. Droite doit donc
+                // explicitement la refermer et rendre la main au contenu.
+                if (event.type == KeyEventType.KeyDown && event.key == Key.DirectionRight) {
+                    onCloseToContent()
+                    true
+                } else {
+                    false
+                }
+            }
             .padding(vertical = 18.dp, horizontal = 10.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -130,10 +156,14 @@ fun TvNavigationRail(
         Spacer(Modifier.height(36.dp))
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             destinations.forEach { destination ->
+                val isSelected = destination == selected
                 TvRailDestinationRow(
                     destination = destination,
-                    isSelected = destination == selected,
+                    isSelected = isSelected,
                     expanded = expanded,
+                    // À l'ouverture, le focus doit se poser sur la section
+                    // courante plutôt que sur la première destination.
+                    focusRequester = selectedFocusRequester.takeIf { isSelected },
                     onClick = { onDestinationClick(destination) }
                 )
             }
@@ -155,6 +185,7 @@ private fun TvRailDestinationRow(
     destination: TvRailDestination,
     isSelected: Boolean,
     expanded: Boolean,
+    focusRequester: FocusRequester?,
     onClick: () -> Unit
 ) {
     var focused by remember { mutableStateOf(false) }
@@ -179,6 +210,7 @@ private fun TvRailDestinationRow(
             .background(background, shape)
             .border(if (focused) 2.dp else 0.dp, if (focused) AccentLavande else Color.Transparent, shape)
             .onFocusChanged { focused = it.isFocused }
+            .then(focusRequester?.let { Modifier.focusRequester(it) } ?: Modifier)
             .clickable { onClick() }
             .padding(horizontal = 10.dp)
     ) {

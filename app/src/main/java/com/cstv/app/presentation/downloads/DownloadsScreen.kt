@@ -3,6 +3,7 @@ package com.cstv.app.presentation.downloads
 import com.cstv.app.R
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import com.cstv.app.presentation.components.tvFocusHighlight
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.*
@@ -132,11 +133,7 @@ private fun DownloadRow(
         modifier = Modifier
             .fillMaxWidth()
             .onFocusChanged { isFocused = it.isFocused }
-            .border(
-                width = 2.dp,
-                color = if (isFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
-                shape = RoundedCornerShape(12.dp)
-            )
+            .tvFocusHighlight(isFocused, RoundedCornerShape(12.dp))
             .clip(RoundedCornerShape(12.dp))
             .background(Surface3)
             .clickable(enabled = playable) { onPlay() }

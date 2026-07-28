@@ -201,6 +201,15 @@ class MainActivity : ComponentActivity() {
                         // sans cela le focus y reste et la barre se rouvre
                         // immédiatement après un clic sur une destination.
                         val contentFocusRequester = remember { FocusRequester() }
+                        // À l'arrivée sur un écran principal, le focus doit être
+                        // dans le contenu : sans cela, rien n'est focalisé et la
+                        // première pression du D-pad atterrit dans la barre.
+                        LaunchedEffect(currentRoute, showTvRail) {
+                            if (showTvRail) {
+                                railExpanded = false
+                                contentFocusRequester.requestFocusSafely()
+                            }
+                        }
                         val activeProfile = profileState.profiles.firstOrNull { it.id == profileState.activeProfileId }
                         SystemBarsController(isTv = isTv, isPlayerRoute = isPlayerRoute)
 
@@ -319,6 +328,10 @@ class MainActivity : ComponentActivity() {
                                     onDestinationClick = { destination ->
                                         railExpanded = false
                                         navController.navigateToRootTab(destination.route)
+                                        contentFocusRequester.requestFocusSafely()
+                                    },
+                                    onCloseToContent = {
+                                        railExpanded = false
                                         contentFocusRequester.requestFocusSafely()
                                     },
                                     onProfileClick = {

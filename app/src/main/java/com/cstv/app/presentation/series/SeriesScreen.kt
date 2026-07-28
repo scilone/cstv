@@ -7,6 +7,7 @@ import com.cstv.app.presentation.rememberForeverLazyGridState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import com.cstv.app.presentation.components.tvFocusHighlight
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
@@ -711,11 +712,7 @@ private fun CategoryFilterChip(
         modifier = Modifier
             .clip(RoundedCornerShape(16.dp))
             .onFocusChanged { isFocused = it.isFocused }
-            .border(
-                width = 2.dp,
-                color = if (isFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
-                shape = RoundedCornerShape(16.dp)
-            )
+            .tvFocusHighlight(isFocused, RoundedCornerShape(16.dp))
             .background(
                 when {
                     isSelected -> MaterialTheme.colorScheme.primary
@@ -750,11 +747,7 @@ private fun SeriesTvCard(
         modifier = Modifier
             .width(150.dp)
             .onFocusChanged { isFocused = it.isFocused }
-            .border(
-                width = 2.dp,
-                color = if (isFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
-                shape = RoundedCornerShape(12.dp)
-            )
+            .tvFocusHighlight(isFocused, RoundedCornerShape(12.dp))
             .clip(RoundedCornerShape(12.dp))
             .historyItemActions(isTv = true, onClick = onClick, onLongClick = onLongClick)
     ) {

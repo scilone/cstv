@@ -3,7 +3,6 @@ package com.cstv.app.presentation.home.components
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -50,8 +49,8 @@ import com.cstv.app.domain.model.TrailerMedia
 import com.cstv.app.domain.model.TrailerSource
 import com.cstv.app.domain.model.TrendingCatalogItem
 import com.cstv.app.presentation.components.TrailerPreviewUiState
+import com.cstv.app.presentation.components.tvFocusHighlight
 import com.cstv.app.presentation.components.YouTubeTrailerPreview
-import com.cstv.app.presentation.theme.AccentLavande
 import kotlin.math.absoluteValue
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -224,7 +223,7 @@ private fun HomeTrendingSlideTv(
     Box(
         modifier = modifier
             .clip(shape)
-            .border(3.dp, AccentLavande.copy(alpha = borderAlpha), shape)
+            .tvFocusHighlight(borderAlpha > 0.5f, shape)
     ) {
         AsyncImage(
             model = imageUrl,

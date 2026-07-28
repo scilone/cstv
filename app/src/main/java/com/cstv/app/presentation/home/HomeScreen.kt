@@ -197,8 +197,16 @@ fun HomeScreen(
             } ?: run {
                 LazyColumn(
                 state = lazyListState,
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(16.dp),
+                // Sur TV, la marge haute est portée par la fenêtre de défilement
+                // et non par `contentPadding` : ce dernier appartient au contenu
+                // défilant, si bien qu'un retour de focus vers la Hero Card la
+                // recollait au bord haut de l'écran après un défilement.
+                modifier = Modifier.fillMaxSize().then(if (isTv) Modifier.padding(top = 24.dp) else Modifier),
+                contentPadding = if (isTv) {
+                    PaddingValues(start = 16.dp, end = 16.dp, bottom = 16.dp)
+                } else {
+                    PaddingValues(16.dp)
+                },
                 verticalArrangement = Arrangement.spacedBy(24.dp)
             ) {
                 // 1. Header (Welcome, Profile Info and Navigation Row)

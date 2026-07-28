@@ -5,6 +5,7 @@ import com.cstv.app.domain.model.EpisodeLabel
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import com.cstv.app.presentation.components.tvFocusHighlight
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -73,11 +74,7 @@ fun HomeResumeWatchingCard(
     Column(
         modifier = modifier
             .onFocusChanged { isFocused = it.isFocused }
-            .border(
-                width = 2.dp,
-                color = if (isFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
-                shape = RoundedCornerShape(12.dp)
-            )
+            .tvFocusHighlight(isFocused, RoundedCornerShape(12.dp))
             .clip(RoundedCornerShape(12.dp))
             .historyItemActions(isTv, onClick, onLongClick)
             .background(Surface3)
@@ -196,11 +193,7 @@ fun HomeFavoriteItemCard(
         modifier = modifier
             .height(195.dp)
             .onFocusChanged { isFocused = it.isFocused }
-            .border(
-                width = 2.dp,
-                color = if (isFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
-                shape = RoundedCornerShape(14.dp)
-            )
+            .tvFocusHighlight(isFocused, RoundedCornerShape(14.dp))
             .clip(RoundedCornerShape(14.dp))
             .clickable { onClick() }
             .background(Surface1),
@@ -263,10 +256,11 @@ fun HomeLiveTvCard(
         modifier = Modifier
             .width(180.dp)
             .onFocusChanged { isFocused = it.isFocused }
-            .border(
-                width = if (isFocused) 2.dp else 1.dp,
-                color = if (isFocused) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.07f),
-                shape = RoundedCornerShape(16.dp)
+            .tvFocusHighlight(
+                focused = isFocused,
+                shape = RoundedCornerShape(16.dp),
+                restingColor = Color.White.copy(alpha = 0.07f),
+                restingWidth = 1.dp
             )
             .clip(RoundedCornerShape(16.dp))
             .clickable { onClick() }
@@ -400,11 +394,7 @@ fun HomeVodMovieCard(
     val posterModifier = Modifier
         .width(130.dp)
         .fillMaxHeight()
-        .border(
-            width = 2.dp,
-            color = if (isFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
-            shape = RoundedCornerShape(14.dp)
-        )
+        .tvFocusHighlight(isFocused, RoundedCornerShape(14.dp))
         .clip(RoundedCornerShape(14.dp))
         .background(Surface1)
 
@@ -470,7 +460,7 @@ fun HomeDownloadCard(
             .width(130.dp)
             .height(195.dp)
             .onFocusChanged { isFocused = it.isFocused }
-            .border(2.dp, if (isFocused) MaterialTheme.colorScheme.primary else Color.Transparent, shape)
+            .tvFocusHighlight(isFocused, shape)
             .clip(shape)
             .background(Surface1)
             .historyItemActions(isTv, onClick, null),
@@ -526,11 +516,7 @@ fun HomeSeriesShowCard(
     val posterModifier = Modifier
         .width(130.dp)
         .fillMaxHeight()
-        .border(
-            width = 2.dp,
-            color = if (isFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
-            shape = RoundedCornerShape(14.dp)
-        )
+        .tvFocusHighlight(isFocused, RoundedCornerShape(14.dp))
         .clip(RoundedCornerShape(14.dp))
         .background(Surface1)
 
