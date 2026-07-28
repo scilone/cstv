@@ -189,25 +189,21 @@ private fun TvRailDestinationRow(
     onClick: () -> Unit
 ) {
     var focused by remember { mutableStateOf(false) }
-    // Trois niveaux distincts, le focus primant toujours sur la sélection :
-    // à distance, savoir où est le pad importe plus que relire l'onglet courant.
-    val background = when {
-        focused -> AccentLavande.copy(alpha = 0.45f)
-        isSelected -> AccentLavande.copy(alpha = 0.18f)
-        else -> Color.Transparent
-    }
-    val contentColor = when {
+    // Aucun aplat de couleur : le focus se lit à la bordure, la sélection à
+    // l'icône teintée et à la graisse du libellé. Un fond plein sur la
+    // destination courante alourdissait la barre sans rien dire de plus.
+    val iconColor = when {
         focused -> Color.White
         isSelected -> AccentLavande
         else -> Color(0xFFB9B9C6)
     }
+    val labelColor = if (focused) Color.White else Color(0xFFB9B9C6)
     val shape = RoundedCornerShape(10.dp)
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
             .height(44.dp)
-            .background(background, shape)
             .border(if (focused) 2.dp else 0.dp, if (focused) AccentLavande else Color.Transparent, shape)
             .onFocusChanged { focused = it.isFocused }
             .then(focusRequester?.let { Modifier.focusRequester(it) } ?: Modifier)
@@ -217,15 +213,15 @@ private fun TvRailDestinationRow(
         Icon(
             destination.icon.imageVector(),
             stringResource(destination.labelRes),
-            tint = contentColor,
+            tint = iconColor,
             modifier = Modifier.size(24.dp)
         )
         if (expanded) {
             Spacer(Modifier.width(14.dp))
             Text(
                 stringResource(destination.labelRes),
-                color = contentColor,
-                fontWeight = FontWeight.SemiBold,
+                color = labelColor,
+                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )

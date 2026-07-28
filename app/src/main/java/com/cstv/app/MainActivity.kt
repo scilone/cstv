@@ -13,6 +13,7 @@ import androidx.compose.foundation.focusGroup
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.calculateEndPadding
@@ -280,13 +281,23 @@ class MainActivity : ComponentActivity() {
                                                             navController.navigateToRootTab(tab.route)
                                                         },
                                                         icon = { Icon(tab.icon, contentDescription = tab.title) },
-                                                        label = { Text(tab.title, fontSize = 10.sp, fontFamily = com.cstv.app.presentation.theme.AppTypography.labelSmall.fontFamily) },
+                                                        label = {
+                                                            Text(
+                                                                tab.title,
+                                                                fontSize = 10.sp,
+                                                                fontFamily = com.cstv.app.presentation.theme.AppTypography.labelSmall.fontFamily,
+                                                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+                                                            )
+                                                        },
+                                                        // Pastille de sélection retirée : l'onglet courant se
+                                                        // lit à son icône teintée et à la graisse du libellé,
+                                                        // sans aplat de couleur sous l'icône.
                                                         colors = NavigationBarItemDefaults.colors(
                                                             selectedIconColor = com.cstv.app.presentation.theme.AccentLavande,
                                                             selectedTextColor = com.cstv.app.presentation.theme.AccentLavande,
                                                             unselectedIconColor = com.cstv.app.presentation.theme.TextSecondary,
                                                             unselectedTextColor = com.cstv.app.presentation.theme.TextSecondary,
-                                                            indicatorColor = com.cstv.app.presentation.theme.AccentLavande.copy(alpha = 0.16f)
+                                                            indicatorColor = Color.Transparent
                                                         )
                                                     )
                                                 }
