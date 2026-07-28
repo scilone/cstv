@@ -62,6 +62,30 @@ class TrailerRepositoryImplTest {
         }
     }
 
+    // L'Accueil demande un média avec son tmdbId, la fiche de détails sans. Le
+    // cache est indexé sur (type, id catalogue) : le preview rendu doit porter
+    // le média demandé, sinon la fiche rejette le résultat de l'Accueil
+    // (`preview.media == trailerMedia` faux) et n'affiche aucun trailer.
+    @Test
+    fun getTrailerPreview_returnsPreviewCarryingTheRequestedMedia() {
+        runBlocking {
+        doReturn(credentials).whenever(credentialsManager).getCredentials()
+        val response: VodInfoResponseDto = mock()
+        val info = mock<com.cstv.app.data.remote.dto.VodInfoDto>()
+        doReturn(info).whenever(response).info
+        doReturn("dQw4w9WgXcQ").whenever(info).youtubeTrailer
+        whenever(xtream.getVodInfo("user", "password", 7)).thenReturn(response)
+
+        val fromHome = repository.getTrailerPreview(TrailerMedia.Movie(7, 42))
+        val fromDetails = repository.getTrailerPreview(TrailerMedia.Movie(7))
+
+        assertEquals(TrailerMedia.Movie(7, 42), fromHome?.media)
+        assertEquals(TrailerMedia.Movie(7), fromDetails?.media)
+        assertEquals(TrailerSource.YouTube("dQw4w9WgXcQ"), fromDetails?.source)
+        verify(xtream, times(1)).getVodInfo("user", "password", 7)
+        }
+    }
+
     @Test
     fun getTrailerPreview_doesNotPersistNetworkFailure() {
         runBlocking {

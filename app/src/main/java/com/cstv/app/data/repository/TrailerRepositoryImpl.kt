@@ -43,11 +43,11 @@ class TrailerRepositoryImpl @Inject constructor(
 
     override suspend fun getTrailerPreview(media: TrailerMedia): TrailerPreview? {
         val key = media.cacheKey()
-        synchronized(cache) { if (cache.containsKey(key)) return cache[key] }
+        synchronized(cache) { if (cache.containsKey(key)) return cache[key].forRequestedMedia(media) }
         // Une seule résolution à la fois : la seconde demande du même média voit le
         // cache rempli par la première, et le panel Xtream reste protégé des rafales.
         return resolutionMutex.withLock {
-            synchronized(cache) { if (cache.containsKey(key)) return@withLock cache[key] }
+            synchronized(cache) { if (cache.containsKey(key)) return@withLock cache[key].forRequestedMedia(media) }
             val stored = runCatching { trailerCacheDao.get(key.mediaType, key.catalogId) }.getOrNull()
             if (stored != null) {
                 // Un trailer trouvé ne se périme jamais : seul un échec de
@@ -118,6 +118,18 @@ class TrailerRepositoryImpl @Inject constructor(
     }
 
     private fun String.toPreview(media: TrailerMedia) = TrailerPreview(media, TrailerSource.YouTube(this))
+
+    /**
+     * Le cache est indexé sur (type, identifiant catalogue) mais mémorise le
+     * `TrailerPreview` complet, `media` compris. Or le même film est demandé
+     * avec un `tmdbId` depuis l'Accueil et sans depuis sa fiche : rendre tel
+     * quel le preview mis en cache par l'Accueil faisait échouer le test
+     * `preview.media == trailerMedia` de la fiche, qui n'affichait alors aucun
+     * trailer malgré une résolution réussie. Le preview rendu porte donc
+     * toujours le média effectivement demandé.
+     */
+    private fun TrailerPreview?.forRequestedMedia(media: TrailerMedia): TrailerPreview? =
+        this?.takeIf { it.media != media }?.copy(media = media) ?: this
 
     private fun TrailerMedia.cacheKey() = CacheKey(if (this is TrailerMedia.Movie) "movie" else "series", catalogId)
 
