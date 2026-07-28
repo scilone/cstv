@@ -221,8 +221,16 @@ class MainActivity : ComponentActivity() {
                                 // focusable au moment de la navigation : une
                                 // demande unique échoue en silence et le premier
                                 // appui du pad repart alors dans la barre.
+                                //
+                                // La fenêtre doit couvrir le chargement des
+                                // données, pas seulement la composition : tant
+                                // que l'écran affiche son indicateur, il n'a
+                                // rien de focusable et toutes les tentatives
+                                // échouent. Elle s'interrompt dès que
+                                // l'utilisateur déplie la barre, pour ne pas lui
+                                // reprendre le focus des mains.
                                 repeat(FOCUS_REQUEST_ATTEMPTS) {
-                                    if (contentChildFocused) return@LaunchedEffect
+                                    if (contentChildFocused || railExpanded) return@LaunchedEffect
                                     contentFocusRequester.requestFocusSafely()
                                     kotlinx.coroutines.delay(FOCUS_REQUEST_RETRY_MS)
                                 }
@@ -391,8 +399,8 @@ class MainActivity : ComponentActivity() {
 // être hors-ligne). L'URL est reconstruite par le player depuis les identifiants
 // stockés ; le cache de téléchargement sert le fichier local. ---
 /** Nombre et espacement des tentatives de prise de focus après une navigation. */
-private const val FOCUS_REQUEST_ATTEMPTS = 20
-private const val FOCUS_REQUEST_RETRY_MS = 80L
+private const val FOCUS_REQUEST_ATTEMPTS = 60
+private const val FOCUS_REQUEST_RETRY_MS = 120L
 
 /**
  * Une demande de focus lève si aucun nœud focusable n'est encore attaché (écran

@@ -44,6 +44,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.focus.focusRestorer
 import com.cstv.app.R
 import com.cstv.app.domain.model.FavoriteItem
 import com.cstv.app.domain.model.VodCategory
@@ -676,7 +677,7 @@ private fun CategorySectionRow(
             state = rowState,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             contentPadding = PaddingValues(horizontal = 12.dp),
-            modifier = Modifier.fillMaxWidth().focusGroup()
+            modifier = Modifier.fillMaxWidth().focusRestorer().focusGroup()
         ) {
             items(movies) { stream ->
                 if (isTv) {

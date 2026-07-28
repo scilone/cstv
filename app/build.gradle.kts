@@ -25,8 +25,8 @@ android {
         // Phase 39 : synchronisés avec le dernier tag git poussé (voir AGENTS.md,
         // section "Checklist avant de conclure une tâche"). versionCode dérivé du
         // SemVer : major*10_000 + minor*100 + patch (marge de 0-99 par segment).
-        versionCode = 16_407
-        versionName = "1.64.7"
+        versionCode = 16_408
+        versionName = "1.64.8"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -78,7 +78,10 @@ android {
         jvmTarget = "17"
         freeCompilerArgs += listOf(
             "-opt-in=androidx.tv.material3.ExperimentalTvMaterial3Api",
-            "-opt-in=androidx.media3.common.util.UnstableApi"
+            "-opt-in=androidx.media3.common.util.UnstableApi",
+            // `Modifier.focusRestorer`, qui fixe le point d'entrée du focus
+            // dans les rangées TV.
+            "-opt-in=androidx.compose.ui.ExperimentalComposeUiApi"
         )
     }
     buildFeatures {

@@ -29,6 +29,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.focus.focusRestorer
 import androidx.tv.material3.Button as TvButton
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.MaterialTheme as TvTheme
@@ -108,7 +109,7 @@ fun CategorySectionRow(
             state = rowState,
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             contentPadding = PaddingValues(horizontal = 12.dp),
-            modifier = Modifier.fillMaxWidth().focusGroup()
+            modifier = Modifier.fillMaxWidth().focusRestorer().focusGroup()
         ) {
             items(streams) { stream ->
                 val isFav = favoritesList.any { it.id == stream.streamId && it.type == "live" }
@@ -341,7 +342,7 @@ fun RecentlyWatchedRow(
             state = rowState,
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             contentPadding = PaddingValues(horizontal = 12.dp),
-            modifier = Modifier.fillMaxWidth().focusGroup()
+            modifier = Modifier.fillMaxWidth().focusRestorer().focusGroup()
         ) {
             items(streams) { stream ->
                 if (isTv) {
