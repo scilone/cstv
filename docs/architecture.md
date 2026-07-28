@@ -112,10 +112,9 @@ Responsable de l'interface utilisateur. Elle utilise **Jetpack Compose** pour l'
 * **Base de données Room & SQLite** :
   * Base de données `AppDatabase` (actuellement en version **21**).
   * **Pas de fallbackToDestructiveMigration()** ! Toutes les migrations sont rédigées en SQL brut de manière explicite dans `Migrations.kt` pour préserver intactes les données des utilisateurs (favoris, profils, historique) lors des mises à jour applicatives (comme la transition 20 → 21 de F17).
-* **Double système de navigation (Piège connu)** :
-  * Côté Mobile : Utilisation de `navigation-compose` via l'arbre de navigation `AppNavGraph`.
-  * Côté Android TV : Navigation manuelle via un enum `AppScreen` géré dans `MainActivity.kt`.
-  * *Important* : Tout nouvel écran doit être câblé dans les deux systèmes pour s'afficher correctement sur mobile et sur TV.
+* **Système de navigation unifié (F18)** :
+  * L'application utilise désormais un seul système de navigation via `AppNavGraph` (navigation-compose, `presentation/navigation/NavGraph.kt`) partagé entre Mobile et TV.
+  * L'ancien double système (navigation manuelle par enum `AppScreen` et boucle `when` dans `MainActivity.kt`) est obsolète et a été entièrement supprimé.
 
 ---
 

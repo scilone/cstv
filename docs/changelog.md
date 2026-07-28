@@ -1,5 +1,18 @@
 # Journal des Modifications (Changelog) - CSTV IPTV
 
+## [v1.63.0] - 2026-07-28
+### ✨ Refonte de l'interface TV : navigation latérale, Hero Card, logo et « Voir tout » (F18)
+* **Barre de navigation latérale rétractable (TV)** : Remplacement de la navigation supérieure par une barre latérale animée ancrée à gauche (68dp ↔ 260dp), s'ouvrant automatiquement lors du focus D-pad et affichant le profil actif, l'expiration de session filtrée et les destinations.
+* **Gestion sécurisée de la touche Retour** : Fermeture de la barre latérale sans déconnexion accidentelle de l'utilisateur, avec restitution propre du focus D-pad au contenu principal de l'écran.
+* **Hero Card TV immersive** : Mise en avant de la première tendance TMDB disponible sur l'accueil, avec dégradé de protection visuelle, badge de type, titre et année.
+* **Aperçu de bande-annonce temporisé** : Lancement automatique de l'aperçu silencieux YouTube WebView après 1,5 seconde de focus continu sur la Hero Card. Libération instantanée des ressources lors du changement de focus, d'écran ou de mise en arrière-plan.
+* **Contrôle Mute/Unmute au D-pad** : Bouton d'action dynamique focusable sur la Hero Card pour activer ou couper le son pendant la lecture de l'aperçu.
+* **Bouton « Voir tout » unifié** : Remplacement des boutons TV lourds par le composant unifié `SeeAllLink`, discret au repos et s'ornant d'un fond lavande translucide réactif et visible lors du focus TV.
+* **Identité visuelle Android TV rafraîchie** : Remplacement de la bannière TV par un vecteur unique HD combinant le logo de tasse CSTV à vapeur violette caractéristique de la marque sur fond violet foncé.
+* **Unification complète de la navigation** : Suppression de l'ancienne navigation par enum `AppScreen` et boucle `when` manuelle de `MainActivity.kt` au profit du système de navigation `AppNavGraph` (navigation-compose) unifié pour mobile et TV.
+
+> Validation automatisée : `testDebugUnitTest` et compilation validées à 100% avec succès.
+
 ## [v1.62.0] - 2026-07-27
 ### ✨ Recherche globale de contenus par sous-chaînes (F17)
 * **Recherche globale par sous-chaîne (LIKE "%keyword%")** : Remplacement complet de FTS4 par des requêtes de type `LIKE` sur une colonne dénormalisée `searchText` présente dans les tables physiques `live_streams`, `vod_streams` et `series_streams`.

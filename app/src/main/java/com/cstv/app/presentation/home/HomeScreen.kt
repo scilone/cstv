@@ -2,6 +2,7 @@ package com.cstv.app.presentation.home
 import com.cstv.app.R
 import androidx.compose.ui.res.stringResource
 import com.cstv.app.presentation.home.components.*
+import com.cstv.app.presentation.components.SeeAllLink
 
 import com.cstv.app.presentation.rememberForeverLazyListState
 import androidx.compose.foundation.lazy.LazyListState
@@ -297,49 +298,6 @@ fun HomeScreen(
                             }
                         }
 
-                        if (isTv) {
-                            Spacer(modifier = Modifier.height(16.dp))
-
-                            // Navigation shortcut chips for TV
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .focusGroup()
-                            ) {
-                                val buttonModifier = Modifier.weight(1f).height(38.dp)
-                                TvButton(onClick = onNavigateToLiveTv, modifier = buttonModifier) {
-                                    TvText(stringResource(R.string.home_nav_live_tv), fontWeight = FontWeight.Bold, style = TvTheme.typography.labelSmall)
-                                }
-                                TvButton(onClick = onNavigateToVod, modifier = buttonModifier) {
-                                    TvText(stringResource(R.string.home_nav_vod), fontWeight = FontWeight.Bold, style = TvTheme.typography.labelSmall)
-                                }
-                                TvButton(onClick = onNavigateToSeries, modifier = buttonModifier) {
-                                    TvText(stringResource(R.string.home_nav_series), fontWeight = FontWeight.Bold, style = TvTheme.typography.labelSmall)
-                                }
-                                TvButton(onClick = onNavigateToFavorites, modifier = buttonModifier) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(Icons.Default.Star, contentDescription = null, tint = Color.Yellow, modifier = Modifier.size(14.dp))
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        TvText(stringResource(R.string.home_nav_favs), fontWeight = FontWeight.Bold, style = TvTheme.typography.labelSmall)
-                                    }
-                                }
-                                TvButton(onClick = onNavigateToSearch, modifier = buttonModifier) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(14.dp))
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        TvText(stringResource(R.string.home_nav_search), fontWeight = FontWeight.Bold, style = TvTheme.typography.labelSmall)
-                                    }
-                                }
-                                TvButton(onClick = onNavigateToSettings, modifier = buttonModifier) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(Icons.Default.Settings, contentDescription = null, tint = Color.LightGray, modifier = Modifier.size(14.dp))
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        TvText(stringResource(R.string.home_nav_settings), fontWeight = FontWeight.Bold, style = TvTheme.typography.labelSmall)
-                                    }
-                                }
-                            }
-                        }
                     }
                 }
 
@@ -368,41 +326,24 @@ fun HomeScreen(
                                     .padding(vertical = 8.dp)
                             )
                         }
-                    } else if (state.resumeWatchingList.isNotEmpty()) {
-                        item {
-                            HomeHeroCard(
-                                position = state.resumeWatchingList.first(),
-                                onClick = { handleResumeClick(state.resumeWatchingList.first()) },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 8.dp)
-                            )
-                        }
                     }
                 } else if (state.trendingList.isNotEmpty()) {
-                    // TV : rangée poster focusable au D-pad (le pager mobile n'est
-                    // pas navigable au D-pad). Repli implicite sur les autres
-                    // sections si la liste est vide (pas de hero sur TV).
                     item {
-                        HomeSectionRow(
-                            title = stringResource(R.string.home_trending),
-                            isTv = isTv,
-                            onSeeAll = null
-                        ) {
-                            HomeTrendingRowTv(
-                                trendingItems = state.trendingList,
-                                onMovieClick = { streamId ->
-                                    state.trendingList.find { it.matchedMovie?.streamId == streamId }?.matchedMovie?.let {
-                                        onSelectMovieDetail(it)
-                                    }
-                                },
-                                onSeriesClick = { seriesId ->
-                                    state.trendingList.find { it.matchedSeries?.seriesId == seriesId }?.matchedSeries?.let {
-                                        onSelectSeriesDetail(it)
-                                    }
-                                }
-                            )
-                        }
+                        val item = state.trendingList.first()
+                        HomeTrendingHeroTv(
+                            item = item,
+                            trailerPreview = state.trailerPreview,
+                            onPreviewRequested = viewModel::selectTrendingPreview,
+                            onPreviewContextEnded = viewModel::cancelTrendingPreview,
+                            onPreviewPlaybackFailed = viewModel::reportTrailerPlaybackFailure,
+                            onMovieClick = { streamId ->
+                                state.trendingList.find { it.matchedMovie?.streamId == streamId }?.matchedMovie?.let(onSelectMovieDetail)
+                            },
+                            onSeriesClick = { seriesId ->
+                                state.trendingList.find { it.matchedSeries?.seriesId == seriesId }?.matchedSeries?.let(onSelectSeriesDetail)
+                            },
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
+                        )
                     }
                 }
 
@@ -801,40 +742,7 @@ private fun HomeSectionRow(
             )
             if (onSeeAll != null) {
                 Spacer(modifier = Modifier.weight(1f))
-                if (isTv) {
-                    // TV : bouton focusable au D-pad (contraste WCAG AA dans les deux états).
-                    var isFocused by remember { mutableStateOf(false) }
-                    Button(
-                        onClick = onSeeAll,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (isFocused) AccentLavande else Surface3,
-                            contentColor = if (isFocused) Color.Black else Color.White
-                        ),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                        modifier = Modifier
-                            .height(28.dp)
-                            .onFocusChanged { isFocused = it.isFocused }
-                    ) {
-                        Text(
-                            text = stringResource(R.string.home_see_all),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                } else {
-                    // Mobile (Phase 55) : lien texte discret en accent, façon maquette.
-                    Text(
-                        text = stringResource(R.string.home_see_all),
-                        fontSize = 12.5.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = AccentLavande,
-                        fontFamily = HankenGrotesk,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(6.dp))
-                            .clickable { onSeeAll() }
-                            .padding(horizontal = 4.dp, vertical = 2.dp)
-                    )
-                }
+                SeeAllLink(isTv = isTv, onClick = onSeeAll)
             }
         }
         content()

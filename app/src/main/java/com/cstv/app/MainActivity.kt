@@ -10,6 +10,8 @@ import androidx.activity.compose.setContent
 import androidx.core.view.WindowCompat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.calculateEndPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
@@ -52,6 +54,9 @@ import com.cstv.app.presentation.profile.ProfileSelectionScreen
 import com.cstv.app.presentation.navigation.AppNavGraph
 import com.cstv.app.presentation.navigation.MobileNavigation
 import com.cstv.app.presentation.navigation.navigateToRootTab
+import com.cstv.app.presentation.navigation.TvNavigation
+import com.cstv.app.presentation.components.TvNavigationRail
+import com.cstv.app.presentation.components.TV_RAIL_COLLAPSED_WIDTH_DP
 import com.cstv.app.presentation.theme.IptvXtreamTheme
 import com.cstv.app.presentation.theme.mobileBackground
 import com.cstv.app.presentation.theme.SystemBarsController
@@ -177,6 +182,9 @@ class MainActivity : ComponentActivity() {
                         val navBackStackEntry by navController.currentBackStackEntryAsState()
                         val currentRoute = navBackStackEntry?.destination?.route
                         val isPlayerRoute = isImmersivePlayerRoute(currentRoute)
+                        val showTvRail = isTv && TvNavigation.isRailRoute(currentRoute)
+                        var railExpanded by remember { mutableStateOf(false) }
+                        val activeProfile = profileState.profiles.firstOrNull { it.id == profileState.activeProfileId }
                         SystemBarsController(isTv = isTv, isPlayerRoute = isPlayerRoute)
 
                         // Bottom navigation bar is visible only on mobile, when user is logged in
@@ -184,7 +192,10 @@ class MainActivity : ComponentActivity() {
                         val showBottomBar = !isTv && loggedInUser != null && !isPlayerRoute && currentRoute != "login"
 
                         // Android TV Safe Back Button Handler for Dashboard
-                        BackHandler(enabled = isTv && currentRoute == "home") {
+                        BackHandler(enabled = isTv && railExpanded) {
+                            railExpanded = false
+                        }
+                        BackHandler(enabled = isTv && currentRoute == "home" && !railExpanded) {
                             loginViewModel.logout()
                             loggedInUser = null
                         }
@@ -230,9 +241,14 @@ class MainActivity : ComponentActivity() {
                                     }
                                 }
                             ) { paddingValues ->
+                                val contentPadding = if (showTvRail) {
+                                    PaddingValues(start = TV_RAIL_COLLAPSED_WIDTH_DP.dp)
+                                } else {
+                                    paddingValues
+                                }
                                 AppNavGraph(
                                     navController = navController,
-                                    paddingValues = paddingValues,
+                                    paddingValues = contentPadding,
                                     isPlayerRoute = isPlayerRoute,
                                     loggedInUser = loggedInUser,
                                     onUserChanged = { loggedInUser = it },
@@ -260,6 +276,22 @@ class MainActivity : ComponentActivity() {
                                     onActiveSeriesDetailsChanged = { activeSeriesDetails = it },
                                     activeEpisode = activeEpisode,
                                     onActiveEpisodeChanged = { activeEpisode = it }
+                                )
+                            }
+                            if (showTvRail) {
+                                TvNavigationRail(
+                                    expanded = railExpanded,
+                                    selected = TvNavigation.railDestinationFor(currentRoute),
+                                    profileAvatarId = activeProfile?.avatarId ?: 0,
+                                    profileName = activeProfile?.name.orEmpty(),
+                                    username = loggedInUser?.username,
+                                    expiryLabel = TvNavigation.expiryLabel(loggedInUser?.expiryDate),
+                                    destinations = TvNavigation.destinations,
+                                    onExpandedChange = { railExpanded = it },
+                                    onDestinationClick = { destination ->
+                                        railExpanded = false
+                                        navController.navigateToRootTab(destination.route)
+                                    }
                                 )
                             }
                         }

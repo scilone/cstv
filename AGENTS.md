@@ -76,7 +76,7 @@ Avant considérer phase terminée, exécute `assembleDebug` + `lintDebug`, corri
 - Tout champ JSON potentiellement incohérent entre panels Xtream (int vs string) doit parser façon défensive (voir cahier charges section 2.3).
 - Jamais credentials (username/password Xtream) en dur code, en log, ou clair fichiers config versionnés.
 - Compose : privilégier composables stateless (state hoisting), préfixer composables privés écran par nom écran (ex: `LiveTvChannelRow`).
-- ⚠️ **Piège : double système navigation.** Mobile passe par `AppNavGraph` (navigation-compose, `presentation/navigation/NavGraph.kt`) mais TV passe navigation manuelle enum `AppScreen` + `when` dans `MainActivity.kt`. **Tout nouvel écran doit câbler DANS LES DEUX**, sinon apparaît qu'une plateforme. Unification prévue (voir backlog technique sous `ai/technical/`).
+- **Navigation unifiée :** L'application utilise désormais un seul système de navigation via `AppNavGraph` (navigation-compose, `presentation/navigation/NavGraph.kt`) partagé entre Mobile et TV. L'ancien double système (`AppScreen` + `when` manuel) est obsolète et a été entièrement supprimé.
 
 ## Structure de dossiers attendue
 

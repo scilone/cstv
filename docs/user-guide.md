@@ -40,7 +40,10 @@ Une fois connecté, l'application vous propose l'écran de sélection de profil 
 L'application est entièrement optimisée pour deux types d'appareils :
 
 * **📱 Version Mobile** : La navigation s'effectue de manière tactile en utilisant la barre d'onglets située au bas de l'écran.
-* **📺 Version Android TV** : Conçue pour être pilotée entièrement à la télécommande (touches directionnelles, bouton central OK, touche retour). Les menus latéraux s'ouvrent ou s'agrandissent en naviguant vers la gauche.
+* **📺 Version Android TV** : Conçue pour être pilotée entièrement à la télécommande (touches directionnelles, bouton central OK, touche retour). Une barre de navigation latérale rétractable est ancrée à gauche sur toute la hauteur de l'écran. 
+  - Au repos (pliée), elle affiche uniquement les icônes de sections pour maximiser la visibilité de vos catalogues.
+  - Dès que vous déplacez le focus au D-pad vers la gauche, elle se déplie en douceur pour dévoiler les libellés de sections, votre nom de profil et vos informations d'abonnement.
+  - Pour fermer la barre sans changer de section, appuyez simplement sur la touche **Retour** ou naviguez vers la droite : le focus reviendra directement sur le contenu principal de votre écran sans aucune surprise.
 
 ---
 
@@ -225,4 +228,24 @@ Sur Android TV, la vidéo se lance de la même manière sans jamais capturer le 
 ### 💡 Optimisations & Mode hors-ligne
 * **Économie de données** : Si vous revenez sur une fiche détaillée déjà consultée, l'application réutilise instantanément les métadonnées de bande-annonce déjà mémorisées dans sa base de données locale (Room) pour éviter des requêtes réseau inutiles.
 * **Aucun trailer disponible** : Si le média n'a pas de bande-annonce trouvée (ou si vous êtes déconnecté sans données locales), la fiche reste parfaitement fonctionnelle avec son affiche de fond statique d'origine de manière invisible et fluide.
+
+---
+
+## 15. Nouvelle interface de l'Accueil Android TV (F18)
+
+L'accueil d'Android TV propose une expérience modernisée, plus fluide et immersive grâce à une mise en avant éditoriale dynamique.
+
+### 🌟 Hero Card (Tendance en vedette)
+En haut de votre écran d'Accueil sur Android TV, vous découvrirez une grande **Hero Card** mettant en valeur la principale tendance du moment issue des flux TMDB mondiaux.
+* **Informations claires** : Elle affiche en grand l'affiche du média, son titre, son année de sortie, et un badge indiquant s'il s'agit d'un film ou d'une série.
+* **Lecture automatique de bande-annonce** : Si vous placez le focus de votre télécommande sur cette carte et que vous y restez stable pendant **1,5 seconde**, l'image fixe se transforme doucement pour laisser place à la bande-annonce YouTube du film ou de la série en cours, lue silencieusement en boucle.
+* **Contrôle sonore direct** : Pendant la lecture de l'aperçu, un bouton de contrôle du son (haut-parleur) s'affiche directement sur la carte. Vous pouvez l'atteindre à la télécommande pour activer ou couper le son à tout moment.
+* **Coupure de sécurité** : Dès que vous naviguez vers un autre élément, que vous changez d'onglet, que vous ouvrez une fiche ou que l'application passe en arrière-plan, la lecture s'arrête instantanément pour économiser vos ressources et garantir une fluidité impeccable.
+* **Accès d'un clic** : Appuyez sur le bouton central de sélection de votre télécommande sur la carte pour ouvrir instantanément la fiche détaillée du média.
+
+### 🔗 Liens « VOIR TOUT » revisités
+Afin de ne pas surcharger l'écran, les rangées de médias (Films, Séries) proposent à leur extrémité un lien textuel discret **« VOIR TOUT »**.
+* Au repos, il est de couleur lavande et s'intègre harmonieusement à l'écran.
+* Lorsque vous l'atteignez avec le focus de votre télécommande, il se pare d'un fond lavande translucide à coins arrondis très visible, vous confirmant sans ambiguïté que vous pouvez cliquer dessus pour parcourir le catalogue complet associé.
+
 

@@ -156,6 +156,22 @@ Cette fonctionnalité intègre la lecture automatique et immersive de bandes-ann
 
 ---
 
+## 15. Refonte de l'interface Android TV (F18)
+Cette fonctionnalité modernise en profondeur l'expérience d'utilisation sur Android TV en introduisant une navigation latérale fluide, une Hero Card immersive avec lecture de bande-annonce, et une harmonisation de l'identité visuelle de la marque.
+* **Barre de navigation latérale rétractable** : Remplacement de l'ancienne barre horizontale par une barre de navigation rétractable ancrée à gauche sur toute la hauteur de l'écran (accessible sur l'Accueil, TV en Direct, Films, Séries, Recherche, Paramètres).
+  - *État plié par défaut* : Affiche uniquement les icônes de sections et l'avatar du profil pour maximiser l'espace du catalogue et éviter tout saut ou redimensionnement visuel du contenu.
+  - *Dépliement fluide au focus D-pad* : Dès que le focus télécommande entre dans la barre, celle-ci s'ouvre pour révéler les libellés des 6 destinations, le nom du profil actif et de la session, et la date d'expiration de l'abonnement si elle est valide (filtrée pour masquer les valeurs erronées ou indéterminées).
+  - *Gestion robuste de la touche Retour* : L'appui sur Retour lorsque la barre est ouverte la referme instantanément et restitue proprement le focus au contenu de l'écran, sans risque de déconnexion ou de fermeture inopinée de l'application.
+* **Hero Card TV immersive en tête d'accueil** : Remplacement de la rangée de tendances TV par une Hero Card majestueuse présentant la tendance TMDB principale.
+  - *Focus et métadonnées* : Contour d'accentuation lavande réactif, titre, année de sortie, badges d'identité ("TENDANCE", "FILM" ou "SÉRIE") lisibles sur un dégradé protecteur. Un clic au bouton OK de la télécommande ouvre directement la fiche de détails.
+  - *Lecture de bande-annonce temporisée* : Un focus continu de 1,5 seconde déclenche automatiquement le remplacement de l'affiche par la lecture silencieuse en boucle de la bande-annonce YouTube. L'aperçu est instantanément libéré à la perte de focus, lors du changement d'écran ou lors de la mise en arrière-plan.
+  - *Contrôle du volume (Mute/Unmute)* : Un bouton de gestion du son apparaît et devient focusable au D-pad pendant l'aperçu sans interrompre la lecture.
+  - *Aucune Hero de reprise de lecture* : Règle stricte et partagée interdisant de promouvoir une reprise de lecture comme Hero Card sur mobile ou sur TV, sanctuarisant la mise en avant des tendances éditoriales TMDB.
+* **Lien « Voir tout » unifié** : Remplacement du lourd rectangle de bouton gris par un composant partagé `SeeAllLink`. Sur TV, il se présente comme un lien textuel lavande discret sans arrière-plan au repos, se parant d'un fond lavande translucide à coins arrondis très visible à distance lors du focus.
+* **Bannière TV Coffee Stream TV** : Remplacement du placeholder générique de l'application par un vecteur haute définition 320×180 reprenant le logo tasse de café CSTV et ses vapeurs lavande sur fond violet foncé, offrant une cohérence d'identité totale avec l'application mobile.
+
+---
+
 ## 🚫 Fonctionnalités hors périmètre (Exclusions validées)
 Pour des raisons de performance, de stabilité ou d'expérience utilisateur, les fonctionnalités suivantes sont **strictement hors périmètre** :
 * **Multi-comptes Xtream** : L'application gère un seul compte Xtream Codes actif à la fois (les profils sont purement locaux et rattachés à ce compte unique).

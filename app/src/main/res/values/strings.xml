@@ -86,7 +86,6 @@
     <string name="home_section_tv">TV en direct</string>
     <string name="home_section_vod">Films</string>
     <string name="home_section_series">Séries</string>
-    <string name="home_trending">Tendances du moment</string>
     <string name="home_top_movies">Top 10 Films</string>
     <string name="home_top_series">Top 10 Séries</string>
     <string name="home_see_all">Voir tout</string>
@@ -98,12 +97,12 @@
 
     <!-- Évolutions Techniques T-4 (Externalisation des chaînes UI) -->
     <string name="category_filter_search_placeholder">Filtrer les catégories…</string>
-    <string name="home_nav_live_tv">LIVE TV</string>
-    <string name="home_nav_vod">FILMS VOD</string>
-    <string name="home_nav_series">SÉRIES</string>
-    <string name="home_nav_favs">FAVS</string>
-    <string name="home_nav_search">RECH</string>
-    <string name="home_nav_settings">PARAMS</string>
+    <string name="tv_nav_home">Accueil</string>
+    <string name="tv_nav_live">TV en direct</string>
+    <string name="tv_nav_movies">Films</string>
+    <string name="tv_nav_series">Séries</string>
+    <string name="tv_nav_search">Recherche</string>
+    <string name="tv_nav_settings">Paramètres</string>
     <string name="livetv_search_placeholder">Rechercher une chaîne...</string>
     <string name="player_loading_stream">Chargement du flux...</string>
     <string name="player_error_title">Erreur de lecture</string>
