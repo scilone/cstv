@@ -202,7 +202,14 @@ class MainActivity : ComponentActivity() {
                         // sans cela le focus y reste et la barre se rouvre
                         // immédiatement après un clic sur une destination.
                         val contentFocusRequester = remember { FocusRequester() }
-                        var contentHasFocus by remember { mutableStateOf(false) }
+                        // Un descendant porte le focus — donc une vraie vignette,
+                        // et non le conteneur lui-même. La distinction est
+                        // essentielle : tant que l'écran de destination n'a pas
+                        // composé ses éléments, le conteneur se saisit du focus
+                        // faute de mieux. S'arrêter sur `hasFocus` laissait donc
+                        // le focus sur un groupe vide, et le pad bas repartait
+                        // dans la barre latérale.
+                        var contentChildFocused by remember { mutableStateOf(false) }
                         // À l'arrivée sur un écran principal, le focus doit être
                         // dans le contenu : sans cela, rien n'est focalisé et la
                         // première pression du D-pad atterrit dans la barre.
@@ -214,7 +221,7 @@ class MainActivity : ComponentActivity() {
                                 // demande unique échoue en silence et le premier
                                 // appui du pad repart alors dans la barre.
                                 repeat(FOCUS_REQUEST_ATTEMPTS) {
-                                    if (contentHasFocus) return@LaunchedEffect
+                                    if (contentChildFocused) return@LaunchedEffect
                                     contentFocusRequester.requestFocusSafely()
                                     kotlinx.coroutines.delay(FOCUS_REQUEST_RETRY_MS)
                                 }
@@ -251,7 +258,7 @@ class MainActivity : ComponentActivity() {
                                 modifier = Modifier
                                     .fillMaxSize()
                                     .focusRequester(contentFocusRequester)
-                                    .onFocusChanged { contentHasFocus = it.hasFocus }
+                                    .onFocusChanged { contentChildFocused = it.hasFocus && !it.isFocused }
                                     .focusGroup()
                             ) {
                             Scaffold(
@@ -373,8 +380,8 @@ class MainActivity : ComponentActivity() {
 // être hors-ligne). L'URL est reconstruite par le player depuis les identifiants
 // stockés ; le cache de téléchargement sert le fichier local. ---
 /** Nombre et espacement des tentatives de prise de focus après une navigation. */
-private const val FOCUS_REQUEST_ATTEMPTS = 12
-private const val FOCUS_REQUEST_RETRY_MS = 60L
+private const val FOCUS_REQUEST_ATTEMPTS = 20
+private const val FOCUS_REQUEST_RETRY_MS = 80L
 
 /**
  * Une demande de focus lève si aucun nœud focusable n'est encore attaché (écran

@@ -201,11 +201,17 @@ fun HomeScreen(
                 // et non par `contentPadding` : ce dernier appartient au contenu
                 // défilant, si bien qu'un retour de focus vers la Hero Card la
                 // recollait au bord haut de l'écran après un défilement.
-                modifier = Modifier.fillMaxSize().then(if (isTv) Modifier.padding(top = 24.dp) else Modifier),
+                // Les deux marges verticales sont portées par la fenêtre de
+                // défilement, jamais par `contentPadding` : celui-ci appartient
+                // au contenu qui défile, il ne borne donc pas le viewport. Une
+                // rangée amenée au focus vers le bas venait se coller au bord de
+                // l'écran, alors qu'en remontant la marge haute lui laissait de
+                // l'air — d'où une asymétrie visible.
+                modifier = Modifier.fillMaxSize().then(
+                    if (isTv) Modifier.padding(top = 24.dp, bottom = 24.dp) else Modifier
+                ),
                 contentPadding = if (isTv) {
-                    // Marge basse généreuse : la dernière rangée arrivait au ras
-                    // du bord de l'écran, bordure de focus comprise.
-                    PaddingValues(start = 16.dp, end = 16.dp, bottom = 96.dp)
+                    PaddingValues(start = 16.dp, end = 16.dp, bottom = 16.dp)
                 } else {
                     PaddingValues(16.dp)
                 },
