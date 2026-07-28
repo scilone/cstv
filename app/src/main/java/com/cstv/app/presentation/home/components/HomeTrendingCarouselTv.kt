@@ -60,8 +60,12 @@ private const val HERO_PREVIEW_DELAY_MS = 1_500L
 /** Tranche laissée visible des tendances voisines de part et d'autre. */
 private val TV_HERO_PEEK = 72.dp
 
-/** Échelle des slides voisines ; la slide courante reste à 1. */
-private const val TV_HERO_SIDE_SCALE = 0.86f
+/**
+ * Échelle des slides voisines. À 1, la tendance suivante a exactement la taille
+ * de la carte principale : c'est le focus, et non la taille, qui désigne la
+ * carte active.
+ */
+private const val TV_HERO_SIDE_SCALE = 1f
 
 /**
  * Carrousel de tendances de l'accueil TV.

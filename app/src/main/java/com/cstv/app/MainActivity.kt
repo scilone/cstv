@@ -12,6 +12,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.focusGroup
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.calculateEndPadding
@@ -201,13 +202,22 @@ class MainActivity : ComponentActivity() {
                         // sans cela le focus y reste et la barre se rouvre
                         // immédiatement après un clic sur une destination.
                         val contentFocusRequester = remember { FocusRequester() }
+                        var contentHasFocus by remember { mutableStateOf(false) }
                         // À l'arrivée sur un écran principal, le focus doit être
                         // dans le contenu : sans cela, rien n'est focalisé et la
                         // première pression du D-pad atterrit dans la barre.
                         LaunchedEffect(currentRoute, showTvRail) {
                             if (showTvRail) {
                                 railExpanded = false
-                                contentFocusRequester.requestFocusSafely()
+                                // L'écran de destination n'a pas encore de nœud
+                                // focusable au moment de la navigation : une
+                                // demande unique échoue en silence et le premier
+                                // appui du pad repart alors dans la barre.
+                                repeat(FOCUS_REQUEST_ATTEMPTS) {
+                                    if (contentHasFocus) return@LaunchedEffect
+                                    contentFocusRequester.requestFocusSafely()
+                                    kotlinx.coroutines.delay(FOCUS_REQUEST_RETRY_MS)
+                                }
                             }
                         }
                         val activeProfile = profileState.profiles.firstOrNull { it.id == profileState.activeProfileId }
@@ -241,6 +251,7 @@ class MainActivity : ComponentActivity() {
                                 modifier = Modifier
                                     .fillMaxSize()
                                     .focusRequester(contentFocusRequester)
+                                    .onFocusChanged { contentHasFocus = it.hasFocus }
                                     .focusGroup()
                             ) {
                             Scaffold(
@@ -361,10 +372,15 @@ class MainActivity : ComponentActivity() {
 // minimaux depuis un DownloadedItem, sans fetch réseau des détails (l'app peut
 // être hors-ligne). L'URL est reconstruite par le player depuis les identifiants
 // stockés ; le cache de téléchargement sert le fichier local. ---
+/** Nombre et espacement des tentatives de prise de focus après une navigation. */
+private const val FOCUS_REQUEST_ATTEMPTS = 12
+private const val FOCUS_REQUEST_RETRY_MS = 60L
+
 /**
  * Une demande de focus lève si aucun nœud focusable n'est encore attaché (écran
  * en cours de composition, contenu vide) : l'échec ne doit pas remonter en
- * crash, la navigation reste correcte sans lui.
+ * crash, la navigation reste correcte sans lui. L'appelant vérifie la prise
+ * effective du focus via l'état du conteneur, pas via cette fonction.
  */
 private fun FocusRequester.requestFocusSafely() {
     runCatching { requestFocus() }
