@@ -11,16 +11,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.VolumeOff
-import androidx.compose.material.icons.filled.VolumeUp
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -131,7 +124,9 @@ fun HomeTrendingCarouselTv(
 
     HorizontalPager(
         state = pagerState,
-        contentPadding = PaddingValues(horizontal = TV_HERO_PEEK),
+        // Aligné à gauche sur les rangées de l'accueil : seule la tendance
+        // suivante dépasse, à droite.
+        contentPadding = PaddingValues(start = 0.dp, end = TV_HERO_PEEK),
         beyondBoundsPageCount = 1,
         userScrollEnabled = false,
         modifier = modifier
@@ -223,8 +218,6 @@ private fun HomeTrendingSlideTv(
     val preview = (trailerPreview as? TrailerPreviewUiState.Playing)?.preview
         ?.takeIf { previewEnabled && it.media == media }
     val videoId = (preview?.source as? TrailerSource.YouTube)?.videoId
-    var muted by remember(videoId) { mutableStateOf(true) }
-    var previewVisible by remember(videoId) { mutableStateOf(false) }
     val shape = RoundedCornerShape(16.dp)
     val imageUrl = item.trendingTitle.landscapeImageUrl()
 
@@ -241,11 +234,12 @@ private fun HomeTrendingSlideTv(
         )
 
         if (videoId != null && preview != null) {
+            // Sur TV l'aperçu est sonore d'emblée : la télécommande porte déjà
+            // le volume, un contrôle Mute dédié n'apporte rien.
             YouTubeTrailerPreview(
                 videoId = videoId,
-                muted = muted,
+                muted = false,
                 posterUrl = imageUrl,
-                onRevealed = { previewVisible = true },
                 onPlaybackError = { onPreviewPlaybackFailed(preview.media) },
                 modifier = Modifier.fillMaxSize()
             )
@@ -291,21 +285,5 @@ private fun HomeTrendingSlideTv(
                 .padding(horizontal = 18.dp, vertical = 16.dp)
         )
 
-        if (videoId != null && previewVisible) {
-            IconButton(
-                onClick = { muted = !muted },
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(14.dp)
-                    .background(Color.Black.copy(alpha = 0.55f), CircleShape)
-            ) {
-                Icon(
-                    imageVector = if (muted) Icons.Default.VolumeOff else Icons.Default.VolumeUp,
-                    contentDescription = if (muted) "Activer le son de l'aperçu" else "Couper le son de l'aperçu",
-                    tint = Color.White,
-                    modifier = Modifier.size(24.dp)
-                )
-            }
-        }
     }
 }

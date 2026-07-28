@@ -93,7 +93,10 @@ fun SeriesDetailsScreen(
     onTrailerFailed: (TrailerMedia) -> Unit = {}
 ) {
     val trailerMedia = remember(details.seriesId) { TrailerMedia.Series(details.seriesId) }
-    var trailerMuted by remember(trailerMedia) { mutableStateOf(true) }
+    // Sur TV le trailer est sonore d'emblée et sans contrôle dédié : la
+    // télécommande porte déjà le volume. Sur mobile il reste muet par défaut,
+    // avec son bouton dans la tête de fiche.
+    var trailerMuted by remember(trailerMedia, isTv) { mutableStateOf(!isTv) }
     val snackbarHostState = remember { SnackbarHostState() }
     LaunchedEffect(ratingError) { ratingError?.let { snackbarHostState.showSnackbar(it); onConsumeRatingError() } }
     var selectedSeasonNumber by remember { mutableStateOf(details.seasons.firstOrNull()?.seasonNumber ?: 1) }
@@ -183,16 +186,6 @@ fun SeriesDetailsScreen(
                             modifier = Modifier.background(Color(0x33FFFFFF), shape = RoundedCornerShape(12.dp))
                         ) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Retour", tint = Color.White)
-                        }
-                        if (trailerPlaying) {
-                            Spacer(modifier = Modifier.weight(1f))
-                            IconButton(onClick = { trailerMuted = !trailerMuted }) {
-                                Icon(
-                                    if (trailerMuted) Icons.Filled.VolumeOff else Icons.Filled.VolumeUp,
-                                    contentDescription = if (trailerMuted) "Activer le son du trailer" else "Couper le son du trailer",
-                                    tint = Color.White
-                                )
-                            }
                         }
                     }
                     Spacer(modifier = Modifier.height(16.dp))

@@ -7,6 +7,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -16,7 +17,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.LiveTv
@@ -49,6 +52,9 @@ import com.cstv.app.presentation.theme.Surface3
 
 const val TV_RAIL_COLLAPSED_WIDTH_DP = 68
 
+/** Hauteur constante de l'en-tête profil, plié comme déplié. */
+private val TV_RAIL_HEADER_HEIGHT = 56.dp
+
 @Composable
 fun TvNavigationRail(
     expanded: Boolean,
@@ -60,6 +66,7 @@ fun TvNavigationRail(
     destinations: List<TvRailDestination>,
     onExpandedChange: (Boolean) -> Unit,
     onDestinationClick: (TvRailDestination) -> Unit,
+    onProfileClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val width = animateDpAsState(if (expanded) 260.dp else TV_RAIL_COLLAPSED_WIDTH_DP.dp, tween(200), label = "tvRailWidth")
@@ -75,21 +82,46 @@ fun TvNavigationRail(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         // En-tête profil : avatar à gauche, informations de session à sa droite.
-        // Empilées sous l'avatar, elles écrasaient la hiérarchie de la barre.
+        // Hauteur fixe : sans elle, le bloc de texte révélé à l'ouverture
+        // agrandissait l'en-tête et décalait verticalement toutes les icônes.
+        var profileFocused by remember { mutableStateOf(false) }
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(TV_RAIL_HEADER_HEIGHT)
         ) {
-            com.cstv.app.presentation.profile.ProfileAvatar(profileAvatarId, profileName, 42)
+            Box(
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .border(
+                        if (profileFocused) 3.dp else 0.dp,
+                        if (profileFocused) AccentLavande else Color.Transparent,
+                        CircleShape
+                    )
+                    .onFocusChanged { profileFocused = it.isFocused }
+                    .clickable { onProfileClick() }
+                    .padding(3.dp)
+            ) {
+                com.cstv.app.presentation.profile.ProfileAvatar(profileAvatarId, profileName, 42)
+            }
             if (expanded) {
                 Spacer(Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(profileName, color = Color.White, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(
+                        profileName,
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                        lineHeight = 16.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                     username?.takeIf { it.isNotBlank() }?.let {
-                        Text(it, color = Color.LightGray, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(it, color = Color.LightGray, fontSize = 11.sp, lineHeight = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                     expiryLabel?.let {
-                        Text(it, color = Color.LightGray, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(it, color = Color.LightGray, fontSize = 11.sp, lineHeight = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
             }

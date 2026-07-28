@@ -9,6 +9,9 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.core.view.WindowCompat
 import androidx.compose.foundation.background
+import androidx.compose.foundation.focusGroup
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.calculateEndPadding
@@ -193,6 +196,11 @@ class MainActivity : ComponentActivity() {
                         val isPlayerRoute = isImmersivePlayerRoute(currentRoute)
                         val showTvRail = isTv && TvNavigation.isRailRoute(currentRoute)
                         var railExpanded by remember { mutableStateOf(false) }
+                        val activity = LocalContext.current as? android.app.Activity
+                        // Rend le focus au contenu quand on quitte la barre :
+                        // sans cela le focus y reste et la barre se rouvre
+                        // immédiatement après un clic sur une destination.
+                        val contentFocusRequester = remember { FocusRequester() }
                         val activeProfile = profileState.profiles.firstOrNull { it.id == profileState.activeProfileId }
                         SystemBarsController(isTv = isTv, isPlayerRoute = isPlayerRoute)
 
@@ -203,10 +211,14 @@ class MainActivity : ComponentActivity() {
                         // Android TV Safe Back Button Handler for Dashboard
                         BackHandler(enabled = isTv && railExpanded) {
                             railExpanded = false
+                            contentFocusRequester.requestFocusSafely()
                         }
-                        BackHandler(enabled = isTv && currentRoute == "home" && !railExpanded) {
-                            loginViewModel.logout()
-                            loggedInUser = null
+                        // Retour depuis l'accueil = sortie de l'application. Sans
+                        // ce traitement, la pile pouvait ramener sur l'écran de
+                        // connexion, qui ne doit s'afficher qu'après une
+                        // déconnexion explicite.
+                        BackHandler(enabled = currentRoute == "home" && !railExpanded) {
+                            activity?.finish()
                         }
 
                         val backgroundModifier = if (isTv) {
@@ -216,6 +228,12 @@ class MainActivity : ComponentActivity() {
                         }
 
                         Box(modifier = Modifier.fillMaxSize().then(backgroundModifier)) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .focusRequester(contentFocusRequester)
+                                    .focusGroup()
+                            ) {
                             Scaffold(
                                 containerColor = Color.Transparent,
                                 bottomBar = {
@@ -287,6 +305,7 @@ class MainActivity : ComponentActivity() {
                                     onActiveEpisodeChanged = { activeEpisode = it }
                                 )
                             }
+                            }
                             if (showTvRail) {
                                 TvNavigationRail(
                                     expanded = railExpanded,
@@ -300,6 +319,15 @@ class MainActivity : ComponentActivity() {
                                     onDestinationClick = { destination ->
                                         railExpanded = false
                                         navController.navigateToRootTab(destination.route)
+                                        contentFocusRequester.requestFocusSafely()
+                                    },
+                                    onProfileClick = {
+                                        railExpanded = false
+                                        // Rouvre le sélecteur de profil : c'est
+                                        // le seul chemin de changement de profil
+                                        // depuis un écran principal TV.
+                                        profileSelectionNeeded = true
+                                        profileGateResolved = false
                                     }
                                 )
                             }
@@ -320,6 +348,15 @@ class MainActivity : ComponentActivity() {
 // minimaux depuis un DownloadedItem, sans fetch réseau des détails (l'app peut
 // être hors-ligne). L'URL est reconstruite par le player depuis les identifiants
 // stockés ; le cache de téléchargement sert le fichier local. ---
+/**
+ * Une demande de focus lève si aucun nœud focusable n'est encore attaché (écran
+ * en cours de composition, contenu vide) : l'échec ne doit pas remonter en
+ * crash, la navigation reste correcte sans lui.
+ */
+private fun FocusRequester.requestFocusSafely() {
+    runCatching { requestFocus() }
+}
+
 internal fun buildOfflineVodDetails(item: com.cstv.app.domain.model.DownloadedItem): VodDetails =
     VodDetails(
         streamId = item.streamId,

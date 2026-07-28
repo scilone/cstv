@@ -102,7 +102,12 @@ class TrailerRepositoryImpl @Inject constructor(
     // déclenche l'unique appel `videos`.
     private suspend fun tmdbFallback(media: TrailerMedia, cachedTmdbId: Int? = null): Resolution {
         if (tmdbApiKey.isBlank()) return Resolution(null, null, false)
-        val tmdbId = media.tmdbId ?: cachedTmdbId ?: return Resolution(null, null, true)
+        // Aucun tmdbId connu : aucune résolution n'a réellement été tentée. Le
+        // marquer comme un échec le figerait pour toute la durée du TTL négatif
+        // (7 jours), y compris après qu'un passage par l'Accueil ait fait
+        // connaître le tmdbId du média — le trailer ne se relançait alors plus
+        // jamais depuis la fiche.
+        val tmdbId = media.tmdbId ?: cachedTmdbId ?: return Resolution(null, null, false)
         val videos = when (media) {
             is TrailerMedia.Movie -> tmdbApiService.getMovieVideos(tmdbId, tmdbApiKey).results
             is TrailerMedia.Series -> tmdbApiService.getSeriesVideos(tmdbId, tmdbApiKey).results
