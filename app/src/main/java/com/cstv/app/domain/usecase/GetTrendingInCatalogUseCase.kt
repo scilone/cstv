@@ -70,6 +70,29 @@ class GetTrendingInCatalogUseCase @Inject constructor(
     }
 
     /**
+     * Lecture immédiate du cache persistant, sans aucun accès réseau.
+     *
+     * `invoke()` force un rafraîchissement TMDB au premier appel de la session
+     * (voir `TmdbSessionRefreshGate`) : sur un relancement d'application, la
+     * Hero Card n'apparaissait donc qu'après un aller-retour réseau complet, et
+     * s'insérait dans un accueil déjà rendu. Cette entrée sert le contenu déjà
+     * connu tout de suite ; l'appelant enchaîne sur `invoke()` en arrière-plan.
+     */
+    suspend fun cached(): List<TrendingCatalogItem> = withContext(Dispatchers.Default) {
+        val lastCatalogSyncTime = maxOf(catalogFreshness.vodSyncedAt(), catalogFreshness.seriesSyncedAt())
+        val cached = trendingRepository
+            .getCachedMatchedTrendsGlobal(lastCatalogSyncTime, ignoreSessionRefresh = true)
+            .orEmpty()
+        if (cached.isEmpty()) return@withContext emptyList()
+
+        val hiddenMovies = getHiddenCategories(CategoryType.VOD)
+        val hiddenSeries = getHiddenCategories(CategoryType.SERIES)
+        val result = cached.mapNotNull { filterItem(it, hiddenMovies, hiddenSeries) }.take(10)
+        com.cstv.app.di.IptvLog.d("TMDB", "⚡ Tendances servies depuis le cache sans attente réseau : ${result.size} éléments.")
+        result
+    }
+
+    /**
      * Récupère les tendances TMDB et les met en correspondance avec le catalogue
      * local. Retourne une liste vide si TMDB est injoignable ou si aucun titre ne
      * correspond ; l'appelant décide alors du repli.

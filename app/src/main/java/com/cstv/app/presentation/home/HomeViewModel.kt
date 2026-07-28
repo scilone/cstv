@@ -47,11 +47,23 @@ import com.cstv.app.presentation.components.TrailerPreviewUiState
 
 private const val EPG_POLL_INTERVAL_MILLIS = 60_000L
 
+/**
+ * Attente maximale du premier résultat de tendances avant d'afficher l'accueil.
+ * Au-delà, l'accueil s'affiche sans Hero Card plutôt que de paraître figé.
+ */
+private const val FIRST_TRENDING_MAX_WAIT_MS = 2_000L
+
 data class HomeState(
     val isLoading: Boolean = false,
     val resumeWatchingList: List<PlaybackPosition> = emptyList(),
     val favoritesList: List<FavoriteItem> = emptyList(),
     val trendingList: List<com.cstv.app.domain.model.TrendingCatalogItem> = emptyList(),
+    /**
+     * Vrai tant que le tout premier résultat de tendances n'est pas connu et
+     * que la borne d'attente n'est pas écoulée : l'accueil patiente au lieu de
+     * s'afficher puis d'insérer la Hero Card après coup.
+     */
+    val awaitingTrending: Boolean = false,
     
     val firstLiveCategory: LiveCategory? = null,
     val firstLiveStreams: List<LiveStream> = emptyList(),
@@ -106,6 +118,7 @@ class HomeViewModel @Inject constructor(
     private var catalogJob: Job? = null
     private var recommendationsJob: Job? = null
     private var hasActiveProfile = false
+    private var firstTrendingResolved = false
 
     /**
      * Point de passage unique avant toute lecture lancée depuis l'Accueil
@@ -447,8 +460,28 @@ class HomeViewModel @Inject constructor(
         // isLoading — sinon un TMDB lent/hors-ligne fait paraître la Home comme
         // chargeant indéfiniment. Timeout client dur en garde-fou supplémentaire
         // (au cas où un appel suspendu ignorerait les timeouts OkHttp).
+        //
+        // Deux temps : le cache persistant est publié immédiatement (aucun
+        // réseau) pour que la Hero Card soit là dès le premier rendu de
+        // l'accueil, puis le rafraîchissement remplace la liste seulement s'il
+        // rapporte autre chose. Sans cela, la Hero s'insérait après coup et
+        // décalait toute la mise en page à chaque lancement.
+        val awaitFirstTrending = !firstTrendingResolved
+        if (awaitFirstTrending) {
+            _state.update { it.copy(awaitingTrending = true) }
+        }
         trendingJob = viewModelScope.launch {
-            val trendingList = try {
+            val cached = try {
+                getTrendingInCatalogUseCase.cached()
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                emptyList()
+            }
+            if (cached.isNotEmpty()) {
+                _state.update { it.copy(trendingList = cached, awaitingTrending = false) }
+                firstTrendingResolved = true
+            }
+            val refreshed = try {
                 kotlinx.coroutines.withTimeoutOrNull(15_000L) {
                     getTrendingInCatalogUseCase()
                 } ?: emptyList()
@@ -456,7 +489,24 @@ class HomeViewModel @Inject constructor(
                 if (e is kotlinx.coroutines.CancellationException) throw e
                 emptyList()
             }
-            _state.update { it.copy(trendingList = trendingList) }
+            firstTrendingResolved = true
+            _state.update { current ->
+                // Une liste vide (TMDB injoignable, quota, aucun appariement) ne
+                // doit jamais effacer des tendances déjà affichées.
+                val keepCurrent = refreshed.isEmpty() || refreshed == current.trendingList
+                current.copy(
+                    trendingList = if (keepCurrent) current.trendingList else refreshed,
+                    awaitingTrending = false
+                )
+            }
+        }
+        if (awaitFirstTrending) {
+            // Borne dure : au tout premier affichage, sans cache exploitable,
+            // l'accueil ne reste pas suspendu au réseau TMDB.
+            viewModelScope.launch {
+                delay(FIRST_TRENDING_MAX_WAIT_MS)
+                _state.update { if (it.awaitingTrending) it.copy(awaitingTrending = false) else it }
+            }
         }
 
         // Recommandations F-6 : calcul intensif (parsing genres sur des milliers d'entrées)

@@ -19,7 +19,6 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items as gridItems
-import androidx.compose.foundation.lazy.grid.itemsIndexed as gridItemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -175,7 +174,7 @@ fun HomeScreen(
             .fillMaxSize()
             .background(if (isTv) Surface1 else Color.Transparent)
     ) {
-        if (state.isLoading) {
+        if (state.isLoading || state.awaitingTrending) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
             }
@@ -185,7 +184,6 @@ fun HomeScreen(
                     section = section,
                     resumeList = state.resumeWatchingList,
                     favoritesList = state.favoritesList,
-                    topVodStreams = displayedTopVodStreams,
                     recommendedMovies = state.recommendedMovies,
                     recommendedSeries = state.recommendedSeries,
                     onResumeClick = handleResumeClick,
@@ -204,7 +202,9 @@ fun HomeScreen(
                 verticalArrangement = Arrangement.spacedBy(24.dp)
             ) {
                 // 1. Header (Welcome, Profile Info and Navigation Row)
-                item {
+                // Sur TV, profil, informations de session et accès Paramètres
+                // sont portés par la barre latérale : cet en-tête ferait doublon.
+                if (!isTv) item {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -329,9 +329,8 @@ fun HomeScreen(
                     }
                 } else if (state.trendingList.isNotEmpty()) {
                     item {
-                        val item = state.trendingList.first()
-                        HomeTrendingHeroTv(
-                            item = item,
+                        HomeTrendingCarouselTv(
+                            trendingItems = state.trendingList,
                             trailerPreview = state.trailerPreview,
                             onPreviewRequested = viewModel::selectTrendingPreview,
                             onPreviewContextEnded = viewModel::cancelTrendingPreview,
@@ -452,7 +451,10 @@ fun HomeScreen(
                         HomeSectionRow(
                             title = stringResource(R.string.home_top_movies),
                             isTv = isTv,
-                            onSeeAll = { expandedSection = HomeExpandedSection.TOP_MOVIES }
+                            // Une liste plafonnée à 10 se parcourt entièrement
+                            // dans sa rangée : pas de "Voir tout", comme pour
+                            // "Top 10 Séries".
+                            onSeeAll = null
                         ) {
                             LazyRow(
                                 state = rememberForeverLazyListState("home_top_movies", { viewModel.getScrollPosition(it) }, { k, i, o -> viewModel.saveScrollPosition(k, i, o) }),
@@ -616,14 +618,13 @@ fun HomeScreen(
 }
 
 // Section de l'accueil affichable en grille verticale via "Voir tout".
-private enum class HomeExpandedSection { RESUME, FAVORITES, TOP_MOVIES, RECOMMENDED_MOVIES, RECOMMENDED_SERIES }
+private enum class HomeExpandedSection { RESUME, FAVORITES, RECOMMENDED_MOVIES, RECOMMENDED_SERIES }
 
 @Composable
 private fun HomeExpandedGrid(
     section: HomeExpandedSection,
     resumeList: List<PlaybackPosition>,
     favoritesList: List<FavoriteItem>,
-    topVodStreams: List<VodStream>,
     recommendedMovies: List<VodStream>,
     recommendedSeries: List<SeriesStream>,
     onResumeClick: (PlaybackPosition) -> Unit,
@@ -637,14 +638,12 @@ private fun HomeExpandedGrid(
     val title = when (section) {
         HomeExpandedSection.RESUME -> stringResource(R.string.home_resume)
         HomeExpandedSection.FAVORITES -> stringResource(R.string.home_favorites)
-        HomeExpandedSection.TOP_MOVIES -> stringResource(R.string.home_top_movies)
         HomeExpandedSection.RECOMMENDED_MOVIES -> stringResource(R.string.home_recommended_movies)
         HomeExpandedSection.RECOMMENDED_SERIES -> stringResource(R.string.home_recommended_series)
     }
     val count = when (section) {
         HomeExpandedSection.RESUME -> resumeList.size
         HomeExpandedSection.FAVORITES -> favoritesList.size
-        HomeExpandedSection.TOP_MOVIES -> topVodStreams.size
         HomeExpandedSection.RECOMMENDED_MOVIES -> recommendedMovies.size
         HomeExpandedSection.RECOMMENDED_SERIES -> recommendedSeries.size
     }
@@ -692,13 +691,6 @@ private fun HomeExpandedGrid(
                         favorite = fav,
                         onClick = { onFavoriteClick(fav) },
                         modifier = Modifier.fillMaxWidth()
-                    )
-                }
-                HomeExpandedSection.TOP_MOVIES -> gridItemsIndexed(topVodStreams) { index, stream ->
-                    HomeVodMovieCard(
-                        stream = stream,
-                        onClick = { onMovieClick(stream) },
-                        rank = index + 1
                     )
                 }
                 HomeExpandedSection.RECOMMENDED_MOVIES -> gridItems(recommendedMovies) { stream ->

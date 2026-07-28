@@ -13,5 +13,8 @@ data class TmdbTrendingItemDto(
     @SerializedName("media_type") val mediaType: String?,
     @SerializedName("poster_path") val posterPath: String?,
     @SerializedName("release_date") val releaseDate: String?,
-    @SerializedName("first_air_date") val firstAirDate: String?
+    @SerializedName("first_air_date") val firstAirDate: String?,
+    // En fin de constructeur avec valeur par défaut : les appels positionnels
+    // existants (tests, fabriques) restent valides.
+    @SerializedName("backdrop_path") val backdropPath: String? = null
 )

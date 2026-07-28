@@ -84,6 +84,45 @@ class TrendingRepositoryImplTest {
     }
 
     @Test
+    fun test_getTrending_mapsBackdropPathToLandscapeUrl() = runTest {
+        val context = mock<Context>()
+        val apiService = mock<TmdbApiService>()
+        whenever(apiService.getTrending("valid_key")).thenReturn(
+            TmdbTrendingResponseDto(
+                results = listOf(
+                    TmdbTrendingItemDto(
+                        id = 101,
+                        title = "Inception",
+                        name = null,
+                        mediaType = "movie",
+                        posterPath = "/inception.jpg",
+                        releaseDate = "2010-07-16",
+                        firstAirDate = null,
+                        backdropPath = "/inception_backdrop.jpg"
+                    ),
+                    TmdbTrendingItemDto(
+                        id = 202,
+                        title = "No Backdrop",
+                        name = null,
+                        mediaType = "movie",
+                        posterPath = "/poster.jpg",
+                        releaseDate = "2011-07-16",
+                        firstAirDate = null,
+                        backdropPath = ""
+                    )
+                )
+            )
+        )
+
+        val result = TrendingRepositoryImpl(context, apiService, "valid_key", Gson()).getTrending()
+
+        assertEquals("https://image.tmdb.org/t/p/w780/inception_backdrop.jpg", result[0].backdropUrl)
+        assertEquals("https://image.tmdb.org/t/p/w780/inception_backdrop.jpg", result[0].landscapeImageUrl())
+        assertEquals(null, result[1].backdropUrl)
+        assertEquals("https://image.tmdb.org/t/p/w500/poster.jpg", result[1].landscapeImageUrl())
+    }
+
+    @Test
     fun test_getTrending_returnsEmptyList_onApiFailure() = runTest {
         val context = mock<Context>()
         val apiService = mock<TmdbApiService>()

@@ -59,13 +59,19 @@ class TrendingRepositoryImpl @Inject constructor(
                 val year = ReleaseYearParser.parseYear(fullDate)
 
                 val posterUrl = item.posterPath?.let { "https://image.tmdb.org/t/p/w500$it" }
+                // w780 : compromis netteté/poids pour un visuel plein cadre sur
+                // box TV, où w500 pixellise et l'original est inutilement lourd.
+                val backdropUrl = item.backdropPath
+                    ?.takeIf { it.isNotBlank() }
+                    ?.let { "https://image.tmdb.org/t/p/w780$it" }
 
                 TrendingTitle(
                     tmdbId = id,
                     title = title,
                     isMovie = isMovie,
                     year = year,
-                    posterUrl = posterUrl
+                    posterUrl = posterUrl,
+                    backdropUrl = backdropUrl
                 )
             } ?: emptyList()
         } catch (e: Exception) {

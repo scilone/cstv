@@ -131,15 +131,23 @@ class MainActivity : ComponentActivity() {
                 var profileSelectionNeeded by remember { mutableStateOf(false) }
                 var profileGateResolved by remember { mutableStateOf(false) }
                 var showManagementFromGate by remember { mutableStateOf(false) }
+                // `ensureInitializedAndNeedsSelection()` est suspendu : sans cet
+                // indicateur, la première composition qui suit le login passe
+                // avec `profileSelectionNeeded == false` et compose l'accueil,
+                // remplacé l'instant d'après par l'écran de sélection. On reste
+                // donc sur le splash tant que la question n'est pas tranchée.
+                var profileGateChecked by remember { mutableStateOf(false) }
 
                 LaunchedEffect(loggedInUser) {
                     if (loggedInUser != null && !profileGateResolved) {
                         val needsSelection = profileViewModel.ensureInitializedAndNeedsSelection()
                         profileSelectionNeeded = needsSelection
                         if (!needsSelection) profileGateResolved = true
+                        profileGateChecked = true
                     } else if (loggedInUser == null) {
                         profileGateResolved = false
                         profileSelectionNeeded = false
+                        profileGateChecked = false
                     }
                 }
 
@@ -148,7 +156,8 @@ class MainActivity : ComponentActivity() {
                 // par le LaunchedEffect. Sans ça, sur mobile le NavHost se compose avec
                 // loggedInUser==null et latche startDestination sur "login" malgré le succès.
                 val showSplash = autoLoginState is AutoLoginState.Checking ||
-                    (autoLoginState is AutoLoginState.Success && loggedInUser == null)
+                    (autoLoginState is AutoLoginState.Success && loggedInUser == null) ||
+                    (loggedInUser != null && !profileGateChecked && !profileGateResolved)
 
                 val showProfileSelection = loggedInUser != null &&
                     profileSelectionNeeded && !profileGateResolved

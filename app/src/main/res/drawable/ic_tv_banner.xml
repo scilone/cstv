@@ -1,11 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+    Bannière Android TV : tasse CSTV reprise telle quelle du logo lanceur
+    (ic_launcher_foreground, viewport 108x108), mise à l'échelle pour occuper la
+    bannière — à l'échelle 1 le tracé n'en couvrait qu'un tiers et passait pour
+    inchangé sur l'écran d'accueil du téléviseur — et complétée du sigle CSTV.
+
+    Note : le lanceur Android TV met la bannière en cache ; une simple mise à
+    jour de l'application peut continuer d'afficher l'ancienne image tant que
+    l'application n'est pas réinstallée.
+-->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="320dp"
     android:height="180dp"
     android:viewportWidth="320"
     android:viewportHeight="180">
     <path android:fillColor="#FF1A1330" android:pathData="M0,0h320v180H0z"/>
-    <group android:translateX="106" android:translateY="22" android:scaleX="1.0" android:scaleY="1.0">
+    <group android:translateX="73.6" android:translateY="-4.8" android:scaleX="1.6" android:scaleY="1.6">
         <path android:fillColor="#00000000" android:strokeColor="#9C86FF" android:strokeWidth="3" android:strokeLineCap="round" android:pathData="M46,36 Q49,28 46,20" />
         <path android:fillColor="#00000000" android:strokeColor="#9C86FF" android:strokeWidth="3" android:strokeLineCap="round" android:pathData="M54,34 Q57,26 54,18" />
         <path android:fillColor="#00000000" android:strokeColor="#9C86FF" android:strokeWidth="3" android:strokeLineCap="round" android:pathData="M62,36 Q65,28 62,20" />
@@ -14,4 +24,17 @@
         <path android:fillColor="#00000000" android:strokeColor="#FFFFFFFF" android:strokeWidth="4" android:strokeLineCap="round" android:pathData="M74,48 C82,48 82,60 74,60" />
         <path android:fillColor="#9C86FF" android:pathData="M26,72 C26,72 26,78 54,78 C74,78 82,72 82,72 Z" />
     </group>
+    <!-- Sigle CSTV, tracés géométriques (les vecteurs ne rendent pas de texte). -->
+    <path android:fillColor="#00000000" android:strokeColor="#FFFFFFFF" android:strokeWidth="5"
+        android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:pathData="M131,138 L117,138 L117,162 L131,162" />
+    <path android:fillColor="#00000000" android:strokeColor="#FFFFFFFF" android:strokeWidth="5"
+        android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:pathData="M155,138 L141,138 L141,150 L155,150 L155,162 L141,162" />
+    <path android:fillColor="#00000000" android:strokeColor="#FFFFFFFF" android:strokeWidth="5"
+        android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:pathData="M165,138 L179,138 M172,138 L172,162" />
+    <path android:fillColor="#00000000" android:strokeColor="#9C86FF" android:strokeWidth="5"
+        android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:pathData="M189,138 L196,162 L203,138" />
 </vector>

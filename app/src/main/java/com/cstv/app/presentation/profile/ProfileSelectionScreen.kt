@@ -2,12 +2,11 @@ package com.cstv.app.presentation.profile
 import com.cstv.app.R
 import androidx.compose.ui.res.stringResource
 
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
@@ -15,10 +14,16 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -71,17 +76,28 @@ fun ProfileSelectionScreen(
                 modifier = Modifier.padding(bottom = 32.dp)
             )
 
-            LazyVerticalGrid(
-                columns = GridCells.Adaptive(minSize = 120.dp),
-                horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally),
+            // `GridCells.Adaptive` répartit les colonnes sur toute la largeur
+            // disponible : avec moins de profils que de colonnes — le cas
+            // courant sur un écran TV — les avatars restent collés à gauche.
+            // On dispose donc des rangées de largeur intrinsèque, centrées.
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(24.dp),
-                modifier = Modifier.fillMaxWidth(0.9f).wrapContentHeight()
+                modifier = Modifier.fillMaxWidth()
             ) {
-                items(profiles, key = { it.id }) { profile ->
-                    ProfileAvatarItem(
-                        profile = profile,
-                        onClick = { onProfileSelected(profile) }
-                    )
+                profiles.chunked(PROFILES_PER_ROW).forEach { row ->
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally),
+                        verticalAlignment = Alignment.Top,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        row.forEach { profile ->
+                            ProfileAvatarItem(
+                                profile = profile,
+                                onClick = { onProfileSelected(profile) }
+                            )
+                        }
+                    }
                 }
             }
 
@@ -133,23 +149,45 @@ fun ProfileAvatar(avatarId: Int, name: String, size: Int, modifier: Modifier = M
 
 @Composable
 private fun ProfileAvatarItem(profile: Profile, onClick: () -> Unit) {
+    var focused by remember { mutableStateOf(false) }
+    // Sans marquage explicite, le déplacement du D-pad d'un profil à l'autre est
+    // invisible : le `clickable` seul n'apporte aucun retour visuel sur TV.
+    val scale by animateFloatAsState(if (focused) 1.12f else 1f, label = "profileFocusScale")
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
+            .width(140.dp)
+            .graphicsLayer { scaleX = scale; scaleY = scale }
             .clip(MaterialTheme.shapes.medium)
+            .background(if (focused) AccentLavande.copy(alpha = 0.16f) else Color.Transparent)
+            .onFocusChanged { focused = it.isFocused }
             .clickable { onClick() }
-            .padding(8.dp)
+            .padding(vertical = 12.dp, horizontal = 8.dp)
     ) {
-        ProfileAvatar(avatarId = profile.avatarId, name = profile.name, size = 96)
+        Box(
+            modifier = Modifier
+                .clip(CircleShape)
+                .border(
+                    width = if (focused) 3.dp else 0.dp,
+                    color = if (focused) AccentLavande else Color.Transparent,
+                    shape = CircleShape
+                )
+                .padding(3.dp)
+        ) {
+            ProfileAvatar(avatarId = profile.avatarId, name = profile.name, size = 96)
+        }
         Spacer(modifier = Modifier.height(10.dp))
         Text(
             text = profile.name,
-            color = Color.White,
+            color = if (focused) Color.White else Color(0xFFB9B9C6),
             fontSize = 15.sp,
-            fontWeight = FontWeight.Medium,
+            fontWeight = if (focused) FontWeight.Bold else FontWeight.Medium,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             textAlign = TextAlign.Center
         )
     }
 }
+
+/** Au-delà, les avatars deviennent trop petits pour être lus à distance sur TV. */
+private const val PROFILES_PER_ROW = 5

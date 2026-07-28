@@ -140,6 +140,10 @@ class HomeViewModelTest {
         // et préférences vides par défaut (aucune catégorie masquée).
         doReturn(flowOf(Unit)).whenever(categoryPreferenceRepository).changes
         doReturn(kotlinx.coroutines.flow.MutableSharedFlow<Unit>()).whenever(getRecommendationsUseCase).invalidations
+        // Les tendances sont lues en deux temps (cache immédiat puis
+        // rafraîchissement) : sans stub de `cached()`, l'appel suspendu du mock
+        // ne reprend jamais et le test se bloque.
+        whenever(getTrendingInCatalogUseCase.cached()).thenReturn(emptyList())
         whenever(getTrendingInCatalogUseCase.invoke()).thenReturn(emptyList())
         whenever(getRecommendationsUseCase.invoke(any())).thenReturn(
             com.cstv.app.domain.usecase.GetRecommendationsUseCase.RecommendationResult(emptyList(), emptyList())
@@ -459,6 +463,40 @@ class HomeViewModelTest {
         // Resume Watching: Movie 101 is in "hidden_vod_cat", so it must be filtered out. Only Episode 201 should remain.
         assertEquals(1, state.resumeWatchingList.size)
         assertEquals(1001, state.resumeWatchingList[0].seriesId)
+
+        viewModel.viewModelScope.cancel()
+    }
+
+    // Les tendances sont publiées en deux temps : cache persistant d'abord (pour
+    // que la Hero Card soit là dès le premier rendu), rafraîchissement ensuite.
+    // Un rafraîchissement vide (TMDB injoignable) ne doit jamais effacer ce qui
+    // est déjà affiché.
+    @Test
+    fun test_loadHomeData_servesCachedTrendsAndKeepsThemWhenRefreshIsEmpty() = runTest {
+        stubReactiveSources()
+        stubEmptyCategoryPreferences()
+
+        val cachedTrends = listOf(
+            TrendingCatalogItem(
+                trendingTitle = TrendingTitle(1, "Dune", isMovie = true, year = 2021, posterUrl = "url_dune"),
+                matchedMovie = VodStream(10, "Dune", "icon", "8.0", "12345", "1")
+            )
+        )
+        whenever(getTrendingInCatalogUseCase.cached()).thenReturn(cachedTrends)
+        whenever(getTrendingInCatalogUseCase.invoke()).thenReturn(emptyList())
+        whenever(getLiveCategoriesUseCase.once()).thenReturn(emptyList())
+        whenever(vodRepository.getCachedVodStreams("all")).thenReturn(emptyList())
+        whenever(seriesRepository.getCachedSeriesStreams("all")).thenReturn(emptyList())
+
+        // Pas d'`advanceUntilIdle` ici : le sondage EPG de `init` est une boucle
+        // infinie temporisée, le scheduler n'atteindrait jamais l'inactivité.
+        viewModel = createViewModel()
+        testDispatcher.scheduler.runCurrent()
+
+        val state = viewModel.state.value
+        assertEquals(1, state.trendingList.size)
+        assertEquals("Dune", state.trendingList[0].trendingTitle.title)
+        assertEquals(false, state.awaitingTrending)
 
         viewModel.viewModelScope.cancel()
     }
