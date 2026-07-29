@@ -32,6 +32,27 @@ fun rememberForeverLazyListState(
     return listState
 }
 
+/**
+ * État de défilement d'une rangée horizontale.
+ *
+ * Sur TV, la position n'est délibérément pas mémorisée d'une session à
+ * l'autre : le pad descend depuis la vignette de gauche de la rangée du
+ * dessus, mais une rangée restaurée au milieu de son contenu n'expose que des
+ * vignettes éloignées, et le focus atterrit sur celle qui se trouve être la
+ * plus proche — d'où une entrée qui semblait arbitraire, souvent tout à
+ * droite. Une rangée qui commence à son début rend ce point d'entrée
+ * prévisible. Sur mobile, le doigt navigue librement : la position reprise
+ * garde tout son sens.
+ */
+@Composable
+fun rememberRowScrollState(
+    isTv: Boolean,
+    key: String,
+    getScroll: (String) -> Pair<Int, Int>,
+    saveScroll: (String, Int, Int) -> Unit
+): LazyListState =
+    if (isTv) rememberLazyListState() else rememberForeverLazyListState(key, getScroll, saveScroll)
+
 @Composable
 fun rememberForeverLazyGridState(
     key: String,

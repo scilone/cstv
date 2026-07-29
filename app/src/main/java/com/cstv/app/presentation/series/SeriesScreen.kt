@@ -3,6 +3,7 @@ package com.cstv.app.presentation.series
 import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.paging.filter
 import com.cstv.app.presentation.rememberForeverLazyListState
+import com.cstv.app.presentation.rememberRowScrollState
 import com.cstv.app.presentation.rememberForeverLazyGridState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -44,7 +45,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.focus.focusRestorer
 import com.cstv.app.R
 import com.cstv.app.domain.model.FavoriteItem
 import com.cstv.app.domain.model.SeriesCategory
@@ -672,12 +672,12 @@ private fun CategorySectionRow(
             }
         }
 
-        val rowState = rememberForeverLazyListState("series_row_${categoryId}", getScroll, saveScroll)
+        val rowState = rememberRowScrollState(isTv, "series_row_${categoryId}", getScroll, saveScroll)
         LazyRow(
             state = rowState,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             contentPadding = PaddingValues(horizontal = 12.dp),
-            modifier = Modifier.fillMaxWidth().focusRestorer().focusGroup()
+            modifier = Modifier.fillMaxWidth().focusGroup()
         ) {
             items(series) { stream ->
                 if (isTv) {

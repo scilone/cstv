@@ -18,7 +18,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
@@ -189,22 +188,21 @@ private fun TvRailDestinationRow(
     onClick: () -> Unit
 ) {
     var focused by remember { mutableStateOf(false) }
-    // Aucun aplat de couleur : le focus se lit à la bordure, la sélection à
-    // l'icône teintée et à la graisse du libellé. Un fond plein sur la
-    // destination courante alourdissait la barre sans rien dire de plus.
+    // Ni aplat ni bordure : le focus se lit au libellé, blanc et gras, la
+    // destination courante à son icône violette. La sélection prime sur le
+    // focus pour la teinte de l'icône — survoler la section où l'on se trouve
+    // ne doit pas lui faire perdre sa couleur, sans quoi on ne sait plus où
+    // l'on est.
     val iconColor = when {
-        focused -> Color.White
         isSelected -> AccentLavande
+        focused -> Color.White
         else -> Color(0xFFB9B9C6)
     }
-    val labelColor = if (focused) Color.White else Color(0xFFB9B9C6)
-    val shape = RoundedCornerShape(10.dp)
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
             .height(44.dp)
-            .border(if (focused) 2.dp else 0.dp, if (focused) AccentLavande else Color.Transparent, shape)
             .onFocusChanged { focused = it.isFocused }
             .then(focusRequester?.let { Modifier.focusRequester(it) } ?: Modifier)
             .clickable { onClick() }
@@ -220,8 +218,8 @@ private fun TvRailDestinationRow(
             Spacer(Modifier.width(14.dp))
             Text(
                 stringResource(destination.labelRes),
-                color = labelColor,
-                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                color = if (focused) Color.White else Color(0xFFB9B9C6),
+                fontWeight = if (focused || isSelected) FontWeight.Bold else FontWeight.Normal,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )

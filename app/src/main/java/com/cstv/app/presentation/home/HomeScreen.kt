@@ -4,7 +4,7 @@ import androidx.compose.ui.res.stringResource
 import com.cstv.app.presentation.home.components.*
 import com.cstv.app.presentation.components.SeeAllLink
 
-import com.cstv.app.presentation.rememberForeverLazyListState
+import com.cstv.app.presentation.rememberRowScrollState
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.background
@@ -35,7 +35,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -372,9 +371,9 @@ fun HomeScreen(
                             onSeeAll = { expandedSection = HomeExpandedSection.RESUME }
                         ) {
                             LazyRow(
-                                state = rememberForeverLazyListState("home_resume", { viewModel.getScrollPosition(it) }, { k, i, o -> viewModel.saveScrollPosition(k, i, o) }),
+                                state = rememberRowScrollState(isTv, "home_resume", { viewModel.getScrollPosition(it) }, { k, i, o -> viewModel.saveScrollPosition(k, i, o) }),
                                 horizontalArrangement = Arrangement.spacedBy(16.dp),
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).focusRestorer().focusGroup()
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).focusGroup()
                             ) {
                                 items(state.resumeWatchingList) { position ->
                                     HomeResumeWatchingCard(
@@ -398,9 +397,9 @@ fun HomeScreen(
                             onSeeAll = { expandedSection = HomeExpandedSection.FAVORITES }
                         ) {
                             LazyRow(
-                                state = rememberForeverLazyListState("home_favorites", { viewModel.getScrollPosition(it) }, { k, i, o -> viewModel.saveScrollPosition(k, i, o) }),
+                                state = rememberRowScrollState(isTv, "home_favorites", { viewModel.getScrollPosition(it) }, { k, i, o -> viewModel.saveScrollPosition(k, i, o) }),
                                 horizontalArrangement = Arrangement.spacedBy(16.dp),
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).focusRestorer().focusGroup()
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).focusGroup()
                             ) {
                                 items(state.favoritesList) { fav ->
                                     HomeFavoriteItemCard(
@@ -422,9 +421,9 @@ fun HomeScreen(
                             onSeeAll = onNavigateToLiveTv
                         ) {
                             LazyRow(
-                                state = rememberForeverLazyListState("home_livetv", { viewModel.getScrollPosition(it) }, { k, i, o -> viewModel.saveScrollPosition(k, i, o) }),
+                                state = rememberRowScrollState(isTv, "home_livetv", { viewModel.getScrollPosition(it) }, { k, i, o -> viewModel.saveScrollPosition(k, i, o) }),
                                 horizontalArrangement = Arrangement.spacedBy(16.dp),
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).focusRestorer().focusGroup()
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).focusGroup()
                             ) {
                                 items(state.firstLiveStreams) { stream ->
                                     HomeLiveTvCard(
@@ -447,9 +446,9 @@ fun HomeScreen(
                             onSeeAll = { onNavigateToRecentlyAdded(false) }
                         ) {
                             LazyRow(
-                                state = rememberForeverLazyListState("home_vod", { viewModel.getScrollPosition(it) }, { k, i, o -> viewModel.saveScrollPosition(k, i, o) }),
+                                state = rememberRowScrollState(isTv, "home_vod", { viewModel.getScrollPosition(it) }, { k, i, o -> viewModel.saveScrollPosition(k, i, o) }),
                                 horizontalArrangement = Arrangement.spacedBy(16.dp),
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).focusRestorer().focusGroup()
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).focusGroup()
                             ) {
                                 items(state.firstVodStreams) { stream ->
                                     HomeVodMovieCard(
@@ -474,9 +473,9 @@ fun HomeScreen(
                             onSeeAll = null
                         ) {
                             LazyRow(
-                                state = rememberForeverLazyListState("home_top_movies", { viewModel.getScrollPosition(it) }, { k, i, o -> viewModel.saveScrollPosition(k, i, o) }),
+                                state = rememberRowScrollState(isTv, "home_top_movies", { viewModel.getScrollPosition(it) }, { k, i, o -> viewModel.saveScrollPosition(k, i, o) }),
                                 horizontalArrangement = Arrangement.spacedBy(16.dp),
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).focusRestorer().focusGroup()
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).focusGroup()
                             ) {
                                 itemsIndexed(displayedTopVodStreams) { index, stream ->
                                     HomeVodMovieCard(
@@ -499,9 +498,9 @@ fun HomeScreen(
                             onSeeAll = { expandedSection = HomeExpandedSection.RECOMMENDED_MOVIES }
                         ) {
                             LazyRow(
-                                state = rememberForeverLazyListState("home_reco_movies", { viewModel.getScrollPosition(it) }, { k, i, o -> viewModel.saveScrollPosition(k, i, o) }),
+                                state = rememberRowScrollState(isTv, "home_reco_movies", { viewModel.getScrollPosition(it) }, { k, i, o -> viewModel.saveScrollPosition(k, i, o) }),
                                 horizontalArrangement = Arrangement.spacedBy(16.dp),
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).focusRestorer().focusGroup()
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).focusGroup()
                             ) {
                                 items(state.recommendedMovies) { stream ->
                                     HomeVodMovieCard(
@@ -523,9 +522,9 @@ fun HomeScreen(
                             onSeeAll = { onNavigateToRecentlyAdded(true) }
                         ) {
                             LazyRow(
-                                state = rememberForeverLazyListState("home_series", { viewModel.getScrollPosition(it) }, { k, i, o -> viewModel.saveScrollPosition(k, i, o) }),
+                                state = rememberRowScrollState(isTv, "home_series", { viewModel.getScrollPosition(it) }, { k, i, o -> viewModel.saveScrollPosition(k, i, o) }),
                                 horizontalArrangement = Arrangement.spacedBy(16.dp),
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).focusRestorer().focusGroup()
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).focusGroup()
                             ) {
                                 items(state.firstSeriesStreams) { stream ->
                                     HomeSeriesShowCard(
@@ -547,9 +546,9 @@ fun HomeScreen(
                             onSeeAll = null
                         ) {
                             LazyRow(
-                                state = rememberForeverLazyListState("home_top_series", { viewModel.getScrollPosition(it) }, { k, i, o -> viewModel.saveScrollPosition(k, i, o) }),
+                                state = rememberRowScrollState(isTv, "home_top_series", { viewModel.getScrollPosition(it) }, { k, i, o -> viewModel.saveScrollPosition(k, i, o) }),
                                 horizontalArrangement = Arrangement.spacedBy(16.dp),
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).focusRestorer().focusGroup()
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).focusGroup()
                             ) {
                                 itemsIndexed(displayedTopSeriesStreams) { index, stream ->
                                     HomeSeriesShowCard(
@@ -572,9 +571,9 @@ fun HomeScreen(
                             onSeeAll = { expandedSection = HomeExpandedSection.RECOMMENDED_SERIES }
                         ) {
                             LazyRow(
-                                state = rememberForeverLazyListState("home_reco_series", { viewModel.getScrollPosition(it) }, { k, i, o -> viewModel.saveScrollPosition(k, i, o) }),
+                                state = rememberRowScrollState(isTv, "home_reco_series", { viewModel.getScrollPosition(it) }, { k, i, o -> viewModel.saveScrollPosition(k, i, o) }),
                                 horizontalArrangement = Arrangement.spacedBy(16.dp),
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).focusRestorer().focusGroup()
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).focusGroup()
                             ) {
                                 items(state.recommendedSeries) { stream ->
                                     HomeSeriesShowCard(
@@ -597,9 +596,9 @@ fun HomeScreen(
                             onSeeAll = onNavigateToDownloads
                         ) {
                             LazyRow(
-                                state = rememberForeverLazyListState("home_downloads", { viewModel.getScrollPosition(it) }, { k, i, o -> viewModel.saveScrollPosition(k, i, o) }),
+                                state = rememberRowScrollState(isTv, "home_downloads", { viewModel.getScrollPosition(it) }, { k, i, o -> viewModel.saveScrollPosition(k, i, o) }),
                                 horizontalArrangement = Arrangement.spacedBy(16.dp),
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).focusRestorer().focusGroup()
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).focusGroup()
                             ) {
                                 items(state.downloadedItems, key = { it.contentId }) { item ->
                                     HomeDownloadCard(

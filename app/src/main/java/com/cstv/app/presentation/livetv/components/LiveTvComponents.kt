@@ -29,7 +29,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.focus.focusRestorer
 import androidx.tv.material3.Button as TvButton
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.MaterialTheme as TvTheme
@@ -52,7 +51,7 @@ import com.cstv.app.presentation.theme.BricolageGrotesque
 import com.cstv.app.presentation.theme.HankenGrotesk
 import com.cstv.app.presentation.theme.TextPrimary
 import com.cstv.app.presentation.theme.TextSecondary
-import com.cstv.app.presentation.rememberForeverLazyListState
+import com.cstv.app.presentation.rememberRowScrollState
 import kotlinx.coroutines.delay
 
 @Composable
@@ -104,12 +103,12 @@ fun CategorySectionRow(
             }
         }
 
-        val rowState = rememberForeverLazyListState("livetv_row_${categoryId}", getScroll, saveScroll)
+        val rowState = rememberRowScrollState(isTv, "livetv_row_${categoryId}", getScroll, saveScroll)
         LazyRow(
             state = rowState,
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             contentPadding = PaddingValues(horizontal = 12.dp),
-            modifier = Modifier.fillMaxWidth().focusRestorer().focusGroup()
+            modifier = Modifier.fillMaxWidth().focusGroup()
         ) {
             items(streams) { stream ->
                 val isFav = favoritesList.any { it.id == stream.streamId && it.type == "live" }
@@ -337,12 +336,12 @@ fun RecentlyWatchedRow(
             modifier = Modifier.padding(start = 12.dp, bottom = 6.dp)
         )
 
-        val rowState = rememberForeverLazyListState("livetv_recently_watched", getScroll, saveScroll)
+        val rowState = rememberRowScrollState(isTv, "livetv_recently_watched", getScroll, saveScroll)
         LazyRow(
             state = rowState,
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             contentPadding = PaddingValues(horizontal = 12.dp),
-            modifier = Modifier.fillMaxWidth().focusRestorer().focusGroup()
+            modifier = Modifier.fillMaxWidth().focusGroup()
         ) {
             items(streams) { stream ->
                 if (isTv) {
