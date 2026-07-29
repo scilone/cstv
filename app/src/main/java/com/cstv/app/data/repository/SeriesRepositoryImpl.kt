@@ -216,19 +216,27 @@ class SeriesRepositoryImpl @Inject constructor(
         (if (categoryId == ALL_CATEGORIES) seriesDao.getAllStreams() else seriesDao.getStreamsByCategory(categoryId))
             .map { it.toDomain() }
 
+    // Voir VodRepositoryImpl.getCachedVodStreamsByYears : même requête paginée
+    // par année, même déduplication.
     override suspend fun getCachedSeriesStreamsByYears(years: Set<Int>): List<SeriesStream> {
         if (years.isEmpty()) return getCachedSeriesStreams(ALL_CATEGORIES)
-        
-        val exactMatches = seriesDao.getStreamsByReleaseYearsExact(years.toList())
-        val titleMatches = mutableListOf<com.cstv.app.data.local.entity.SeriesStreamEntity>()
+
+        val candidates = LinkedHashMap<Int, SeriesStreamEntity>()
         for (year in years) {
-            val pattern = "%($year)%"
-            val patternNoParen = "% $year %"
-            titleMatches.addAll(seriesDao.getStreamsByTitleYearPattern(pattern, patternNoParen))
+            var offset = 0
+            while (true) {
+                val page = seriesDao.getStreamsByReleaseYearPage(
+                    year = year,
+                    yearPattern = "%$year%",
+                    limit = VodRepositoryImpl.YEAR_MATCH_PAGE_SIZE,
+                    offset = offset
+                )
+                page.forEach { candidates[it.seriesId] = it }
+                if (page.size < VodRepositoryImpl.YEAR_MATCH_PAGE_SIZE) break
+                offset += VodRepositoryImpl.YEAR_MATCH_PAGE_SIZE
+            }
         }
-        
-        val allEntities = (exactMatches + titleMatches).distinctBy { it.seriesId }
-        return allEntities.map { it.toDomain() }
+        return candidates.values.map { it.toDomain() }
     }
 
     // --- Écriture (synchronisation) ---

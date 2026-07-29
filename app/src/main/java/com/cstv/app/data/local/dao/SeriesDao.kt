@@ -45,16 +45,21 @@ interface SeriesDao {
     @Query("SELECT * FROM series_streams WHERE categoryId = :categoryId ORDER BY orderIndex ASC")
     suspend fun getStreamsByCategory(categoryId: String): List<SeriesStreamEntity>
 
-    @Query("SELECT * FROM series_streams WHERE releaseYear IN (:years) ORDER BY orderIndex ASC")
-    suspend fun getStreamsByReleaseYearsExact(years: List<Int>): List<SeriesStreamEntity>
-
+    // Appariement TMDB : voir VodDao.getStreamsByReleaseYearPage (année exacte
+    // pour les séries enrichies, année lue dans le titre pour les autres, page
+    // obligatoire pour rester sous le CursorWindow de 2 Mo).
     @Query(
         "SELECT * FROM series_streams " +
-            "WHERE (releaseYear IS NULL OR releaseYear <= 0) " +
-            "AND (name LIKE :pattern OR name LIKE :patternNoParen) " +
-            "ORDER BY orderIndex ASC"
+            "WHERE releaseYear = :year " +
+            "OR ((releaseYear IS NULL OR releaseYear <= 0) AND name LIKE :yearPattern) " +
+            "ORDER BY orderIndex ASC LIMIT :limit OFFSET :offset"
     )
-    suspend fun getStreamsByTitleYearPattern(pattern: String, patternNoParen: String): List<SeriesStreamEntity>
+    suspend fun getStreamsByReleaseYearPage(
+        year: Int,
+        yearPattern: String,
+        limit: Int,
+        offset: Int
+    ): List<SeriesStreamEntity>
 
     @Query("SELECT * FROM series_streams WHERE categoryId = :categoryId ORDER BY orderIndex ASC")
     fun observeStreamsByCategory(categoryId: String): Flow<List<SeriesStreamEntity>>

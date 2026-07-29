@@ -559,4 +559,28 @@ class SeriesRepositoryImplTest {
         verify(seriesDao, never()).clearAllStreams()
         verify(seriesDao, never()).clearStreamsByCategory(any())
     }
+
+    /**
+     * Pendant de VodRepositoryImplTest : l'appariement TMDB lit une année à la
+     * fois, page par page (borne du CursorWindow), et déduplique les séries
+     * datées de plusieurs années demandées.
+     */
+    @Test
+    fun test_getCachedSeriesStreamsByYears_readsEveryPageAndDeduplicates() = runTest {
+        val pageSize = VodRepositoryImpl.YEAR_MATCH_PAGE_SIZE
+        val fullPage = (1..pageSize).map { id ->
+            SeriesStreamEntity(id, "Série $id (2026)", null, "8.0", null, "1", 0L, releaseYear = 2026)
+        }
+        val lastPage = listOf(
+            SeriesStreamEntity(9001, "Silo 2026", null, "7.0", null, "1", 0L, releaseYear = 0)
+        )
+        whenever(seriesDao.getStreamsByReleaseYearPage(2026, "%2026%", pageSize, 0)).thenReturn(fullPage)
+        whenever(seriesDao.getStreamsByReleaseYearPage(2026, "%2026%", pageSize, pageSize)).thenReturn(lastPage)
+        whenever(seriesDao.getStreamsByReleaseYearPage(eq(2025), any(), any(), any())).thenReturn(lastPage)
+
+        val result = repository.getCachedSeriesStreamsByYears(setOf(2025, 2026))
+
+        assertEquals(pageSize + 1, result.size)
+        assertEquals(1, result.count { it.seriesId == 9001 })
+    }
 }

@@ -661,20 +661,46 @@ class VodRepositoryImplTest {
         verify(vodDao, never()).clearStreamsByCategory(any())
     }
 
+    /**
+     * L'appariement TMDB chargeait tout le catalogue non enrichi d'un coup et
+     * dépassait le CursorWindow de 2 Mo. La requête est désormais bornée par
+     * année et lue page par page jusqu'à épuisement : une page incomplète
+     * termine la boucle.
+     *
+     * Le motif de titre reste `%année%`, sans délimiteur : un motif plus étroit
+     * (« (2026) », « 2026 » entouré d'espaces) exclurait ici des titres que
+     * TmdbCatalogMatcher.yearFromTitle accepte — année en fin de nom, séparée
+     * par des points, entre crochets.
+     */
     @Test
-    fun test_getCachedVodStreamsByYears_queriesExactAndTitlePatterns() = runTest {
-        val years = setOf(2025, 2026)
-        val entity1 = VodStreamEntity(1, "Movie 2025", null, "8.0", null, "1", 0L, releaseYear = 2025)
-        val entity2 = VodStreamEntity(2, "Unenriched Movie (2026)", null, "7.0", null, "1", 0L, releaseYear = 0)
-        
-        whenever(vodDao.getStreamsByReleaseYearsExact(listOf(2025, 2026))).thenReturn(listOf(entity1))
-        whenever(vodDao.getStreamsByTitleYearPattern("%(2025)%", "% 2025 %")).thenReturn(emptyList())
-        whenever(vodDao.getStreamsByTitleYearPattern("%(2026)%", "% 2026 %")).thenReturn(listOf(entity2))
-        
-        val result = repository.getCachedVodStreamsByYears(years)
-        
-        assertEquals(2, result.size)
-        assertTrue(result.any { it.streamId == 1 })
-        assertTrue(result.any { it.streamId == 2 })
+    fun test_getCachedVodStreamsByYears_readsEveryPageForTheYear() = runTest {
+        val pageSize = VodRepositoryImpl.YEAR_MATCH_PAGE_SIZE
+        val fullPage = (1..pageSize).map { id ->
+            VodStreamEntity(id, "Film $id (2026)", null, "8.0", null, "1", 0L, releaseYear = 2026)
+        }
+        val lastPage = listOf(
+            VodStreamEntity(9001, "Odyssee.2026.MULTI.1080p", null, "7.0", null, "1", 0L, releaseYear = 0)
+        )
+        whenever(vodDao.getStreamsByReleaseYearPage(2026, "%2026%", pageSize, 0)).thenReturn(fullPage)
+        whenever(vodDao.getStreamsByReleaseYearPage(2026, "%2026%", pageSize, pageSize)).thenReturn(lastPage)
+
+        val result = repository.getCachedVodStreamsByYears(setOf(2026))
+
+        assertEquals(pageSize + 1, result.size)
+        assertTrue(result.any { it.streamId == 9001 })
+        verify(vodDao, never()).getStreamsByReleaseYearPage(2026, "%2026%", pageSize, pageSize * 2)
+    }
+
+    /** Un titre daté de plusieurs années demandées ne doit ressortir qu'une fois. */
+    @Test
+    fun test_getCachedVodStreamsByYears_deduplicatesAcrossYears() = runTest {
+        val shared = VodStreamEntity(7, "Saga 2025 2026", null, "8.0", null, "1", 0L, releaseYear = 0)
+        whenever(vodDao.getStreamsByReleaseYearPage(eq(2025), any(), any(), any())).thenReturn(listOf(shared))
+        whenever(vodDao.getStreamsByReleaseYearPage(eq(2026), any(), any(), any())).thenReturn(listOf(shared))
+
+        val result = repository.getCachedVodStreamsByYears(setOf(2025, 2026))
+
+        assertEquals(1, result.size)
+        assertEquals(7, result.first().streamId)
     }
 }

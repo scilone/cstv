@@ -217,10 +217,16 @@ fun HomeScreen(
                 },
                 verticalArrangement = Arrangement.spacedBy(24.dp)
             ) {
+                // Chaque section porte une clé stable. Sans clé, l'identité des
+                // items est positionnelle : l'apparition d'une rangée (« Top 10 »
+                // arrive quand l'appariement TMDB se termine, plusieurs secondes
+                // après l'affichage) détache puis recompose toutes les suivantes,
+                // et la recherche de focus du D-pad tombait sur ces nœuds
+                // détachés — cf. MainActivity.dispatchKeyEvent.
                 // 1. Header (Welcome, Profile Info and Navigation Row)
                 // Sur TV, profil, informations de session et accès Paramètres
                 // sont portés par la barre latérale : cet en-tête ferait doublon.
-                if (!isTv) item {
+                if (!isTv) item(key = "home_header") {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -320,7 +326,7 @@ fun HomeScreen(
                 // NOUVEAU: Hero "Reprendre" ou "Tendances" (Phase F1)
                 if (!isTv) {
                     if (state.trendingList.isNotEmpty()) {
-                        item {
+                        item(key = "home_trending") {
                             HomeTrendingCarousel(
                                 trendingItems = state.trendingList,
                                 trailerPreview = state.trailerPreview,
@@ -344,7 +350,7 @@ fun HomeScreen(
                         }
                     }
                 } else if (state.trendingList.isNotEmpty()) {
-                    item {
+                    item(key = "home_trending") {
                         HomeTrendingCarouselTv(
                             trendingItems = state.trendingList,
                             trailerPreview = state.trailerPreview,
@@ -364,7 +370,7 @@ fun HomeScreen(
 
                 // 2. Section: "Continuer à regarder"
                 if (state.resumeWatchingList.isNotEmpty()) {
-                    item {
+                    item(key = "home_resume") {
                         HomeSectionRow(
                             title = stringResource(R.string.home_resume),
                             isTv = isTv,
@@ -390,7 +396,7 @@ fun HomeScreen(
 
                 // 3. Section: "Favoris"
                 if (state.favoritesList.isNotEmpty()) {
-                    item {
+                    item(key = "home_favorites") {
                         HomeSectionRow(
                             title = stringResource(R.string.home_favorites),
                             isTv = isTv,
@@ -414,7 +420,7 @@ fun HomeScreen(
 
                 // 4. Section: "TV" (First Category Live Streams)
                 if (state.firstLiveCategory != null && state.firstLiveStreams.isNotEmpty()) {
-                    item {
+                    item(key = "home_livetv") {
                         HomeSectionRow(
                             title = stringResource(R.string.home_section_tv),
                             isTv = isTv,
@@ -439,7 +445,7 @@ fun HomeScreen(
 
                 // 5. Section: "Films" (Latest additions VOD Streams)
                 if (state.firstVodStreams.isNotEmpty()) {
-                    item {
+                    item(key = "home_vod") {
                         HomeSectionRow(
                             title = stringResource(R.string.home_section_vod),
                             isTv = isTv,
@@ -463,7 +469,7 @@ fun HomeScreen(
 
                 // 6. Section: Top 10 Films (Trending/Top Rated)
                 if (displayedTopVodStreams.isNotEmpty()) {
-                    item {
+                    item(key = "home_top_movies") {
                         HomeSectionRow(
                             title = stringResource(R.string.home_top_movies),
                             isTv = isTv,
@@ -491,7 +497,7 @@ fun HomeScreen(
 
                 // 7. Section F-6: "Films recommandés pour vous"
                 if (state.recommendedMovies.isNotEmpty()) {
-                    item {
+                    item(key = "home_reco_movies") {
                         HomeSectionRow(
                             title = stringResource(R.string.home_recommended_movies),
                             isTv = isTv,
@@ -515,7 +521,7 @@ fun HomeScreen(
 
                 // 8. Section: "Séries" (Latest additions Series Streams)
                 if (state.firstSeriesStreams.isNotEmpty()) {
-                    item {
+                    item(key = "home_series") {
                         HomeSectionRow(
                             title = stringResource(R.string.home_section_series),
                             isTv = isTv,
@@ -539,7 +545,7 @@ fun HomeScreen(
 
                 // 9. Section: Top 10 Séries
                 if (displayedTopSeriesStreams.isNotEmpty()) {
-                    item {
+                    item(key = "home_top_series") {
                         HomeSectionRow(
                             title = stringResource(R.string.home_top_series),
                             isTv = isTv,
@@ -564,7 +570,7 @@ fun HomeScreen(
 
                 // 10. Section F-6: "Séries recommandées pour vous"
                 if (state.recommendedSeries.isNotEmpty()) {
-                    item {
+                    item(key = "home_reco_series") {
                         HomeSectionRow(
                             title = stringResource(R.string.home_recommended_series),
                             isTv = isTv,
@@ -589,7 +595,7 @@ fun HomeScreen(
                 // 11. F15: les téléchargements terminés restent un raccourci de lecture,
                 // leur gestion complète est conservée dans DownloadsScreen.
                 if (state.downloadedItems.isNotEmpty()) {
-                    item {
+                    item(key = "home_downloads") {
                         HomeSectionRow(
                             title = stringResource(R.string.home_section_downloads),
                             isTv = isTv,

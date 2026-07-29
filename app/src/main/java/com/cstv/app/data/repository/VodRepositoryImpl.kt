@@ -143,6 +143,14 @@ class VodRepositoryImpl @Inject constructor(
         private const val ENRICHMENT_BATCH_SIZE = 50
         private const val ENRICHMENT_REQUEST_SPACING_MS = 500L
         private const val DEFAULT_CONTAINER_EXTENSION = "mp4"
+
+        /**
+         * Taille de page de l'appariement TMDB par année. Une page doit tenir
+         * largement dans le CursorWindow de 2 Mo d'Android, quelle que soit la
+         * taille du catalogue : c'est le dépassement de cette limite qui levait
+         * « Couldn't read row N from CursorWindow ».
+         */
+        internal const val YEAR_MATCH_PAGE_SIZE = 300
     }
 
 
@@ -274,19 +282,31 @@ class VodRepositoryImpl @Inject constructor(
         (if (categoryId == ALL_CATEGORIES) vodDao.getAllStreams() else vodDao.getStreamsByCategory(categoryId))
             .map { it.toDomain() }
 
+    // Une requête par année, paginée : un film candidat porte soit l'année
+    // exacte (catalogue enrichi), soit l'année dans son titre (enrichissement
+    // pas encore passé — TmdbCatalogMatcher la relit). Les deux critères
+    // tiennent dans la même requête, et la pagination borne chaque curseur
+    // (voir YEAR_MATCH_PAGE_SIZE). Un film peut sortir sur plusieurs années
+    // demandées : la déduplication par streamId est donc nécessaire.
     override suspend fun getCachedVodStreamsByYears(years: Set<Int>): List<VodStream> {
         if (years.isEmpty()) return getCachedVodStreams(ALL_CATEGORIES)
-        
-        val exactMatches = vodDao.getStreamsByReleaseYearsExact(years.toList())
-        val titleMatches = mutableListOf<com.cstv.app.data.local.entity.VodStreamEntity>()
+
+        val candidates = LinkedHashMap<Int, VodStreamEntity>()
         for (year in years) {
-            val pattern = "%($year)%"
-            val patternNoParen = "% $year %"
-            titleMatches.addAll(vodDao.getStreamsByTitleYearPattern(pattern, patternNoParen))
+            var offset = 0
+            while (true) {
+                val page = vodDao.getStreamsByReleaseYearPage(
+                    year = year,
+                    yearPattern = "%$year%",
+                    limit = YEAR_MATCH_PAGE_SIZE,
+                    offset = offset
+                )
+                page.forEach { candidates[it.streamId] = it }
+                if (page.size < YEAR_MATCH_PAGE_SIZE) break
+                offset += YEAR_MATCH_PAGE_SIZE
+            }
         }
-        
-        val allEntities = (exactMatches + titleMatches).distinctBy { it.streamId }
-        return allEntities.map { it.toDomain() }
+        return candidates.values.map { it.toDomain() }
     }
 
     override suspend fun syncVodCategories(): List<VodCategory> {

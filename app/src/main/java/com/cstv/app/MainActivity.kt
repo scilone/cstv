@@ -4,6 +4,7 @@ import android.app.UiModeManager
 import android.content.Context
 import android.content.res.Configuration
 import android.os.Bundle
+import android.view.KeyEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -388,11 +389,47 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /**
+     * La recherche de focus bidirectionnelle du D-pad (Compose UI 1.6, BOM
+     * 2024.02.02) lit les `LayoutCoordinates` de nœuds que les rangées viennent
+     * de détacher — une section d'accueil qui apparaît quand l'appariement TMDB
+     * se termine, une rangée dont la liste rétrécit — et lève alors
+     * « LayoutCoordinate operations are only valid when isAttached is true »
+     * depuis `dispatchKeyEvent`, ce qui tuait l'application sur la TV.
+     *
+     * Le bug est interne à `androidx.compose.ui.focus` : l'appui perdu est sans
+     * conséquence pour l'utilisateur (le suivant déplace bien le focus), le
+     * crash ne l'était pas. Toute autre `IllegalStateException` continue de
+     * remonter : elle signalerait un bug applicatif, pas celui-ci.
+     *
+     * `RestrictedApi` est levé parce que `ComponentActivity` redéfinit
+     * `dispatchKeyEvent` en `@RestrictTo(LIBRARY_GROUP_PREFIX)` pour son propre
+     * `KeyEventDispatcher`. Redéfinir la méthode d'`Activity` en déléguant à
+     * `super` reste le point d'interception prévu par le framework : la chaîne
+     * AndroidX est appelée intacte, rien n'est court-circuité.
+     */
+    @Suppress("RestrictedApi")
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean =
+        try {
+            super.dispatchKeyEvent(event)
+        } catch (e: IllegalStateException) {
+            if (e.message?.contains(DETACHED_COORDINATES_MESSAGE) != true) throw e
+            com.cstv.app.di.IptvLog.e(
+                "FOCUS",
+                "Recherche de focus D-pad interrompue : nœud Compose détaché",
+                e
+            )
+            true
+        }
+
     private fun isTvDevice(context: Context): Boolean {
         val uiModeManager = context.getSystemService(Context.UI_MODE_SERVICE) as UiModeManager
         return uiModeManager.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION
     }
 }
+
+/** Extrait du message de `LayoutNodeCoordinates` — voir MainActivity.dispatchKeyEvent. */
+private const val DETACHED_COORDINATES_MESSAGE = "isAttached is true"
 
 // --- Lecture hors-ligne (feature #15) : reconstruit des modèles de lecture
 // minimaux depuis un DownloadedItem, sans fetch réseau des détails (l'app peut

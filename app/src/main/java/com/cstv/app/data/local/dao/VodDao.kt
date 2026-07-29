@@ -44,16 +44,29 @@ interface VodDao {
     @Query("SELECT * FROM vod_streams WHERE categoryId = :categoryId ORDER BY orderIndex ASC")
     suspend fun getStreamsByCategory(categoryId: String): List<VodStreamEntity>
 
-    @Query("SELECT * FROM vod_streams WHERE releaseYear IN (:years) ORDER BY orderIndex ASC")
-    suspend fun getStreamsByReleaseYearsExact(years: List<Int>): List<VodStreamEntity>
-
+    // Appariement TMDB, une année à la fois (voir
+    // VodRepositoryImpl.getCachedVodStreamsByYears) : les films déjà enrichis
+    // sont pris sur `releaseYear`, les autres sur la présence de l'année dans le
+    // titre — TmdbCatalogMatcher.yearFromTitle sait la lire là ("Odyssée (2016)
+    // 1080p", "Odyssée 2016", "Odyssee.2016.MULTI"), donc le motif est un simple
+    // `%2016%` sans délimiteur : tout format plus étroit rejetterait des titres
+    // que le matcher, lui, accepte.
+    //
+    // La page est obligatoire : charger toutes les lignes d'un coup dépassait le
+    // CursorWindow de 2 Mo d'Android et levait « Couldn't read row N from
+    // CursorWindow » sur un gros catalogue.
     @Query(
         "SELECT * FROM vod_streams " +
-            "WHERE (releaseYear IS NULL OR releaseYear <= 0) " +
-            "AND (name LIKE :pattern OR name LIKE :patternNoParen) " +
-            "ORDER BY orderIndex ASC"
+            "WHERE releaseYear = :year " +
+            "OR ((releaseYear IS NULL OR releaseYear <= 0) AND name LIKE :yearPattern) " +
+            "ORDER BY orderIndex ASC LIMIT :limit OFFSET :offset"
     )
-    suspend fun getStreamsByTitleYearPattern(pattern: String, patternNoParen: String): List<VodStreamEntity>
+    suspend fun getStreamsByReleaseYearPage(
+        year: Int,
+        yearPattern: String,
+        limit: Int,
+        offset: Int
+    ): List<VodStreamEntity>
 
     @Query("SELECT * FROM vod_streams WHERE categoryId = :categoryId ORDER BY orderIndex ASC")
     fun observeStreamsByCategory(categoryId: String): Flow<List<VodStreamEntity>>
