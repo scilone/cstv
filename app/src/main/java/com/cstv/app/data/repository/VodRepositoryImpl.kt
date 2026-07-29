@@ -274,9 +274,20 @@ class VodRepositoryImpl @Inject constructor(
         (if (categoryId == ALL_CATEGORIES) vodDao.getAllStreams() else vodDao.getStreamsByCategory(categoryId))
             .map { it.toDomain() }
 
-    override suspend fun getCachedVodStreamsByYears(years: Set<Int>): List<VodStream> =
-        if (years.isEmpty()) getCachedVodStreams(ALL_CATEGORIES)
-        else vodDao.getStreamsByReleaseYears(years.toList()).map { it.toDomain() }
+    override suspend fun getCachedVodStreamsByYears(years: Set<Int>): List<VodStream> {
+        if (years.isEmpty()) return getCachedVodStreams(ALL_CATEGORIES)
+        
+        val exactMatches = vodDao.getStreamsByReleaseYearsExact(years.toList())
+        val titleMatches = mutableListOf<com.cstv.app.data.local.entity.VodStreamEntity>()
+        for (year in years) {
+            val pattern = "%($year)%"
+            val patternNoParen = "% $year %"
+            titleMatches.addAll(vodDao.getStreamsByTitleYearPattern(pattern, patternNoParen))
+        }
+        
+        val allEntities = (exactMatches + titleMatches).distinctBy { it.streamId }
+        return allEntities.map { it.toDomain() }
+    }
 
     override suspend fun syncVodCategories(): List<VodCategory> {
         val currentTime = System.currentTimeMillis()

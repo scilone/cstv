@@ -660,4 +660,21 @@ class VodRepositoryImplTest {
         verify(vodDao, never()).clearAllStreams()
         verify(vodDao, never()).clearStreamsByCategory(any())
     }
+
+    @Test
+    fun test_getCachedVodStreamsByYears_queriesExactAndTitlePatterns() = runTest {
+        val years = setOf(2025, 2026)
+        val entity1 = VodStreamEntity(1, "Movie 2025", null, "8.0", null, "1", 0L, releaseYear = 2025)
+        val entity2 = VodStreamEntity(2, "Unenriched Movie (2026)", null, "7.0", null, "1", 0L, releaseYear = 0)
+        
+        whenever(vodDao.getStreamsByReleaseYearsExact(listOf(2025, 2026))).thenReturn(listOf(entity1))
+        whenever(vodDao.getStreamsByTitleYearPattern("%(2025)%", "% 2025 %")).thenReturn(emptyList())
+        whenever(vodDao.getStreamsByTitleYearPattern("%(2026)%", "% 2026 %")).thenReturn(listOf(entity2))
+        
+        val result = repository.getCachedVodStreamsByYears(years)
+        
+        assertEquals(2, result.size)
+        assertTrue(result.any { it.streamId == 1 })
+        assertTrue(result.any { it.streamId == 2 })
+    }
 }

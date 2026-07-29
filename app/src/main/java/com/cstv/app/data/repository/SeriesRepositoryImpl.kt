@@ -216,9 +216,20 @@ class SeriesRepositoryImpl @Inject constructor(
         (if (categoryId == ALL_CATEGORIES) seriesDao.getAllStreams() else seriesDao.getStreamsByCategory(categoryId))
             .map { it.toDomain() }
 
-    override suspend fun getCachedSeriesStreamsByYears(years: Set<Int>): List<SeriesStream> =
-        if (years.isEmpty()) getCachedSeriesStreams(ALL_CATEGORIES)
-        else seriesDao.getStreamsByReleaseYears(years.toList()).map { it.toDomain() }
+    override suspend fun getCachedSeriesStreamsByYears(years: Set<Int>): List<SeriesStream> {
+        if (years.isEmpty()) return getCachedSeriesStreams(ALL_CATEGORIES)
+        
+        val exactMatches = seriesDao.getStreamsByReleaseYearsExact(years.toList())
+        val titleMatches = mutableListOf<com.cstv.app.data.local.entity.SeriesStreamEntity>()
+        for (year in years) {
+            val pattern = "%($year)%"
+            val patternNoParen = "% $year %"
+            titleMatches.addAll(seriesDao.getStreamsByTitleYearPattern(pattern, patternNoParen))
+        }
+        
+        val allEntities = (exactMatches + titleMatches).distinctBy { it.seriesId }
+        return allEntities.map { it.toDomain() }
+    }
 
     // --- Écriture (synchronisation) ---
 
