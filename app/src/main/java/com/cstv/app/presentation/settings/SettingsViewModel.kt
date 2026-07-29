@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.work.*
 import com.cstv.app.data.local.storage.SettingsManager
 import com.cstv.app.data.local.storage.SyncFrequency
+import com.cstv.app.data.util.DiagnosticManager
 import com.cstv.app.data.worker.DatabaseSyncWorker
 import com.cstv.app.data.worker.SyncScheduling
 import com.cstv.app.domain.model.SubtitleBackground
@@ -24,6 +25,7 @@ import javax.inject.Inject
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val settingsManager: SettingsManager,
+    private val diagnosticManager: DiagnosticManager,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
@@ -44,7 +46,8 @@ class SettingsViewModel @Inject constructor(
         _state.update {
             it.copy(
                 syncFrequency = settingsManager.getSyncFrequency(),
-                subtitleStyle = settingsManager.getSubtitleStyle()
+                subtitleStyle = settingsManager.getSubtitleStyle(),
+                debugModeEnabled = settingsManager.getDebugModeEnabled()
             )
         }
     }
@@ -149,5 +152,31 @@ class SettingsViewModel @Inject constructor(
             // WorkManager is not initialized in standard unit tests, return gracefully
             null
         }
+    }
+
+    fun updateDebugModeEnabled(enabled: Boolean) {
+        settingsManager.setDebugModeEnabled(enabled)
+        _state.update { it.copy(debugModeEnabled = enabled) }
+        if (enabled) {
+            diagnosticManager.startLogging()
+        } else {
+            diagnosticManager.stopLogging()
+        }
+    }
+
+    fun uploadDiagnosticLogs() {
+        viewModelScope.launch {
+            _state.update { it.copy(isUploadingLogs = true, uploadedLogsUrl = null, uploadLogsError = null) }
+            try {
+                val url = diagnosticManager.uploadLogs()
+                _state.update { it.copy(isUploadingLogs = false, uploadedLogsUrl = url) }
+            } catch (e: Exception) {
+                _state.update { it.copy(isUploadingLogs = false, uploadLogsError = e.message ?: "Une erreur est survenue lors du téléversement") }
+            }
+        }
+    }
+
+    fun clearUploadStatus() {
+        _state.update { it.copy(uploadedLogsUrl = null, uploadLogsError = null, isUploadingLogs = false) }
     }
 }

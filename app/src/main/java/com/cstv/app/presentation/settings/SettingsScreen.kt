@@ -22,6 +22,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
+import androidx.compose.material.icons.filled.Warning
+import coil.compose.AsyncImage
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -67,6 +69,8 @@ fun SettingsScreen(
                 onSubtitleSizeChanged = { viewModel.updateSubtitleSize(it) },
                 onSubtitleColorChanged = { viewModel.updateSubtitleColor(it) },
                 onSubtitleBackgroundChanged = { viewModel.updateSubtitleBackground(it) },
+                onDebugModeChanged = { viewModel.updateDebugModeEnabled(it) },
+                onUploadLogs = { viewModel.uploadDiagnosticLogs() },
                 onBack = onBack,
                 onLogout = onLogout
             )
@@ -80,8 +84,19 @@ fun SettingsScreen(
                 onSubtitleSizeChanged = { viewModel.updateSubtitleSize(it) },
                 onSubtitleColorChanged = { viewModel.updateSubtitleColor(it) },
                 onSubtitleBackgroundChanged = { viewModel.updateSubtitleBackground(it) },
+                onDebugModeChanged = { viewModel.updateDebugModeEnabled(it) },
+                onUploadLogs = { viewModel.uploadDiagnosticLogs() },
                 onBack = onBack,
                 onLogout = onLogout
+            )
+        }
+
+        if (state.isUploadingLogs || state.uploadedLogsUrl != null || state.uploadLogsError != null) {
+            DiagnosticLogsDialog(
+                isUploading = state.isUploadingLogs,
+                uploadedUrl = state.uploadedLogsUrl,
+                error = state.uploadLogsError,
+                onDismiss = { viewModel.clearUploadStatus() }
             )
         }
     }
@@ -98,6 +113,8 @@ private fun TvSettingsLayout(
     onSubtitleSizeChanged: (SubtitleTextSize) -> Unit,
     onSubtitleColorChanged: (SubtitleTextColor) -> Unit,
     onSubtitleBackgroundChanged: (SubtitleBackground) -> Unit,
+    onDebugModeChanged: (Boolean) -> Unit,
+    onUploadLogs: () -> Unit,
     onBack: () -> Unit,
     onLogout: () -> Unit
 ) {
@@ -164,6 +181,12 @@ private fun TvSettingsLayout(
             onSizeChanged = onSubtitleSizeChanged,
             onColorChanged = onSubtitleColorChanged,
             onBackgroundChanged = onSubtitleBackgroundChanged
+        )
+
+        TvDiagnosticCard(
+            debugModeEnabled = state.debugModeEnabled,
+            onDebugModeChanged = onDebugModeChanged,
+            onUploadLogs = onUploadLogs
         )
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -303,6 +326,8 @@ private fun MobileSettingsLayout(
     onSubtitleSizeChanged: (SubtitleTextSize) -> Unit,
     onSubtitleColorChanged: (SubtitleTextColor) -> Unit,
     onSubtitleBackgroundChanged: (SubtitleBackground) -> Unit,
+    onDebugModeChanged: (Boolean) -> Unit,
+    onUploadLogs: () -> Unit,
     onBack: () -> Unit,
     onLogout: () -> Unit
 ) {
@@ -364,6 +389,12 @@ private fun MobileSettingsLayout(
             onSizeChanged = onSubtitleSizeChanged,
             onColorChanged = onSubtitleColorChanged,
             onBackgroundChanged = onSubtitleBackgroundChanged
+        )
+
+        MobileDiagnosticCard(
+            debugModeEnabled = state.debugModeEnabled,
+            onDebugModeChanged = onDebugModeChanged,
+            onUploadLogs = onUploadLogs
         )
 
         // Profiles (Phase 27)
@@ -824,4 +855,214 @@ private fun MobileSubtitleStyleCard(
             }
         }
     }
+}
+
+// --- Diagnostic & Logs (T6) ---
+
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+private fun TvDiagnosticCard(
+    debugModeEnabled: Boolean,
+    onDebugModeChanged: (Boolean) -> Unit,
+    onUploadLogs: () -> Unit
+) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = Surface3),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            TvText(
+                text = "DIAGNOSTIC & LOGS D'ACTIVITÉ",
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.Bold,
+                style = TvTheme.typography.titleMedium
+            )
+            TvText(
+                text = "Activez le mode debug pour enregistrer l'activité de l'application et capturer les crashs. Vous pourrez ensuite générer un rapport sous forme de QR Code.",
+                color = Color.Gray,
+                style = TvTheme.typography.bodySmall
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                TvSortingOptionButton(
+                    label = "MODE DEBUG ACTIF",
+                    isSelected = debugModeEnabled,
+                    onClick = { onDebugModeChanged(true) },
+                    modifier = Modifier.weight(1f)
+                )
+                TvSortingOptionButton(
+                    label = "MODE DEBUG DÉSACTIVÉ",
+                    isSelected = !debugModeEnabled,
+                    onClick = { onDebugModeChanged(false) },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+
+            TvButton(
+                onClick = onUploadLogs,
+                modifier = Modifier.fillMaxWidth().height(40.dp)
+            ) {
+                TvText("EXTRAIRE LES LOGS DE DIAGNOSTIC", style = TvTheme.typography.labelMedium)
+            }
+        }
+    }
+}
+
+@Composable
+private fun MobileDiagnosticCard(
+    debugModeEnabled: Boolean,
+    onDebugModeChanged: (Boolean) -> Unit,
+    onUploadLogs: () -> Unit
+) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = Surface3),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Column {
+                Text(
+                    text = "Diagnostic & Logs d'activité",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp
+                )
+                Text(
+                    text = "Activez le mode debug pour enregistrer l'activité de l'application et capturer les crashs. Vous pourrez ensuite générer un rapport.",
+                    color = Color.Gray,
+                    fontSize = 12.sp
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                MobileSortingOptionButton(
+                    label = "Mode Debug Actif",
+                    isSelected = debugModeEnabled,
+                    onClick = { onDebugModeChanged(true) },
+                    modifier = Modifier.weight(1f)
+                )
+                MobileSortingOptionButton(
+                    label = "Mode Debug Désactivé",
+                    isSelected = !debugModeEnabled,
+                    onClick = { onDebugModeChanged(false) },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+
+            Button(
+                onClick = onUploadLogs,
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                shape = RoundedCornerShape(8.dp),
+                modifier = Modifier.fillMaxWidth().height(40.dp)
+            ) {
+                Text("EXTRAIRE LES LOGS DE DIAGNOSTIC", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            }
+        }
+    }
+}
+
+@Composable
+private fun DiagnosticLogsDialog(
+    isUploading: Boolean,
+    uploadedUrl: String?,
+    error: String?,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = { if (!isUploading) onDismiss() },
+        title = {
+            Text(
+                text = when {
+                    isUploading -> "Téléversement en cours..."
+                    error != null -> "Échec de l'envoi"
+                    else -> "Téléversement réussi !"
+                },
+                color = Color.White,
+                fontWeight = FontWeight.Bold,
+                fontSize = 18.sp
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                if (isUploading) {
+                    CircularProgressIndicator(
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(48.dp)
+                    )
+                    Text(
+                        text = "Veuillez patienter pendant le téléversement sécurisé de vos logs anonymisés vers paste.rs...",
+                        color = Color.Gray,
+                        fontSize = 14.sp,
+                        textAlign = TextAlign.Center
+                    )
+                } else if (error != null) {
+                    Icon(
+                        imageVector = Icons.Default.Warning,
+                        contentDescription = "Erreur",
+                        tint = Color(0xFFCF6679),
+                        modifier = Modifier.size(48.dp)
+                    )
+                    Text(
+                        text = error,
+                        color = Color.White,
+                        fontSize = 14.sp,
+                        textAlign = TextAlign.Center
+                    )
+                } else if (uploadedUrl != null) {
+                    Text(
+                        text = "Scannez le QR Code ci-dessous avec votre smartphone pour accéder à vos logs de diagnostic ou copiez l'adresse :",
+                        color = Color.LightGray,
+                        fontSize = 14.sp,
+                        textAlign = TextAlign.Center
+                    )
+                    
+                    Text(
+                        text = uploadedUrl,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.background(Color.Black.copy(alpha = 0.3f)).padding(8.dp)
+                    )
+
+                    val qrCodeUrl = "https://chart.googleapis.com/chart?chs=250x250&cht=qr&chl=$uploadedUrl"
+                    AsyncImage(
+                        model = qrCodeUrl,
+                        contentDescription = "QR Code pour flasher les logs",
+                        modifier = Modifier
+                            .size(200.dp)
+                            .background(Color.White)
+                            .padding(8.dp)
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            if (!isUploading) {
+                Button(
+                    onClick = onDismiss,
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                ) {
+                    Text("Fermer", color = Color.White)
+                }
+            }
+        },
+        containerColor = Color(0xFF1E1E24),
+        shape = RoundedCornerShape(12.dp)
+    )
 }

@@ -8,6 +8,7 @@ import coil.disk.DiskCache
 import coil.memory.MemoryCache
 import com.cstv.app.data.local.storage.SettingsManager
 import com.cstv.app.data.local.storage.SyncFrequency
+import com.cstv.app.data.util.DiagnosticManager
 import com.cstv.app.data.worker.DatabaseSyncWorker
 import com.cstv.app.data.worker.SyncScheduling
 import dagger.hilt.android.HiltAndroidApp
@@ -21,6 +22,9 @@ class IptvApplication : Application(), ImageLoaderFactory {
     @Inject
     lateinit var settingsManager: SettingsManager
 
+    @Inject
+    lateinit var diagnosticManager: DiagnosticManager
+
     /**
      * Injecté ici uniquement pour forcer la création du singleton au démarrage :
      * c'est sa construction qui arme la veille de reconnexion (déclencheur
@@ -31,6 +35,10 @@ class IptvApplication : Application(), ImageLoaderFactory {
 
     override fun onCreate() {
         super.onCreate()
+        diagnosticManager.initialize()
+        if (settingsManager.getDebugModeEnabled()) {
+            diagnosticManager.startLogging()
+        }
         scheduleDefaultBackgroundSync()
     }
 

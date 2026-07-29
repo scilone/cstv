@@ -40,6 +40,7 @@ class SettingsManager @Inject constructor(context: Context) {
         private const val KEY_VOD_ALL_SYNCED_AT = "vod_all_streams_synced_at"
         private const val KEY_SERIES_ALL_SYNCED_AT = "series_all_streams_synced_at"
         private const val KEY_RESIZE_MODE = "player_resize_mode"
+        private const val KEY_DEBUG_MODE_ENABLED = "debug_mode_enabled"
     }
 
     // --- Horodatages hérités d'avant T4 (obsolètes) ---
@@ -127,6 +128,14 @@ class SettingsManager @Inject constructor(context: Context) {
 
     fun setResizeMode(mode: ResizeMode) {
         sharedPreferences.edit().putString(KEY_RESIZE_MODE, mode.name).apply()
+    }
+
+    fun getDebugModeEnabled(): Boolean {
+        return sharedPreferences.getBoolean(KEY_DEBUG_MODE_ENABLED, false)
+    }
+
+    fun setDebugModeEnabled(enabled: Boolean) {
+        sharedPreferences.edit().putBoolean(KEY_DEBUG_MODE_ENABLED, enabled).apply()
     }
 
     private inline fun <reified T : Enum<T>> enumOrDefault(name: String?, default: T): T {
