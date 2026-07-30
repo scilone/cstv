@@ -14,6 +14,21 @@ if (localPropertiesFile.exists()) {
 }
 val tmdbApiKey = System.getenv("TMDB_API_KEY") ?: localProperties.getProperty("TMDB_API_KEY") ?: ""
 
+// Signature de release. La release se fabrique sur le poste de développement
+// (voir scripts/release-local.sh) : les paramètres sont lus dans
+// `keystore.properties`, jamais versionné, à la racine du dépôt. Les variables
+// d'environnement gardent la priorité pour qu'une machine de build automatisée
+// reste possible sans toucher au fichier.
+val keystoreProperties = Properties()
+val keystorePropertiesFile = rootProject.file("keystore.properties")
+if (keystorePropertiesFile.exists()) {
+    keystorePropertiesFile.inputStream().use { keystoreProperties.load(it) }
+}
+
+/** Valeur de signature : environnement, puis `keystore.properties`, puis [fallback]. */
+fun signingSetting(envName: String, propertyName: String, fallback: String = ""): String =
+    System.getenv(envName) ?: keystoreProperties.getProperty(propertyName) ?: fallback
+
 android {
     namespace = "com.cstv.app"
     compileSdk = 35
@@ -25,8 +40,8 @@ android {
         // Phase 39 : synchronisés avec le dernier tag git poussé (voir AGENTS.md,
         // section "Checklist avant de conclure une tâche"). versionCode dérivé du
         // SemVer : major*10_000 + minor*100 + patch (marge de 0-99 par segment).
-        versionCode = 16_412
-        versionName = "1.64.12"
+        versionCode = 16_413
+        versionName = "1.64.13"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -38,11 +53,12 @@ android {
 
     signingConfigs {
         create("release") {
-            val keystoreFile = System.getenv("KEYSTORE_FILE") ?: "release-keystore.jks"
-            storeFile = file(keystoreFile)
-            storePassword = System.getenv("KEYSTORE_PASSWORD") ?: ""
-            keyAlias = System.getenv("KEY_ALIAS") ?: ""
-            keyPassword = System.getenv("KEY_PASSWORD") ?: ""
+            // Chemin relatif au module `app`, d'où le `../` pour un keystore
+            // rangé à la racine du dépôt.
+            storeFile = file(signingSetting("KEYSTORE_FILE", "storeFile", "release-keystore.jks"))
+            storePassword = signingSetting("KEYSTORE_PASSWORD", "storePassword")
+            keyAlias = signingSetting("KEY_ALIAS", "keyAlias")
+            keyPassword = signingSetting("KEY_PASSWORD", "keyPassword")
         }
     }
 

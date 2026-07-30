@@ -159,41 +159,48 @@ Toute fonctionnalité réseau doit gérer explicitement : identifiants invalides
 3. Vérifie pas dépassé périmètre phase demandée.
 4. Signale ta réponse tout point cahier charges resté ambigu ou non traité.
 5. Pour les évolutions fonctionnelles, techniques ou correctifs de bugs, respecte scrupuleusement le workflow d'archivage systématique vers les dossiers `archive/` correspondants sous `ai/` dès la tâche livrée et validée.
-6. Effectue systématiquement commit Git, crée tag Git associé (ex: v1.x.y respectant SemVer), pousse (y compris tags avec `git push origin --tags` ou ciblé) vers dépôt distant après chaque fonctionnalité/phase terminée.
+6. Effectue systématiquement commit Git, puis livre la version avec `scripts/release-local.sh` (voir ci-dessous) : c'est lui qui pose le tag SemVer et pousse. Ne tague jamais à la main.
 
 ## Processus de Release et Tagging SemVer
 
-Pour livrer nouvelle version app, générer APK production signé automatiquement :
-1. Assure-toi tous tests passent (`./gradlew testDebugUnitTest`).
-2. Crée et pousse tag Git respectant SemVer (ex: `v1.0.0`) :
+La release se fabrique **sur le poste de développement**, plus en CI : depuis
+v1.64.13, il n'y a plus de workflow GitHub Actions (dépôt privé, quota de
+minutes, et 190 lignes de YAML dont la moitié n'existait que pour contourner
+les contraintes de cache du runner). L'historique git garde l'ancien
+`.github/workflows/release.yml` si besoin.
+
+Pour livrer une nouvelle version :
+
+1. Synchronise `versionCode`/`versionName` dans `app/build.gradle.kts` :
+   `versionName` = le tag sans le `v` (ex: `1.15.2`), `versionCode` =
+   `major*10_000 + minor*100 + patch` (ex: v1.15.2 → 11502). Vérifie toujours
+   `git tag --sort=-v:refname | head -1` pour choisir le numéro suivant (patch
+   pour un correctif, minor pour une phase/fonctionnalité) : ne te fie jamais à
+   un numéro écrit dans la documentation, il périme vite.
+2. Committe.
+3. Lance :
    ```bash
-   git tag -a v1.0.0 -m "Release v1.0.0 - Fin de la Phase X"
-   git push origin v1.0.0
+   scripts/release-local.sh              # vérifie, compile, tague, pousse, publie
+   scripts/release-local.sh --no-publish # s'arrête après l'APK, sans rien pousser
    ```
-   Avant de tagger, synchronise `versionCode`/`versionName` dans
-   `app/build.gradle.kts` (Phase 39) : `versionName` = le tag sans le
-   `v` (ex: `1.15.2`), `versionCode` = `major*10_000 + minor*100 + patch`
-   (ex: v1.15.2 → 11502).
-3. La pipeline **GitHub Actions** (`.github/workflows/release.yml`) interceptera automatiquement ce tag pour :
-   - Compiler l'APK de release.
-   - Le signer à l'aide des clés sécurisées de production fournies dans les secrets GitHub.
-   - Créer une Release GitHub officielle.
-   - Attacher l'APK de release signé à la Release.
 
-Ne te fie jamais à un numéro de version écrit dans la documentation (il périme vite) : vérifie toujours `git tag --sort=-v:refname | head -1` avant de choisir le prochain numéro (patch pour un fix/correction, minor pour une nouvelle phase/fonctionnalité), et synchronise `versionCode`/`versionName` dans `app/build.gradle.kts` avant de tagger.
+Le script refuse de continuer si l'arbre de travail est sale, si la branche
+n'est pas `main`, si `versionCode` et `versionName` divergent, ou si le tag
+existe déjà (localement ou sur `origin`) — le tag n'est posé qu'après une
+compilation réussie. Il enchaîne `testDebugUnitTest`, `lintDebug`,
+`:app:assembleRelease`, vérifie que l'APK est bien signé, pousse `main` et le
+tag, puis crée la Release GitHub avec notes générées et APK attaché
+(via `gh`, qui doit être authentifié).
 
-### Ordre de push et durée du build
+### Signature
 
-Le cache Gradle n'est inscriptible que depuis `main` (GitHub isole les caches créés sur un ref `refs/tags/*`). Le run de `main` sert donc à amorcer le cache que le run du tag réutilise. Les deux ordres de push fonctionnent, avec des durées différentes :
+Les paramètres de signature vivent dans `keystore.properties` à la racine,
+jamais versionné — voir `keystore.properties.example`. Les variables
+d'environnement (`KEYSTORE_FILE`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`,
+`KEY_PASSWORD`) gardent la priorité, pour qu'une machine de build automatisée
+reste possible sans toucher au fichier.
 
-```bash
-# Rapide (~1 min de build) : laisser le run de main finir avant de tagger.
-git push origin main
-gh run watch "$(gh run list --branch main --limit 1 --json databaseId -q '.[0].databaseId')"
-git push origin v1.60.9
-
-# Simple (~7 min de build) : tout pousser d'un coup.
-git push origin main v1.60.9
-```
-
-Dans le second cas, le tag compile sans build cache à jour (le code vient de changer) : seules les dépendances Maven sont récupérées du cache. Le run de `main` détecte alors qu'un tag de release pointe sur le même commit et s'efface, pour ne pas compiler deux fois en parallèle (voir « Determine Build Mode » dans `release.yml`).
+**Le keystore est irremplaçable.** Perdu, plus aucune mise à jour ne s'installe
+par-dessus l'APK existant : il faut désinstaller puis réinstaller sur chaque
+appareil. Garde une sauvegarde de `app-release.jks` hors de cette machine (le
+secret GitHub `KEYSTORE_BASE64` en tient lieu tant qu'il n'est pas supprimé).

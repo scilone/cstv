@@ -24,3 +24,5 @@ Thumbs.db
 *.jks
 *.keystore
 *.pepk
+# Mots de passe de signature — voir keystore.properties.example
+keystore.properties
