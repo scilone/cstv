@@ -607,7 +607,7 @@ Avant livraison :
    ```bash
    ./scripts/release-local.sh
    ```
-   *Note : Le script compile l'APK, vérifie sa signature, pose le tag localement, effectue les pushs et crée la Release GitHub avec l'APK attaché.*
+   *Note : Le script compile l'APK, vérifie sa signature, met à jour automatiquement l'APK à la racine (releases/app-release.apk), amende votre dernier commit pour y inclure cet APK de façon transparente, pose le tag localement, effectue les pushs et crée la Release GitHub avec l'APK attaché.*
 4. Mettre à jour le statut dans la fiche de l'élément à `RELEASED`, avec la version, le nom du commit/tag, et la date du jour.
 5. Archiver la fiche de l'élément en la déplaçant vers son sous-dossier `archive/`.
 

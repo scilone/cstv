@@ -108,9 +108,19 @@ fi
 
 echo "APK prêt : $APK_PATH ($(du -h "$APK_PATH" | cut -f1))"
 
+# Mise à jour de l'APK officiel à la racine dans le dossier releases/
+mkdir -p releases
+cp "$APK_PATH" releases/app-release.apk
+echo "Copie effectuée vers releases/app-release.apk"
+
+# On amende le dernier commit pour y inclure l'APK à jour (requis pour que l'arbre reste propre)
+git add releases/app-release.apk
+git commit --amend --no-edit
+echo "Dernier commit amendé avec releases/app-release.apk"
+
 if ! $publish; then
     echo
-    echo "✅ --no-publish : ni tag ni release. L'APK est dans $APK_PATH."
+    echo "✅ --no-publish : ni tag ni release. L'APK est dans $APK_PATH et copié dans releases/app-release.apk."
     exit 0
 fi
 
