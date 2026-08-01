@@ -50,6 +50,18 @@ class PopularRepositoryImpl @Inject constructor(
     ): List<PopularCatalogItem>? =
         getCached(SERIES_DATA_KEY, SERIES_TIME_KEY, lastSeriesCatalogSyncTime, ignoreSessionRefresh)
 
+    override suspend fun getCachedMatchedMoviesIgnoringAge(lastVodCatalogSyncTime: Long): List<PopularCatalogItem>? =
+        getCached(MOVIES_DATA_KEY, MOVIES_TIME_KEY, lastVodCatalogSyncTime, ignoreSessionRefresh = true, ignoreAge = true)
+
+    override suspend fun getCachedMatchedSeriesIgnoringAge(lastSeriesCatalogSyncTime: Long): List<PopularCatalogItem>? =
+        getCached(SERIES_DATA_KEY, SERIES_TIME_KEY, lastSeriesCatalogSyncTime, ignoreSessionRefresh = true, ignoreAge = true)
+
+    override suspend fun isMoviesCacheExpired(lastVodCatalogSyncTime: Long): Boolean =
+        isCacheExpired(MOVIES_TIME_KEY, lastVodCatalogSyncTime)
+
+    override suspend fun isSeriesCacheExpired(lastSeriesCatalogSyncTime: Long): Boolean =
+        isCacheExpired(SERIES_TIME_KEY, lastSeriesCatalogSyncTime)
+
     override suspend fun saveMatchedMovies(items: List<PopularCatalogItem>) {
         save(MOVIES_DATA_KEY, MOVIES_TIME_KEY, items)
     }
@@ -101,16 +113,20 @@ class PopularRepositoryImpl @Inject constructor(
         dataKey: String,
         timeKey: String,
         lastCatalogSyncTime: Long,
-        ignoreSessionRefresh: Boolean
+        ignoreSessionRefresh: Boolean,
+        ignoreAge: Boolean = false
     ): List<PopularCatalogItem>? = mutex.withLock {
         if (!ignoreSessionRefresh && sessionRefreshGate.consumeFirstAccess(dataKey)) {
             IptvLog.d("TMDB", "💾 Cache Popular ($dataKey) ignoré au lancement : rafraîchissement forcé.")
             return null
         }
         val savedAt = sharedPrefs.getLong(timeKey, 0L)
-        if (savedAt == 0L || System.currentTimeMillis() - savedAt >= CACHE_DURATION_MS || savedAt < lastCatalogSyncTime) {
-            return null
-        }
+        // savedAt < lastCatalogSyncTime reste vérifié même en ignorant l'âge :
+        // un appariement plus vieux que le catalogue actuel référence des
+        // streamId potentiellement disparus/réattribués, pas une simple
+        // question de fraîcheur (T8 ne s'applique qu'à l'ancienneté nominale).
+        if (savedAt == 0L || savedAt < lastCatalogSyncTime) return null
+        if (!ignoreAge && System.currentTimeMillis() - savedAt >= CACHE_DURATION_MS) return null
         val json = sharedPrefs.getString(dataKey, null) ?: return null
         return try {
             gson.fromJson<List<PopularCatalogItem>>(
@@ -121,6 +137,17 @@ class PopularRepositoryImpl @Inject constructor(
             IptvLog.e("TMDB", "Cache Popular TMDB illisible", e)
             null
         }
+    }
+
+    /**
+     * T8-R1 : même définition de fraîcheur que [getCached] (âge nominal +
+     * cohérence avec le catalogue courant), mais sans lire/désérialiser le
+     * contenu — seule la décision de rafraîchir en dépend.
+     */
+    private fun isCacheExpired(timeKey: String, lastCatalogSyncTime: Long): Boolean {
+        val savedAt = sharedPrefs.getLong(timeKey, 0L)
+        if (savedAt == 0L || savedAt < lastCatalogSyncTime) return true
+        return System.currentTimeMillis() - savedAt >= CACHE_DURATION_MS
     }
 
     private suspend fun save(dataKey: String, timeKey: String, items: List<PopularCatalogItem>) {

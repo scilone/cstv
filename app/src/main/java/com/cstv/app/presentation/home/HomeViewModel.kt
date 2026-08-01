@@ -20,6 +20,7 @@ import com.cstv.app.domain.repository.VodRepository
 import com.cstv.app.data.local.storage.ProfileManager
 import com.cstv.app.domain.usecase.GetLiveCategoriesUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.onStart
@@ -119,6 +120,17 @@ class HomeViewModel @Inject constructor(
     private var recommendationsJob: Job? = null
     private var hasActiveProfile = false
     private var firstTrendingResolved = false
+
+    /**
+     * T8-R2 : une rangée Popular figée (cache affiché ou premier résultat
+     * réseau appliqué) ne doit plus être relue par un `loadHomeData()`
+     * ultérieur dans la même session (ex : changement de préférences de
+     * catégories) — seule une absence encore non résolue continue d'être
+     * retentée. Réinitialisées uniquement sur un reset complet (changement de
+     * profil), pas sur un simple rechargement.
+     */
+    private var popularVodResolvedForSession = false
+    private var popularSeriesResolvedForSession = false
 
     /**
      * Point de passage unique avant toute lecture lancée depuis l'Accueil
@@ -412,6 +424,8 @@ class HomeViewModel @Inject constructor(
         catalogJob?.cancel()
         recommendationsJob?.cancel()
         if (resetVisibleContent) {
+            popularVodResolvedForSession = false
+            popularSeriesResolvedForSession = false
             _state.update {
                 it.copy(
                     isLoading = true,
@@ -426,30 +440,47 @@ class HomeViewModel @Inject constructor(
                     recommendedSeries = emptyList(),
                     trendingList = emptyList(),
                     epgPrograms = emptyMap(),
+                    popularTopVodStreams = null,
+                    popularTopSeriesStreams = null,
                     trailerPreview = TrailerPreviewUiState.Poster
                 )
             }
             cancelTrendingPreview()
         }
-        _state.update { it.copy(popularTopVodStreams = null, popularTopSeriesStreams = null) }
 
-        // F9 : Popular est isolé du chargement local afin que le fallback soit
-        // immédiatement disponible et que TMDB ne puisse jamais bloquer Home.
+        // F9 / T8 : Popular est isolé du chargement local afin que le fallback
+        // soit immédiatement disponible et que TMDB ne puisse jamais bloquer
+        // Home. Films et Séries sont traités indépendamment (règle 7) : le
+        // cache de l'un n'attend ni ne bloque le premier chargement de l'autre.
+        // T8-R2 : une rangée déjà figée pour la session n'est pas relue ici,
+        // sinon un rechargement (ex : préférences de catégories) republierait
+        // une actualisation silencieuse déjà persistée et casserait la
+        // stabilité de session promise par T8.
         popularJob = viewModelScope.launch {
-            val result = try {
-                kotlinx.coroutines.withTimeoutOrNull(15_000L) {
-                    getPopularTop10InCatalogUseCase()
+            if (!popularVodResolvedForSession) {
+                launch {
+                    loadPopularRow(
+                        cached = getPopularTop10InCatalogUseCase::cachedMovies,
+                        isCacheExpired = getPopularTop10InCatalogUseCase::isMoviesCacheExpired,
+                        loadFresh = getPopularTop10InCatalogUseCase::loadFreshMovies,
+                        refreshSilently = getPopularTop10InCatalogUseCase::refreshMoviesSilently
+                    ) { movies ->
+                        popularVodResolvedForSession = true
+                        _state.update { it.copy(popularTopVodStreams = movies) }
+                    }
                 }
-            } catch (e: Exception) {
-                if (e is kotlinx.coroutines.CancellationException) throw e
-                null
             }
-            if (result != null) {
-                _state.update {
-                    it.copy(
-                        popularTopVodStreams = result.movies,
-                        popularTopSeriesStreams = result.series
-                    )
+            if (!popularSeriesResolvedForSession) {
+                launch {
+                    loadPopularRow(
+                        cached = getPopularTop10InCatalogUseCase::cachedSeries,
+                        isCacheExpired = getPopularTop10InCatalogUseCase::isSeriesCacheExpired,
+                        loadFresh = getPopularTop10InCatalogUseCase::loadFreshSeries,
+                        refreshSilently = getPopularTop10InCatalogUseCase::refreshSeriesSilently
+                    ) { series ->
+                        popularSeriesResolvedForSession = true
+                        _state.update { it.copy(popularTopSeriesStreams = series) }
+                    }
                 }
             }
         }
@@ -622,6 +653,58 @@ class HomeViewModel @Inject constructor(
                 }
             }
         }
+    }
+
+    /**
+     * T8 : si un cache existe (quel que soit son âge), il est affiché
+     * immédiatement et figé pour toute la session — l'actualisation réseau
+     * qui suit persiste silencieusement sans jamais republier dans
+     * [applyToState] (règles 1, 4, 6). Sans cache, le premier résultat réseau
+     * est affiché dès réception pour éviter une ligne vide (règle 5).
+     *
+     * T8-R1 : l'actualisation silencieuse n'est lancée que si [isCacheExpired]
+     * le confirme — un cache encore frais ne doit générer ni appel TMDB ni
+     * écriture persistante.
+     *
+     * T8-R3 : `refreshSilently` est lancé via le receveur [CoroutineScope] de
+     * cette fonction (enfant du `launch` appelant, lui-même enfant de
+     * `popularJob`), pas via `viewModelScope` — un `popularJob?.cancel()`
+     * l'annule donc avec le reste au lieu de le laisser tourner en concurrence
+     * d'un rechargement suivant.
+     */
+    private suspend fun <T> CoroutineScope.loadPopularRow(
+        cached: suspend () -> List<T>?,
+        isCacheExpired: suspend () -> Boolean,
+        loadFresh: suspend () -> List<T>?,
+        refreshSilently: suspend () -> Unit,
+        applyToState: (List<T>) -> Unit
+    ) {
+        val cachedResult = try {
+            kotlinx.coroutines.withTimeoutOrNull(15_000L) { cached() }
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            null
+        }
+        if (cachedResult != null) {
+            applyToState(cachedResult)
+            val expired = try {
+                isCacheExpired()
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                false
+            }
+            if (expired) {
+                launch { runCatching { refreshSilently() } }
+            }
+            return
+        }
+        val fresh = try {
+            kotlinx.coroutines.withTimeoutOrNull(15_000L) { loadFresh() }
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            null
+        }
+        if (fresh != null) applyToState(fresh)
     }
 
     private fun refreshRecommendations() {

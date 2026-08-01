@@ -113,6 +113,7 @@ class SeriesViewModel @Inject constructor(
     init {
         observeCategories()
         observeCatalogStatus()
+        triggerSilentSyncIfStale()
         // Observe et filtre les positions de lecture en temps réel (F5)
         viewModelScope.launch {
             kotlinx.coroutines.flow.combine(
@@ -224,6 +225,18 @@ class SeriesViewModel @Inject constructor(
             observeCatalogStatusUseCase().collect { status ->
                 _state.update { it.copy(catalogStatus = status) }
             }
+        }
+    }
+
+    /**
+     * T7 (D3) : entrer sur l'onglet Séries déclenche silencieusement une
+     * synchronisation si le catalogue est périmé — pas d'erreur, pas de
+     * bannière, pas d'action manuelle. `syncIfStale()` est déjà un no-op si le
+     * catalogue est frais, hors ligne, ou une synchronisation est en cours.
+     */
+    private fun triggerSilentSyncIfStale() {
+        viewModelScope.launch {
+            runCatching { catalogSyncManager.syncIfStale() }
         }
     }
 

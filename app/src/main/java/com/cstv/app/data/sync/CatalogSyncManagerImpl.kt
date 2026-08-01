@@ -5,11 +5,14 @@ import com.cstv.app.data.local.dao.CatalogSyncStateDao
 import com.cstv.app.data.local.entity.CatalogSection
 import com.cstv.app.data.local.storage.CredentialsManager
 import com.cstv.app.data.remote.api.RequestPriority
+import com.cstv.app.di.IptvLog
 import com.cstv.app.domain.model.AccountExpiredException
+import com.cstv.app.domain.model.CategoryType
 import com.cstv.app.domain.model.InvalidCredentialsException
 import com.cstv.app.domain.model.NetworkTimeoutException
 import com.cstv.app.domain.model.ServerUnreachableException
 import com.cstv.app.domain.network.NetworkMonitor
+import com.cstv.app.domain.repository.CategoryPreferenceRepository
 import com.cstv.app.domain.repository.LiveTvRepository
 import com.cstv.app.domain.repository.SeriesRepository
 import com.cstv.app.domain.repository.VodRepository
@@ -53,7 +56,8 @@ class CatalogSyncManagerImpl @Inject constructor(
     private val settingsManager: com.cstv.app.data.local.storage.SettingsManager,
     private val networkMonitor: NetworkMonitor,
     private val syncStateInitializer: CatalogSyncStateInitializer,
-    private val clearCatalogCacheUseCase: ClearCatalogCacheUseCase
+    private val clearCatalogCacheUseCase: ClearCatalogCacheUseCase,
+    private val categoryPreferenceRepository: CategoryPreferenceRepository
 ) : CatalogSyncManager {
 
     /**
@@ -100,10 +104,13 @@ class CatalogSyncManagerImpl @Inject constructor(
             CatalogStatus(
                 isComplete = isComplete,
                 lastFullSyncAt = lastFullSyncAt,
-                isStale = CacheTtl.isExpired(lastFullSyncAt, CacheTtl.CATALOG_MILLIS, System.currentTimeMillis()),
+                isStale = isCatalogStale(lastFullSyncAt, System.currentTimeMillis()),
                 // La connectivité seule est optimiste : un transport actif ne
                 // garantit pas que le panel réponde.
                 isOffline = !isOnline || lastFailureKind == SyncFailureKind.NETWORK,
+                // T7-R1 : connectivité réelle, sans l'historique d'échec ci-dessus —
+                // c'est ce champ qui doit décider de la visibilité d'OfflineBanner.
+                isNetworkOnline = isOnline,
                 isSyncing = currentSync is SyncState.Running,
                 lastFailureKind = lastFailureKind
             )
@@ -143,11 +150,26 @@ class CatalogSyncManagerImpl @Inject constructor(
         val states = syncStateDao.getAll().associateBy { it.section }
         val now = System.currentTimeMillis()
         val stale = CatalogSection.CATALOG_SECTIONS.any { section ->
-            CacheTtl.isExpired(states[section]?.lastSuccessAt ?: 0L, CacheTtl.CATALOG_MILLIS, now)
+            isCatalogStale(states[section]?.lastSuccessAt ?: 0L, now)
         }
         if (!stale) return SyncOutcome.Skipped
 
         return syncNow(SyncTrigger.STARTUP)
+    }
+
+    /**
+     * Fraîcheur du catalogue (T7, D1) : le TTL dépend de la fréquence choisie
+     * par l'utilisateur (`SettingsManager`), jamais d'une valeur fixe. Une
+     * fréquence `DISABLED` n'autorise pas de synchronisation fondée sur l'âge
+     * du cache (règle métier 1), mais l'absence totale de catalogue reste un
+     * besoin de synchronisation quelle que soit la fréquence (règle métier 3).
+     * Partagée par [catalogStatus] et [syncIfStale] pour qu'ils ne divergent
+     * jamais (règle métier 2).
+     */
+    private fun isCatalogStale(lastSuccessAt: Long, now: Long): Boolean {
+        if (lastSuccessAt <= 0L) return true
+        val ttlMillis = CacheTtl.catalogMillisFor(settingsManager.getSyncFrequency()) ?: return false
+        return CacheTtl.isExpired(lastSuccessAt, ttlMillis, now)
     }
 
     override suspend fun syncNow(trigger: SyncTrigger): SyncOutcome {
@@ -174,11 +196,23 @@ class CatalogSyncManagerImpl @Inject constructor(
         // Catégories avant flux pour chaque type : une catégorie manquante rend
         // ses flux invisibles. Live → VOD → Séries, enrichissement en dernier.
         val sections: List<Pair<String, suspend () -> Int>> = listOf(
-            CatalogSection.LIVE_CATEGORIES to { liveTvRepository.syncLiveCategories().size },
+            CatalogSection.LIVE_CATEGORIES to {
+                val categories = liveTvRepository.syncLiveCategories()
+                logOrphanedHiddenCategories(CategoryType.LIVE, categories.map { it.categoryId })
+                categories.size
+            },
             CatalogSection.LIVE_STREAMS to { liveTvRepository.syncLiveStreams().size },
-            CatalogSection.VOD_CATEGORIES to { vodRepository.syncVodCategories().size },
+            CatalogSection.VOD_CATEGORIES to {
+                val categories = vodRepository.syncVodCategories()
+                logOrphanedHiddenCategories(CategoryType.VOD, categories.map { it.categoryId })
+                categories.size
+            },
             CatalogSection.VOD_STREAMS to { vodRepository.syncVodStreams().size },
-            CatalogSection.SERIES_CATEGORIES to { seriesRepository.syncSeriesCategories().size },
+            CatalogSection.SERIES_CATEGORIES to {
+                val categories = seriesRepository.syncSeriesCategories()
+                logOrphanedHiddenCategories(CategoryType.SERIES, categories.map { it.categoryId })
+                categories.size
+            },
             CatalogSection.SERIES_STREAMS to { seriesRepository.syncSeriesStreams().size }
         )
 
@@ -246,6 +280,30 @@ class CatalogSyncManagerImpl @Inject constructor(
         } catch (e: Exception) {
             SectionSyncOutcome.Failure(classify(e), e)
         }
+
+    /**
+     * Diagnostic pour une régression déjà observée : des catégories masquées
+     * réapparaissent après une synchronisation. Le masquage est stocké sur le
+     * `categoryId` renvoyé par le panel (jamais recalculé côté app) ; si ce
+     * même `categoryId` est absent du catalogue fraîchement synchronisé, sa
+     * préférence devient orpheline et la catégorie reste visible sans qu'aucun
+     * code local ne soit en cause. Purement informatif, ne modifie rien.
+     */
+    private suspend fun logOrphanedHiddenCategories(type: CategoryType, currentCategoryIds: List<String>) {
+        runCatching {
+            val hiddenIds = categoryPreferenceRepository.getPreferences(type)
+                .filterValues { it.hidden }
+                .keys
+            val orphaned = hiddenIds - currentCategoryIds.toSet()
+            if (orphaned.isNotEmpty()) {
+                IptvLog.w(
+                    "CATSYNC",
+                    "Catégories masquées absentes après sync ${type.value} : $orphaned " +
+                        "(préférence orpheline, categoryId probablement réattribué côté panel)"
+                )
+            }
+        }
+    }
 
     private fun classify(e: Throwable): SyncFailureKind = when (e) {
         is InvalidCredentialsException, is AccountExpiredException -> SyncFailureKind.AUTH

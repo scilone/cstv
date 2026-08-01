@@ -1,5 +1,6 @@
 package com.cstv.app.domain.usecase
 
+import com.cstv.app.domain.model.PopularCatalogItem
 import com.cstv.app.domain.model.SeriesStream
 import com.cstv.app.domain.model.TrendingTitle
 import com.cstv.app.domain.model.VodStream
@@ -7,74 +8,38 @@ import com.cstv.app.domain.repository.CategoryPreferenceRepository
 import com.cstv.app.domain.repository.PopularRepository
 import com.cstv.app.domain.repository.SeriesRepository
 import com.cstv.app.domain.repository.VodRepository
-import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.async
 import kotlinx.coroutines.test.runTest
-import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 import org.mockito.kotlin.any
-import org.mockito.kotlin.eq
 import org.mockito.kotlin.mock
+import org.mockito.kotlin.never
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 
 class GetPopularTop10InCatalogUseCaseTest {
-    @Test
-    fun loadsMovieAndSeriesBranchesConcurrently() = runTest {
-        val movieGate = CompletableDeferred<Unit>()
-        val seriesStarted = CompletableDeferred<Unit>()
-        val popularRepository = object : PopularRepository {
-            override suspend fun getPopularMovies(): List<TrendingTitle> {
-                movieGate.await()
-                return emptyList()
-            }
 
-            override suspend fun getPopularSeries(): List<TrendingTitle> {
-                seriesStarted.complete(Unit)
-                return emptyList()
-            }
-
-            override suspend fun getCachedMatchedMovies(
-                lastVodCatalogSyncTime: Long,
-                ignoreSessionRefresh: Boolean
-            ) = null
-
-            override suspend fun getCachedMatchedSeries(
-                lastSeriesCatalogSyncTime: Long,
-                ignoreSessionRefresh: Boolean
-            ) = null
-
-            override suspend fun saveMatchedMovies(items: List<com.cstv.app.domain.model.PopularCatalogItem>) = Unit
-            override suspend fun saveMatchedSeries(items: List<com.cstv.app.domain.model.PopularCatalogItem>) = Unit
-        }
+    private suspend fun useCase(
+        popularRepository: PopularRepository,
+        vodRepository: VodRepository = mock(),
+        seriesRepository: SeriesRepository = mock(),
+        preferences: CategoryPreferenceRepository = mock()
+    ): GetPopularTop10InCatalogUseCase {
         val catalogFreshness = mock<com.cstv.app.data.sync.CatalogFreshness>()
         whenever(catalogFreshness.vodSyncedAt()).thenReturn(0L)
         whenever(catalogFreshness.seriesSyncedAt()).thenReturn(0L)
-        val useCase = GetPopularTop10InCatalogUseCase(
-            popularRepository,
-            mock<VodRepository>(),
-            mock<SeriesRepository>(),
-            mock<CategoryPreferenceRepository>(),
-            catalogFreshness
-        )
-
-        val result = async { useCase() }
-        withTimeout(1_000L) { seriesStarted.await() }
-        movieGate.complete(Unit)
-        result.await()
+        return GetPopularTop10InCatalogUseCase(popularRepository, vodRepository, seriesRepository, preferences, catalogFreshness)
     }
 
+    // --- loadFreshMovies / loadFreshSeries : chargement "à froid" (T8 règle 5) ---
+
     @Test
-    fun usesTmdbOrderAndLetsMovieFailureKeepSeriesResult() = runTest {
+    fun loadFreshSeriesUsesTmdbOrder_movieFailureDoesNotAffectSeries() = runTest {
         val popularRepository = mock<PopularRepository>()
         val vodRepository = mock<VodRepository>()
         val seriesRepository = mock<SeriesRepository>()
         val preferences = mock<CategoryPreferenceRepository>()
-        val catalogFreshness = mock<com.cstv.app.data.sync.CatalogFreshness>()
-        whenever(catalogFreshness.vodSyncedAt()).thenReturn(0L)
-        whenever(catalogFreshness.seriesSyncedAt()).thenReturn(0L)
         whenever(popularRepository.getCachedMatchedMovies(0L)).thenReturn(null)
         whenever(popularRepository.getCachedMatchedSeries(0L)).thenReturn(null)
         whenever(popularRepository.getPopularMovies()).thenReturn(emptyList())
@@ -90,25 +55,19 @@ class GetPopularTop10InCatalogUseCaseTest {
         whenever(seriesRepository.getStreamById(2)).thenReturn(second)
         whenever(seriesRepository.getStreamById(1)).thenReturn(first)
         whenever(preferences.getPreferences(any())).thenReturn(emptyMap())
+        val target = useCase(popularRepository, vodRepository, seriesRepository, preferences)
 
-        val result = GetPopularTop10InCatalogUseCase(
-            popularRepository, vodRepository, seriesRepository, preferences, catalogFreshness
-        )()
-
-        assertNull(result.movies)
-        assertEquals(listOf("Second", "First"), result.series?.map { it.name })
+        assertNull(target.loadFreshMovies())
+        assertEquals(listOf("Second", "First"), target.loadFreshSeries()?.map { it.name })
         verify(popularRepository).saveMatchedSeries(any())
     }
 
     @Test
-    fun prefersDatedCandidateOverUnenrichedHomonym_forMoviesAndSeries() = runTest {
+    fun loadFreshMoviesAndSeriesPreferDatedCandidateOverUnenrichedHomonym() = runTest {
         val popularRepository = mock<PopularRepository>()
         val vodRepository = mock<VodRepository>()
         val seriesRepository = mock<SeriesRepository>()
         val preferences = mock<CategoryPreferenceRepository>()
-        val catalogFreshness = mock<com.cstv.app.data.sync.CatalogFreshness>()
-        whenever(catalogFreshness.vodSyncedAt()).thenReturn(0L)
-        whenever(catalogFreshness.seriesSyncedAt()).thenReturn(0L)
         whenever(popularRepository.getCachedMatchedMovies(0L)).thenReturn(null)
         whenever(popularRepository.getCachedMatchedSeries(0L)).thenReturn(null)
         whenever(popularRepository.getPopularMovies()).thenReturn(
@@ -130,65 +89,119 @@ class GetPopularTop10InCatalogUseCaseTest {
         whenever(vodRepository.getStreamById(2)).thenReturn(datedMovie)
         whenever(seriesRepository.getStreamById(2)).thenReturn(datedSeries)
         whenever(preferences.getPreferences(any())).thenReturn(emptyMap())
+        val target = useCase(popularRepository, vodRepository, seriesRepository, preferences)
 
-        val result = GetPopularTop10InCatalogUseCase(
-            popularRepository, vodRepository, seriesRepository, preferences, catalogFreshness
-        )()
-
-        assertEquals(listOf(2), result.movies?.map { it.streamId })
-        assertEquals(listOf(2), result.series?.map { it.seriesId })
+        assertEquals(listOf(2), target.loadFreshMovies()?.map { it.streamId })
+        assertEquals(listOf(2), target.loadFreshSeries()?.map { it.seriesId })
     }
 
     @Test
-    fun cachedDeletedOrHiddenMoviesFallBackToLocal() = runTest {
+    fun loadFreshMoviesFallsBackToLocalWhenCachedMatchIsDeletedOrHidden() = runTest {
         val popularRepository = mock<PopularRepository>()
-        val vodRepository = mock<VodRepository>()
-        val seriesRepository = mock<SeriesRepository>()
         val preferences = mock<CategoryPreferenceRepository>()
-        val catalogFreshness = mock<com.cstv.app.data.sync.CatalogFreshness>()
-        whenever(catalogFreshness.vodSyncedAt()).thenReturn(0L)
-        whenever(catalogFreshness.seriesSyncedAt()).thenReturn(0L)
         whenever(popularRepository.getCachedMatchedMovies(0L)).thenReturn(
-            listOf(com.cstv.app.domain.model.PopularCatalogItem(listOf(404)))
+            listOf(PopularCatalogItem(listOf(404)))
         )
-        whenever(popularRepository.getCachedMatchedSeries(0L)).thenReturn(null)
-        whenever(popularRepository.getPopularSeries()).thenReturn(emptyList())
         whenever(preferences.getPreferences(any())).thenReturn(emptyMap())
+        val target = useCase(popularRepository, preferences = preferences)
 
-        val result = GetPopularTop10InCatalogUseCase(
-            popularRepository, vodRepository, seriesRepository, preferences, catalogFreshness
-        )()
-
-        assertNull(result.movies)
+        assertNull(target.loadFreshMovies())
     }
 
     @Test
-    fun fallsBackToPersistentCache_whenTmdbIsUnreachableAtLaunch() = runTest {
+    fun loadFreshMoviesFallsBackToPersistentCacheWhenTmdbIsUnreachableAtLaunch() = runTest {
         val popularRepository = mock<PopularRepository>()
         val vodRepository = mock<VodRepository>()
-        val seriesRepository = mock<SeriesRepository>()
         val preferences = mock<CategoryPreferenceRepository>()
-        val catalogFreshness = mock<com.cstv.app.data.sync.CatalogFreshness>()
-        whenever(catalogFreshness.vodSyncedAt()).thenReturn(0L)
-        whenever(catalogFreshness.seriesSyncedAt()).thenReturn(0L)
         // Rafraîchissement forcé au lancement : le cache est ignoré…
         whenever(popularRepository.getCachedMatchedMovies(0L)).thenReturn(null)
-        whenever(popularRepository.getCachedMatchedSeries(0L)).thenReturn(null)
         // …mais TMDB est injoignable (liste vide).
         whenever(popularRepository.getPopularMovies()).thenReturn(emptyList())
-        whenever(popularRepository.getPopularSeries()).thenReturn(emptyList())
         whenever(popularRepository.getCachedMatchedMovies(0L, ignoreSessionRefresh = true)).thenReturn(
-            listOf(com.cstv.app.domain.model.PopularCatalogItem(listOf(7)))
+            listOf(PopularCatalogItem(listOf(7)))
         )
         val movie = VodStream(7, "Dune", null, null, null, "visible", releaseYear = 2021)
         whenever(vodRepository.getStreamById(7)).thenReturn(movie)
         whenever(preferences.getPreferences(any())).thenReturn(emptyMap())
+        val target = useCase(popularRepository, vodRepository, preferences = preferences)
 
-        val result = GetPopularTop10InCatalogUseCase(
-            popularRepository, vodRepository, seriesRepository, preferences, catalogFreshness
-        )()
+        assertEquals(listOf(7), target.loadFreshMovies()?.map { it.streamId })
+    }
 
-        assertEquals(listOf(7), result.movies?.map { it.streamId })
-        assertNull(result.series)
+    // --- cachedMovies / cachedSeries : lecture pour affichage immédiat (T8 règle 1) ---
+
+    @Test
+    fun cachedMoviesIsReturnedRegardlessOfAgeWithoutTouchingTheNetwork() = runTest {
+        val popularRepository = mock<PopularRepository>()
+        val vodRepository = mock<VodRepository>()
+        val preferences = mock<CategoryPreferenceRepository>()
+        whenever(popularRepository.getCachedMatchedMoviesIgnoringAge(0L)).thenReturn(
+            listOf(PopularCatalogItem(listOf(7)))
+        )
+        val movie = VodStream(7, "Dune", null, null, null, "visible", releaseYear = 2021)
+        whenever(vodRepository.getStreamById(7)).thenReturn(movie)
+        whenever(preferences.getPreferences(any())).thenReturn(emptyMap())
+        val target = useCase(popularRepository, vodRepository, preferences = preferences)
+
+        assertEquals(listOf(7), target.cachedMovies()?.map { it.streamId })
+        verify(popularRepository, never()).getPopularMovies()
+    }
+
+    @Test
+    fun cachedSeriesIsNullWhenNoCacheExists() = runTest {
+        val popularRepository = mock<PopularRepository>()
+        whenever(popularRepository.getCachedMatchedSeriesIgnoringAge(0L)).thenReturn(null)
+        val target = useCase(popularRepository)
+
+        assertNull(target.cachedSeries())
+    }
+
+    // --- refreshMoviesSilently / refreshSeriesSilently : persistance sans affichage (T8 règles 2, 3, 4, 8) ---
+
+    @Test
+    fun refreshMoviesSilentlySavesFreshMatchesWithoutReturningAnything() = runTest {
+        val popularRepository = mock<PopularRepository>()
+        val vodRepository = mock<VodRepository>()
+        whenever(popularRepository.getPopularMovies()).thenReturn(
+            listOf(TrendingTitle(1, "Dune", true, 2021, null))
+        )
+        val dune = VodStream(2, "Dune", null, null, null, "visible", releaseYear = 2021)
+        whenever(vodRepository.getCachedVodStreamsByYears(any())).thenReturn(listOf(dune))
+        val target = useCase(popularRepository, vodRepository)
+
+        target.refreshMoviesSilently()
+
+        verify(popularRepository).saveMatchedMovies(any())
+    }
+
+    @Test
+    fun refreshSeriesSilentlyKeepsExistingCacheWhenTmdbReturnsNothing() = runTest {
+        val popularRepository = mock<PopularRepository>()
+        whenever(popularRepository.getPopularSeries()).thenReturn(emptyList())
+        val target = useCase(popularRepository)
+
+        target.refreshSeriesSilently()
+
+        verify(popularRepository, never()).saveMatchedSeries(any())
+    }
+
+    // --- isMoviesCacheExpired / isSeriesCacheExpired (T8-R1) ---
+
+    @Test
+    fun isMoviesCacheExpiredDelegatesToRepositoryWithTheCurrentCatalogSyncTime() = runTest {
+        val popularRepository = mock<PopularRepository>()
+        whenever(popularRepository.isMoviesCacheExpired(0L)).thenReturn(false)
+        val target = useCase(popularRepository)
+
+        assertEquals(false, target.isMoviesCacheExpired())
+    }
+
+    @Test
+    fun isSeriesCacheExpiredDelegatesToRepositoryWithTheCurrentCatalogSyncTime() = runTest {
+        val popularRepository = mock<PopularRepository>()
+        whenever(popularRepository.isSeriesCacheExpired(0L)).thenReturn(true)
+        val target = useCase(popularRepository)
+
+        assertEquals(true, target.isSeriesCacheExpired())
     }
 }

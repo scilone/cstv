@@ -5,6 +5,7 @@ import com.cstv.app.data.local.entity.CatalogSection
 import com.cstv.app.data.local.entity.CatalogSyncStateEntity
 import com.cstv.app.data.local.storage.CredentialsManager
 import com.cstv.app.data.local.storage.SettingsManager
+import com.cstv.app.data.local.storage.SyncFrequency
 import com.cstv.app.domain.model.Credentials
 import com.cstv.app.domain.model.InvalidCredentialsException
 import com.cstv.app.domain.model.LiveCategory
@@ -14,6 +15,7 @@ import com.cstv.app.domain.model.SeriesStream
 import com.cstv.app.domain.model.VodCategory
 import com.cstv.app.domain.model.VodStream
 import com.cstv.app.domain.network.NetworkMonitor
+import com.cstv.app.domain.repository.CategoryPreferenceRepository
 import com.cstv.app.domain.repository.LiveTvRepository
 import com.cstv.app.domain.repository.SeriesRepository
 import com.cstv.app.domain.repository.VodRepository
@@ -26,6 +28,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -49,11 +52,18 @@ class CatalogSyncManagerImplTest {
     @Mock private lateinit var settingsManager: SettingsManager
     @Mock private lateinit var networkMonitor: NetworkMonitor
     @Mock private lateinit var clearCatalogCacheUseCase: ClearCatalogCacheUseCase
+    @Mock private lateinit var categoryPreferenceRepository: CategoryPreferenceRepository
 
     private lateinit var manager: CatalogSyncManagerImpl
 
     private val credentials = Credentials("panel.example.com", 8080, "user", "secret", true)
     private val accountKey get() = CatalogServerKey.from(credentials)
+
+    // `catalogStatus` appelle `syncStateDao.observeAll()` une seule fois, à la
+    // construction du manager (propriété initialisée dans le corps de classe) :
+    // le stub doit donc exister AVANT l'instanciation, et cette même instance
+    // de flow doit rester mutable pour que les tests changent ce qu'elle émet.
+    private val syncStatesFlow = MutableStateFlow<List<CatalogSyncStateEntity>>(emptyList())
 
     @Before
     fun setUp() {
@@ -61,9 +71,12 @@ class CatalogSyncManagerImplTest {
         whenever(credentialsManager.getCredentials()).thenReturn(credentials)
         whenever(networkMonitor.isOnline).thenReturn(MutableStateFlow(true))
         whenever(networkMonitor.isCurrentlyOnline()).thenReturn(true)
+        whenever(settingsManager.getSyncFrequency()).thenReturn(SyncFrequency.DAILY)
+        whenever(syncStateDao.observeAll()).thenReturn(syncStatesFlow)
         // Sans état en base, l'initialiseur n'a rien à reprendre : c'est le cas
         // nominal d'un catalogue jamais synchronisé.
         syncStateDao.stub { onBlocking { getAll() }.doReturn(emptyList()) }
+        categoryPreferenceRepository.stub { onBlocking { getPreferences(any()) }.doReturn(emptyMap()) }
         // L'initialiseur est une classe finale : on l'instancie réellement avec
         // des doubles, plutôt que d'ajouter mockito-inline (voir AGENTS.md).
         manager = CatalogSyncManagerImpl(
@@ -75,7 +88,8 @@ class CatalogSyncManagerImplTest {
             settingsManager,
             networkMonitor,
             CatalogSyncStateInitializer(syncStateDao, settingsManager, credentialsManager),
-            clearCatalogCacheUseCase
+            clearCatalogCacheUseCase,
+            categoryPreferenceRepository
         )
     }
 
@@ -217,6 +231,137 @@ class CatalogSyncManagerImplTest {
 
         assertEquals(SyncOutcome.Skipped, manager.syncIfStale())
         verifyNoInteractions(liveTvRepository, vodRepository, seriesRepository)
+    }
+
+    // --- T7 D1 : TTL dynamique selon la fréquence de synchronisation ---
+
+    private suspend fun stubCatalogSyncedAgo(ageMillis: Long) {
+        val lastSuccessAt = System.currentTimeMillis() - ageMillis
+        whenever(syncStateDao.getAll()).thenReturn(
+            CatalogSection.CATALOG_SECTIONS.map {
+                CatalogSyncStateEntity(section = it, accountKey = accountKey, lastSuccessAt = lastSuccessAt)
+            }
+        )
+    }
+
+    @Test
+    fun syncIfStaleWithDailyFrequencyTriggersPastOneDay() = runTest {
+        stubAllSectionsSucceeding()
+        whenever(settingsManager.getSyncFrequency()).thenReturn(SyncFrequency.DAILY)
+        stubCatalogSyncedAgo(25 * 60 * 60 * 1000L)
+
+        assertTrue(manager.syncIfStale() is SyncOutcome.Success)
+    }
+
+    @Test
+    fun syncIfStaleWithWeeklyFrequencyStaysFreshBeforeSevenDays() = runTest {
+        whenever(settingsManager.getSyncFrequency()).thenReturn(SyncFrequency.WEEKLY)
+        // Périmé pour DAILY, mais encore frais pour WEEKLY : la fréquence
+        // choisie doit primer sur l'ancien TTL fixe de 24h.
+        stubCatalogSyncedAgo(2 * 24 * 60 * 60 * 1000L)
+
+        assertEquals(SyncOutcome.Skipped, manager.syncIfStale())
+        verifyNoInteractions(liveTvRepository, vodRepository, seriesRepository)
+    }
+
+    @Test
+    fun syncIfStaleWithWeeklyFrequencyTriggersPastSevenDays() = runTest {
+        stubAllSectionsSucceeding()
+        whenever(settingsManager.getSyncFrequency()).thenReturn(SyncFrequency.WEEKLY)
+        stubCatalogSyncedAgo(8 * 24 * 60 * 60 * 1000L)
+
+        assertTrue(manager.syncIfStale() is SyncOutcome.Success)
+    }
+
+    @Test
+    fun syncIfStaleWithMonthlyFrequencyStaysFreshBeforeThirtyDays() = runTest {
+        whenever(settingsManager.getSyncFrequency()).thenReturn(SyncFrequency.MONTHLY)
+        stubCatalogSyncedAgo(20 * 24 * 60 * 60 * 1000L)
+
+        assertEquals(SyncOutcome.Skipped, manager.syncIfStale())
+        verifyNoInteractions(liveTvRepository, vodRepository, seriesRepository)
+    }
+
+    @Test
+    fun syncIfStaleWithMonthlyFrequencyTriggersPastThirtyDays() = runTest {
+        stubAllSectionsSucceeding()
+        whenever(settingsManager.getSyncFrequency()).thenReturn(SyncFrequency.MONTHLY)
+        stubCatalogSyncedAgo(31 * 24 * 60 * 60 * 1000L)
+
+        assertTrue(manager.syncIfStale() is SyncOutcome.Success)
+    }
+
+    /**
+     * Règle métier 1 : une fréquence désactivée n'autorise pas de
+     * synchronisation automatique fondée sur l'âge du cache, même très ancien.
+     */
+    @Test
+    fun syncIfStaleWithDisabledFrequencyNeverTriggersFromAge() = runTest {
+        whenever(settingsManager.getSyncFrequency()).thenReturn(SyncFrequency.DISABLED)
+        stubCatalogSyncedAgo(365 * 24 * 60 * 60 * 1000L)
+
+        assertEquals(SyncOutcome.Skipped, manager.syncIfStale())
+        verifyNoInteractions(liveTvRepository, vodRepository, seriesRepository)
+    }
+
+    /**
+     * Règle métier 3 : l'absence de catalogue local reste un besoin de
+     * synchronisation indépendamment de la fréquence, y compris DISABLED.
+     */
+    @Test
+    fun syncIfStaleWithDisabledFrequencyStillTriggersWhenNeverSynced() = runTest {
+        stubAllSectionsSucceeding()
+        whenever(settingsManager.getSyncFrequency()).thenReturn(SyncFrequency.DISABLED)
+        whenever(syncStateDao.getAll()).thenReturn(emptyList())
+
+        assertTrue(manager.syncIfStale() is SyncOutcome.Success)
+    }
+
+    /**
+     * Règle métier 2 : le statut global du catalogue (`catalogStatus`) et la
+     * décision de `syncIfStale()` partagent le même TTL dynamique et ne
+     * doivent jamais diverger.
+     */
+    @Test
+    fun catalogStatusIsStaleAgreesWithSyncIfStaleForTheSameFrequency() = runTest {
+        whenever(settingsManager.getSyncFrequency()).thenReturn(SyncFrequency.WEEKLY)
+        val lastSuccessAt = System.currentTimeMillis() - 3 * 24 * 60 * 60 * 1000L
+        val states = CatalogSection.CATALOG_SECTIONS.map {
+            CatalogSyncStateEntity(section = it, accountKey = accountKey, lastSuccessAt = lastSuccessAt)
+        }
+        syncStatesFlow.value = states
+        whenever(syncStateDao.getAll()).thenReturn(states)
+
+        val status = manager.catalogStatus.first()
+
+        assertFalse(status.isStale)
+        assertEquals(SyncOutcome.Skipped, manager.syncIfStale())
+    }
+
+    /**
+     * T7-R1 : un échec réseau passé ne doit plus maintenir le signal de
+     * connectivité utilisé pour piloter `OfflineBanner` une fois l'appareil
+     * reconnecté. `isOffline` (diagnostic combiné) reste vrai pour l'historique,
+     * mais `isNetworkOnline` (T7-R1) doit refléter la connectivité réelle.
+     */
+    @Test
+    fun catalogStatusReportsNetworkOnlineDespiteAPastNetworkFailure() = runTest {
+        val states = CatalogSection.CATALOG_SECTIONS.map {
+            CatalogSyncStateEntity(
+                section = it,
+                accountKey = accountKey,
+                lastSuccessAt = System.currentTimeMillis(),
+                lastFailureAt = System.currentTimeMillis(),
+                lastFailureKind = SyncFailureKind.NETWORK.name
+            )
+        }
+        syncStatesFlow.value = states
+
+        val status = manager.catalogStatus.first()
+
+        assertEquals(SyncFailureKind.NETWORK, status.lastFailureKind)
+        assertTrue(status.isOffline)
+        assertTrue(status.isNetworkOnline)
     }
 
     // --- Purge à la connexion sur changement de compte ---

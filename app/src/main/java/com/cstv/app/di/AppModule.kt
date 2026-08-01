@@ -153,7 +153,8 @@ object AppModule {
         settingsManager: SettingsManager,
         networkMonitor: com.cstv.app.domain.network.NetworkMonitor,
         syncStateInitializer: com.cstv.app.data.sync.CatalogSyncStateInitializer,
-        clearCatalogCacheUseCase: com.cstv.app.domain.usecase.ClearCatalogCacheUseCase
+        clearCatalogCacheUseCase: com.cstv.app.domain.usecase.ClearCatalogCacheUseCase,
+        categoryPreferenceRepository: com.cstv.app.domain.repository.CategoryPreferenceRepository
     ): com.cstv.app.domain.sync.CatalogSyncManager =
         com.cstv.app.data.sync.CatalogSyncManagerImpl(
             liveTvRepository,
@@ -164,7 +165,8 @@ object AppModule {
             settingsManager,
             networkMonitor,
             syncStateInitializer,
-            clearCatalogCacheUseCase
+            clearCatalogCacheUseCase,
+            categoryPreferenceRepository
         )
 
     @Provides

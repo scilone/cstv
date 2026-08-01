@@ -19,6 +19,24 @@ interface PopularRepository {
         lastSeriesCatalogSyncTime: Long,
         ignoreSessionRefresh: Boolean = false
     ): List<PopularCatalogItem>?
+
+    /**
+     * T8 : lecture du cache pour affichage immédiat, quel que soit son âge —
+     * seule l'absence de cache ou son incohérence avec le catalogue actuel
+     * (`lastVodCatalogSyncTime`) le rend indisponible.
+     */
+    suspend fun getCachedMatchedMoviesIgnoringAge(lastVodCatalogSyncTime: Long): List<PopularCatalogItem>?
+    suspend fun getCachedMatchedSeriesIgnoringAge(lastSeriesCatalogSyncTime: Long): List<PopularCatalogItem>?
+
+    /**
+     * T8-R1 : état de fraîcheur nominal (> 24h ou catalogue changé depuis) du
+     * cache, indépendamment de son contenu — sert uniquement à décider si une
+     * actualisation silencieuse est légitime, jamais à décider s'il est
+     * affichable (voir [getCachedMatchedMoviesIgnoringAge]).
+     */
+    suspend fun isMoviesCacheExpired(lastVodCatalogSyncTime: Long): Boolean
+    suspend fun isSeriesCacheExpired(lastSeriesCatalogSyncTime: Long): Boolean
+
     suspend fun saveMatchedMovies(items: List<PopularCatalogItem>)
     suspend fun saveMatchedSeries(items: List<PopularCatalogItem>)
 }

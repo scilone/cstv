@@ -176,6 +176,33 @@ Cette fonctionnalité modernise en profondeur l'expérience d'utilisation sur An
 
 ---
 
+## 16. Synchronisation silencieuse du catalogue par fréquence (T7)
+Cette amélioration aligne la fraîcheur du catalogue local sur la fréquence de synchronisation choisie par l'utilisateur et rend les tentatives de mise à jour totalement invisibles pour l'utilisateur.
+* **Respect de la fréquence utilisateur** : La durée de fraîcheur du catalogue est calculée de manière dynamique à partir du réglage de fréquence (`DAILY`, `WEEKLY`, `MONTHLY`, `DISABLED`) défini dans les paramètres. Un catalogue sous configuration `DISABLED` n'est plus considéré comme périmé sur simple critère d'âge.
+* **Synchronisation invisible en arrière-plan** : Lorsqu'un catalogue est périmé et que l'appareil est connecté à Internet (en ligne), l'application déclenche silencieusement la synchronisation en tâche de fond dès l'accès aux listes média (Live TV, VOD, Séries).
+* **Bandeau hors-ligne non anxiogène** : Le composant `OfflineBanner` est masqué dès que l'appareil est connecté à Internet, quel que soit l'historique d'échecs de synchronisation passés. Il ne s'affiche plus pour signaler un échec technique, mais uniquement de manière informative pour indiquer la consultation de données locales en cache lorsque l'appareil est réellement hors ligne (`!isNetworkOnline`).
+* **Absorbance d'erreurs** : Les échecs transitoires de la synchronisation silencieuse (timeout, serveurs injoignables) sont interceptés silencieusement sans propager d'alerte ou perturber l'affichage du cache existant.
+
+---
+
+## 17. Rafraîchissement silencieux des tendances en arrière-plan (T8)
+Cette fonctionnalité élimine toute perturbation visuelle ou saut de cartes dans la section "Top 10" de l'Accueil en décalant l'affichage des données fraîches de tendances au démarrage suivant de l'application.
+* **Données figées par session** : Dès que les listes "Top 10" (Films ou Séries) sont initialisées (que ce soit depuis le cache existant, ou depuis le réseau lors d'un premier démarrage à froid), elles sont figées pour l'intégralité de la session active du `HomeViewModel`.
+* **Mise à jour silencieuse du cache** : Si le cache initialement affiché est périmé (> 24 heures), une actualisation réseau TMDB est exécutée de façon asynchrone en arrière-plan. Ses résultats sont écrits en base de données de manière persistante, mais l'état UI en cours n'est jamais modifié par ce retour réseau silencieux, prévenant tout décalage d'éléments sous le focus ou les yeux de l'utilisateur.
+* **Consommation réseau et TMDB rationalisée** : Un cache populaire jugé encore frais ne déclenche aucun appel de rafraîchissement silencieux en tâche de fond, protégeant ainsi l'appareil et l'API TMDB de requêtes superflues.
+* **Résilience et isolation** : En l'absence complète de cache (très premier lancement), les données réseau reçues sont appliquées immédiatement pour éviter une rangée vide persistante. Les traitements et la stabilisation sont gérés de manière strictement indépendante entre la rangée des films et celle des séries.
+
+---
+
+## 18. Correction de la corruption d'image vidéo sur Android TV (B16)
+Cette correction résout le problème de rendu vidéo corrompu (bandes horizontales déchirées avec aplats de couleurs saturées YUV) rencontré sur certains modèles de téléviseurs (notamment Philips UHD Android TV sous Android 11).
+* **Dissociation des priorités de décodage par piste** : Correction de la configuration globale du lecteur ExoPlayer / Media3 qui préférait à tort le décodage vidéo logiciel (FFmpeg d'appoint fourni par NextLib) au décodage matériel du téléviseur.
+* **Décodage matériel prioritaire pour la vidéo** : Création d'une fabrique de renderers personnalisée (`VideoHardwarePreferredRenderersFactory`) qui force le mode `ON` pour le renderer vidéo. Le flux vidéo passe ainsi prioritairement par le décodeur matériel de l'appareil (`MediaCodecVideoRenderer`), assurant une restitution d'image fluide et correcte, identique à celle d'une application de référence. Le décodage logiciel FFmpeg reste disponible uniquement en ultime recours si le format n'est pas supporté par le matériel.
+* **Maintien de la préférence FFmpeg pour l'audio** : Le mode d'extension global de la factory reste configuré sur `PREFER` pour la partie audio, garantissant que les codecs complexes EAC3, AC3 et DTS continuent d'être décodés de manière logicielle de façon transparente et sans perte de son sur les téléviseurs dépourvus de licence matérielle correspondante.
+* **Tests unitaires et isolation** : L'implémentation de la politique de décodage asymétrique est isolée dans un composant pur (`PlayerDecoderPolicy`), validé unitairement sans dépendances de runtime Android.
+
+---
+
 ## 🚫 Fonctionnalités hors périmètre (Exclusions validées)
 Pour des raisons de performance, de stabilité ou d'expérience utilisateur, les fonctionnalités suivantes sont **strictement hors périmètre** :
 * **Multi-comptes Xtream** : L'application gère un seul compte Xtream Codes actif à la fois (les profils sont purement locaux et rattachés à ce compte unique).

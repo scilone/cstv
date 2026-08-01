@@ -70,6 +70,12 @@ sealed interface SyncState {
  * [isOffline] n'est pas la simple négation de la connectivité : un transport
  * actif ne garantit pas que le panel réponde. Il combine l'état réseau et le
  * dernier échec typé NETWORK.
+ *
+ * [isNetworkOnline] (T7-R1) est en revanche la connectivité réelle brute,
+ * sans historique d'échec. C'est ce champ, et lui seul, qui doit piloter la
+ * visibilité d'`OfflineBanner` : un ancien échec réseau ne doit pas maintenir
+ * le bandeau affiché une fois la connexion revenue, alors qu'une
+ * synchronisation silencieuse s'en occupe déjà (règles métier 4/5 de T7).
  */
 data class CatalogStatus(
     /** Les 6 sections catalogue ont toutes au moins une synchronisation réussie. */
@@ -78,6 +84,7 @@ data class CatalogStatus(
     val lastFullSyncAt: Long = 0L,
     val isStale: Boolean = true,
     val isOffline: Boolean = false,
+    val isNetworkOnline: Boolean = true,
     val isSyncing: Boolean = false,
     val lastFailureKind: SyncFailureKind? = null
 )

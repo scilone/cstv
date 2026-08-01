@@ -8,6 +8,7 @@ import com.cstv.app.data.remote.dto.TmdbTrendingResponseDto
 import com.google.gson.Gson
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.mockito.kotlin.mock
@@ -135,5 +136,52 @@ class PopularRepositoryImplTest {
         repository.getCachedMatchedMovies(lastVodCatalogSyncTime = 0L)
 
         assertEquals(null, repository.getCachedMatchedSeries(lastSeriesCatalogSyncTime = 0L))
+    }
+
+    // --- isMoviesCacheExpired / isSeriesCacheExpired (T8-R1) ---
+
+    @Test
+    fun isMoviesCacheExpired_isFalseWithinTheNominalCacheDuration() = runTest {
+        val context = mock<Context>()
+        val prefs = mock<SharedPreferences>()
+        whenever(context.getSharedPreferences("tmdb_popular_cache", Context.MODE_PRIVATE)).thenReturn(prefs)
+        whenever(prefs.getLong("movies_time_v2", 0L)).thenReturn(System.currentTimeMillis())
+        val repository = PopularRepositoryImpl(context, mock(), "valid_key", Gson())
+
+        assertFalse(repository.isMoviesCacheExpired(lastVodCatalogSyncTime = 0L))
+    }
+
+    @Test
+    fun isMoviesCacheExpired_isTruePastTheNominalCacheDuration() = runTest {
+        val context = mock<Context>()
+        val prefs = mock<SharedPreferences>()
+        whenever(context.getSharedPreferences("tmdb_popular_cache", Context.MODE_PRIVATE)).thenReturn(prefs)
+        whenever(prefs.getLong("movies_time_v2", 0L)).thenReturn(System.currentTimeMillis() - 25 * 60 * 60 * 1000L)
+        val repository = PopularRepositoryImpl(context, mock(), "valid_key", Gson())
+
+        assertTrue(repository.isMoviesCacheExpired(lastVodCatalogSyncTime = 0L))
+    }
+
+    @Test
+    fun isSeriesCacheExpired_isTrueWhenNoCacheWasEverSaved() = runTest {
+        val context = mock<Context>()
+        val prefs = mock<SharedPreferences>()
+        whenever(context.getSharedPreferences("tmdb_popular_cache", Context.MODE_PRIVATE)).thenReturn(prefs)
+        whenever(prefs.getLong("series_time_v2", 0L)).thenReturn(0L)
+        val repository = PopularRepositoryImpl(context, mock(), "valid_key", Gson())
+
+        assertTrue(repository.isSeriesCacheExpired(lastSeriesCatalogSyncTime = 0L))
+    }
+
+    @Test
+    fun isSeriesCacheExpired_isTrueWhenTheCatalogWasResyncedAfterTheCacheWasSaved() = runTest {
+        val context = mock<Context>()
+        val prefs = mock<SharedPreferences>()
+        whenever(context.getSharedPreferences("tmdb_popular_cache", Context.MODE_PRIVATE)).thenReturn(prefs)
+        val savedAt = System.currentTimeMillis()
+        whenever(prefs.getLong("series_time_v2", 0L)).thenReturn(savedAt)
+        val repository = PopularRepositoryImpl(context, mock(), "valid_key", Gson())
+
+        assertTrue(repository.isSeriesCacheExpired(lastSeriesCatalogSyncTime = savedAt + 1_000L))
     }
 }

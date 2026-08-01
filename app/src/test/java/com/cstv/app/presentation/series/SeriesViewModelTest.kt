@@ -268,4 +268,35 @@ class SeriesViewModelTest {
             releaseDate = eq("")
         )
     }
+
+    // T7-R2 : entrer sur l'onglet Séries déclenche silencieusement syncIfStale().
+    @Test
+    fun `entering series tab silently triggers syncIfStale`() = runTest(testDispatcher) {
+        whenever(vodRepository.observeAllPlaybackPositions()).thenReturn(flowOf(emptyList()))
+        viewModel = SeriesViewModel(getSeriesCategoriesUseCase, getSeriesCategoryCountsUseCase, getSeriesStreamsUseCase,
+            getSeriesDetailsUseCase, getRelatedSeriesUseCase, savePlaybackPositionUseCase, credentialsManager,
+            settingsManager, trackPreferenceRepository, categoryPreferenceRepository, vodRepository, seriesRepository,
+            removeFromContinueWatchingUseCase, mediaRatingRepository, setMediaRatingUseCase,
+            observeCatalogStatusUseCase, catalogSyncManager, canPlayContentUseCase, getTrailerPreviewUseCase, invalidateTrailerPreviewUseCase)
+        runCurrent()
+
+        verify(catalogSyncManager).syncIfStale()
+    }
+
+    // T7-R2 : un échec de la synchronisation silencieuse ne doit jamais
+    // remonter dans l'état UI (règle métier 4 de T7).
+    @Test
+    fun `a syncIfStale failure never propagates to the ui state`() = runTest(testDispatcher) {
+        whenever(vodRepository.observeAllPlaybackPositions()).thenReturn(flowOf(emptyList()))
+        whenever(catalogSyncManager.syncIfStale()).thenThrow(RuntimeException("panel injoignable"))
+        viewModel = SeriesViewModel(getSeriesCategoriesUseCase, getSeriesCategoryCountsUseCase, getSeriesStreamsUseCase,
+            getSeriesDetailsUseCase, getRelatedSeriesUseCase, savePlaybackPositionUseCase, credentialsManager,
+            settingsManager, trackPreferenceRepository, categoryPreferenceRepository, vodRepository, seriesRepository,
+            removeFromContinueWatchingUseCase, mediaRatingRepository, setMediaRatingUseCase,
+            observeCatalogStatusUseCase, catalogSyncManager, canPlayContentUseCase, getTrailerPreviewUseCase, invalidateTrailerPreviewUseCase)
+        runCurrent()
+
+        verify(catalogSyncManager).syncIfStale()
+        assertEquals(null, viewModel.state.value.selectedSeriesDetails)
+    }
 }

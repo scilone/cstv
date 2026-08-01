@@ -248,4 +248,38 @@ Afin de ne pas surcharger l'écran, les rangées de médias (Films, Séries) pro
 * Au repos, il est de couleur lavande et s'intègre harmonieusement à l'écran.
 * Lorsque vous l'atteignez avec le focus de votre télécommande, il se pare d'un fond lavande translucide à coins arrondis très visible, vous confirmant sans ambiguïté que vous pouvez cliquer dessus pour parcourir le catalogue complet associé.
 
+---
+
+## 16. Gestion dynamique de la synchronisation & Bandeau hors-ligne (T7)
+
+L'application gère intelligemment la fraîcheur de son catalogue local et s'adapte à vos préférences pour rendre l'utilisation agréable et discrète.
+
+### ⚙️ Fréquence de synchronisation respectée
+L'application n'applique plus de délai de validité fixe de 24 heures pour tout le monde. Elle calcule la fraîcheur du catalogue local selon l'option que vous choisissez dans les paramètres de synchronisation :
+* **Quotidienne (DAILY)** : Votre catalogue est considéré comme périmé après 24 heures.
+* **Hebdomadaire (WEEKLY)** : Les données restent considérées comme fraîches pendant 7 jours.
+* **Mensuelle (MONTHLY)** : Le catalogue reste valide pendant 30 jours.
+* **Désactivée (DISABLED)** : Aucune synchronisation automatique liée à l'ancienneté n'est déclenchée. Vous continuez de consulter vos données locales sans aucune contrainte de temps ou relance automatique.
+
+### 🚀 Synchronisation silencieuse et invisible
+Lorsque vous ouvrez les sections Live TV, Films ou Séries :
+* Si votre catalogue local est expiré et que votre appareil est **connecté à Internet**, l'application lance automatiquement une mise à jour en tâche de fond. C'est entièrement invisible : vous ne subissez aucun écran de chargement, aucun bandeau d'attente ni bouton "Réessayer". Vous naviguez normalement, et les données se mettent à jour d'elles-mêmes.
+* Les échecs réseau transitoires (micro-coupures, serveur temporairement injoignable) sont interceptés en silence pour vous éviter d'avoir des alertes ou des bannières d'erreur intempestives.
+
+### 📶 Rôle informatif du bandeau hors-ligne (OfflineBanner)
+* Le bandeau d'avertissement n'apparaît **que si votre appareil est réellement hors ligne** (pas de connexion Internet) et que vous consultez des données stockées dans le cache. Il indique alors clairement la date de votre dernière synchronisation réussie à titre purement indicatif.
+* Dès que votre connexion Internet est rétablie, le bandeau disparaît automatiquement pour vous laisser profiter pleinement de votre expérience en ligne.
+
+---
+
+## 17. Stabilité visuelle absolue de l'Accueil (T8)
+
+Pour vous éviter des sauts visuels désagréables (saut de cartes, modification de focus) pendant que vous parcourez l'écran d'Accueil, les carrousels **"Top 10" (Films et Séries)** utilisent désormais une stratégie de stabilité stricte par session.
+
+* **Figeage pour la session active** : Lorsque vous ouvrez l'application, l'Accueil charge immédiatement le dernier Top 10 persistant en cache (qu'il soit récent ou périmé de plus de 24h). Ces éléments sont alors figés et ne bougeront pas d'un millimètre pendant tout le temps où vous parcourez l'Accueil ou changez de catégories.
+* **Rafraîchissement silencieux en tâche de fond** : Si le cache affiché a dépassé 24 heures, l'application lance une mise à jour réseau discrète en arrière-plan pour récupérer et sauvegarder le nouveau classement populaire TMDB. Cette actualisation n'applique **jamais** de changement sur l'écran en cours d'utilisation afin d'éviter tout décalage visuel brusque sous vos yeux.
+* **Prise en compte au prochain démarrage** : C'est lors de votre prochaine ouverture de l'application que ces nouvelles données populaires seront lues depuis le cache et affichées comme nouveau point de départ stable.
+* **Premier démarrage à froid** : Si l'application est lancée pour la toute première fois et qu'aucun cache n'est disponible, la mise à jour réseau applique directement les résultats dès réception afin d'éviter de laisser une rangée vide.
+
+
 

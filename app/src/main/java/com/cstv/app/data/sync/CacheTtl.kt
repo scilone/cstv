@@ -1,5 +1,7 @@
 package com.cstv.app.data.sync
 
+import com.cstv.app.data.local.storage.SyncFrequency
+
 /**
  * Durées de vie du cache, regroupées ici plutôt que dispersées en
  * `companion object` par repository, pour rester révisables d'un seul endroit.
@@ -36,5 +38,19 @@ object CacheTtl {
     fun isExpired(lastSuccessAt: Long, ttlMillis: Long, now: Long): Boolean {
         if (lastSuccessAt <= 0L) return true
         return now - lastSuccessAt > ttlMillis
+    }
+
+    /**
+     * TTL du catalogue selon la fréquence choisie par l'utilisateur (T7).
+     * `null` pour [SyncFrequency.DISABLED] : aucune synchronisation ne doit se
+     * déclencher du seul fait de l'âge du cache — seule l'absence totale de
+     * catalogue (voir [isExpired] avec `lastSuccessAt <= 0`) reste un besoin
+     * de synchronisation dans ce cas.
+     */
+    fun catalogMillisFor(frequency: SyncFrequency): Long? = when (frequency) {
+        SyncFrequency.DAILY -> CATALOG_MILLIS
+        SyncFrequency.WEEKLY -> 7 * CATALOG_MILLIS
+        SyncFrequency.MONTHLY -> 30 * CATALOG_MILLIS
+        SyncFrequency.DISABLED -> null
     }
 }

@@ -131,7 +131,16 @@ class HomeViewModelTest {
     private suspend fun stubReactiveSources(
         positions: List<PlaybackPosition> = emptyList(),
         favorites: List<FavoriteItem> = emptyList(),
-        popular: PopularTop10Result = PopularTop10Result(null, null)
+        cachedPopularMovies: List<VodStream>? = null,
+        cachedPopularSeries: List<SeriesStream>? = null,
+        freshPopularMovies: List<VodStream>? = null,
+        freshPopularSeries: List<SeriesStream>? = null,
+        // T8-R1 : par défaut périmé, pour préserver le comportement des tests
+        // existants qui attendent une actualisation silencieuse dès qu'un
+        // cache est affiché ; les tests dédiés au cas "cache frais" le
+        // désactivent explicitement.
+        moviesCacheExpired: Boolean = true,
+        seriesCacheExpired: Boolean = true
     ) {
         doReturn(flowOf(positions)).whenever(vodRepository).observeAllPlaybackPositions()
         doReturn(flowOf(favorites)).whenever(favoritesRepository).observeFavorites()
@@ -149,7 +158,14 @@ class HomeViewModelTest {
         whenever(getRecommendationsUseCase.invoke(any())).thenReturn(
             com.cstv.app.domain.usecase.GetRecommendationsUseCase.RecommendationResult(emptyList(), emptyList())
         )
-        whenever(getPopularTop10InCatalogUseCase.invoke()).thenReturn(popular)
+        // T8 : le cache (quel que soit son âge) prime sur le réseau ; `null`
+        // simule l'absence de cache, qui déclenche le chargement à froid.
+        whenever(getPopularTop10InCatalogUseCase.cachedMovies()).thenReturn(cachedPopularMovies)
+        whenever(getPopularTop10InCatalogUseCase.cachedSeries()).thenReturn(cachedPopularSeries)
+        whenever(getPopularTop10InCatalogUseCase.loadFreshMovies()).thenReturn(freshPopularMovies)
+        whenever(getPopularTop10InCatalogUseCase.loadFreshSeries()).thenReturn(freshPopularSeries)
+        whenever(getPopularTop10InCatalogUseCase.isMoviesCacheExpired()).thenReturn(moviesCacheExpired)
+        whenever(getPopularTop10InCatalogUseCase.isSeriesCacheExpired()).thenReturn(seriesCacheExpired)
     }
 
     private suspend fun stubEmptyCategoryPreferences() {
@@ -296,7 +312,7 @@ class HomeViewModelTest {
     fun test_loadHomeData_keepsLocalTop10AndPublishesIndependentPopularReplacement() = runTest {
         val popularMovie = VodStream(999, "Popular movie", null, null, null, "movies")
         val fallbackMovie = VodStream(100, "Fallback movie", null, "9.0", "1", "movies")
-        stubReactiveSources(popular = PopularTop10Result(listOf(popularMovie), null))
+        stubReactiveSources(freshPopularMovies = listOf(popularMovie))
         stubEmptyCategoryPreferences()
         whenever(getLiveCategoriesUseCase.once()).thenReturn(emptyList())
         whenever(vodRepository.getCachedVodStreams("all")).thenReturn(listOf(fallbackMovie))
@@ -307,6 +323,143 @@ class HomeViewModelTest {
         assertEquals(listOf(fallbackMovie), viewModel.state.value.topVodStreams)
         assertEquals(listOf(popularMovie), viewModel.state.value.popularTopVodStreams)
         assertNull(viewModel.state.value.popularTopSeriesStreams)
+
+        viewModel.viewModelScope.cancel()
+    }
+
+    // --- T8 (Tâche 3) : rafraîchissement silencieux du cache Popular au redémarrage ---
+
+    @Test
+    fun test_popularCache_preexistingCacheIsDisplayedImmediatelyRegardlessOfAge() = runTest {
+        val cachedMovie = VodStream(1, "Cached movie", null, null, null, "movies")
+        val cachedSeriesItem = SeriesStream(2, "Cached series", null, null, null, "series")
+        stubReactiveSources(cachedPopularMovies = listOf(cachedMovie), cachedPopularSeries = listOf(cachedSeriesItem))
+        stubEmptyCategoryPreferences()
+        whenever(getLiveCategoriesUseCase.once()).thenReturn(emptyList())
+        whenever(vodRepository.getCachedVodStreams("all")).thenReturn(emptyList())
+        whenever(seriesRepository.getCachedSeriesStreams("all")).thenReturn(emptyList())
+
+        viewModel = createViewModel()
+
+        assertEquals(listOf(cachedMovie), viewModel.state.value.popularTopVodStreams)
+        assertEquals(listOf(cachedSeriesItem), viewModel.state.value.popularTopSeriesStreams)
+        // Le cache prime : le réseau "à froid" n'a pas dû être sollicité.
+        verify(getPopularTop10InCatalogUseCase, never()).loadFreshMovies()
+        verify(getPopularTop10InCatalogUseCase, never()).loadFreshSeries()
+
+        viewModel.viewModelScope.cancel()
+    }
+
+    @Test
+    fun test_popularCache_silentBackgroundRefreshRunsButNeverReplacesTheDisplayedSessionState() = runTest {
+        val cachedMovie = VodStream(1, "Cached movie", null, null, null, "movies")
+        stubReactiveSources(cachedPopularMovies = listOf(cachedMovie))
+        stubEmptyCategoryPreferences()
+        whenever(getLiveCategoriesUseCase.once()).thenReturn(emptyList())
+        whenever(vodRepository.getCachedVodStreams("all")).thenReturn(emptyList())
+        whenever(seriesRepository.getCachedSeriesStreams("all")).thenReturn(emptyList())
+
+        // Pas d'`advanceUntilIdle` ici : le sondage EPG de `init` est une
+        // boucle infinie temporisée (même piège que les tests de tendances
+        // ci-dessus), le scheduler n'atteindrait jamais l'inactivité.
+        viewModel = createViewModel()
+        testDispatcher.scheduler.runCurrent()
+
+        // L'actualisation silencieuse a bien eu lieu (persistance)...
+        verify(getPopularTop10InCatalogUseCase).refreshMoviesSilently()
+        // ...mais l'état affiché reste celui du cache initial de la session.
+        assertEquals(listOf(cachedMovie), viewModel.state.value.popularTopVodStreams)
+
+        viewModel.viewModelScope.cancel()
+    }
+
+    @Test
+    fun test_popularCache_coldStartWithoutCacheUpdatesUiFromNetworkResult() = runTest {
+        val freshMovie = VodStream(1, "Fresh movie", null, null, null, "movies")
+        stubReactiveSources(freshPopularMovies = listOf(freshMovie))
+        stubEmptyCategoryPreferences()
+        whenever(getLiveCategoriesUseCase.once()).thenReturn(emptyList())
+        whenever(vodRepository.getCachedVodStreams("all")).thenReturn(emptyList())
+        whenever(seriesRepository.getCachedSeriesStreams("all")).thenReturn(emptyList())
+
+        viewModel = createViewModel()
+
+        assertEquals(listOf(freshMovie), viewModel.state.value.popularTopVodStreams)
+        verify(getPopularTop10InCatalogUseCase, never()).refreshMoviesSilently()
+
+        viewModel.viewModelScope.cancel()
+    }
+
+    @Test
+    fun test_popularCache_missingCacheForOneRowDoesNotBlockOrHideTheOtherRow() = runTest {
+        val cachedMovie = VodStream(1, "Cached movie", null, null, null, "movies")
+        val freshSeriesItem = SeriesStream(2, "Fresh series", null, null, null, "series")
+        // Films en cache, séries sans cache (règle 7 : indépendance des deux rangées).
+        stubReactiveSources(cachedPopularMovies = listOf(cachedMovie), freshPopularSeries = listOf(freshSeriesItem))
+        stubEmptyCategoryPreferences()
+        whenever(getLiveCategoriesUseCase.once()).thenReturn(emptyList())
+        whenever(vodRepository.getCachedVodStreams("all")).thenReturn(emptyList())
+        whenever(seriesRepository.getCachedSeriesStreams("all")).thenReturn(emptyList())
+
+        viewModel = createViewModel()
+
+        assertEquals(listOf(cachedMovie), viewModel.state.value.popularTopVodStreams)
+        assertEquals(listOf(freshSeriesItem), viewModel.state.value.popularTopSeriesStreams)
+
+        viewModel.viewModelScope.cancel()
+    }
+
+    // T8-R1 : un cache encore frais (< 24h, cohérent avec le catalogue actuel)
+    // ne doit générer aucune actualisation réseau silencieuse.
+    @Test
+    fun test_popularCache_freshCacheDoesNotTriggerSilentRefresh() = runTest {
+        val cachedMovie = VodStream(1, "Cached movie", null, null, null, "movies")
+        val cachedSeriesItem = SeriesStream(2, "Cached series", null, null, null, "series")
+        stubReactiveSources(
+            cachedPopularMovies = listOf(cachedMovie),
+            cachedPopularSeries = listOf(cachedSeriesItem),
+            moviesCacheExpired = false,
+            seriesCacheExpired = false
+        )
+        stubEmptyCategoryPreferences()
+        whenever(getLiveCategoriesUseCase.once()).thenReturn(emptyList())
+        whenever(vodRepository.getCachedVodStreams("all")).thenReturn(emptyList())
+        whenever(seriesRepository.getCachedSeriesStreams("all")).thenReturn(emptyList())
+
+        viewModel = createViewModel()
+        testDispatcher.scheduler.runCurrent()
+
+        assertEquals(listOf(cachedMovie), viewModel.state.value.popularTopVodStreams)
+        assertEquals(listOf(cachedSeriesItem), viewModel.state.value.popularTopSeriesStreams)
+        verify(getPopularTop10InCatalogUseCase, never()).refreshMoviesSilently()
+        verify(getPopularTop10InCatalogUseCase, never()).refreshSeriesSilently()
+
+        viewModel.viewModelScope.cancel()
+    }
+
+    // T8-R2 / T8-R3 : un rechargement de la Home dans la même session (ex :
+    // changement de préférences de catégories) ne doit ni relire, ni
+    // republier, ni relancer une actualisation silencieuse pour une rangée
+    // déjà figée par un précédent chargement.
+    @Test
+    fun test_popularCache_reloadInSameSessionDoesNotReplayAnAlreadyResolvedRow() = runTest {
+        val cachedMovie = VodStream(1, "Cached movie", null, null, null, "movies")
+        stubReactiveSources(cachedPopularMovies = listOf(cachedMovie))
+        stubEmptyCategoryPreferences()
+        whenever(getLiveCategoriesUseCase.once()).thenReturn(emptyList())
+        whenever(vodRepository.getCachedVodStreams("all")).thenReturn(emptyList())
+        whenever(seriesRepository.getCachedSeriesStreams("all")).thenReturn(emptyList())
+
+        viewModel = createViewModel()
+        testDispatcher.scheduler.runCurrent()
+        assertEquals(listOf(cachedMovie), viewModel.state.value.popularTopVodStreams)
+
+        viewModel.loadHomeData()
+        testDispatcher.scheduler.runCurrent()
+
+        assertEquals(listOf(cachedMovie), viewModel.state.value.popularTopVodStreams)
+        verify(getPopularTop10InCatalogUseCase, times(1)).cachedMovies()
+        verify(getPopularTop10InCatalogUseCase, times(1)).refreshMoviesSilently()
 
         viewModel.viewModelScope.cancel()
     }

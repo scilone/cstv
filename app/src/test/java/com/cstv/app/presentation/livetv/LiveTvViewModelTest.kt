@@ -94,6 +94,30 @@ class LiveTvViewModelTest {
         assertEquals(null, viewModel.state.value.historyRemovalError)
     }
 
+    // T7-R2 : entrer sur l'onglet Live TV déclenche silencieusement syncIfStale().
+    @Test
+    fun `entering live tv silently triggers syncIfStale`() = runTest(dispatcher) {
+        createViewModel()
+        advanceUntilIdle()
+
+        verify(catalogSyncManager).syncIfStale()
+    }
+
+    // T7-R2 : un échec de la synchronisation silencieuse ne doit jamais
+    // remonter dans l'état UI (règle métier 4 de T7) ni empêcher le reste de
+    // l'initialisation de l'écran.
+    @Test
+    fun `a syncIfStale failure never propagates to the ui state`() = runTest(dispatcher) {
+        whenever(catalogSyncManager.syncIfStale()).thenThrow(RuntimeException("panel injoignable"))
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        verify(catalogSyncManager).syncIfStale()
+        assertEquals(null, viewModel.state.value.historyRemovalError)
+        assertFalse(viewModel.state.value.isRemovingHistory)
+    }
+
     private fun createViewModel() = LiveTvViewModel(
         getCategories, getCategoryCounts, getStreams, observeRecentlyWatched,
         removeRecentlyWatched, saveRecentlyWatched, getEpg, getEpgNowNext,

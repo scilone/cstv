@@ -1,5 +1,27 @@
 # Journal des Modifications (Changelog) - CSTV IPTV
 
+## [v1.65.0] - 2026-08-01
+### ✨ Synchronisation dynamique de catalogue (T7), rafraîchissement des tendances par session (T8) et correctif de décodage vidéo Android TV (B16)
+* **Synchronisation dynamique du catalogue par préférence (T7)** : 
+  - La durée de fraîcheur (TTL) du catalogue local est désormais résolue dynamiquement à partir de la fréquence configurée par l'utilisateur (`DAILY`, `WEEKLY`, `MONTHLY`, `DISABLED`).
+  - Lancement silencieux et asynchrone de `syncIfStale()` en tâche de fond lors de l'accès aux onglets Live TV, VOD et Séries, évitant tout loader plein écran ou blocage visuel de navigation.
+  - Découplage complet de `OfflineBanner` de l'historique d'échecs passés. Le bandeau se fonde uniquement sur l'état de connexion réseau réelle (`!isNetworkOnline`), s'affichant de manière non intrusive pour signaler la consultation de données en cache lorsque l'accès Internet est indisponible, et se masquant instantanément dès que l'appareil est connecté.
+  - Interception hermétique et absorption des exceptions réseau ou serveurs transitoires lors du cycle de rafraîchissement automatique en ligne.
+* **Rafraîchissement silencieux des tendances en arrière-plan (T8)** :
+  - Élimination des sauts visuels (layout shifts) et perturbations de focus au D-pad sur l'Accueil grâce au figeage par session.
+  - Tout cache populaire (Films ou Séries) existant est chargé instantanément et fige sa liste pour toute la session active de `HomeViewModel`.
+  - La mise à jour TMDB s'effectue en arrière-plan de façon asynchrone et silencieuse, écrivant les données fraîches en cache local persistant sans altérer l'UI en cours. Les modifications sont prises en compte au prochain démarrage de l'application.
+  - Un cache populaire encore frais n'émet plus de requêtes inutiles vers l'API TMDB.
+  - Les indicateurs de session (`popularVodResolvedForSession` et `popularSeriesResolvedForSession`) bloquent toute relecture ou double chargement lors de rechargements ultérieurs (par exemple lors du changement de préférences de catégories). Premier démarrage à froid préservé (affichage direct dès réception réseau).
+* **Correctif du décodage vidéo sur Android TV (B16)** :
+  - Résolution définitive du problème de rendu vidéo corrompu (lignes horizontales déchirées avec aplats de couleurs YUV saturées) constaté sur certains téléviseurs Android TV (notamment Philips UHD API 30).
+  - Introduction d'une politique de décodage asymétrique (`PlayerDecoderPolicy`) isolant les extensions de décodage par type de piste.
+  - Création d'une fabrique de renderers vidéo matériels prioritaires (`VideoHardwarePreferredRenderersFactory`) forçant le mode `ON` côté vidéo. Les pistes vidéo passent ainsi en priorité par les décodeurs matériels de l'appareil (`MediaCodecVideoRenderer`) pour restituer une image correcte et fluide.
+  - Maintien du mode `PREFER` côté audio global de la factory, préservant la priorité au décodage logiciel FFmpeg de NextLib pour continuer de lire EAC3, AC3, et DTS de manière transparente et sans coupure de son sur les matériels dépourvus de puces de décodage d'appoint.
+  - Nettoyage des imports reliquats obsolètes dans les trois écrans de lecture (`PlayerScreen`, `VodPlayerScreen`, `SeriesPlayerScreen`) pour sceller la construction unique du lecteur dans `ExoPlayerCore.kt`.
+
+> Validation automatisée : `testDebugUnitTest` et compilation validées à 100% avec succès, lint vert.
+
 ## [v1.64.14] - 2026-08-01
 ### 🐛 Élimination de la latence de l'Accueil, cache toléré et Skeleton Loader (B15)
 * **Affichage immédiat sur cache expiré** : Remplacement du blocage initial par un cache périmé-toléré (fallback temporaire au-delà de 24h). L'Accueil se charge instantanément au lieu d'afficher un écran noir bloqué par un spinner pendant 2 secondes.

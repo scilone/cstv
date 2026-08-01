@@ -29,9 +29,16 @@ import java.util.Locale
 /**
  * Bandeau discret et non bloquant en tête des écrans catalogue.
  *
- * Il informe que les données affichées sont locales et datées ; il ne remplace
- * jamais le contenu, conformément à la règle « une donnée ancienne reste
- * consultable ».
+ * T7 (D2) : purement informatif, jamais un signal d'échec. En ligne, une
+ * synchronisation silencieuse s'occupe déjà d'un catalogue périmé (voir
+ * `CatalogSyncManagerImpl.syncIfStale`) : le bandeau resterait anxiogène pour
+ * rien. Il n'apparaît donc que si l'appareil est réellement hors ligne, pour
+ * indiquer que les données affichées sont locales et datées ; il ne remplace
+ * jamais le contenu.
+ *
+ * T7-R1 : la garde se fonde sur [CatalogStatus.isNetworkOnline] (connectivité
+ * réelle) et non [CatalogStatus.isOffline], qui reste vrai après un ancien
+ * échec réseau même une fois la connexion revenue.
  */
 @Composable
 fun OfflineBanner(
@@ -39,8 +46,7 @@ fun OfflineBanner(
     onRetry: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    // Rien à signaler tant que le catalogue est en ligne et à jour.
-    if (!status.isOffline && !status.isStale) return
+    if (status.isNetworkOnline) return
     if (!status.isComplete) return
 
     Row(
@@ -86,14 +92,11 @@ fun OfflineBanner(
     }
 }
 
+// N'est appelée que hors ligne (voir garde en tête de OfflineBanner) : les
+// libellés en ligne n'ont pas lieu d'être.
 private fun bannerLabel(status: CatalogStatus): String {
     val date = formatSyncDate(status.lastFullSyncAt)
-    return when {
-        status.isOffline && date != null -> "Hors ligne — catalogue du $date"
-        status.isOffline -> "Hors ligne — catalogue local"
-        date != null -> "Catalogue du $date"
-        else -> "Catalogue local"
-    }
+    return if (date != null) "Hors ligne — catalogue du $date" else "Hors ligne — catalogue local"
 }
 
 private fun formatSyncDate(timestamp: Long): String? {
