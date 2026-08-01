@@ -18,6 +18,9 @@ import com.cstv.app.presentation.components.OfflineBanner
 import com.cstv.app.presentation.components.tvPivotItem
 import com.cstv.app.presentation.components.tvPivotCell
 import com.cstv.app.presentation.components.tvPivotSection
+import com.cstv.app.presentation.components.tvPivotHorizontalEndSpacer
+import com.cstv.app.presentation.components.tvPivotVerticalEndSpacer
+import com.cstv.app.presentation.components.tvPivotVerticalStartSpacer
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -50,6 +53,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.LocalConfiguration
 import com.cstv.app.R
 import com.cstv.app.domain.model.FavoriteItem
 import com.cstv.app.domain.model.VodCategory
@@ -264,6 +268,7 @@ private fun TvLayout(
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 modifier = Modifier.fillMaxSize()
             ) {
+                tvPivotVerticalStartSpacer(true)
                 if (resumeMoviesStreams.isNotEmpty()) {
                     item(key = "resume_watching") {
                         CategorySectionRow(
@@ -308,6 +313,7 @@ private fun TvLayout(
                         )
                     }
                 }
+                tvPivotVerticalEndSpacer(true)
             }
         } else {
             // Mode "Catégorie spécifique" : Search & Vertical Grid
@@ -352,6 +358,9 @@ private fun TvLayout(
                     columns = GridCells.Fixed(4),
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
+                    contentPadding = PaddingValues(
+                        vertical = LocalConfiguration.current.screenHeightDp.dp / 2
+                    ),
                     modifier = Modifier.fillMaxSize().focusGroup()
                 ) {
                     items(pagedStreams.itemCount) { index ->
@@ -722,6 +731,7 @@ private fun CategorySectionRow(
                     }
                 }
             }
+            tvPivotHorizontalEndSpacer(isTv)
         }
     }
 }

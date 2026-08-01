@@ -15,6 +15,9 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import com.cstv.app.presentation.components.tvPivotItem
 import com.cstv.app.presentation.components.tvPivotSection
+import com.cstv.app.presentation.components.tvPivotHorizontalEndSpacer
+import com.cstv.app.presentation.components.tvPivotVerticalEndSpacer
+import com.cstv.app.presentation.components.tvPivotVerticalStartSpacer
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -106,6 +109,7 @@ fun FavoritesScreen(
                     verticalArrangement = Arrangement.spacedBy(24.dp),
                     modifier = Modifier.fillMaxSize()
                 ) {
+                    tvPivotVerticalStartSpacer(isTv)
                     // 1. Live TV Favorites row
                     if (liveFavorites.isNotEmpty()) {
                         item(key = "favorites_live") {
@@ -147,6 +151,7 @@ fun FavoritesScreen(
                             )
                         }
                     }
+                    tvPivotVerticalEndSpacer(isTv)
                 }
             }
         }
@@ -190,6 +195,7 @@ private fun FavoritesCategoryRow(
                     FavoriteCardItem(item = item, onClick = { onClick(item) })
                 }
             }
+            tvPivotHorizontalEndSpacer(isTv)
         }
     }
 }

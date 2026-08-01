@@ -1,6 +1,7 @@
 package com.cstv.app.presentation.search
 import com.cstv.app.R
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.LocalConfiguration
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -20,6 +21,9 @@ import androidx.compose.foundation.lazy.items
 import com.cstv.app.presentation.components.tvPivotItem
 import com.cstv.app.presentation.components.tvPivotCell
 import com.cstv.app.presentation.components.tvPivotSection
+import com.cstv.app.presentation.components.tvPivotHorizontalEndSpacer
+import com.cstv.app.presentation.components.tvPivotVerticalEndSpacer
+import com.cstv.app.presentation.components.tvPivotVerticalStartSpacer
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -219,6 +223,7 @@ fun SearchScreen(
                     verticalArrangement = Arrangement.spacedBy(24.dp),
                     modifier = Modifier.weight(1f).fillMaxWidth()
                 ) {
+                    tvPivotVerticalStartSpacer(isTv)
                     // 1. Live TV Results Row
                     if (state.searchResult.liveResults.isNotEmpty()) {
                         item(key = "search_live") {
@@ -249,6 +254,7 @@ fun SearchScreen(
                                             )
                                         }
                                     }
+                                    tvPivotHorizontalEndSpacer(isTv)
                                 }
                             }
                         }
@@ -285,6 +291,7 @@ fun SearchScreen(
                                             )
                                         }
                                     }
+                                    tvPivotHorizontalEndSpacer(isTv)
                                 }
                             }
                         }
@@ -321,10 +328,12 @@ fun SearchScreen(
                                             )
                                         }
                                     }
+                                    tvPivotHorizontalEndSpacer(isTv)
                                 }
                             }
                         }
                     }
+                    tvPivotVerticalEndSpacer(isTv)
                 }
             }
         }
@@ -458,6 +467,9 @@ private fun SearchExpandedGrid(
             columns = GridCells.Fixed(columns),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
+            contentPadding = PaddingValues(
+                vertical = if (isTv) LocalConfiguration.current.screenHeightDp.dp / 2 else 0.dp
+            ),
             modifier = Modifier.fillMaxSize()
         ) {
             when (type) {

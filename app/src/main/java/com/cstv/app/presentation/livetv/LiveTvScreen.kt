@@ -1,6 +1,7 @@
 package com.cstv.app.presentation.livetv
 import com.cstv.app.R
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.paging.filter
 import com.cstv.app.presentation.livetv.components.*
@@ -19,6 +20,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import com.cstv.app.presentation.components.CatalogUnavailableState
 import com.cstv.app.presentation.components.OfflineBanner
 import com.cstv.app.presentation.components.tvPivotCell
+import com.cstv.app.presentation.components.tvPivotVerticalEndSpacer
+import com.cstv.app.presentation.components.tvPivotVerticalStartSpacer
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -257,6 +260,7 @@ private fun TvLayout(
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 modifier = Modifier.fillMaxSize()
             ) {
+                tvPivotVerticalStartSpacer(true)
                 // Section 1: Récemment regardées (if not empty)
                 if (state.recentlyWatched.isNotEmpty()) {
                     item(key = "recently_watched") {
@@ -313,6 +317,7 @@ private fun TvLayout(
                         )
                     }
                 }
+                tvPivotVerticalEndSpacer(true)
             }
         } else {
             // Mode "Catégorie spécifique" : Search & Vertical Grid
@@ -357,6 +362,9 @@ private fun TvLayout(
                     columns = GridCells.Fixed(3),
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
+                    contentPadding = PaddingValues(
+                        vertical = LocalConfiguration.current.screenHeightDp.dp / 2
+                    ),
                     modifier = Modifier.fillMaxSize().focusGroup()
                 ) {
                     items(pagedStreams.itemCount) { index ->

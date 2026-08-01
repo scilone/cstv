@@ -6,8 +6,8 @@ import org.junit.Test
 class TvPivotScrollTest {
 
     @Test
-    fun horizontalPivotAt15PercentAnchorsItemLeftEdge() {
-        assertEquals(-288, pivotScrollOffset(viewportSize = 1920, itemSize = 130, parentFraction = 0.15f, childFraction = 0f))
+    fun horizontalPivotAnchorsEveryItemAtFirstThumbnailPosition() {
+        assertEquals(0, pivotScrollOffset(viewportSize = 1920, itemSize = 130, parentFraction = 0f, childFraction = 0f))
     }
 
     @Test
@@ -61,5 +61,47 @@ class TvPivotScrollTest {
     fun nonIntegerFractionRoundsDeterministically() {
         val offset = pivotScrollOffset(viewportSize = 1001, itemSize = 0, parentFraction = 0.15f, childFraction = 0f)
         assertEquals(-150, offset)
+    }
+
+    @Test
+    fun focusedChildCenterAccountsForHeaderAboveThumbnail() {
+        assertEquals(
+            42f,
+            focusedChildPivotDelta(
+                viewportStartOffset = 0,
+                viewportEndOffset = 1080,
+                sectionOffset = 390,
+                focusedOffsetInSection = 42f,
+                focusedSize = 300
+            )
+        )
+    }
+
+    @Test
+    fun focusedChildAlreadyAtViewportCenterNeedsNoScroll() {
+        assertEquals(
+            0f,
+            focusedChildPivotDelta(
+                viewportStartOffset = -24,
+                viewportEndOffset = 1056,
+                sectionOffset = 324,
+                focusedOffsetInSection = 42f,
+                focusedSize = 300
+            )
+        )
+    }
+
+    @Test
+    fun focusedChildWithUnmeasuredViewportNeedsNoScroll() {
+        assertEquals(
+            0f,
+            focusedChildPivotDelta(
+                viewportStartOffset = 0,
+                viewportEndOffset = 0,
+                sectionOffset = 100,
+                focusedOffsetInSection = 20f,
+                focusedSize = 200
+            )
+        )
     }
 }

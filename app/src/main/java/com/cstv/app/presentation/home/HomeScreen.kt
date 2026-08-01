@@ -8,6 +8,9 @@ import com.cstv.app.presentation.home.components.TV_HERO_PEEK
 import com.cstv.app.presentation.components.SeeAllLink
 import com.cstv.app.presentation.components.tvPivotItem
 import com.cstv.app.presentation.components.tvPivotSection
+import com.cstv.app.presentation.components.tvPivotHorizontalEndSpacer
+import com.cstv.app.presentation.components.tvPivotVerticalEndSpacer
+import com.cstv.app.presentation.components.tvPivotVerticalStartSpacer
 
 import com.cstv.app.presentation.rememberRowScrollState
 import androidx.compose.foundation.lazy.LazyListState
@@ -328,6 +331,14 @@ fun HomeScreen(
                     }
                 }
 
+                // Sans Hero, la première rangée TV a besoin de la même réserve
+                // haute que les autres catalogues pour atteindre le pivot 50 %.
+                // Quand la Hero existe, sa hauteur fournit cette réserve et son
+                // positionnement spécifique reste inchangé.
+                if (isTv && state.trendingList.isEmpty() && !state.awaitingTrending) {
+                    tvPivotVerticalStartSpacer(true)
+                }
+
                 // NOUVEAU: Hero "Reprendre" ou "Tendances" (Phase F1)
                 if (!isTv) {
                     if (state.trendingList.isNotEmpty() || state.awaitingTrending) {
@@ -418,6 +429,7 @@ fun HomeScreen(
                                         )
                                     }
                                 }
+                                tvPivotHorizontalEndSpacer(isTv)
                             }
                         }
                     }
@@ -446,6 +458,7 @@ fun HomeScreen(
                                         )
                                     }
                                 }
+                                tvPivotHorizontalEndSpacer(isTv)
                             }
                         }
                     }
@@ -475,6 +488,7 @@ fun HomeScreen(
                                         )
                                     }
                                 }
+                                tvPivotHorizontalEndSpacer(isTv)
                             }
                         }
                     }
@@ -503,6 +517,7 @@ fun HomeScreen(
                                         )
                                     }
                                 }
+                                tvPivotHorizontalEndSpacer(isTv)
                             }
                         }
                     }
@@ -535,6 +550,7 @@ fun HomeScreen(
                                         )
                                     }
                                 }
+                                tvPivotHorizontalEndSpacer(isTv)
                             }
                         }
                     }
@@ -563,6 +579,7 @@ fun HomeScreen(
                                         )
                                     }
                                 }
+                                tvPivotHorizontalEndSpacer(isTv)
                             }
                         }
                     }
@@ -591,6 +608,7 @@ fun HomeScreen(
                                         )
                                     }
                                 }
+                                tvPivotHorizontalEndSpacer(isTv)
                             }
                         }
                     }
@@ -620,6 +638,7 @@ fun HomeScreen(
                                         )
                                     }
                                 }
+                                tvPivotHorizontalEndSpacer(isTv)
                             }
                         }
                     }
@@ -648,6 +667,7 @@ fun HomeScreen(
                                         )
                                     }
                                 }
+                                tvPivotHorizontalEndSpacer(isTv)
                             }
                         }
                     }
@@ -684,10 +704,12 @@ fun HomeScreen(
                                         )
                                     }
                                 }
+                                tvPivotHorizontalEndSpacer(isTv)
                             }
                         }
                     }
                 }
+                tvPivotVerticalEndSpacer(isTv)
                 }
             }
         }

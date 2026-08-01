@@ -190,8 +190,9 @@ private fun TvRailDestinationRow(
     onClick: () -> Unit
 ) {
     var focused by remember { mutableStateOf(false) }
-    // Le focus se lit au fond (pastille Surface3) et au libellé, blanc et
-    // gras ; la destination courante garde son icône violette même survolée,
+    // Le focus se lit au fond (pastille Surface3) et à la couleur du libellé ;
+    // sa graisse reste stable. La destination courante garde son icône
+    // violette même survolée,
     // mais dans une teinte plus claire (AccentLavandeHover) pour que le
     // survol reste toujours plus éclatant que l'état au repos, jamais plus
     // sombre. La sélection prime sur le focus pour la nature de la teinte de
@@ -227,13 +228,16 @@ private fun TvRailDestinationRow(
             Text(
                 stringResource(destination.labelRes),
                 color = if (focused) Color.White else Color(0xFFB9B9C6),
-                fontWeight = if (focused || isSelected) FontWeight.Bold else FontWeight.Normal,
+                fontWeight = tvRailLabelFontWeight(isSelected),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
         }
     }
 }
+
+internal fun tvRailLabelFontWeight(isSelected: Boolean): FontWeight =
+    if (isSelected) FontWeight.Bold else FontWeight.Normal
 
 private fun TvRailIcon.imageVector(): ImageVector = when (this) {
     TvRailIcon.HOME -> Icons.Default.Home

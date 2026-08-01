@@ -12,6 +12,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import com.cstv.app.presentation.components.tvPivotItem
 import com.cstv.app.presentation.components.tvPivotSection
+import com.cstv.app.presentation.components.tvPivotHorizontalEndSpacer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Star
@@ -139,6 +140,7 @@ fun CategorySectionRow(
                     }
                 }
             }
+            tvPivotHorizontalEndSpacer(isTv)
         }
     }
 }
@@ -373,6 +375,7 @@ fun RecentlyWatchedRow(
                     }
                 }
             }
+            tvPivotHorizontalEndSpacer(isTv)
         }
     }
 }
