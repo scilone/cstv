@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
@@ -54,6 +55,7 @@ import androidx.compose.ui.unit.sp
 import com.cstv.app.presentation.navigation.TvRailDestination
 import com.cstv.app.presentation.navigation.TvRailIcon
 import com.cstv.app.presentation.theme.AccentLavande
+import com.cstv.app.presentation.theme.AccentLavandeHover
 import com.cstv.app.presentation.theme.Surface1
 import com.cstv.app.presentation.theme.Surface3
 
@@ -188,12 +190,16 @@ private fun TvRailDestinationRow(
     onClick: () -> Unit
 ) {
     var focused by remember { mutableStateOf(false) }
-    // Ni aplat ni bordure : le focus se lit au libellé, blanc et gras, la
-    // destination courante à son icône violette. La sélection prime sur le
-    // focus pour la teinte de l'icône — survoler la section où l'on se trouve
-    // ne doit pas lui faire perdre sa couleur, sans quoi on ne sait plus où
-    // l'on est.
+    // Le focus se lit au fond (pastille Surface3) et au libellé, blanc et
+    // gras ; la destination courante garde son icône violette même survolée,
+    // mais dans une teinte plus claire (AccentLavandeHover) pour que le
+    // survol reste toujours plus éclatant que l'état au repos, jamais plus
+    // sombre. La sélection prime sur le focus pour la nature de la teinte de
+    // l'icône (violet, pas blanc) — survoler la section où l'on se trouve ne
+    // doit pas lui faire perdre sa couleur, sans quoi on ne sait plus où l'on
+    // est.
     val iconColor = when {
+        isSelected && focused -> AccentLavandeHover
         isSelected -> AccentLavande
         focused -> Color.White
         else -> Color(0xFFB9B9C6)
@@ -203,6 +209,8 @@ private fun TvRailDestinationRow(
         modifier = Modifier
             .fillMaxWidth()
             .height(44.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .background(if (focused) Surface3 else Color.Transparent)
             .onFocusChanged { focused = it.isFocused }
             .then(focusRequester?.let { Modifier.focusRequester(it) } ?: Modifier)
             .clickable { onClick() }
