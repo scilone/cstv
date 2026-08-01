@@ -104,4 +104,42 @@ class TvPivotScrollTest {
             )
         )
     }
+
+    @Test
+    fun verticalCenterUsesLogicalViewportWithLeadingContentPadding() {
+        assertEquals(
+            0f,
+            focusedChildPivotDelta(
+                viewportStartOffset = -360,
+                viewportEndOffset = 360,
+                sectionOffset = -100,
+                focusedOffsetInSection = 0f,
+                focusedSize = 200
+            )
+        )
+    }
+
+    @Test
+    fun verticalCorrectionMovesContentInBothDirections() {
+        assertEquals(
+            120f,
+            focusedChildPivotDelta(
+                viewportStartOffset = 0,
+                viewportEndOffset = 720,
+                sectionOffset = 380,
+                focusedOffsetInSection = 0f,
+                focusedSize = 200
+            )
+        )
+        assertEquals(
+            -120f,
+            focusedChildPivotDelta(
+                viewportStartOffset = 0,
+                viewportEndOffset = 720,
+                sectionOffset = 140,
+                focusedOffsetInSection = 0f,
+                focusedSize = 200
+            )
+        )
+    }
 }

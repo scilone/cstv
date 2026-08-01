@@ -1,7 +1,7 @@
 package com.cstv.app.presentation.components
 
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.gestures.animateScrollBy
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.onFocusedBoundsChanged
 import androidx.compose.foundation.lazy.LazyListState
@@ -11,6 +11,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusState
 import androidx.compose.ui.focus.focusProperties
@@ -19,10 +20,12 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /**
@@ -34,9 +37,23 @@ import kotlin.math.roundToInt
  */
 private const val SECTION_KEY_RESOLUTION_TIMEOUT_MS = 200L
 
+/**
+ * Plusieurs passes couvrent le `bringIntoView` implicite de Compose, qui peut
+ * encore déplacer la liste dans les frames suivant l'acquisition du focus.
+ */
+private const val VERTICAL_PIVOT_MAX_PASSES = 5
+private const val VERTICAL_PIVOT_STABLE_PASSES = 2
+private const val VERTICAL_PIVOT_TOLERANCE_PX = 0.5f
+
 private class PivotSectionCoordinates(
     var section: LayoutCoordinates? = null,
-    var focusedChild: LayoutCoordinates? = null
+    var focusedChild: LayoutCoordinates? = null,
+    var correctionJob: Job? = null
+)
+
+private class PivotCellCoordinates(
+    var focusedChild: LayoutCoordinates? = null,
+    var correctionJob: Job? = null
 )
 
 /**
@@ -113,25 +130,6 @@ suspend fun LazyListState.animateScrollToPivot(
     }
 }
 
-suspend fun LazyGridState.animateScrollToPivot(
-    index: Int,
-    parentFraction: Float,
-    childFraction: Float
-) {
-    if (index < 0 || index >= layoutInfo.totalItemsCount) return
-    val info = layoutInfo
-    val viewportSize = info.viewportEndOffset - info.viewportStartOffset
-    val itemSize = info.visibleItemsInfo.firstOrNull { it.index == index }?.size?.height ?: 0
-    val offset = pivotScrollOffset(viewportSize, itemSize, parentFraction, childFraction)
-    try {
-        animateScrollToItem(index, offset)
-    } catch (e: CancellationException) {
-        throw e
-    } catch (e: Exception) {
-        // Idem : liste/grille rechargée entre résolution d'index et appel.
-    }
-}
-
 /**
  * Pivot horizontal (emplacement de la première vignette) sur une carte d'une [LazyListState].
  * Non-op si `enabled = false`. S'applique en enveloppe autour de la carte
@@ -193,14 +191,32 @@ fun LazyListScope.tvPivotVerticalEndSpacer(enabled: Boolean) {
     }
 }
 
-/** Pivot vertical (50 %, centre) sur une cellule d'une [LazyGridState]. Non-op si `enabled = false`. */
+/**
+ * Pivot vertical strict (50 %, centre) sur une cellule d'une [LazyGridState].
+ * Le callback de bounds reste actif après le focus initial afin de corriger un
+ * éventuel `bringIntoView` tardif de Compose.
+ */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun Modifier.tvPivotCell(enabled: Boolean, state: LazyGridState, index: Int): Modifier {
     if (!enabled) return this
     val scope = rememberCoroutineScope()
-    return this.onFocusChanged { focusState: FocusState ->
-        if (focusState.hasFocus) {
-            scope.launch { state.animateScrollToPivot(index, TV_PIVOT_VERTICAL, 0.5f) }
+    val coordinates = remember { PivotCellCoordinates() }
+    return this.onFocusedBoundsChanged { focusedCoordinates ->
+        if (focusedCoordinates == null) {
+            coordinates.focusedChild = null
+            coordinates.correctionJob?.cancel()
+            coordinates.correctionJob = null
+            return@onFocusedBoundsChanged
+        }
+        val targetChanged = coordinates.focusedChild !== focusedCoordinates
+        coordinates.focusedChild = focusedCoordinates
+        if (!targetChanged && coordinates.correctionJob?.isActive == true) {
+            return@onFocusedBoundsChanged
+        }
+        coordinates.correctionJob?.cancel()
+        coordinates.correctionJob = scope.launch {
+            state.convergeCellToVerticalPivot(index)
         }
     }
 }
@@ -225,42 +241,84 @@ fun Modifier.tvPivotSection(enabled: Boolean, state: LazyListState, key: Any): M
         .onFocusedBoundsChanged { focusedCoordinates ->
             if (focusedCoordinates == null) {
                 coordinates.focusedChild = null
+                coordinates.correctionJob?.cancel()
+                coordinates.correctionJob = null
                 return@onFocusedBoundsChanged
             }
-            // Le callback est aussi notifié lorsque le même nœud se déplace
-            // pendant le scroll. Ne lancer qu'un recentrage par changement de
-            // cible évite une cascade d'animations concurrentes.
-            if (coordinates.focusedChild === focusedCoordinates) return@onFocusedBoundsChanged
+            val targetChanged = coordinates.focusedChild !== focusedCoordinates
             coordinates.focusedChild = focusedCoordinates
             val section = coordinates.section ?: return@onFocusedBoundsChanged
-            scope.launch {
-                val itemInfo = resolveSectionInfo(state, key) ?: return@launch
-                if (!section.isAttached || !focusedCoordinates.isAttached) return@launch
-                val focusedOffset = try {
-                    section.localPositionOf(focusedCoordinates, Offset.Zero).y
-                } catch (e: IllegalArgumentException) {
-                    return@launch
-                } catch (e: IllegalStateException) {
-                    return@launch
-                }
-                val layoutInfo = state.layoutInfo
-                val delta = focusedChildPivotDelta(
-                    viewportStartOffset = layoutInfo.viewportStartOffset,
-                    viewportEndOffset = layoutInfo.viewportEndOffset,
-                    sectionOffset = itemInfo.offset,
-                    focusedOffsetInSection = focusedOffset,
-                    focusedSize = focusedCoordinates.size.height
-                )
-                try {
-                    state.animateScrollBy(delta)
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    // La section a pu disparaître pendant un rechargement. Le
-                    // prochain focus recalculera sa position depuis le layout.
-                }
+            // Tant que la convergence courante est active, ses passes suivantes
+            // absorberont les changements de bounds qu'elle provoque elle-même.
+            if (!targetChanged && coordinates.correctionJob?.isActive == true) {
+                return@onFocusedBoundsChanged
+            }
+            coordinates.correctionJob?.cancel()
+            coordinates.correctionJob = scope.launch {
+                state.convergeSectionToVerticalPivot(key, section, focusedCoordinates)
             }
         }
+}
+
+private suspend fun LazyListState.convergeSectionToVerticalPivot(
+    key: Any,
+    section: LayoutCoordinates,
+    focusedChild: LayoutCoordinates
+) {
+    var stablePasses = 0
+    repeat(VERTICAL_PIVOT_MAX_PASSES) {
+        val itemInfo = resolveSectionInfo(this, key)
+        if (itemInfo != null && section.isAttached && focusedChild.isAttached) {
+            val focusedOffset = try {
+                section.localPositionOf(focusedChild, Offset.Zero).y
+            } catch (e: IllegalArgumentException) {
+                return
+            } catch (e: IllegalStateException) {
+                return
+            }
+            val info = layoutInfo
+            val delta = focusedChildPivotDelta(
+                viewportStartOffset = info.viewportStartOffset,
+                viewportEndOffset = info.viewportEndOffset,
+                sectionOffset = itemInfo.offset,
+                focusedOffsetInSection = focusedOffset,
+                focusedSize = focusedChild.size.height
+            )
+            if (abs(delta) <= VERTICAL_PIVOT_TOLERANCE_PX) {
+                stablePasses++
+                if (stablePasses >= VERTICAL_PIVOT_STABLE_PASSES) return
+            } else {
+                stablePasses = 0
+                scrollBy(delta)
+            }
+        }
+        withFrameNanos { }
+    }
+}
+
+private suspend fun LazyGridState.convergeCellToVerticalPivot(index: Int) {
+    var stablePasses = 0
+    repeat(VERTICAL_PIVOT_MAX_PASSES) {
+        val info = layoutInfo
+        val itemInfo = info.visibleItemsInfo.firstOrNull { it.index == index }
+        if (itemInfo != null) {
+            val delta = focusedChildPivotDelta(
+                viewportStartOffset = info.viewportStartOffset,
+                viewportEndOffset = info.viewportEndOffset,
+                sectionOffset = itemInfo.offset.y,
+                focusedOffsetInSection = 0f,
+                focusedSize = itemInfo.size.height
+            )
+            if (abs(delta) <= VERTICAL_PIVOT_TOLERANCE_PX) {
+                stablePasses++
+                if (stablePasses >= VERTICAL_PIVOT_STABLE_PASSES) return
+            } else {
+                stablePasses = 0
+                scrollBy(delta)
+            }
+        }
+        withFrameNanos { }
+    }
 }
 
 /**
