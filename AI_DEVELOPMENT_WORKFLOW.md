@@ -581,11 +581,11 @@ Haiku 4.5 / Gemini 3.5 Flash
 ---
 
 <details>
-<summary><b>Étape 10 - Livraison Git</b></summary>
+<summary><b>Étape 10 - Livraison Git et Compilation</b></summary>
 
 ## Objectif
 
-Publier officiellement l'élément.
+Publier officiellement l'élément et compiler l'APK signé final de production.
 
 Avant livraison :
 
@@ -595,7 +595,7 @@ Avant livraison :
 
 ## Actions
 
-1. Stager les fichiers modifiés et créés :
+1. Stager les fichiers modifiés, créés et documentés :
    ```bash
    git add <fichiers>
    ```
@@ -603,16 +603,13 @@ Avant livraison :
    ```bash
    git commit -m ":emoji: type(scope): description (ID)"
    ```
-3. Créer le tag SemVer correspondant :
+3. Exécuter le script de release locale pour compiler l'APK signé de production, créer le tag Git et pousser automatiquement vers le dépôt distant :
    ```bash
-   git tag vX.Y.Z
+   ./scripts/release-local.sh
    ```
-4. Pousser les modifications (commits et tags) vers le dépôt distant :
-   ```bash
-   git push && git push --tags
-   ```
-5. Mettre à jour le statut dans la fiche de l'élément à `RELEASED`, avec la version, le nom du commit/tag, et la date du jour.
-6. Archiver la fiche de l'élément en la déplaçant vers son sous-dossier `archive/`.
+   *Note : Le script compile l'APK, vérifie sa signature, pose le tag localement, effectue les pushs et crée la Release GitHub avec l'APK attaché.*
+4. Mettre à jour le statut dans la fiche de l'élément à `RELEASED`, avec la version, le nom du commit/tag, et la date du jour.
+5. Archiver la fiche de l'élément en la déplaçant vers son sous-dossier `archive/`.
 
 </details>
 
