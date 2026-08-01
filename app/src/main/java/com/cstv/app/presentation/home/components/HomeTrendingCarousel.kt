@@ -61,7 +61,7 @@ import com.cstv.app.presentation.components.TrailerPreviewUiState
 private const val CAROUSEL_LOOPS = 1000
 
 /** Largeur de la tranche laissée visible de chaque slide voisine. */
-private val CAROUSEL_PEEK = 20.dp
+internal val CAROUSEL_PEEK = 20.dp
 
 /** Échelle des slides voisines ; la slide courante reste à 1. */
 private const val CAROUSEL_SIDE_SCALE = 0.88f

@@ -471,6 +471,12 @@ class HomeViewModel @Inject constructor(
             _state.update { it.copy(awaitingTrending = true) }
         }
         trendingJob = viewModelScope.launch {
+            val isExpired = try {
+                getTrendingInCatalogUseCase.isCacheExpired()
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                true
+            }
             val cached = try {
                 getTrendingInCatalogUseCase.cached()
             } catch (e: Exception) {
@@ -494,10 +500,25 @@ class HomeViewModel @Inject constructor(
                 // Une liste vide (TMDB injoignable, quota, aucun appariement) ne
                 // doit jamais effacer des tendances déjà affichées.
                 val keepCurrent = refreshed.isEmpty() || refreshed == current.trendingList
-                current.copy(
-                    trendingList = if (keepCurrent) current.trendingList else refreshed,
-                    awaitingTrending = false
-                )
+                if (keepCurrent) {
+                    current.copy(awaitingTrending = false)
+                } else {
+                    val newList = if (isExpired && current.trendingList.isNotEmpty()) {
+                        val existingIds = current.trendingList
+                            .map { it.trendingTitle.tmdbId to it.trendingTitle.isMovie }
+                            .toSet()
+                        val uniqueRefreshed = refreshed.filter {
+                            (it.trendingTitle.tmdbId to it.trendingTitle.isMovie) !in existingIds
+                        }
+                        current.trendingList + uniqueRefreshed
+                    } else {
+                        refreshed
+                    }
+                    current.copy(
+                        trendingList = newList,
+                        awaitingTrending = false
+                    )
+                }
             }
         }
         if (awaitFirstTrending) {

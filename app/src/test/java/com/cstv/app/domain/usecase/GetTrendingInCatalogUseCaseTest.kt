@@ -246,7 +246,7 @@ class GetTrendingInCatalogUseCaseTest {
         val movies = listOf(VodStream(streamId = 10, name = "Inception", streamIcon = "icon", rating = "9.0", added = "12345", categoryId = "cat_movies", releaseYear = 2010))
         whenever(vodRepository.getCachedVodStreamsByYears(any())).thenReturn(movies)
         whenever(seriesRepository.getCachedSeriesStreamsByYears(any())).thenReturn(emptyList())
-        
+
         // Mock existence revalidation
         whenever(vodRepository.getStreamById(10)).thenReturn(movies[0])
 
@@ -487,5 +487,65 @@ class GetTrendingInCatalogUseCaseTest {
 
         assertEquals(1, result.size)
         assertEquals(7, result.single().matchedMovie?.streamId)
+    }
+
+    @Test
+    fun test_cached_delegatesToRepository_withIgnoreExpirationTrue() = runTest {
+        val trendingRepository = mock<TrendingRepository>()
+        val vodRepository = mock<VodRepository>()
+        val seriesRepository = mock<SeriesRepository>()
+        val categoryPreferenceRepository = mock<CategoryPreferenceRepository>()
+        val catalogFreshness = mock<com.cstv.app.data.sync.CatalogFreshness>()
+        whenever(catalogFreshness.vodSyncedAt()).thenReturn(100L)
+        whenever(catalogFreshness.seriesSyncedAt()).thenReturn(200L)
+
+        val movie = VodStream(7, "Dune", null, null, null, "visible", releaseYear = 2021)
+        whenever(trendingRepository.getCachedMatchedTrendsGlobal(
+            lastCatalogSyncTime = 200L,
+            ignoreSessionRefresh = true,
+            ignoreExpiration = true
+        )).thenReturn(
+            listOf(
+                TrendingCatalogItem(
+                    trendingTitle = TrendingTitle(1, "Dune", isMovie = true, year = 2021, posterUrl = null),
+                    matchedMovies = listOf(movie),
+                    matchedMovie = movie
+                )
+            )
+        )
+        whenever(vodRepository.getStreamById(7)).thenReturn(movie)
+        whenever(categoryPreferenceRepository.getPreferences(any())).thenReturn(emptyMap())
+
+        val useCase = GetTrendingInCatalogUseCase(
+            trendingRepository,
+            vodRepository,
+            seriesRepository,
+            categoryPreferenceRepository,
+            catalogFreshness
+        )
+
+        val result = useCase.cached()
+        assertEquals(1, result.size)
+        assertEquals(7, result.single().matchedMovie?.streamId)
+    }
+
+    @Test
+    fun test_isCacheExpired_delegatesToRepository() = runTest {
+        val trendingRepository = mock<TrendingRepository>()
+        val catalogFreshness = mock<com.cstv.app.data.sync.CatalogFreshness>()
+        whenever(catalogFreshness.vodSyncedAt()).thenReturn(100L)
+        whenever(catalogFreshness.seriesSyncedAt()).thenReturn(200L)
+
+        whenever(trendingRepository.isCacheExpired(200L)).thenReturn(true)
+
+        val useCase = GetTrendingInCatalogUseCase(
+            trendingRepository,
+            mock(),
+            mock(),
+            mock(),
+            catalogFreshness
+        )
+
+        assertTrue(useCase.isCacheExpired())
     }
 }

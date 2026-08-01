@@ -143,6 +143,7 @@ class HomeViewModelTest {
         // Les tendances sont lues en deux temps (cache immédiat puis
         // rafraîchissement) : sans stub de `cached()`, l'appel suspendu du mock
         // ne reprend jamais et le test se bloque.
+        whenever(getTrendingInCatalogUseCase.isCacheExpired()).thenReturn(false)
         whenever(getTrendingInCatalogUseCase.cached()).thenReturn(emptyList())
         whenever(getTrendingInCatalogUseCase.invoke()).thenReturn(emptyList())
         whenever(getRecommendationsUseCase.invoke(any())).thenReturn(
@@ -498,6 +499,104 @@ class HomeViewModelTest {
         assertEquals("Dune", state.trendingList[0].trendingTitle.title)
         assertEquals(false, state.awaitingTrending)
 
+        viewModel.viewModelScope.cancel()
+    }
+
+    @Test
+    fun test_loadHomeData_replacesFreshCachedTrendsWithRefresh() = runTest {
+        stubReactiveSources()
+        stubEmptyCategoryPreferences()
+
+        val cachedTrend = TrendingCatalogItem(
+            trendingTitle = TrendingTitle(1, "Dune", isMovie = true, year = 2021, posterUrl = "url_dune"),
+            matchedMovie = VodStream(10, "Dune", "icon", "8.0", "12345", "1")
+        )
+        val refreshedTrend = TrendingCatalogItem(
+            trendingTitle = TrendingTitle(2, "Inception", isMovie = true, year = 2010, posterUrl = "url_inc"),
+            matchedMovie = VodStream(11, "Inception", "icon", "9.0", "12345", "1")
+        )
+        whenever(getTrendingInCatalogUseCase.isCacheExpired()).thenReturn(false)
+        whenever(getTrendingInCatalogUseCase.cached()).thenReturn(listOf(cachedTrend))
+        whenever(getTrendingInCatalogUseCase.invoke()).thenReturn(listOf(refreshedTrend))
+        whenever(getLiveCategoriesUseCase.once()).thenReturn(emptyList())
+        whenever(vodRepository.getCachedVodStreams("all")).thenReturn(emptyList())
+        whenever(seriesRepository.getCachedSeriesStreams("all")).thenReturn(emptyList())
+
+        viewModel = createViewModel()
+        testDispatcher.scheduler.runCurrent()
+
+        assertEquals(listOf(refreshedTrend), viewModel.state.value.trendingList)
+        assertFalse(viewModel.state.value.awaitingTrending)
+        viewModel.viewModelScope.cancel()
+    }
+
+    @Test
+    fun test_loadHomeData_appendsTrends_whenCacheIsExpired() = runTest {
+        stubReactiveSources()
+        stubEmptyCategoryPreferences()
+
+        val cachedTrends = listOf(
+            TrendingCatalogItem(
+                trendingTitle = TrendingTitle(1, "Dune", isMovie = true, year = 2021, posterUrl = "url_dune"),
+                matchedMovie = VodStream(10, "Dune", "icon", "8.0", "12345", "1")
+            )
+        )
+        val refreshedTrends = listOf(
+            TrendingCatalogItem(
+                trendingTitle = TrendingTitle(1, "Dune", isMovie = true, year = 2021, posterUrl = "url_dune"),
+                matchedMovie = VodStream(10, "Dune", "icon", "8.0", "12345", "1")
+            ),
+            TrendingCatalogItem(
+                trendingTitle = TrendingTitle(2, "Inception", isMovie = true, year = 2010, posterUrl = "url_inc"),
+                matchedMovie = VodStream(11, "Inception", "icon", "9.0", "12345", "1")
+            )
+        )
+
+        // Cache is expired
+        whenever(getTrendingInCatalogUseCase.isCacheExpired()).thenReturn(true)
+        whenever(getTrendingInCatalogUseCase.cached()).thenReturn(cachedTrends)
+        whenever(getTrendingInCatalogUseCase.invoke()).thenReturn(refreshedTrends)
+        whenever(getLiveCategoriesUseCase.once()).thenReturn(emptyList())
+        whenever(vodRepository.getCachedVodStreams("all")).thenReturn(emptyList())
+        whenever(seriesRepository.getCachedSeriesStreams("all")).thenReturn(emptyList())
+
+        viewModel = createViewModel()
+        testDispatcher.scheduler.runCurrent()
+
+        val state = viewModel.state.value
+        // Both cached (Dune) and new non-duplicate refreshed (Inception) should be there
+        assertEquals(2, state.trendingList.size)
+        assertEquals("Dune", state.trendingList[0].trendingTitle.title)
+        assertEquals("Inception", state.trendingList[1].trendingTitle.title)
+        assertEquals(false, state.awaitingTrending)
+
+        viewModel.viewModelScope.cancel()
+    }
+
+    @Test
+    fun test_loadHomeData_keepsMovieAndSeriesWithSameTmdbId_whenCacheIsExpired() = runTest {
+        stubReactiveSources()
+        stubEmptyCategoryPreferences()
+
+        val cachedMovie = TrendingCatalogItem(
+            trendingTitle = TrendingTitle(1, "Dune", isMovie = true, year = 2021, posterUrl = "url_dune"),
+            matchedMovie = VodStream(10, "Dune", "icon", "8.0", "12345", "1")
+        )
+        val refreshedSeries = TrendingCatalogItem(
+            trendingTitle = TrendingTitle(1, "Dune: Prophecy", isMovie = false, year = 2024, posterUrl = "url_dune_prophecy"),
+            matchedSeries = SeriesStream(20, "Dune: Prophecy", "icon", "8.0", "2024", "1")
+        )
+        whenever(getTrendingInCatalogUseCase.isCacheExpired()).thenReturn(true)
+        whenever(getTrendingInCatalogUseCase.cached()).thenReturn(listOf(cachedMovie))
+        whenever(getTrendingInCatalogUseCase.invoke()).thenReturn(listOf(refreshedSeries))
+        whenever(getLiveCategoriesUseCase.once()).thenReturn(emptyList())
+        whenever(vodRepository.getCachedVodStreams("all")).thenReturn(emptyList())
+        whenever(seriesRepository.getCachedSeriesStreams("all")).thenReturn(emptyList())
+
+        viewModel = createViewModel()
+        testDispatcher.scheduler.runCurrent()
+
+        assertEquals(listOf(cachedMovie, refreshedSeries), viewModel.state.value.trendingList)
         viewModel.viewModelScope.cancel()
     }
 

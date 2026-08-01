@@ -1,7 +1,10 @@
 package com.cstv.app.presentation.home
+import androidx.compose.animation.core.animateFloat
 import com.cstv.app.R
 import androidx.compose.ui.res.stringResource
 import com.cstv.app.presentation.home.components.*
+import com.cstv.app.presentation.home.components.CAROUSEL_PEEK
+import com.cstv.app.presentation.home.components.TV_HERO_PEEK
 import com.cstv.app.presentation.components.SeeAllLink
 
 import com.cstv.app.presentation.rememberRowScrollState
@@ -35,6 +38,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -174,7 +178,7 @@ fun HomeScreen(
             .fillMaxSize()
             .background(if (isTv) Surface1 else Color.Transparent)
     ) {
-        if (state.isLoading || state.awaitingTrending) {
+        if (state.isLoading) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
             }
@@ -325,46 +329,66 @@ fun HomeScreen(
 
                 // NOUVEAU: Hero "Reprendre" ou "Tendances" (Phase F1)
                 if (!isTv) {
-                    if (state.trendingList.isNotEmpty()) {
+                    if (state.trendingList.isNotEmpty() || state.awaitingTrending) {
                         item(key = "home_trending") {
-                            HomeTrendingCarousel(
-                                trendingItems = state.trendingList,
-                                trailerPreview = state.trailerPreview,
-                                onActiveItemChanged = viewModel::selectTrendingPreview,
-                                onPreviewContextEnded = viewModel::cancelTrendingPreview,
-                                onPreviewPlaybackFailed = viewModel::reportTrailerPlaybackFailure,
-                                onMovieClick = { streamId ->
-                                    state.trendingList.find { it.matchedMovie?.streamId == streamId }?.matchedMovie?.let {
-                                        onSelectMovieDetail(it)
-                                    }
-                                },
-                                onSeriesClick = { seriesId ->
-                                    state.trendingList.find { it.matchedSeries?.seriesId == seriesId }?.matchedSeries?.let {
-                                        onSelectSeriesDetail(it)
-                                    }
-                                },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 8.dp)
-                            )
+                            if (state.trendingList.isNotEmpty()) {
+                                HomeTrendingCarousel(
+                                    trendingItems = state.trendingList,
+                                    trailerPreview = state.trailerPreview,
+                                    onActiveItemChanged = viewModel::selectTrendingPreview,
+                                    onPreviewContextEnded = viewModel::cancelTrendingPreview,
+                                    onPreviewPlaybackFailed = viewModel::reportTrailerPlaybackFailure,
+                                    onMovieClick = { streamId ->
+                                        state.trendingList.find { it.matchedMovie?.streamId == streamId }?.matchedMovie?.let {
+                                            onSelectMovieDetail(it)
+                                        }
+                                    },
+                                    onSeriesClick = { seriesId ->
+                                        state.trendingList.find { it.matchedSeries?.seriesId == seriesId }?.matchedSeries?.let {
+                                            onSelectSeriesDetail(it)
+                                        }
+                                    },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 8.dp)
+                                )
+                            } else {
+                                HomeTrendingCarouselSkeleton(
+                                    isTv = false,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 8.dp)
+                                )
+                            }
                         }
                     }
-                } else if (state.trendingList.isNotEmpty()) {
-                    item(key = "home_trending") {
-                        HomeTrendingCarouselTv(
-                            trendingItems = state.trendingList,
-                            trailerPreview = state.trailerPreview,
-                            onPreviewRequested = viewModel::selectTrendingPreview,
-                            onPreviewContextEnded = viewModel::cancelTrendingPreview,
-                            onPreviewPlaybackFailed = viewModel::reportTrailerPlaybackFailure,
-                            onMovieClick = { streamId ->
-                                state.trendingList.find { it.matchedMovie?.streamId == streamId }?.matchedMovie?.let(onSelectMovieDetail)
-                            },
-                            onSeriesClick = { seriesId ->
-                                state.trendingList.find { it.matchedSeries?.seriesId == seriesId }?.matchedSeries?.let(onSelectSeriesDetail)
-                            },
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
-                        )
+                } else {
+                    if (state.trendingList.isNotEmpty() || state.awaitingTrending) {
+                        item(key = "home_trending") {
+                            if (state.trendingList.isNotEmpty()) {
+                                HomeTrendingCarouselTv(
+                                    trendingItems = state.trendingList,
+                                    trailerPreview = state.trailerPreview,
+                                    onPreviewRequested = viewModel::selectTrendingPreview,
+                                    onPreviewContextEnded = viewModel::cancelTrendingPreview,
+                                    onPreviewPlaybackFailed = viewModel::reportTrailerPlaybackFailure,
+                                    onMovieClick = { streamId ->
+                                        state.trendingList.find { it.matchedMovie?.streamId == streamId }?.matchedMovie?.let(onSelectMovieDetail)
+                                    },
+                                    onSeriesClick = { seriesId ->
+                                        state.trendingList.find { it.matchedSeries?.seriesId == seriesId }?.matchedSeries?.let(onSelectSeriesDetail)
+                                    },
+                                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
+                                )
+                            } else {
+                                HomeTrendingCarouselSkeleton(
+                                    isTv = true,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 8.dp)
+                                )
+                            }
+                        }
                     }
                 }
 
@@ -764,5 +788,37 @@ private fun HomeSectionRow(
             }
         }
         content()
+    }
+}
+
+@Composable
+private fun HomeTrendingCarouselSkeleton(
+    isTv: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val infiniteTransition = androidx.compose.animation.core.rememberInfiniteTransition(label = "shimmer")
+    val alpha by infiniteTransition.animateFloat(
+        initialValue = 0.10f,
+        targetValue = 0.25f,
+        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+            animation = androidx.compose.animation.core.tween(1500),
+            repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
+        ),
+        label = "alpha"
+    )
+
+    Card(
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = alpha)),
+        modifier = modifier
+            .fillMaxWidth()
+            .height(if (isTv) 300.dp else 470.dp)
+            .focusProperties { canFocus = false }
+            .padding(
+                start = if (isTv) 0.dp else CAROUSEL_PEEK,
+                end = if (isTv) TV_HERO_PEEK else CAROUSEL_PEEK
+            )
+    ) {
+        Box(modifier = Modifier.fillMaxSize())
     }
 }

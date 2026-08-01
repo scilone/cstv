@@ -58,7 +58,7 @@ import kotlinx.coroutines.launch
 private const val HERO_PREVIEW_DELAY_MS = 1_500L
 
 /** Tranche laissée visible des tendances voisines de part et d'autre. */
-private val TV_HERO_PEEK = 72.dp
+internal val TV_HERO_PEEK = 72.dp
 
 /**
  * Échelle des slides voisines. À 1, la tendance suivante a exactement la taille

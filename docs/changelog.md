@@ -1,5 +1,22 @@
 # Journal des Modifications (Changelog) - CSTV IPTV
 
+## [v1.64.14] - 2026-08-01
+### 🐛 Élimination de la latence de l'Accueil, cache toléré et Skeleton Loader (B15)
+* **Affichage immédiat sur cache expiré** : Remplacement du blocage initial par un cache périmé-toléré (fallback temporaire au-delà de 24h). L'Accueil se charge instantanément au lieu d'afficher un écran noir bloqué par un spinner pendant 2 secondes.
+* **Fusion stable sans sauts visuels (Append on Refresh)** : Lors du rafraîchissement asynchrone des tendances, les nouvelles cartes sont ajoutées à la suite du cache périmé existant sans retirer ni réordonner les éléments vus par l'utilisateur. Le dédoublonnage utilise la paire sémantique unique `(tmdbId, isMovie)` pour éviter toute collision d'identifiants entre films et séries de TMDB.
+* **Skeleton Loader Hero dédié** : En l'absence totale de cache (premier lancement), un composant de chargement Skeleton non interactif occupe le créneau exact de la Hero Card (470dp sur mobile, 300dp sur TV), laissant le reste de l'Accueil (autres sections) immédiatement disponible et navigable sans blocage ni focus parasite au D-pad.
+* **Désaccouplement du loader plein écran** : Le spinner global de l'Accueil est désormais restreint au chargement nominal de la structure (`isLoading`), libérant le flux des tendances asynchrones (`awaitingTrending`) pour un rendu fluide et progressif.
+
+> Validation automatisée : `testDebugUnitTest` et compilation validées à 100% avec succès.
+
+## [v1.64.13] - 2026-07-30
+### 🔧 Build local de production et automatisation de signature
+* **Script de release locale unifiée** : Ajout de `scripts/release-local.sh` pour piloter la chaîne complète (tests, lint, compilation de l'APK signé de release, tagging Git local, push et création automatisée de la release GitHub avec APK attaché).
+* **Délocalisation de la pipeline CI** : Retrait du workflow GitHub Actions lourd pour économiser les quotas et accélérer le build de release via un cache Gradle chaud en local.
+* **Configuration sécurisée du Keystore** : Chargement dynamique des secrets de signature via `keystore.properties` (non versionné) avec priorité aux variables d'environnement.
+
+> Validation automatisée : Compilation et signature validées en local avec succès.
+
 ## [v1.63.0] - 2026-07-28
 ### ✨ Refonte de l'interface TV : navigation latérale, Hero Card, logo et « Voir tout » (F18)
 * **Barre de navigation latérale rétractable (TV)** : Remplacement de la navigation supérieure par une barre latérale animée ancrée à gauche (68dp ↔ 260dp), s'ouvrant automatiquement lors du focus D-pad et affichant le profil actif, l'expiration de session filtrée et les destinations.

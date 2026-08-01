@@ -11,7 +11,9 @@ interface TrendingRepository {
      */
     suspend fun getCachedMatchedTrendsGlobal(
         lastCatalogSyncTime: Long = 0L,
-        ignoreSessionRefresh: Boolean = false
+        ignoreSessionRefresh: Boolean = false,
+        ignoreExpiration: Boolean = false
     ): List<TrendingCatalogItem>?
+    suspend fun isCacheExpired(lastCatalogSyncTime: Long = 0L): Boolean
     suspend fun saveMatchedTrendsGlobal(items: List<TrendingCatalogItem>)
 }

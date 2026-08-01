@@ -82,7 +82,8 @@ class TrendingRepositoryImpl @Inject constructor(
 
     override suspend fun getCachedMatchedTrendsGlobal(
         lastCatalogSyncTime: Long,
-        ignoreSessionRefresh: Boolean
+        ignoreSessionRefresh: Boolean,
+        ignoreExpiration: Boolean
     ): List<TrendingCatalogItem>? = mutex.withLock {
         if (!ignoreSessionRefresh && sessionRefreshGate.consumeFirstAccess(TRENDS_DATA_KEY)) {
             com.cstv.app.di.IptvLog.d("TMDB", "💾 Cache tendances ignoré au lancement : rafraîchissement forcé.")
@@ -91,7 +92,7 @@ class TrendingRepositoryImpl @Inject constructor(
         val lastFetchTime = sharedPrefs.getLong("trends_time_global_v3", 0L)
         val currentTime = System.currentTimeMillis()
 
-        if (currentTime - lastFetchTime >= cacheDurationMs) {
+        if (!ignoreExpiration && currentTime - lastFetchTime >= cacheDurationMs) {
             com.cstv.app.di.IptvLog.d("TMDB", "💾 Global trends cache expired.")
             return null // Cache expired
         }
@@ -114,6 +115,19 @@ class TrendingRepositoryImpl @Inject constructor(
             com.cstv.app.di.IptvLog.e("TMDB", "💾 Exception while parsing global trends cache", e)
             null // Fallback to re-fetch on parsing failure
         }
+    }
+
+    override suspend fun isCacheExpired(lastCatalogSyncTime: Long): Boolean = mutex.withLock {
+        val lastFetchTime = sharedPrefs.getLong("trends_time_global_v3", 0L)
+        val currentTime = System.currentTimeMillis()
+
+        if (currentTime - lastFetchTime >= cacheDurationMs) {
+            return true
+        }
+        if (lastFetchTime < lastCatalogSyncTime) {
+            return true
+        }
+        return false
     }
 
     override suspend fun saveMatchedTrendsGlobal(items: List<TrendingCatalogItem>) {

@@ -218,4 +218,56 @@ class TrendingRepositoryImplTest {
 
         assertEquals(1, result?.size)
     }
+
+    @Test
+    fun test_getCachedMatchedTrendsGlobal_servesExpiredCache_whenIgnoreExpirationIsTrue() = runTest {
+        val context = mock<Context>()
+        val prefs = mock<SharedPreferences>()
+        val json = """[{"trendingTitle":{"tmdbId":1,"title":"Dune","isMovie":true,"year":2021}}]"""
+        whenever(context.getSharedPreferences("tmdb_trends_cache", Context.MODE_PRIVATE)).thenReturn(prefs)
+        // 48 hours ago (expired since cache duration is 24h)
+        val expiredTime = System.currentTimeMillis() - (48 * 60 * 60 * 1000L)
+        whenever(prefs.getLong("trends_time_global_v3", 0L)).thenReturn(expiredTime)
+        whenever(prefs.getString("trends_data_global_v3", null)).thenReturn(json)
+        val repository = TrendingRepositoryImpl(context, mock(), "valid_key", Gson())
+
+        // Without ignoreExpiration, it should return null because cache is expired
+        val resultNull = repository.getCachedMatchedTrendsGlobal(
+            lastCatalogSyncTime = 0L,
+            ignoreSessionRefresh = true,
+            ignoreExpiration = false
+        )
+        assertEquals(null, resultNull)
+
+        // With ignoreExpiration, it should bypass expiration and return the item
+        val resultCached = repository.getCachedMatchedTrendsGlobal(
+            lastCatalogSyncTime = 0L,
+            ignoreSessionRefresh = true,
+            ignoreExpiration = true
+        )
+        assertEquals(1, resultCached?.size)
+        assertEquals("Dune", resultCached?.single()?.trendingTitle?.title)
+    }
+
+    @Test
+    fun test_isCacheExpired_returnsCorrectValidity() = runTest {
+        val context = mock<Context>()
+        val prefs = mock<SharedPreferences>()
+        whenever(context.getSharedPreferences("tmdb_trends_cache", Context.MODE_PRIVATE)).thenReturn(prefs)
+        val repository = TrendingRepositoryImpl(context, mock(), "valid_key", Gson())
+
+        // 1. Valid cache
+        whenever(prefs.getLong("trends_time_global_v3", 0L)).thenReturn(System.currentTimeMillis())
+        assertFalse(repository.isCacheExpired(lastCatalogSyncTime = 0L))
+
+        // 2. Expired cache (25h old)
+        whenever(prefs.getLong("trends_time_global_v3", 0L)).thenReturn(System.currentTimeMillis() - (25 * 60 * 60 * 1000L))
+        assertTrue(repository.isCacheExpired(lastCatalogSyncTime = 0L))
+
+        // 3. Cache older than catalog sync (catalog sync is fresh, cache is from before)
+        val catalogSyncTime = System.currentTimeMillis()
+        val cacheTime = catalogSyncTime - 1000L // 1 second before
+        whenever(prefs.getLong("trends_time_global_v3", 0L)).thenReturn(cacheTime)
+        assertTrue(repository.isCacheExpired(lastCatalogSyncTime = catalogSyncTime))
+    }
 }

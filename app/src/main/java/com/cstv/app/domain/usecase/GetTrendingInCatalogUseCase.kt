@@ -69,6 +69,11 @@ class GetTrendingInCatalogUseCase @Inject constructor(
         finalResult
     }
 
+    suspend fun isCacheExpired(): Boolean = withContext(Dispatchers.Default) {
+        val lastCatalogSyncTime = maxOf(catalogFreshness.vodSyncedAt(), catalogFreshness.seriesSyncedAt())
+        trendingRepository.isCacheExpired(lastCatalogSyncTime)
+    }
+
     /**
      * Lecture immédiate du cache persistant, sans aucun accès réseau.
      *
@@ -81,7 +86,7 @@ class GetTrendingInCatalogUseCase @Inject constructor(
     suspend fun cached(): List<TrendingCatalogItem> = withContext(Dispatchers.Default) {
         val lastCatalogSyncTime = maxOf(catalogFreshness.vodSyncedAt(), catalogFreshness.seriesSyncedAt())
         val cached = trendingRepository
-            .getCachedMatchedTrendsGlobal(lastCatalogSyncTime, ignoreSessionRefresh = true)
+            .getCachedMatchedTrendsGlobal(lastCatalogSyncTime, ignoreSessionRefresh = true, ignoreExpiration = true)
             .orEmpty()
         if (cached.isEmpty()) return@withContext emptyList()
 
