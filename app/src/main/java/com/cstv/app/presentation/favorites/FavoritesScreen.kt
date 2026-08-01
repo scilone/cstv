@@ -9,8 +9,12 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
+import com.cstv.app.presentation.components.tvPivotItem
+import com.cstv.app.presentation.components.tvPivotSection
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -96,42 +100,50 @@ fun FavoritesScreen(
                     Text(stringResource(R.string.favorites_empty), color = Color.Gray, fontSize = 15.sp)
                 }
             } else {
+                val listState = rememberLazyListState()
                 LazyColumn(
+                    state = listState,
                     verticalArrangement = Arrangement.spacedBy(24.dp),
                     modifier = Modifier.fillMaxSize()
                 ) {
                     // 1. Live TV Favorites row
                     if (liveFavorites.isNotEmpty()) {
-                        item {
+                        item(key = "favorites_live") {
                             FavoritesCategoryRow(
+                                categoryKey = "favorites_live",
                                 title = stringResource(R.string.favorites_category_live),
                                 itemsList = liveFavorites,
                                 isTv = isTv,
-                                onClick = { onPlayLive(it.id, it.categoryId) }
+                                onClick = { onPlayLive(it.id, it.categoryId) },
+                                sectionListState = listState
                             )
                         }
                     }
 
                     // 2. VOD / Movies Favorites row
                     if (movieFavorites.isNotEmpty()) {
-                        item {
+                        item(key = "favorites_vod") {
                             FavoritesCategoryRow(
+                                categoryKey = "favorites_vod",
                                 title = stringResource(R.string.favorites_category_vod),
                                 itemsList = movieFavorites,
                                 isTv = isTv,
-                                onClick = { onSelectMovie(it.id, it.categoryId) }
+                                onClick = { onSelectMovie(it.id, it.categoryId) },
+                                sectionListState = listState
                             )
                         }
                     }
 
                     // 3. Series Favorites row
                     if (seriesFavorites.isNotEmpty()) {
-                        item {
+                        item(key = "favorites_series") {
                             FavoritesCategoryRow(
+                                categoryKey = "favorites_series",
                                 title = stringResource(R.string.favorites_category_series),
                                 itemsList = seriesFavorites,
                                 isTv = isTv,
-                                onClick = { onSelectSeries(it.id, it.categoryId) }
+                                onClick = { onSelectSeries(it.id, it.categoryId) },
+                                sectionListState = listState
                             )
                         }
                     }
@@ -147,12 +159,18 @@ fun FavoritesScreen(
 
 @Composable
 private fun FavoritesCategoryRow(
+    categoryKey: String,
     title: String,
     itemsList: List<FavoriteItem>,
     isTv: Boolean,
-    onClick: (FavoriteItem) -> Unit
+    onClick: (FavoriteItem) -> Unit,
+    sectionListState: LazyListState
 ) {
-    Column(modifier = Modifier.fillMaxWidth()) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .tvPivotSection(isTv, sectionListState, categoryKey)
+    ) {
         Text(
             text = title,
             color = MaterialTheme.colorScheme.primary,
@@ -161,12 +179,16 @@ private fun FavoritesCategoryRow(
             modifier = Modifier.padding(bottom = 10.dp, start = 4.dp)
         )
 
+        val rowState = rememberLazyListState()
         LazyRow(
+            state = rowState,
             horizontalArrangement = Arrangement.spacedBy(14.dp),
             modifier = Modifier.fillMaxWidth().focusGroup()
         ) {
-            items(itemsList) { item ->
-                FavoriteCardItem(item = item, onClick = { onClick(item) })
+            itemsIndexed(itemsList) { index, item ->
+                Box(modifier = Modifier.tvPivotItem(isTv, rowState, index)) {
+                    FavoriteCardItem(item = item, onClick = { onClick(item) })
+                }
             }
         }
     }

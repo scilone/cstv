@@ -281,5 +281,26 @@ Pour vous éviter des sauts visuels désagréables (saut de cartes, modification
 * **Prise en compte au prochain démarrage** : C'est lors de votre prochaine ouverture de l'application que ces nouvelles données populaires seront lues depuis le cache et affichées comme nouveau point de départ stable.
 * **Premier démarrage à froid** : Si l'application est lancée pour la toute première fois et qu'aucun cache n'est disponible, la mise à jour réseau applique directement les résultats dès réception afin d'éviter de laisser une rangée vide.
 
+---
+
+## 18. Défilement à sélecteur fixe sur Android TV (F19)
+
+Afin d'offrir une navigation TV haut de gamme, cinématique et reposante pour les yeux, l'application CSTV propose un défilement à "sélecteur fixe" (Fixed Focus / Pivot Scrolling) sur Android TV.
+
+### 🎯 Qu'est-ce que le sélecteur fixe ?
+* **Sur d'autres applications classiques** : Lorsque vous appuyez sur les flèches de la télécommande, c'est le cadre du focus qui traverse l'écran d'élément en élément. La liste ne défile que lorsque vous atteignez les bords gauche ou droit. Vos yeux doivent sans cesse suivre le déplacement du cadre à l'écran.
+* **Avec le sélecteur fixe (Fixed Focus)** : Le cadre visuel du focus reste **fixe et immobile** à un endroit stratégique de l'écran. Lorsque vous appuyez sur les flèches, ce sont les cartes de la liste qui glissent de manière fluide en arrière-plan sous votre cadre de focus. Vos yeux restent ainsi ancrés confortablement au même endroit de l'écran pour lire le catalogue.
+
+### 📺 Fonctionnement sur Android TV
+Le sélecteur fixe s'active automatiquement dès que l'application est lancée sur un téléviseur Android TV ou un boîtier TV, et s'applique aux écrans d'Accueil, de TV en Direct, de VOD, de Séries, de Favoris et aux Résultats de recherche.
+* **Défilement Horizontal (15 % de l'écran)** : Lorsque vous naviguez dans une rangée horizontale, la carte active s'aligne et reste idéalement ancrée à environ **15 % de la largeur utilisable** depuis le bord gauche de l'écran. Vous visualisez ainsi parfaitement la suite des contenus à droite.
+* **Défilement Vertical (50 % de l'écran)** : Lorsque vous vous déplacez vers le haut ou vers le bas entre les différentes rangées, la rangée focalisée est automatiquement recentrée à **50 % de la hauteur de l'écran**, vous garantissant un équilibre visuel parfait.
+* **Butée naturelle aux extrémités** : Le pivot de 15 % ou 50 % est maintenu tant que la liste contient des éléments. Lorsque vous atteignez le tout début ou la toute fin d'une liste, la liste s'arrête naturellement à ses bords réels (sans laisser de grand espace vide inutile) et le focus se déplace alors vers le bord pour atteindre la première ou la dernière carte, sans jamais risquer de perdre le focus ou de naviguer dans le vide.
+* **Résistance aux chargements** : Lors de la navigation dans les grilles à plusieurs colonnes (Films, Séries) ou lors de l'apparition progressive de sections de l'Accueil, le défilement s'adapte de manière asynchrone pour recentrer instantanément la ligne active dès qu'elle est affichée.
+
+### 📱 Préservation de la version Mobile
+* Cette fonctionnalité est strictement réservée à l'expérience TV à la télécommande.
+* Sur smartphone ou tablette, le défilement tactile classique, le comportement des cartes et la mémorisation de position restent parfaitement inchangés.
+
 
 

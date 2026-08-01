@@ -7,8 +7,11 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import com.cstv.app.presentation.components.tvPivotItem
+import com.cstv.app.presentation.components.tvPivotSection
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Star
@@ -67,12 +70,14 @@ fun CategorySectionRow(
     onLoadEpg: (Int) -> Unit,
     getScroll: (String) -> Pair<Int, Int>,
     saveScroll: (String, Int, Int) -> Unit,
+    sectionListState: LazyListState,
     onSeeAll: (() -> Unit)? = null
 ) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp)
+            .tvPivotSection(isTv, sectionListState, categoryId)
     ) {
         // Phase 56 : titre de catégorie grisé (texte secondaire) + lien "Voir tout".
         Row(
@@ -110,26 +115,28 @@ fun CategorySectionRow(
             contentPadding = PaddingValues(horizontal = 12.dp),
             modifier = Modifier.fillMaxWidth().focusGroup()
         ) {
-            items(streams) { stream ->
+            itemsIndexed(streams) { index, stream ->
                 val isFav = favoritesList.any { it.id == stream.streamId && it.type == "live" }
-                if (isTv) {
-                    StreamTvCard(
-                        stream = stream,
-                        isFavorite = isFav,
-                        epgProgram = epgPrograms[stream.streamId],
-                        onLoadEpg = { onLoadEpg(stream.streamId) },
-                        onToggleFavorite = { onToggleFavorite(stream) },
-                        onClick = { onStreamSelected(stream) }
-                    )
-                } else {
-                    MobileStreamCard(
-                        stream = stream,
-                        isFavorite = isFav,
-                        epgProgram = epgPrograms[stream.streamId],
-                        onLoadEpg = { onLoadEpg(stream.streamId) },
-                        onToggleFavorite = { onToggleFavorite(stream) },
-                        onClick = { onStreamSelected(stream) }
-                    )
+                Box(modifier = Modifier.tvPivotItem(isTv, rowState, index)) {
+                    if (isTv) {
+                        StreamTvCard(
+                            stream = stream,
+                            isFavorite = isFav,
+                            epgProgram = epgPrograms[stream.streamId],
+                            onLoadEpg = { onLoadEpg(stream.streamId) },
+                            onToggleFavorite = { onToggleFavorite(stream) },
+                            onClick = { onStreamSelected(stream) }
+                        )
+                    } else {
+                        MobileStreamCard(
+                            stream = stream,
+                            isFavorite = isFav,
+                            epgProgram = epgPrograms[stream.streamId],
+                            onLoadEpg = { onLoadEpg(stream.streamId) },
+                            onToggleFavorite = { onToggleFavorite(stream) },
+                            onClick = { onStreamSelected(stream) }
+                        )
+                    }
                 }
             }
         }
@@ -321,12 +328,14 @@ fun RecentlyWatchedRow(
     onLoadEpg: (Int) -> Unit,
     onLongClick: (LiveStream) -> Unit,
     getScroll: (String) -> Pair<Int, Int>,
-    saveScroll: (String, Int, Int) -> Unit
+    saveScroll: (String, Int, Int) -> Unit,
+    sectionListState: LazyListState
 ) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp)
+            .tvPivotSection(isTv, sectionListState, "recently_watched")
     ) {
         Text(
             text = "RÉCEMMENT REGARDÉES",
@@ -343,23 +352,25 @@ fun RecentlyWatchedRow(
             contentPadding = PaddingValues(horizontal = 12.dp),
             modifier = Modifier.fillMaxWidth().focusGroup()
         ) {
-            items(streams) { stream ->
-                if (isTv) {
-                    RecentlyWatchedTvItem(
-                        stream = stream,
-                        epgProgram = epgPrograms[stream.streamId],
-                        onLoadEpg = { onLoadEpg(stream.streamId) },
-                        onClick = { onStreamSelected(stream) },
-                        onLongClick = { onLongClick(stream) }
-                    )
-                } else {
-                    MobileRecentlyWatchedItem(
-                        stream = stream,
-                        epgProgram = epgPrograms[stream.streamId],
-                        onLoadEpg = { onLoadEpg(stream.streamId) },
-                        onClick = { onStreamSelected(stream) },
-                        onLongClick = { onLongClick(stream) }
-                    )
+            itemsIndexed(streams) { index, stream ->
+                Box(modifier = Modifier.tvPivotItem(isTv, rowState, index)) {
+                    if (isTv) {
+                        RecentlyWatchedTvItem(
+                            stream = stream,
+                            epgProgram = epgPrograms[stream.streamId],
+                            onLoadEpg = { onLoadEpg(stream.streamId) },
+                            onClick = { onStreamSelected(stream) },
+                            onLongClick = { onLongClick(stream) }
+                        )
+                    } else {
+                        MobileRecentlyWatchedItem(
+                            stream = stream,
+                            epgProgram = epgPrograms[stream.streamId],
+                            onLoadEpg = { onLoadEpg(stream.streamId) },
+                            onClick = { onStreamSelected(stream) },
+                            onLongClick = { onLongClick(stream) }
+                        )
+                    }
                 }
             }
         }

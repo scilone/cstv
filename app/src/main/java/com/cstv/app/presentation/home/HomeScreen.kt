@@ -6,6 +6,8 @@ import com.cstv.app.presentation.home.components.*
 import com.cstv.app.presentation.home.components.CAROUSEL_PEEK
 import com.cstv.app.presentation.home.components.TV_HERO_PEEK
 import com.cstv.app.presentation.components.SeeAllLink
+import com.cstv.app.presentation.components.tvPivotItem
+import com.cstv.app.presentation.components.tvPivotSection
 
 import com.cstv.app.presentation.rememberRowScrollState
 import androidx.compose.foundation.lazy.LazyListState
@@ -17,7 +19,6 @@ import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -395,23 +396,27 @@ fun HomeScreen(
                 // 2. Section: "Continuer à regarder"
                 if (state.resumeWatchingList.isNotEmpty()) {
                     item(key = "home_resume") {
+                        val rowState = rememberRowScrollState(isTv, "home_resume", { viewModel.getScrollPosition(it) }, { k, i, o -> viewModel.saveScrollPosition(k, i, o) })
                         HomeSectionRow(
                             title = stringResource(R.string.home_resume),
                             isTv = isTv,
-                            onSeeAll = { expandedSection = HomeExpandedSection.RESUME }
+                            onSeeAll = { expandedSection = HomeExpandedSection.RESUME },
+                            modifier = Modifier.tvPivotSection(isTv, lazyListState, "home_resume")
                         ) {
                             LazyRow(
-                                state = rememberRowScrollState(isTv, "home_resume", { viewModel.getScrollPosition(it) }, { k, i, o -> viewModel.saveScrollPosition(k, i, o) }),
+                                state = rowState,
                                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                                 modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).focusGroup()
                             ) {
-                                items(state.resumeWatchingList) { position ->
-                                    HomeResumeWatchingCard(
-                                        position = position,
-                                        onClick = { handleResumeClick(position) },
-                                        onLongClick = { pendingRemoval = position },
-                                        isTv = isTv
-                                    )
+                                itemsIndexed(state.resumeWatchingList) { index, position ->
+                                    Box(modifier = Modifier.tvPivotItem(isTv, rowState, index)) {
+                                        HomeResumeWatchingCard(
+                                            position = position,
+                                            onClick = { handleResumeClick(position) },
+                                            onLongClick = { pendingRemoval = position },
+                                            isTv = isTv
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -421,21 +426,25 @@ fun HomeScreen(
                 // 3. Section: "Favoris"
                 if (state.favoritesList.isNotEmpty()) {
                     item(key = "home_favorites") {
+                        val rowState = rememberRowScrollState(isTv, "home_favorites", { viewModel.getScrollPosition(it) }, { k, i, o -> viewModel.saveScrollPosition(k, i, o) })
                         HomeSectionRow(
                             title = stringResource(R.string.home_favorites),
                             isTv = isTv,
-                            onSeeAll = { expandedSection = HomeExpandedSection.FAVORITES }
+                            onSeeAll = { expandedSection = HomeExpandedSection.FAVORITES },
+                            modifier = Modifier.tvPivotSection(isTv, lazyListState, "home_favorites")
                         ) {
                             LazyRow(
-                                state = rememberRowScrollState(isTv, "home_favorites", { viewModel.getScrollPosition(it) }, { k, i, o -> viewModel.saveScrollPosition(k, i, o) }),
+                                state = rowState,
                                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                                 modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).focusGroup()
                             ) {
-                                items(state.favoritesList) { fav ->
-                                    HomeFavoriteItemCard(
-                                        favorite = fav,
-                                        onClick = { handleFavoriteClick(fav) }
-                                    )
+                                itemsIndexed(state.favoritesList) { index, fav ->
+                                    Box(modifier = Modifier.tvPivotItem(isTv, rowState, index)) {
+                                        HomeFavoriteItemCard(
+                                            favorite = fav,
+                                            onClick = { handleFavoriteClick(fav) }
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -445,22 +454,26 @@ fun HomeScreen(
                 // 4. Section: "TV" (First Category Live Streams)
                 if (state.firstLiveCategory != null && state.firstLiveStreams.isNotEmpty()) {
                     item(key = "home_livetv") {
+                        val rowState = rememberRowScrollState(isTv, "home_livetv", { viewModel.getScrollPosition(it) }, { k, i, o -> viewModel.saveScrollPosition(k, i, o) })
                         HomeSectionRow(
                             title = stringResource(R.string.home_section_tv),
                             isTv = isTv,
-                            onSeeAll = onNavigateToLiveTv
+                            onSeeAll = onNavigateToLiveTv,
+                            modifier = Modifier.tvPivotSection(isTv, lazyListState, "home_livetv")
                         ) {
                             LazyRow(
-                                state = rememberRowScrollState(isTv, "home_livetv", { viewModel.getScrollPosition(it) }, { k, i, o -> viewModel.saveScrollPosition(k, i, o) }),
+                                state = rowState,
                                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                                 modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).focusGroup()
                             ) {
-                                items(state.firstLiveStreams) { stream ->
-                                    HomeLiveTvCard(
-                                        stream = stream,
-                                        epgProgram = state.epgPrograms[stream.streamId],
-                                        onClick = { onPlayLiveStream(stream, state.firstLiveStreams) }
-                                    )
+                                itemsIndexed(state.firstLiveStreams) { index, stream ->
+                                    Box(modifier = Modifier.tvPivotItem(isTv, rowState, index)) {
+                                        HomeLiveTvCard(
+                                            stream = stream,
+                                            epgProgram = state.epgPrograms[stream.streamId],
+                                            onClick = { onPlayLiveStream(stream, state.firstLiveStreams) }
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -470,21 +483,25 @@ fun HomeScreen(
                 // 5. Section: "Films" (Latest additions VOD Streams)
                 if (state.firstVodStreams.isNotEmpty()) {
                     item(key = "home_vod") {
+                        val rowState = rememberRowScrollState(isTv, "home_vod", { viewModel.getScrollPosition(it) }, { k, i, o -> viewModel.saveScrollPosition(k, i, o) })
                         HomeSectionRow(
                             title = stringResource(R.string.home_section_vod),
                             isTv = isTv,
-                            onSeeAll = { onNavigateToRecentlyAdded(false) }
+                            onSeeAll = { onNavigateToRecentlyAdded(false) },
+                            modifier = Modifier.tvPivotSection(isTv, lazyListState, "home_vod")
                         ) {
                             LazyRow(
-                                state = rememberRowScrollState(isTv, "home_vod", { viewModel.getScrollPosition(it) }, { k, i, o -> viewModel.saveScrollPosition(k, i, o) }),
+                                state = rowState,
                                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                                 modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).focusGroup()
                             ) {
-                                items(state.firstVodStreams) { stream ->
-                                    HomeVodMovieCard(
-                                        stream = stream,
-                                        onClick = { onSelectMovieDetail(stream) }
-                                    )
+                                itemsIndexed(state.firstVodStreams) { index, stream ->
+                                    Box(modifier = Modifier.tvPivotItem(isTv, rowState, index)) {
+                                        HomeVodMovieCard(
+                                            stream = stream,
+                                            onClick = { onSelectMovieDetail(stream) }
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -494,25 +511,29 @@ fun HomeScreen(
                 // 6. Section: Top 10 Films (Trending/Top Rated)
                 if (displayedTopVodStreams.isNotEmpty()) {
                     item(key = "home_top_movies") {
+                        val rowState = rememberRowScrollState(isTv, "home_top_movies", { viewModel.getScrollPosition(it) }, { k, i, o -> viewModel.saveScrollPosition(k, i, o) })
                         HomeSectionRow(
                             title = stringResource(R.string.home_top_movies),
                             isTv = isTv,
                             // Une liste plafonnée à 10 se parcourt entièrement
                             // dans sa rangée : pas de "Voir tout", comme pour
                             // "Top 10 Séries".
-                            onSeeAll = null
+                            onSeeAll = null,
+                            modifier = Modifier.tvPivotSection(isTv, lazyListState, "home_top_movies")
                         ) {
                             LazyRow(
-                                state = rememberRowScrollState(isTv, "home_top_movies", { viewModel.getScrollPosition(it) }, { k, i, o -> viewModel.saveScrollPosition(k, i, o) }),
+                                state = rowState,
                                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                                 modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).focusGroup()
                             ) {
                                 itemsIndexed(displayedTopVodStreams) { index, stream ->
-                                    HomeVodMovieCard(
-                                        stream = stream,
-                                        onClick = { onSelectMovieDetail(stream) },
-                                        rank = index + 1
-                                    )
+                                    Box(modifier = Modifier.tvPivotItem(isTv, rowState, index)) {
+                                        HomeVodMovieCard(
+                                            stream = stream,
+                                            onClick = { onSelectMovieDetail(stream) },
+                                            rank = index + 1
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -522,21 +543,25 @@ fun HomeScreen(
                 // 7. Section F-6: "Films recommandés pour vous"
                 if (state.recommendedMovies.isNotEmpty()) {
                     item(key = "home_reco_movies") {
+                        val rowState = rememberRowScrollState(isTv, "home_reco_movies", { viewModel.getScrollPosition(it) }, { k, i, o -> viewModel.saveScrollPosition(k, i, o) })
                         HomeSectionRow(
                             title = stringResource(R.string.home_recommended_movies),
                             isTv = isTv,
-                            onSeeAll = { expandedSection = HomeExpandedSection.RECOMMENDED_MOVIES }
+                            onSeeAll = { expandedSection = HomeExpandedSection.RECOMMENDED_MOVIES },
+                            modifier = Modifier.tvPivotSection(isTv, lazyListState, "home_reco_movies")
                         ) {
                             LazyRow(
-                                state = rememberRowScrollState(isTv, "home_reco_movies", { viewModel.getScrollPosition(it) }, { k, i, o -> viewModel.saveScrollPosition(k, i, o) }),
+                                state = rowState,
                                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                                 modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).focusGroup()
                             ) {
-                                items(state.recommendedMovies) { stream ->
-                                    HomeVodMovieCard(
-                                        stream = stream,
-                                        onClick = { onSelectMovieDetail(stream) }
-                                    )
+                                itemsIndexed(state.recommendedMovies) { index, stream ->
+                                    Box(modifier = Modifier.tvPivotItem(isTv, rowState, index)) {
+                                        HomeVodMovieCard(
+                                            stream = stream,
+                                            onClick = { onSelectMovieDetail(stream) }
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -546,21 +571,25 @@ fun HomeScreen(
                 // 8. Section: "Séries" (Latest additions Series Streams)
                 if (state.firstSeriesStreams.isNotEmpty()) {
                     item(key = "home_series") {
+                        val rowState = rememberRowScrollState(isTv, "home_series", { viewModel.getScrollPosition(it) }, { k, i, o -> viewModel.saveScrollPosition(k, i, o) })
                         HomeSectionRow(
                             title = stringResource(R.string.home_section_series),
                             isTv = isTv,
-                            onSeeAll = { onNavigateToRecentlyAdded(true) }
+                            onSeeAll = { onNavigateToRecentlyAdded(true) },
+                            modifier = Modifier.tvPivotSection(isTv, lazyListState, "home_series")
                         ) {
                             LazyRow(
-                                state = rememberRowScrollState(isTv, "home_series", { viewModel.getScrollPosition(it) }, { k, i, o -> viewModel.saveScrollPosition(k, i, o) }),
+                                state = rowState,
                                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                                 modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).focusGroup()
                             ) {
-                                items(state.firstSeriesStreams) { stream ->
-                                    HomeSeriesShowCard(
-                                        stream = stream,
-                                        onClick = { onSelectSeriesDetail(stream) }
-                                    )
+                                itemsIndexed(state.firstSeriesStreams) { index, stream ->
+                                    Box(modifier = Modifier.tvPivotItem(isTv, rowState, index)) {
+                                        HomeSeriesShowCard(
+                                            stream = stream,
+                                            onClick = { onSelectSeriesDetail(stream) }
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -570,22 +599,26 @@ fun HomeScreen(
                 // 9. Section: Top 10 Séries
                 if (displayedTopSeriesStreams.isNotEmpty()) {
                     item(key = "home_top_series") {
+                        val rowState = rememberRowScrollState(isTv, "home_top_series", { viewModel.getScrollPosition(it) }, { k, i, o -> viewModel.saveScrollPosition(k, i, o) })
                         HomeSectionRow(
                             title = stringResource(R.string.home_top_series),
                             isTv = isTv,
-                            onSeeAll = null
+                            onSeeAll = null,
+                            modifier = Modifier.tvPivotSection(isTv, lazyListState, "home_top_series")
                         ) {
                             LazyRow(
-                                state = rememberRowScrollState(isTv, "home_top_series", { viewModel.getScrollPosition(it) }, { k, i, o -> viewModel.saveScrollPosition(k, i, o) }),
+                                state = rowState,
                                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                                 modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).focusGroup()
                             ) {
                                 itemsIndexed(displayedTopSeriesStreams) { index, stream ->
-                                    HomeSeriesShowCard(
-                                        stream = stream,
-                                        onClick = { onSelectSeriesDetail(stream) },
-                                        rank = index + 1
-                                    )
+                                    Box(modifier = Modifier.tvPivotItem(isTv, rowState, index)) {
+                                        HomeSeriesShowCard(
+                                            stream = stream,
+                                            onClick = { onSelectSeriesDetail(stream) },
+                                            rank = index + 1
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -595,21 +628,25 @@ fun HomeScreen(
                 // 10. Section F-6: "Séries recommandées pour vous"
                 if (state.recommendedSeries.isNotEmpty()) {
                     item(key = "home_reco_series") {
+                        val rowState = rememberRowScrollState(isTv, "home_reco_series", { viewModel.getScrollPosition(it) }, { k, i, o -> viewModel.saveScrollPosition(k, i, o) })
                         HomeSectionRow(
                             title = stringResource(R.string.home_recommended_series),
                             isTv = isTv,
-                            onSeeAll = { expandedSection = HomeExpandedSection.RECOMMENDED_SERIES }
+                            onSeeAll = { expandedSection = HomeExpandedSection.RECOMMENDED_SERIES },
+                            modifier = Modifier.tvPivotSection(isTv, lazyListState, "home_reco_series")
                         ) {
                             LazyRow(
-                                state = rememberRowScrollState(isTv, "home_reco_series", { viewModel.getScrollPosition(it) }, { k, i, o -> viewModel.saveScrollPosition(k, i, o) }),
+                                state = rowState,
                                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                                 modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).focusGroup()
                             ) {
-                                items(state.recommendedSeries) { stream ->
-                                    HomeSeriesShowCard(
-                                        stream = stream,
-                                        onClick = { onSelectSeriesDetail(stream) }
-                                    )
+                                itemsIndexed(state.recommendedSeries) { index, stream ->
+                                    Box(modifier = Modifier.tvPivotItem(isTv, rowState, index)) {
+                                        HomeSeriesShowCard(
+                                            stream = stream,
+                                            onClick = { onSelectSeriesDetail(stream) }
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -620,28 +657,32 @@ fun HomeScreen(
                 // leur gestion complète est conservée dans DownloadsScreen.
                 if (state.downloadedItems.isNotEmpty()) {
                     item(key = "home_downloads") {
+                        val rowState = rememberRowScrollState(isTv, "home_downloads", { viewModel.getScrollPosition(it) }, { k, i, o -> viewModel.saveScrollPosition(k, i, o) })
                         HomeSectionRow(
                             title = stringResource(R.string.home_section_downloads),
                             isTv = isTv,
-                            onSeeAll = onNavigateToDownloads
+                            onSeeAll = onNavigateToDownloads,
+                            modifier = Modifier.tvPivotSection(isTv, lazyListState, "home_downloads")
                         ) {
                             LazyRow(
-                                state = rememberRowScrollState(isTv, "home_downloads", { viewModel.getScrollPosition(it) }, { k, i, o -> viewModel.saveScrollPosition(k, i, o) }),
+                                state = rowState,
                                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                                 modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).focusGroup()
                             ) {
-                                items(state.downloadedItems, key = { it.contentId }) { item ->
-                                    HomeDownloadCard(
-                                        item = item,
-                                        isTv = isTv,
-                                        onClick = {
-                                            if (item.type == DownloadedItem.TYPE_MOVIE) {
-                                                onPlayDownloadedMovie(item)
-                                            } else {
-                                                onPlayDownloadedEpisode(item)
+                                itemsIndexed(state.downloadedItems, key = { _, item -> item.contentId }) { index, item ->
+                                    Box(modifier = Modifier.tvPivotItem(isTv, rowState, index)) {
+                                        HomeDownloadCard(
+                                            item = item,
+                                            isTv = isTv,
+                                            onClick = {
+                                                if (item.type == DownloadedItem.TYPE_MOVIE) {
+                                                    onPlayDownloadedMovie(item)
+                                                } else {
+                                                    onPlayDownloadedEpisode(item)
+                                                }
                                             }
-                                        }
-                                    )
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -761,9 +802,10 @@ private fun HomeSectionRow(
     title: String,
     isTv: Boolean,
     onSeeAll: (() -> Unit)? = null,
+    modifier: Modifier = Modifier,
     content: @Composable () -> Unit
 ) {
-    Column(modifier = Modifier.fillMaxWidth()) {
+    Column(modifier = modifier.fillMaxWidth()) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier

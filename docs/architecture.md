@@ -124,6 +124,12 @@ Responsable de l'interface utilisateur. Elle utilise **Jetpack Compose** pour l'
 * **Système de navigation unifié (F18)** :
   * L'application utilise désormais un seul système de navigation via `AppNavGraph` (navigation-compose, `presentation/navigation/NavGraph.kt`) partagé entre Mobile et TV.
   * L'ancien double système (navigation manuelle par enum `AppScreen` et boucle `when` dans `MainActivity.kt`) est obsolète et a été entièrement supprimé.
+* **Défilement TV à sélecteur fixe (Fixed Focus Scrolling - F19)** :
+  * **Mécanisme transversal asynchrone (`TvPivotScroll.kt`)** : Centralisation de la logique de pivot au sein d'un helper unique dans `presentation/components/TvPivotScroll.kt`. Il calcule l'offset optimal (`pivotScrollOffset`) de manière pure et déterministe pour aligner les éléments sur les fractions visées.
+  * **Extensions Compose (`LazyListState`/`LazyGridState`)** : Des extensions gèrent de manière asynchrone le défilement fluide via `animateScrollToPivot`. Elles vérifient l'intégrité de l'index par rapport à `layoutInfo.totalItemsCount` et interceptent proprement les transitions sans bloquer les coroutines sous-jacentes.
+  * **Attente réactive de Layout (`snapshotFlow`)** : Le pivot vertical (`tvPivotSection`) s'appuie sur une observation asynchrone du flux de layout via `snapshotFlow { state.layoutInfo.visibleItemsInfo }` avec un timeout de 200 ms. Cela résout la race condition de focus où une section nouvellement focalisée est composée hors du viewport ou apparaît de manière asynchrone, assurant son recentrage sans saccade.
+  * **Propagation des contraintes dans les cellules de grille** : L'utilisation de `propagateMinConstraints = true` sur les wrappers de cellules des grilles (`LazyVerticalGrid`) garantit que les cartes VOD et Séries reçoivent les contraintes minimales de dimensionnement, évitant les déformations visuelles du focus.
+  * **Clés de liste stables** : Les sections de l'Accueil, du Direct, de VOD, Séries et de la Recherche portent des clés stables (par ex: `key = "home_resume"`), ce qui permet de localiser instantanément la section focalisée à l'écran pour son centrage.
 
 ---
 

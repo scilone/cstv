@@ -15,7 +15,12 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import com.cstv.app.presentation.components.CatalogUnavailableState
 import com.cstv.app.presentation.components.OfflineBanner
+import com.cstv.app.presentation.components.tvPivotItem
+import com.cstv.app.presentation.components.tvPivotCell
+import com.cstv.app.presentation.components.tvPivotSection
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -260,7 +265,7 @@ private fun TvLayout(
                 modifier = Modifier.fillMaxSize()
             ) {
                 if (resumeMoviesStreams.isNotEmpty()) {
-                    item {
+                    item(key = "resume_watching") {
                         CategorySectionRow(
                             categoryId = "resume_watching",
                             title = stringResource(R.string.home_resume),
@@ -269,12 +274,13 @@ private fun TvLayout(
                             isTv = true,
                             onLongClick = onHistoryRemove,
                             getScroll = getScroll,
-                            saveScroll = saveScroll
+                            saveScroll = saveScroll,
+                            sectionListState = listState
                         )
                     }
                 }
                 if (favoriteMovies.isNotEmpty()) {
-                    item {
+                    item(key = "favorites") {
                         CategorySectionRow(
                             categoryId = "favorites",
                             title = "Favoris",
@@ -282,11 +288,12 @@ private fun TvLayout(
                             onMovieSelected = onMovieSelected,
                             isTv = true,
                             getScroll = getScroll,
-                            saveScroll = saveScroll
+                            saveScroll = saveScroll,
+                            sectionListState = listState
                         )
                     }
                 }
-                items(actualCategories) { category ->
+                items(actualCategories, key = { it.categoryId }) { category ->
                     val catMovies = groupedStreams[category.categoryId] ?: emptyList()
                     if (catMovies.isNotEmpty()) {
                         CategorySectionRow(
@@ -296,7 +303,8 @@ private fun TvLayout(
                             onMovieSelected = onMovieSelected,
                             isTv = true,
                             getScroll = getScroll,
-                            saveScroll = saveScroll
+                            saveScroll = saveScroll,
+                            sectionListState = listState
                         )
                     }
                 }
@@ -349,10 +357,20 @@ private fun TvLayout(
                     items(pagedStreams.itemCount) { index ->
                         val stream = pagedStreams[index]
                         if (stream != null) {
-                            MovieTvCard(
-                                stream = stream,
-                                onClick = { onMovieSelected(stream) }
-                            )
+                            Box(
+                                modifier = Modifier.tvPivotCell(true, gridState, index),
+                                // GridCells.Fixed mesure chaque cellule avec une largeur
+                                // exacte (min = max) ; Box relâche par défaut la contrainte
+                                // min pour ses enfants, ce qui laissait `MovieTvCard`
+                                // (largeur fixe 150.dp) rétrécir au lieu d'occuper toute la
+                                // cellule (Review F19, Majeur #1).
+                                propagateMinConstraints = true
+                            ) {
+                                MovieTvCard(
+                                    stream = stream,
+                                    onClick = { onMovieSelected(stream) }
+                                )
+                            }
                         }
                     }
                 }
@@ -486,7 +504,8 @@ private fun MobileLayout(
                             isTv = false,
                             onLongClick = onHistoryRemove,
                             getScroll = getScroll,
-                            saveScroll = saveScroll
+                            saveScroll = saveScroll,
+                            sectionListState = listState
                         )
                     }
                 }
@@ -500,6 +519,7 @@ private fun MobileLayout(
                             isTv = false,
                             getScroll = getScroll,
                             saveScroll = saveScroll,
+                            sectionListState = listState,
                             onSeeAll = onNavigateToFavorites
                         )
                     }
@@ -515,6 +535,7 @@ private fun MobileLayout(
                             isTv = false,
                             getScroll = getScroll,
                             saveScroll = saveScroll,
+                            sectionListState = listState,
                             onSeeAll = { onCategorySelected(category) }
                         )
                     }
@@ -635,6 +656,7 @@ private fun CategorySectionRow(
     isTv: Boolean,
     getScroll: (String) -> Pair<Int, Int>,
     saveScroll: (String, Int, Int) -> Unit,
+    sectionListState: LazyListState,
     onSeeAll: (() -> Unit)? = null,
     onLongClick: ((VodStream) -> Unit)? = null
 ) {
@@ -642,6 +664,7 @@ private fun CategorySectionRow(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp)
+            .tvPivotSection(isTv, sectionListState, categoryId)
     ) {
         // Phase 56 : titre de catégorie grisé (texte secondaire) + lien "Voir tout".
         Row(
@@ -679,22 +702,24 @@ private fun CategorySectionRow(
             contentPadding = PaddingValues(horizontal = 12.dp),
             modifier = Modifier.fillMaxWidth().focusGroup()
         ) {
-            items(movies) { stream ->
-                if (isTv) {
-                    MovieTvCard(
-                        stream = stream,
-                        onClick = { onMovieSelected(stream) },
-                        onLongClick = onLongClick?.let { { it(stream) } }
-                    )
-                } else {
-                    // Phase 57 : carte unifiée avec celle de la Home (même taille,
-                    // note de notation intégrée).
-                    HomeVodMovieCard(
-                        stream = stream,
-                        onClick = { onMovieSelected(stream) },
-                        onLongClick = onLongClick?.let { { it(stream) } },
-                        isTv = false
-                    )
+            itemsIndexed(movies) { index, stream ->
+                Box(modifier = Modifier.tvPivotItem(isTv, rowState, index)) {
+                    if (isTv) {
+                        MovieTvCard(
+                            stream = stream,
+                            onClick = { onMovieSelected(stream) },
+                            onLongClick = onLongClick?.let { { it(stream) } }
+                        )
+                    } else {
+                        // Phase 57 : carte unifiée avec celle de la Home (même taille,
+                        // note de notation intégrée).
+                        HomeVodMovieCard(
+                            stream = stream,
+                            onClick = { onMovieSelected(stream) },
+                            onLongClick = onLongClick?.let { { it(stream) } },
+                            isTv = false
+                        )
+                    }
                 }
             }
         }

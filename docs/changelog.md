@@ -1,5 +1,22 @@
 # Journal des Modifications (Changelog) - CSTV IPTV
 
+## [v1.66.0] - 2026-08-01
+### ✨ Navigation TV à sélecteur fixe (Fixed Focus Scrolling - F19)
+* **Défilement à sélecteur fixe (Fixed Focus)** :
+  - Alignement horizontal à 15 % du bord gauche pour toutes les rangées de contenus (Accueil, TV en Direct, VOD, Séries, Favoris, Résultats de recherche). Le contenu défile sous le sélecteur, réduisant la fatigue oculaire.
+  - Réalignement vertical automatique de la rangée focalisée au centre de l'écran (50 % de la hauteur).
+  - Transition fluide et continue via `animateScrollToPivot` de manière asynchrone, neutralisant les saccades visuelles ou double défilement par défaut de Compose.
+* **Butée naturelle aux bornes** :
+  - Respect du pivot tant que le défilement le permet. Aux extrémités (début et fin de liste), la liste bute sur ses bornes naturelles et le sélecteur se déplace sans perte de focus ni débordement visuel, sans ajouter d'espaces blancs inutiles.
+* **Résolution de Layout et SnapshotFlow asynchrone** :
+  - Le pivot vertical intègre un callback d'observation dynamique réactif via `snapshotFlow` avec un timeout de 200 ms. Cela garantit le recentrage de la section focalisée même si celle-ci n'est pas encore présente dans la photographie instantanée du layout de Compose lors de la prise de focus (par exemple, lors d'apparitions conditionnelles ou de défilements rapides).
+* **Propagation de contraintes sur les grilles TV (Majeur #1)** :
+  - Ajout de `propagateMinConstraints = true` on l'ensemble des enveloppes `Box` de cellules de grilles pour VOD, Séries et Résultats de recherche. Cela force la transmission des contraintes de taille de cellules et empêche les cartes à largeur fixe de rétrécir.
+* **Tests unitaires et JVM robustes** :
+  - Création de `TvPivotScrollTest` avec une couverture exhaustive à 100 % (calcul d'offset optimal, arrondi, viewport nul, et protection contre les débordements numériques d'échelle pour les tailles géantes).
+
+> Validation automatisée : `testDebugUnitTest` et compilation validées à 100% avec succès, lint vert.
+
 ## [v1.65.0] - 2026-08-01
 ### ✨ Synchronisation dynamique de catalogue (T7), rafraîchissement des tendances par session (T8) et correctif de décodage vidéo Android TV (B16)
 * **Synchronisation dynamique du catalogue par préférence (T7)** : 

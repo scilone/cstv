@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import com.cstv.app.presentation.components.CatalogUnavailableState
 import com.cstv.app.presentation.components.OfflineBanner
+import com.cstv.app.presentation.components.tvPivotCell
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -258,7 +259,7 @@ private fun TvLayout(
             ) {
                 // Section 1: Récemment regardées (if not empty)
                 if (state.recentlyWatched.isNotEmpty()) {
-                    item {
+                    item(key = "recently_watched") {
                         RecentlyWatchedRow(
                             streams = state.recentlyWatched,
                             onStreamSelected = onStreamSelected,
@@ -267,14 +268,15 @@ private fun TvLayout(
                             onLoadEpg = onLoadEpg,
                             onLongClick = onHistoryRemove,
                             getScroll = getScroll,
-                            saveScroll = saveScroll
+                            saveScroll = saveScroll,
+                            sectionListState = listState
                         )
                     }
                 }
 
                 // Section 2: Favoris (Phase 35), sous "Récemment regardées"
                 if (favoriteStreams.isNotEmpty()) {
-                    item {
+                    item(key = "favorites") {
                         CategorySectionRow(
                             categoryId = "favorites",
                             title = "Favoris",
@@ -286,12 +288,13 @@ private fun TvLayout(
                             epgPrograms = epgPrograms,
                             onLoadEpg = onLoadEpg,
                             getScroll = getScroll,
-                            saveScroll = saveScroll
+                            saveScroll = saveScroll,
+                            sectionListState = listState
                         )
                     }
                 }
 
-                items(actualCategories) { category ->
+                items(actualCategories, key = { it.categoryId }) { category ->
                     val catStreams = groupedStreams[category.categoryId] ?: emptyList()
                     if (catStreams.isNotEmpty()) {
                         CategorySectionRow(
@@ -305,7 +308,8 @@ private fun TvLayout(
                             epgPrograms = epgPrograms,
                             onLoadEpg = onLoadEpg,
                             getScroll = getScroll,
-                            saveScroll = saveScroll
+                            saveScroll = saveScroll,
+                            sectionListState = listState
                         )
                     }
                 }
@@ -359,14 +363,21 @@ private fun TvLayout(
                         val stream = pagedStreams[index]
                         if (stream != null) {
                             val isFav = favoritesList.any { it.id == stream.streamId && it.type == "live" }
-                            StreamTvCard(
-                                stream = stream,
-                                isFavorite = isFav,
-                                epgProgram = epgPrograms[stream.streamId],
-                                onLoadEpg = { onLoadEpg(stream.streamId) },
-                                onToggleFavorite = { onToggleFavorite(stream) },
-                                onClick = { onStreamSelected(stream) }
-                            )
+                            Box(
+                                modifier = Modifier.tvPivotCell(true, gridState, index),
+                                // Cf. VodScreen.kt (Review F19, Majeur #1) : force la
+                                // propagation de la contrainte min de la cellule à l'enfant.
+                                propagateMinConstraints = true
+                            ) {
+                                StreamTvCard(
+                                    stream = stream,
+                                    isFavorite = isFav,
+                                    epgProgram = epgPrograms[stream.streamId],
+                                    onLoadEpg = { onLoadEpg(stream.streamId) },
+                                    onToggleFavorite = { onToggleFavorite(stream) },
+                                    onClick = { onStreamSelected(stream) }
+                                )
+                            }
                         }
                     }
                 }
@@ -491,7 +502,8 @@ private fun MobileLayout(
                             onLoadEpg = onLoadEpg,
                             onLongClick = onHistoryRemove,
                             getScroll = getScroll,
-                            saveScroll = saveScroll
+                            saveScroll = saveScroll,
+                            sectionListState = listState
                         )
                     }
                 }
@@ -510,7 +522,8 @@ private fun MobileLayout(
                             epgPrograms = epgPrograms,
                             onLoadEpg = onLoadEpg,
                             getScroll = getScroll,
-                            saveScroll = saveScroll
+                            saveScroll = saveScroll,
+                            sectionListState = listState
                         )
                     }
                 }
@@ -530,6 +543,7 @@ private fun MobileLayout(
                             onLoadEpg = onLoadEpg,
                             getScroll = getScroll,
                             saveScroll = saveScroll,
+                            sectionListState = listState,
                             onSeeAll = { onCategorySelected(category) }
                         )
                     }

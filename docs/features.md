@@ -203,6 +203,18 @@ Cette correction résout le problème de rendu vidéo corrompu (bandes horizonta
 
 ---
 
+## 19. Navigation TV à sélecteur fixe (Fixed Focus Scrolling) (F19)
+Cette fonctionnalité apporte une expérience de navigation stable, cinématique et ergonomique sur Android TV en remplaçant le déplacement du focus visuel à l'écran par un défilement du contenu sous un pivot fixe (Pivot Scrolling).
+* **Pivot Horizontal Stable (15 % du viewport)** : Lors de la navigation horizontale avec les flèches Gauche/Droite de la télécommande, la carte active reste ancrée à environ 15 % de la largeur utilisable à partir du bord gauche de l'écran. Le contenu défile sous le sélecteur, qui conserve sa position stable pour éviter de fatiguer le regard.
+* **Pivot Vertical Centré (50 % du viewport)** : Lors de la navigation verticale avec les flèches Haut/Bas de la télécommande, la rangée focalisée est recentrée de manière dynamique à 50 % de la hauteur utile de l'écran.
+* **Comportement aux extrémités (Butée Naturelle)** : Le pivot est respecté tant que le contenu restant le permet. En début et en fin de liste, la collection bute naturellement contre ses bords physiques et le sélecteur se déplace alors vers les extrémités pour atteindre le premier ou le dernier élément sans jamais perdre le focus, évitant ainsi d'ajouter des marges vides artificielles.
+* **Double défilement neutralisé** : L'interception de l'événement de focus et le défilement programmé annulent de manière sécurisée l'animation de défilement par défaut de Jetpack Compose, éliminant ainsi toute saccade visuelle lors d'une navigation rapide.
+* **Résilience au layout d'arrière-plan** : Le pivot vertical intègre une attente asynchrone adaptative (jusqu'à 200 ms) via `snapshotFlow` pour détecter la rangée cible lorsqu'elle est temporairement composée hors du viewport ou pendant l'apparition asynchrone de sections de l'Accueil, garantissant un recentrage systématique sans aucun défilement parasite.
+* **Propagation des contraintes de largeur (Majeur #1)** : Les cartes des grilles TV (Films, Séries, Recherche) sont enveloppées dans des conteneurs qui propagent explicitement les contraintes minimales de dimensionnement. Cela prévient tout rétrécissement ou déformation visuelle des cartes lors du calcul du pivot et garantit l'alignement parfait du sélecteur.
+* **Isolation complète du Mobile** : L'intégralité du mécanisme est conditionnée par le paramètre `isTv`. Sur mobile, les gestes tactiles, le défilement standard et la restauration de position d'origine sont parfaitement inchangés.
+
+---
+
 ## 🚫 Fonctionnalités hors périmètre (Exclusions validées)
 Pour des raisons de performance, de stabilité ou d'expérience utilisateur, les fonctionnalités suivantes sont **strictement hors périmètre** :
 * **Multi-comptes Xtream** : L'application gère un seul compte Xtream Codes actif à la fois (les profils sont purement locaux et rattachés à ce compte unique).

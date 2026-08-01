@@ -8,11 +8,18 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.lazy.grid.itemsIndexed as gridItemsIndexed
 import androidx.compose.foundation.lazy.items
+import com.cstv.app.presentation.components.tvPivotItem
+import com.cstv.app.presentation.components.tvPivotCell
+import com.cstv.app.presentation.components.tvPivotSection
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -198,6 +205,7 @@ fun SearchScreen(
                 SearchExpandedGrid(
                     type = expandedType!!,
                     result = state.searchResult,
+                    isTv = isTv,
                     onPlayLive = onPlayLive,
                     onSelectMovie = onSelectMovie,
                     onSelectSeries = onSelectSeries,
@@ -205,31 +213,41 @@ fun SearchScreen(
                 )
             } else {
                 // --- Vue combinée : rangées horizontales par type ---
+                val combinedListState = rememberLazyListState()
                 LazyColumn(
+                    state = combinedListState,
                     verticalArrangement = Arrangement.spacedBy(24.dp),
                     modifier = Modifier.weight(1f).fillMaxWidth()
                 ) {
                     // 1. Live TV Results Row
                     if (state.searchResult.liveResults.isNotEmpty()) {
-                        item {
-                            Column(modifier = Modifier.fillMaxWidth()) {
+                        item(key = "search_live") {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .tvPivotSection(isTv, combinedListState, "search_live")
+                            ) {
                                 SearchSectionHeader(
                                     title = stringResource(R.string.search_channels),
                                     count = state.searchResult.liveResults.size,
                                     isTv = isTv,
                                     onSeeAll = { expandedType = SearchExpandedType.LIVE }
                                 )
+                                val rowState = rememberLazyListState()
                                 LazyRow(
+                                    state = rowState,
                                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                                     modifier = Modifier.fillMaxWidth().focusGroup()
                                 ) {
-                                    items(state.searchResult.liveResults) { stream ->
-                                        SearchCardItem(
-                                            name = stream.name,
-                                            cover = stream.streamIcon,
-                                            isLive = true,
-                                            onClick = { onPlayLive(stream) }
-                                        )
+                                    itemsIndexed(state.searchResult.liveResults) { index, stream ->
+                                        Box(modifier = Modifier.tvPivotItem(isTv, rowState, index)) {
+                                            SearchCardItem(
+                                                name = stream.name,
+                                                cover = stream.streamIcon,
+                                                isLive = true,
+                                                onClick = { onPlayLive(stream) }
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -238,26 +256,34 @@ fun SearchScreen(
 
                     // 2. VOD Movie Results Row
                     if (state.searchResult.vodResults.isNotEmpty()) {
-                        item {
-                            Column(modifier = Modifier.fillMaxWidth()) {
+                        item(key = "search_vod") {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .tvPivotSection(isTv, combinedListState, "search_vod")
+                            ) {
                                 SearchSectionHeader(
                                     title = stringResource(R.string.search_movies),
                                     count = state.searchResult.vodResults.size,
                                     isTv = isTv,
                                     onSeeAll = { expandedType = SearchExpandedType.VOD }
                                 )
+                                val rowState = rememberLazyListState()
                                 LazyRow(
+                                    state = rowState,
                                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                                     modifier = Modifier.fillMaxWidth().focusGroup()
                                 ) {
-                                    items(state.searchResult.vodResults) { stream ->
-                                        SearchCardItem(
-                                            name = stream.name,
-                                            cover = stream.streamIcon,
-                                            isLive = false,
-                                            rating = stream.rating,
-                                            onClick = { onSelectMovie(stream) }
-                                        )
+                                    itemsIndexed(state.searchResult.vodResults) { index, stream ->
+                                        Box(modifier = Modifier.tvPivotItem(isTv, rowState, index)) {
+                                            SearchCardItem(
+                                                name = stream.name,
+                                                cover = stream.streamIcon,
+                                                isLive = false,
+                                                rating = stream.rating,
+                                                onClick = { onSelectMovie(stream) }
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -266,26 +292,34 @@ fun SearchScreen(
 
                     // 3. Series Results Row
                     if (state.searchResult.seriesResults.isNotEmpty()) {
-                        item {
-                            Column(modifier = Modifier.fillMaxWidth()) {
+                        item(key = "search_series") {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .tvPivotSection(isTv, combinedListState, "search_series")
+                            ) {
                                 SearchSectionHeader(
                                     title = stringResource(R.string.search_series),
                                     count = state.searchResult.seriesResults.size,
                                     isTv = isTv,
                                     onSeeAll = { expandedType = SearchExpandedType.SERIES }
                                 )
+                                val rowState = rememberLazyListState()
                                 LazyRow(
+                                    state = rowState,
                                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                                     modifier = Modifier.fillMaxWidth().focusGroup()
                                 ) {
-                                    items(state.searchResult.seriesResults) { stream ->
-                                        SearchCardItem(
-                                            name = stream.name,
-                                            cover = stream.cover,
-                                            isLive = false,
-                                            rating = stream.rating,
-                                            onClick = { onSelectSeries(stream) }
-                                        )
+                                    itemsIndexed(state.searchResult.seriesResults) { index, stream ->
+                                        Box(modifier = Modifier.tvPivotItem(isTv, rowState, index)) {
+                                            SearchCardItem(
+                                                name = stream.name,
+                                                cover = stream.cover,
+                                                isLive = false,
+                                                rating = stream.rating,
+                                                onClick = { onSelectSeries(stream) }
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -391,6 +425,7 @@ private fun SearchSectionHeader(
 private fun SearchExpandedGrid(
     type: SearchExpandedType,
     result: com.cstv.app.domain.model.SearchResult,
+    isTv: Boolean,
     onPlayLive: (LiveStream) -> Unit,
     onSelectMovie: (VodStream) -> Unit,
     onSelectSeries: (SeriesStream) -> Unit,
@@ -417,38 +452,61 @@ private fun SearchExpandedGrid(
             color = Color.White,
             modifier = Modifier.padding(bottom = 12.dp, start = 4.dp)
         )
+        val gridState = rememberLazyGridState()
         LazyVerticalGrid(
+            state = gridState,
             columns = GridCells.Fixed(columns),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
             modifier = Modifier.fillMaxSize()
         ) {
             when (type) {
-                SearchExpandedType.LIVE -> items(result.liveResults) { stream ->
-                    SearchGridCard(
-                        name = stream.name,
-                        cover = stream.streamIcon,
-                        isLive = true,
-                        onClick = { onPlayLive(stream) }
-                    )
+                SearchExpandedType.LIVE -> gridItemsIndexed(result.liveResults) { index, stream ->
+                    Box(
+                        modifier = Modifier.tvPivotCell(isTv, gridState, index),
+                        // Cf. VodScreen.kt (Review F19, Majeur #1) : force la
+                        // propagation de la contrainte min de la cellule à l'enfant.
+                        propagateMinConstraints = true
+                    ) {
+                        SearchGridCard(
+                            name = stream.name,
+                            cover = stream.streamIcon,
+                            isLive = true,
+                            onClick = { onPlayLive(stream) }
+                        )
+                    }
                 }
-                SearchExpandedType.VOD -> items(result.vodResults) { stream ->
-                    SearchGridCard(
-                        name = stream.name,
-                        cover = stream.streamIcon,
-                        isLive = false,
-                        rating = stream.rating,
-                        onClick = { onSelectMovie(stream) }
-                    )
+                SearchExpandedType.VOD -> gridItemsIndexed(result.vodResults) { index, stream ->
+                    Box(
+                        modifier = Modifier.tvPivotCell(isTv, gridState, index),
+                        // Cf. VodScreen.kt (Review F19, Majeur #1) : force la
+                        // propagation de la contrainte min de la cellule à l'enfant.
+                        propagateMinConstraints = true
+                    ) {
+                        SearchGridCard(
+                            name = stream.name,
+                            cover = stream.streamIcon,
+                            isLive = false,
+                            rating = stream.rating,
+                            onClick = { onSelectMovie(stream) }
+                        )
+                    }
                 }
-                SearchExpandedType.SERIES -> items(result.seriesResults) { stream ->
-                    SearchGridCard(
-                        name = stream.name,
-                        cover = stream.cover,
-                        isLive = false,
-                        rating = stream.rating,
-                        onClick = { onSelectSeries(stream) }
-                    )
+                SearchExpandedType.SERIES -> gridItemsIndexed(result.seriesResults) { index, stream ->
+                    Box(
+                        modifier = Modifier.tvPivotCell(isTv, gridState, index),
+                        // Cf. VodScreen.kt (Review F19, Majeur #1) : force la
+                        // propagation de la contrainte min de la cellule à l'enfant.
+                        propagateMinConstraints = true
+                    ) {
+                        SearchGridCard(
+                            name = stream.name,
+                            cover = stream.cover,
+                            isLive = false,
+                            rating = stream.rating,
+                            onClick = { onSelectSeries(stream) }
+                        )
+                    }
                 }
             }
         }
