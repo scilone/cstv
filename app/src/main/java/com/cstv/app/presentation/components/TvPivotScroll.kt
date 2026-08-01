@@ -1,6 +1,7 @@
 package com.cstv.app.presentation.components
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.onFocusedBoundsChanged
@@ -216,7 +217,10 @@ fun Modifier.tvPivotCell(enabled: Boolean, state: LazyGridState, index: Int): Mo
         }
         coordinates.correctionJob?.cancel()
         coordinates.correctionJob = scope.launch {
-            state.convergeCellToVerticalPivot(index)
+            state.convergeCellToVerticalPivot(
+                index = index,
+                animatePrimaryCorrection = targetChanged
+            )
         }
     }
 }
@@ -255,7 +259,12 @@ fun Modifier.tvPivotSection(enabled: Boolean, state: LazyListState, key: Any): M
             }
             coordinates.correctionJob?.cancel()
             coordinates.correctionJob = scope.launch {
-                state.convergeSectionToVerticalPivot(key, section, focusedCoordinates)
+                state.convergeSectionToVerticalPivot(
+                    key = key,
+                    section = section,
+                    focusedChild = focusedCoordinates,
+                    animatePrimaryCorrection = targetChanged
+                )
             }
         }
 }
@@ -263,9 +272,11 @@ fun Modifier.tvPivotSection(enabled: Boolean, state: LazyListState, key: Any): M
 private suspend fun LazyListState.convergeSectionToVerticalPivot(
     key: Any,
     section: LayoutCoordinates,
-    focusedChild: LayoutCoordinates
+    focusedChild: LayoutCoordinates,
+    animatePrimaryCorrection: Boolean
 ) {
     var stablePasses = 0
+    var primaryCorrectionPending = animatePrimaryCorrection
     repeat(VERTICAL_PIVOT_MAX_PASSES) {
         val itemInfo = resolveSectionInfo(this, key)
         if (itemInfo != null && section.isAttached && focusedChild.isAttached) {
@@ -289,15 +300,24 @@ private suspend fun LazyListState.convergeSectionToVerticalPivot(
                 if (stablePasses >= VERTICAL_PIVOT_STABLE_PASSES) return
             } else {
                 stablePasses = 0
-                scrollBy(delta)
+                if (primaryCorrectionPending) {
+                    primaryCorrectionPending = false
+                    animateScrollBy(delta)
+                } else {
+                    scrollBy(delta)
+                }
             }
         }
         withFrameNanos { }
     }
 }
 
-private suspend fun LazyGridState.convergeCellToVerticalPivot(index: Int) {
+private suspend fun LazyGridState.convergeCellToVerticalPivot(
+    index: Int,
+    animatePrimaryCorrection: Boolean
+) {
     var stablePasses = 0
+    var primaryCorrectionPending = animatePrimaryCorrection
     repeat(VERTICAL_PIVOT_MAX_PASSES) {
         val info = layoutInfo
         val itemInfo = info.visibleItemsInfo.firstOrNull { it.index == index }
@@ -314,7 +334,12 @@ private suspend fun LazyGridState.convergeCellToVerticalPivot(index: Int) {
                 if (stablePasses >= VERTICAL_PIVOT_STABLE_PASSES) return
             } else {
                 stablePasses = 0
-                scrollBy(delta)
+                if (primaryCorrectionPending) {
+                    primaryCorrectionPending = false
+                    animateScrollBy(delta)
+                } else {
+                    scrollBy(delta)
+                }
             }
         }
         withFrameNanos { }
