@@ -119,10 +119,12 @@ internal fun localBounds(rootBounds: Rect, hostOriginInRoot: Offset): Rect =
     rootBounds.translate(-hostOriginInRoot.x, -hostOriginInRoot.y)
 
 /**
- * Overlay de la couche avant : cadre unique animé, dessiné au premier plan de
- * la `Box` racine de l'écran. Non focusable et non cliquable : il ne perturbe
- * ni la recherche de focus D-pad, ni l'activation de la carte réellement
- * focalisée.
+ * Overlay de la couche avant : cadre unique dessiné au premier plan de la
+ * `Box` racine de l'écran. Sa position reste amortie, mais sa taille et son
+ * rayon sont appliqués immédiatement : le passage entre deux formats de
+ * vignette ne doit pas produire une animation de redimensionnement. Non
+ * focusable et non cliquable : il ne perturbe ni la recherche de focus D-pad,
+ * ni l'activation de la carte réellement focalisée.
  *
  * Structure en deux `Box` (Review F23, Critique R1) : l'hôte reçoit le
  * `modifier` de l'appelant (typiquement `Modifier.fillMaxSize()`) et établit
@@ -145,7 +147,7 @@ fun TvFocusSelectorOverlay(state: TvFocusSelectorState, modifier: Modifier = Mod
             dampingRatio = Spring.DampingRatioNoBouncy,
             stiffness = Spring.StiffnessMediumLow
         )
-        val dpSpringSpec = spring<Dp>(
+        val positionSpringSpec = spring<Dp>(
             dampingRatio = Spring.DampingRatioNoBouncy,
             stiffness = Spring.StiffnessMediumLow
         )
@@ -157,11 +159,19 @@ fun TvFocusSelectorOverlay(state: TvFocusSelectorState, modifier: Modifier = Mod
         if (alpha <= 0f) return@Box
 
         val localTargetBounds = localBounds(target.bounds, host.boundsInRoot().topLeft)
-        val cornerRadius by animateDpAsState(target.cornerRadius, dpSpringSpec, label = "tvFocusSelectorRadius")
-        val left by animateDpAsState(with(density) { localTargetBounds.left.toDp() }, dpSpringSpec, label = "tvFocusSelectorLeft")
-        val top by animateDpAsState(with(density) { localTargetBounds.top.toDp() }, dpSpringSpec, label = "tvFocusSelectorTop")
-        val width by animateDpAsState(with(density) { localTargetBounds.width.toDp() }, dpSpringSpec, label = "tvFocusSelectorWidth")
-        val height by animateDpAsState(with(density) { localTargetBounds.height.toDp() }, dpSpringSpec, label = "tvFocusSelectorHeight")
+        val cornerRadius = target.cornerRadius
+        val left by animateDpAsState(
+            with(density) { localTargetBounds.left.toDp() },
+            positionSpringSpec,
+            label = "tvFocusSelectorLeft"
+        )
+        val top by animateDpAsState(
+            with(density) { localTargetBounds.top.toDp() },
+            positionSpringSpec,
+            label = "tvFocusSelectorTop"
+        )
+        val width = with(density) { localTargetBounds.width.toDp() }
+        val height = with(density) { localTargetBounds.height.toDp() }
 
         Box(
             modifier = Modifier

@@ -114,7 +114,13 @@ fun HomeTrendingCarouselTv(
     // à chaque changement de page une fois le défilement du pager terminé.
     val tvFocusSelector = LocalTvFocusSelector.current
     var currentCardCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
-    LaunchedEffect(tvFocusSelector, hasFocus, pagerState.currentPage, pagerState.isScrollInProgress) {
+    LaunchedEffect(
+        tvFocusSelector,
+        hasFocus,
+        pagerState.currentPage,
+        pagerState.isScrollInProgress,
+        currentCardCoordinates
+    ) {
         if (tvFocusSelector != null && hasFocus && !pagerState.isScrollInProgress) {
             tvFocusSelector.publishFrom(currentCardCoordinates, cornerRadius = 16.dp)
         }
@@ -225,7 +231,17 @@ fun HomeTrendingCarouselTv(
                 // du pager (Review F23, Majeur R4).
                 .then(
                     if (isCurrent) {
-                        Modifier.onGloballyPositioned { currentCardCoordinates = it }
+                        Modifier.onGloballyPositioned {
+                            currentCardCoordinates = it
+                            // Le retour Haut depuis une rangée peut réutiliser
+                            // l'objet LayoutCoordinates ; dans ce cas la clé
+                            // de LaunchedEffect ne change pas. La mesure de la
+                            // Hero est la source de vérité et doit republier
+                            // ses bounds complets dès qu'elle est focalisée.
+                            if (hasFocus && !pagerState.isScrollInProgress) {
+                                tvFocusSelector?.publishFrom(it, cornerRadius = 16.dp)
+                            }
+                        }
                     } else {
                         Modifier
                     }

@@ -406,14 +406,16 @@ fun HomeVodMovieCard(
         Modifier.width(cardWidth).height(195.dp) // standard 2:3 ratio
     }
     val posterModifier = (if (fillCell) Modifier.fillMaxSize() else Modifier.width(130.dp).fillMaxHeight())
+        .onFocusChanged { isFocused = it.isFocused }
         .tvFocusHighlight(isFocused, RoundedCornerShape(14.dp))
         .clip(RoundedCornerShape(14.dp))
         .background(Surface1)
+        // Le rang Top 10 reste décoratif : seule l'affiche porte le focus et
+        // fournit donc ses bounds exacts au sélecteur pivot.
+        .historyItemActions(isTv, onClick, onLongClick)
 
     Box(
-        modifier = sizeModifier
-            .onFocusChanged { isFocused = it.isFocused }
-            .historyItemActions(isTv, onClick, onLongClick),
+        modifier = sizeModifier,
         contentAlignment = Alignment.Center
     ) {
         rank?.let { TopRankBadge(it, Modifier.align(Alignment.BottomStart)) }
@@ -546,14 +548,16 @@ fun HomeSeriesShowCard(
         Modifier.width(cardWidth).height(195.dp) // standard 2:3 ratio
     }
     val posterModifier = (if (fillCell) Modifier.fillMaxSize() else Modifier.width(130.dp).fillMaxHeight())
+        .onFocusChanged { isFocused = it.isFocused }
         .tvFocusHighlight(isFocused, RoundedCornerShape(14.dp))
         .clip(RoundedCornerShape(14.dp))
         .background(Surface1)
+        // Le rang Top 10 est hors de la cible focusable : le contour ne doit
+        // entourer que la vignette, jamais le chiffre.
+        .historyItemActions(isTv, onClick, onLongClick)
 
     Box(
-        modifier = sizeModifier
-            .onFocusChanged { isFocused = it.isFocused }
-            .historyItemActions(isTv, onClick, onLongClick),
+        modifier = sizeModifier,
         contentAlignment = Alignment.Center
     ) {
         rank?.let { TopRankBadge(it, Modifier.align(Alignment.BottomStart)) }

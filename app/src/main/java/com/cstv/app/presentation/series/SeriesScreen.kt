@@ -33,6 +33,7 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Tune
@@ -62,6 +63,7 @@ import com.cstv.app.presentation.theme.AccentLavande
 import com.cstv.app.presentation.theme.BricolageGrotesque
 import com.cstv.app.presentation.theme.HankenGrotesk
 import com.cstv.app.presentation.theme.Surface1
+import com.cstv.app.presentation.theme.Surface3
 import com.cstv.app.presentation.theme.TextSecondary
 import com.cstv.app.presentation.components.CategoryFilterSheet
 import com.cstv.app.presentation.components.CategorySheetEntry
@@ -298,10 +300,10 @@ private fun TvLayout(
         // du contenu (règle « une donnée ancienne reste consultable »).
         OfflineBanner(status = state.catalogStatus, onRetry = onRefresh)
 
-        // F22: one D-pad-friendly trigger replaces the horizontal chip rail.
+        // F22/B20 : la catégorie, la recherche et les filtres partagent une
+        // même ligne dès qu'une catégorie précise est ouverte.
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(bottom = 12.dp)
@@ -309,8 +311,67 @@ private fun TvLayout(
             TvCategorySelectorTrigger(
                 label = stringResource(R.string.series_category_selector_label, (state.selectedCategory?.categoryName ?: "Tout").uppercase()),
                 onClick = { showCategoryPicker = true },
-                modifier = Modifier.weight(1f).focusRequester(categoryTriggerFocusRequester)
+                modifier = Modifier
+                    .weight(if (isSpecificCategory) 0.4f else 1f)
+                    .focusRequester(categoryTriggerFocusRequester)
             )
+            if (isSpecificCategory) {
+                Spacer(modifier = Modifier.width(12.dp))
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = onSearchQueryChanged,
+                    placeholder = {
+                        Text(
+                            stringResource(R.string.series_search_placeholder),
+                            color = Color.Gray,
+                            fontSize = 13.sp,
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                        )
+                    },
+                    leadingIcon = {
+                        Icon(
+                            Icons.Default.Search,
+                            contentDescription = null,
+                            tint = AccentLavande,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    },
+                    trailingIcon = {
+                        if (searchQuery.isNotEmpty()) {
+                            IconButton(onClick = { onSearchQueryChanged("") }) {
+                                Icon(Icons.Default.Close, stringResource(R.string.common_clear), tint = Color.Gray)
+                            }
+                        }
+                    },
+                    singleLine = true,
+                    shape = RoundedCornerShape(14.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedContainerColor = Surface3,
+                        unfocusedContainerColor = Surface3,
+                        focusedBorderColor = Color.White.copy(alpha = 0.12f),
+                        unfocusedBorderColor = Color.White.copy(alpha = 0.08f),
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White,
+                        cursorColor = AccentLavande
+                    ),
+                    modifier = Modifier.weight(1f)
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                IconButton(
+                    onClick = onFilterSheetOpen,
+                    modifier = Modifier.background(
+                        color = if (state.advancedFilter.isActive) AccentLavande else Color(0x33FFFFFF),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                ) {
+                    Icon(
+                        Icons.Default.Tune,
+                        stringResource(R.string.catalog_filters_button_description),
+                        tint = if (state.advancedFilter.isActive) Color(0xFF17131F) else Color.White
+                    )
+                }
+            }
             IconButton(onClick = onRefresh) {
                 Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.catalog_refresh_button_description), tint = Color.White)
             }
@@ -413,34 +474,7 @@ private fun TvLayout(
             }
         } else {
             // Mode "Catégorie spécifique" : Search & Vertical Grid
-            Text(
-                text = state.selectedCategory?.categoryName?.uppercase() ?: "SÉRIES",
-                color = Color.White,
-                fontWeight = FontWeight.Bold,
-                fontSize = 18.sp,
-                modifier = Modifier.padding(bottom = 12.dp)
-            )
-
             if (isSpecificCategory) {
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 8.dp)) {
-                OutlinedTextField(
-                    value = searchQuery,
-                    onValueChange = onSearchQueryChanged,
-                    placeholder = { Text(stringResource(R.string.series_search_placeholder), color = Color.Gray, fontSize = 13.sp) },
-                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp)) },
-                    singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = MaterialTheme.colorScheme.primary,
-                        unfocusedBorderColor = Color.DarkGray,
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White
-                    ),
-                    modifier = Modifier.weight(1f)
-                )
-                IconButton(onClick = onFilterSheetOpen) {
-                    Icon(Icons.Default.Tune, stringResource(R.string.catalog_filters_button_description), tint = if (state.advancedFilter.isActive) AccentLavande else Color.White)
-                }
-                }
                 if (state.advancedFilter.isActive) {
                     ActiveFilterChipsRow(state.advancedFilter, true, onRemoveMinRating, onRemoveYearRange, onRemoveGenre,
                         Modifier.padding(bottom = 12.dp))
