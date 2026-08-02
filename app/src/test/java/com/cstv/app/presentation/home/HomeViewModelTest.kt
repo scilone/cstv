@@ -16,15 +16,25 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.*
 import androidx.lifecycle.viewModelScope
 import org.junit.After
+import org.junit.Rule
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
+import org.junit.rules.Timeout
 import org.mockito.Mock
 import org.mockito.MockitoAnnotations
 import org.mockito.kotlin.*
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class HomeViewModelTest {
+    // Filet anti-blocage : un test coroutine qui boucle sur le scheduler virtuel
+    // (ticker infini dans un `init` de ViewModel, `advanceUntilIdle` sur une
+    // tâche périodique) fige le build sans jamais échouer. Cette règle nomme le
+    // test fautif ; le garde-fou dur est `tasks.withType<Test> { timeout }`
+    // dans app/build.gradle.kts.
+    @get:Rule
+    val globalTimeout: Timeout = Timeout.seconds(60)
+
 
     @Mock
     private lateinit var vodRepository: VodRepository
@@ -80,13 +90,12 @@ class HomeViewModelTest {
     @Mock
     private lateinit var profileManager: ProfileManager
 
-    // Phase 42 : StandardTestDispatcher (et non Unconfined) + runCurrent() après
-    // construction. HomeViewModel lance désormais un ticker EPG infini
-    // (while(true) { delay(60s); ... }) dans son init : avec un dispatcher
-    // "unconfined" autonome (scheduler non lié à celui de runTest), ce ticker
-    // provoque un blocage réel du test. runCurrent() n'exécute que le travail
-    // déjà dû à l'instant virtuel courant (le chargement initial), sans jamais
-    // avancer jusqu'au premier délai de 60s du ticker.
+    // Phase 42 : StandardTestDispatcher (et non Unconfined), pour garder la
+    // maîtrise de l'instant virtuel. Le ticker EPG de `HomeViewModel.init` ne
+    // planifie plus de `delay` tant que personne ne collecte `state` : lire
+    // `viewModel.state.value` n'ouvre pas d'abonnement, donc `advanceUntilIdle()`
+    // et le nettoyage de `runTest` terminent normalement (voir le test de
+    // non-régression `epgTicker_*` en fin de fichier).
     private val testDispatcher = StandardTestDispatcher()
     private val activeProfileId = MutableStateFlow(1)
 
@@ -278,7 +287,10 @@ class HomeViewModelTest {
     @Test
     fun test_loadHomeData_success_populatesAllSections() = runTest {
         val positions = listOf(
-            PlaybackPosition(1, 1000L, 50000L, System.currentTimeMillis(), "Movie 1", "cover1", "movie", "mp4")
+            // Phase 58 : une reprise sans categoryId est masquée dès que le
+            // catalogue correspondant est peuplé (cas nominal de
+            // `stubReactiveSources`) — la position doit donc porter sa catégorie.
+            PlaybackPosition(1, 1000L, 50000L, System.currentTimeMillis(), "Movie 1", "cover1", "movie", "mp4", categoryId = "1")
         )
         val favorites = listOf(
             FavoriteItem(2, "live", "Live 1", "cover2", "cat1")
@@ -305,6 +317,7 @@ class HomeViewModelTest {
         whenever(seriesRepository.getCachedSeriesStreams("1")).thenReturn(seriesStreams)
 
         viewModel = createViewModel()
+        advanceUntilIdle()
 
         val state = viewModel.state.value
         assertFalse(state.isLoading)
@@ -464,9 +477,7 @@ class HomeViewModelTest {
         whenever(vodRepository.getCachedVodStreams("all")).thenReturn(emptyList())
         whenever(seriesRepository.getCachedSeriesStreams("all")).thenReturn(emptyList())
 
-        // Pas d'`advanceUntilIdle` ici : le sondage EPG de `init` est une
-        // boucle infinie temporisée (même piège que les tests de tendances
-        // ci-dessus), le scheduler n'atteindrait jamais l'inactivité.
+        // `runCurrent()` suffit : seul le chargement initial est attendu ici.
         viewModel = createViewModel()
         testDispatcher.scheduler.runCurrent()
 
@@ -577,14 +588,17 @@ class HomeViewModelTest {
         // Mock Live TV throws exception
         whenever(getLiveCategoriesUseCase.once()).thenThrow(RuntimeException("API Error Live TV"))
 
-        // Mock VOD Movies succeeds
+        // Mock VOD Movies succeeds — la rangée Films provient de la première
+        // catégorie visible du profil (T10), pas d'un pseudo-identifiant "all".
         val vodStreams = listOf(VodStream(201, "Movie A", "icon2", "8.5", "2026", "1"))
-        whenever(vodRepository.getCachedVodStreams("all")).thenReturn(vodStreams)
+        whenever(getVodCategoriesUseCase.once()).thenReturn(listOf(VodCategory("1", "VOD Cat 1", 0)))
+        whenever(vodRepository.getCachedVodStreams("1")).thenReturn(vodStreams)
 
         // Mock Series to be empty
         whenever(seriesRepository.getCachedSeriesStreams("all")).thenReturn(emptyList())
 
         viewModel = createViewModel()
+        advanceUntilIdle()
 
         val state = viewModel.state.value
         assertFalse(state.isLoading)
@@ -606,15 +620,18 @@ class HomeViewModelTest {
         // observeAllPlaybackPositions trie déjà par lastAccessedAt DESC : le
         // repository (mocké ici) doit refléter cet ordre pour que le
         // regroupement (Phase 30) retienne bien le dernier épisode vu.
+        // `categoryId` renseigné partout : sans lui, Phase 58 masque la reprise
+        // dès que le catalogue correspondant est peuplé, ce qui n'est pas le
+        // point testé ici (regroupement par seriesId).
         val positions = listOf(
             // Série 10 : épisode le plus récent (doit être conservé)
-            PlaybackPosition(102, 1000L, 50000L, 3000L, "Show A - S1E2", "cover", "series", "mp4", seriesId = 10, episodeNum = 2, seasonNum = 1),
+            PlaybackPosition(102, 1000L, 50000L, 3000L, "Show A - S1E2", "cover", "series", "mp4", seriesId = 10, episodeNum = 2, seasonNum = 1, categoryId = "1"),
             // Film sans seriesId : jamais regroupé
-            PlaybackPosition(501, 1000L, 50000L, 2500L, "Movie 1", "cover1", "movie", "mp4"),
+            PlaybackPosition(501, 1000L, 50000L, 2500L, "Movie 1", "cover1", "movie", "mp4", categoryId = "1"),
             // Série 10 : épisode plus ancien (doit être exclu, même série que ci-dessus)
-            PlaybackPosition(101, 1000L, 50000L, 2000L, "Show A - S1E1", "cover", "series", "mp4", seriesId = 10, episodeNum = 1, seasonNum = 1),
+            PlaybackPosition(101, 1000L, 50000L, 2000L, "Show A - S1E1", "cover", "series", "mp4", seriesId = 10, episodeNum = 1, seasonNum = 1, categoryId = "1"),
             // Série 20 : une seule entrée, forcément conservée
-            PlaybackPosition(201, 1000L, 50000L, 1000L, "Show B - S1E1", "cover", "series", "mp4", seriesId = 20, episodeNum = 1, seasonNum = 1)
+            PlaybackPosition(201, 1000L, 50000L, 1000L, "Show B - S1E1", "cover", "series", "mp4", seriesId = 20, episodeNum = 1, seasonNum = 1, categoryId = "1")
         )
         stubReactiveSources(positions = positions)
         stubEmptyCategoryPreferences()
@@ -623,6 +640,7 @@ class HomeViewModelTest {
         whenever(seriesRepository.getCachedSeriesStreams("all")).thenReturn(emptyList())
 
         viewModel = createViewModel()
+        advanceUntilIdle()
 
         val resumeWatching = viewModel.state.value.resumeWatchingList
         assertEquals(3, resumeWatching.size)
@@ -635,19 +653,23 @@ class HomeViewModelTest {
     }
 
     @Test
-    fun test_loadHomeData_sortsVodAndSeriesByAddedDescending_andLimitsTo20() = runTest {
+    fun test_loadHomeData_limitsFirstVodAndSeriesRowsTo20_keepingRepositoryOrder() = runTest {
         stubReactiveSources()
         stubEmptyCategoryPreferences()
         whenever(getLiveCategoriesUseCase.once()).thenReturn(emptyList())
 
-        // 22 streams générés avec des dates d'ajout croissantes : le plus récent (id 21, added "21")
-        // doit apparaître en premier, et seuls les 20 plus récents doivent être conservés.
-        val vodStreams = (0..21).map { i -> VodStream(i, "Movie $i", "icon", "5.0", i.toString(), "1") }
-        val seriesStreams = (0..21).map { i -> SeriesStream(i, "Series $i", "cover", "5.0", i.toString(), "1") }
-        whenever(vodRepository.getCachedVodStreams("all")).thenReturn(vodStreams)
-        whenever(seriesRepository.getCachedSeriesStreams("all")).thenReturn(seriesStreams)
+        // Le tri par date d'ajout décroissante est fait par le DAO (T9) : le
+        // repository est donc mocké déjà ordonné. Le ViewModel ne doit que
+        // tronquer à HOME_ROW_LIMIT (20) en préservant cet ordre.
+        val vodStreams = (21 downTo 0).map { i -> VodStream(i, "Movie $i", "icon", "5.0", i.toString(), "1") }
+        val seriesStreams = (21 downTo 0).map { i -> SeriesStream(i, "Series $i", "cover", "5.0", i.toString(), "1") }
+        whenever(getVodCategoriesUseCase.once()).thenReturn(listOf(VodCategory("1", "VOD Cat 1", 0)))
+        whenever(getSeriesCategoriesUseCase.once()).thenReturn(listOf(SeriesCategory("1", "Series Cat 1", 0)))
+        whenever(vodRepository.getCachedVodStreams("1")).thenReturn(vodStreams)
+        whenever(seriesRepository.getCachedSeriesStreams("1")).thenReturn(seriesStreams)
 
         viewModel = createViewModel()
+        advanceUntilIdle()
 
         val state = viewModel.state.value
         assertEquals(20, state.firstVodStreams.size)
@@ -739,8 +761,7 @@ class HomeViewModelTest {
         whenever(vodRepository.getCachedVodStreams("all")).thenReturn(emptyList())
         whenever(seriesRepository.getCachedSeriesStreams("all")).thenReturn(emptyList())
 
-        // Pas d'`advanceUntilIdle` ici : le sondage EPG de `init` est une boucle
-        // infinie temporisée, le scheduler n'atteindrait jamais l'inactivité.
+        // `runCurrent()` suffit : seul le chargement initial est attendu ici.
         viewModel = createViewModel()
         testDispatcher.scheduler.runCurrent()
 
@@ -995,6 +1016,31 @@ class HomeViewModelTest {
         assertEquals(TrailerPreviewUiState.Failed, viewModel.state.value.trailerPreview)
         viewModel.cancelTrendingPreview()
         assertEquals(TrailerPreviewUiState.Poster, viewModel.state.value.trailerPreview)
+
+        viewModel.viewModelScope.cancel()
+    }
+
+    // --- Non-régression : le ticker EPG ne doit jamais figer la suite de tests ---
+
+    // Avant correctif, `HomeViewModel.init` lançait `while (true) { delay(60s) }`
+    // sans condition : le scheduler virtuel gardait en permanence une tâche
+    // planifiée. `advanceUntilIdle()` — comme le drainage final de `runTest` —
+    // bouclait alors pour toujours, figeant `./gradlew testDebugUnitTest` sans
+    // aucun échec ni timeout (la boucle de drainage n'est pas suspendable, donc
+    // ni interruptible par le timeout de `runTest` ni par une règle JUnit).
+    // Ce test échoue par timeout si la régression revient.
+    @Test
+    fun epgTicker_doesNotKeepTheVirtualSchedulerBusyWhenNobodyObservesState() = runTest {
+        stubReactiveSources()
+        stubEmptyCategoryPreferences()
+        whenever(getLiveCategoriesUseCase.once()).thenReturn(emptyList())
+        whenever(vodRepository.getCachedVodStreams("all")).thenReturn(emptyList())
+        whenever(seriesRepository.getCachedSeriesStreams("all")).thenReturn(emptyList())
+
+        viewModel = createViewModel()
+
+        // Doit rendre la main : aucun `delay` périodique ne reste planifié.
+        advanceUntilIdle()
 
         viewModel.viewModelScope.cancel()
     }

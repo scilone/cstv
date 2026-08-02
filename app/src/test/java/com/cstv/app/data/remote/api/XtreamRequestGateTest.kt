@@ -8,10 +8,20 @@ import kotlinx.coroutines.withContext
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.Timeout
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class XtreamRequestGateTest {
+    // Filet anti-blocage : un test coroutine qui boucle sur le scheduler virtuel
+    // (tâche périodique inconditionnelle dans un `init` de ViewModel, boucle de
+    // pagination dont le mock renvoie toujours une page pleine) fige le build
+    // sans jamais échouer. Cette règle nomme le test fautif ; le garde-fou dur
+    // est `tasks.withType<Test> { timeout }` dans app/build.gradle.kts.
+    @get:Rule
+    val globalTimeout: Timeout = Timeout.seconds(60)
+
 
     @Test
     fun test_foregroundCall_executesImmediately_withNoYield() = runTest {

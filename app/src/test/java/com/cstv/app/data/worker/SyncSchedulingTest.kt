@@ -1,11 +1,21 @@
 package com.cstv.app.data.worker
 
 import org.junit.Assert.assertEquals
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.Timeout
 import java.util.Calendar
 import java.util.TimeZone
 
 class SyncSchedulingTest {
+    // Filet anti-blocage : un test coroutine qui boucle sur le scheduler virtuel
+    // (tâche périodique inconditionnelle dans un `init` de ViewModel, boucle de
+    // pagination dont le mock renvoie toujours une page pleine) fige le build
+    // sans jamais échouer. Cette règle nomme le test fautif ; le garde-fou dur
+    // est `tasks.withType<Test> { timeout }` dans app/build.gradle.kts.
+    @get:Rule
+    val globalTimeout: Timeout = Timeout.seconds(60)
+
 
     private fun calendarAt(hour: Int, minute: Int, second: Int = 0): Calendar {
         return Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {

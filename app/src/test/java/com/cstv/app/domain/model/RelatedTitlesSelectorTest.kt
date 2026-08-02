@@ -1,9 +1,19 @@
 package com.cstv.app.domain.model
 
 import org.junit.Assert.*
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.Timeout
 
 class RelatedTitlesSelectorTest {
+    // Filet anti-blocage : un test coroutine qui boucle sur le scheduler virtuel
+    // (tâche périodique inconditionnelle dans un `init` de ViewModel, boucle de
+    // pagination dont le mock renvoie toujours une page pleine) fige le build
+    // sans jamais échouer. Cette règle nomme le test fautif ; le garde-fou dur
+    // est `tasks.withType<Test> { timeout }` dans app/build.gradle.kts.
+    @get:Rule
+    val globalTimeout: Timeout = Timeout.seconds(60)
+
 
     private fun cand(id: Int, genres: List<String>, rating: Double = 0.0, added: Long = 0L, categoryId: String? = null) =
         RelatedTitlesSelector.Candidate(id, genres, rating, added, categoryId)

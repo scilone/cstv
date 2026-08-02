@@ -21,7 +21,9 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.*
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.Timeout
 import org.mockito.Mock
 import org.mockito.MockitoAnnotations
 import java.io.IOException
@@ -31,6 +33,14 @@ import java.util.TimeZone
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class AuthRepositoryImplTest {
+    // Filet anti-blocage : un test coroutine qui boucle sur le scheduler virtuel
+    // (tâche périodique inconditionnelle dans un `init` de ViewModel, boucle de
+    // pagination dont le mock renvoie toujours une page pleine) fige le build
+    // sans jamais échouer. Cette règle nomme le test fautif ; le garde-fou dur
+    // est `tasks.withType<Test> { timeout }` dans app/build.gradle.kts.
+    @get:Rule
+    val globalTimeout: Timeout = Timeout.seconds(60)
+
 
     private lateinit var apiService: FakeXtreamApiService
 

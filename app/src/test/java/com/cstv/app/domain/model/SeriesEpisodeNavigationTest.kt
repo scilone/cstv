@@ -2,9 +2,19 @@ package com.cstv.app.domain.model
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.Timeout
 
 class SeriesEpisodeNavigationTest {
+    // Filet anti-blocage : un test coroutine qui boucle sur le scheduler virtuel
+    // (tâche périodique inconditionnelle dans un `init` de ViewModel, boucle de
+    // pagination dont le mock renvoie toujours une page pleine) fige le build
+    // sans jamais échouer. Cette règle nomme le test fautif ; le garde-fou dur
+    // est `tasks.withType<Test> { timeout }` dans app/build.gradle.kts.
+    @get:Rule
+    val globalTimeout: Timeout = Timeout.seconds(60)
+
 
     private fun ep(season: Int, num: Int, id: Int = season * 100 + num) = SeriesEpisode(
         id = id,

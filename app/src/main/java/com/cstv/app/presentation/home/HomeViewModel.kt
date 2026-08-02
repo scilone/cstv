@@ -28,6 +28,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.map
@@ -341,11 +342,30 @@ class HomeViewModel @Inject constructor(
         // Le premier passage a lieu juste après le chargement initial de
         // firstLiveStreams (voir loadHomeData) ; ce ticker ne fait que les
         // rafraîchissements périodiques suivants.
+        //
+        // Le sondage n'est actif QUE tant qu'un collecteur observe `state`
+        // (écran Accueil affiché). Deux raisons :
+        //  - prod : aucun rafraîchissement EPG inutile quand l'Accueil n'est
+        //    pas à l'écran ;
+        //  - tests : un `while (true) { delay(...) }` inconditionnel garde en
+        //    permanence une tâche planifiée sur le scheduler virtuel. Le
+        //    nettoyage de `runTest` (`advanceUntilIdleOr`) et tout appel à
+        //    `advanceUntilIdle()` bouclent alors indéfiniment, ce qui fige le
+        //    build sans jamais déclencher le timeout de `runTest` (la boucle
+        //    de drainage n'est pas suspendable, donc non interruptible).
+        //    Adossé à `subscriptionCount`, le ticker ne planifie plus rien
+        //    quand personne n'observe : le scheduler redevient inactif.
         viewModelScope.launch {
-            while (true) {
-                delay(EPG_POLL_INTERVAL_MILLIS)
-                refreshVisibleEpg()
-            }
+            _state.subscriptionCount
+                .map { it > 0 }
+                .distinctUntilChanged()
+                .collectLatest { isObserved ->
+                    if (!isObserved) return@collectLatest
+                    while (true) {
+                        delay(EPG_POLL_INTERVAL_MILLIS)
+                        refreshVisibleEpg()
+                    }
+                }
         }
     }
 

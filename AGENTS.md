@@ -143,6 +143,18 @@ Chaque nouvelle fonctionnalité livrée phase doit accompagner tests, pas juste 
 - Jamais nommer fonction membre comme getter JVM généré par `val`/`StateFlow` même type (ex: property `val activeProfileId: StateFlow<Int>` + fonction `fun getActiveProfileId(): Int` génèrent toutes deux `getActiveProfileId()` côté bytecode → collision signature compilation). Utilise nom distinct fonction (ex: `currentProfileId()`).
 - Pour stubber mock dont méthode aussi `@JvmName`/accesseur ambigu, préfère `doReturn(x).whenever(mock).method()` à `whenever(mock.method()).thenReturn(x)` si Mockito lève `WrongTypeOfReturnValue`.
 
+**Boucles infinies de tests — règle absolue (déjà rencontré plusieurs fois)**
+
+Une tâche périodique inconditionnelle (`while (true) { delay(...) }`, `flow { while (true) { emit(); delay() } }`) lancée dans un `init` de ViewModel garde en permanence une tâche planifiée sur le scheduler virtuel. Conséquence : `advanceUntilIdle()` **et** le drainage final de `runTest` bouclent pour toujours. Cette boucle de drainage n'est pas suspendable, donc **ni le timeout interne de `runTest`, ni une règle JUnit `Timeout` ne l'interrompent** : `./gradlew testDebugUnitTest` gèle indéfiniment, sans échec ni message.
+
+- **Jamais** de tâche périodique inconditionnelle dans un `init` de ViewModel. Conditionne-la à `_state.subscriptionCount > 0` (`collectLatest`) : le sondage ne tourne que quand l'écran observe l'état — plus rien n'est planifié en test, et la prod évite un polling inutile en arrière-plan. Modèle de référence : le ticker EPG de `HomeViewModel`.
+- Ne compte pas sur `viewModelScope.cancel()` en fin de test : le `@After` s'exécute **après** le retour de `runTest`, donc trop tard pour éviter le gel.
+- Garde-fous en place, à ne pas retirer :
+  - `tasks.withType<Test> { timeout }` dans `app/build.gradle.kts` (le build meurt au bout de 10 min au lieu de geler) ;
+  - règle `@get:Rule val globalTimeout = Timeout.seconds(60)` dans chaque `presentation/**ViewModelTest.kt` (nomme le test coupable dans le rapport).
+- Si un test gèle malgré tout : `jstack <pid du Gradle Test Executor>` puis lire la pile du thread `Test worker` — elle donne directement la classe et la méthode fautives.
+- Attention aussi aux boucles de pagination `while (true) { ...; if (page.size < N) break }` (repositories) : un mock stubbé avec `any()` renvoyant une page pleine boucle sans fin. Stubbe toujours une dernière page plus courte.
+
 **Non-régression**
 - Avant livrer phase, exécute `./gradlew testDebugUnitTest` en plus `assembleDebug`.
 - Si test phase précédente échoue suite tes changements, corrige-le ou signale explicitement ta réponse — jamais supprimer ni désactiver pour faire passer build sans validation explicite de ma part.

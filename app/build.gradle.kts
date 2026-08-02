@@ -1,3 +1,4 @@
+import java.time.Duration
 import java.util.Properties
 
 plugins {
@@ -113,6 +114,21 @@ android {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
     }
+}
+
+// Filet de sécurité anti-blocage des tests unitaires.
+//
+// Un test coroutine peut boucler pour toujours sans jamais échouer : le
+// drainage du scheduler virtuel (`advanceUntilIdle`, nettoyage de `runTest`)
+// n'est pas suspendable, donc ni le timeout interne de `runTest` ni une règle
+// JUnit `Timeout` ne peuvent l'interrompre. Sans ce garde-fou, `./gradlew
+// testDebugUnitTest` gèle indéfiniment (déjà rencontré plusieurs fois).
+//
+// `timeout` fait tuer la tâche par Gradle : le build échoue en quelques
+// minutes au lieu de rester bloqué. La règle `Timeout` côté JUnit (voir
+// `presentation/**Test.kt`) reste utile pour identifier le test coupable.
+tasks.withType<Test>().configureEach {
+    timeout.set(Duration.ofMinutes(10))
 }
 
 dependencies {

@@ -15,16 +15,26 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
+import org.junit.Rule
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Before
 import org.junit.Test
+import org.junit.rules.Timeout
 import org.mockito.Mock
 import org.mockito.MockitoAnnotations
 import org.mockito.kotlin.*
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class CategoryManagementViewModelTest {
+    // Filet anti-blocage : un test coroutine qui boucle sur le scheduler virtuel
+    // (ticker infini dans un `init` de ViewModel, `advanceUntilIdle` sur une
+    // tâche périodique) fige le build sans jamais échouer. Cette règle nomme le
+    // test fautif ; le garde-fou dur est `tasks.withType<Test> { timeout }`
+    // dans app/build.gradle.kts.
+    @get:Rule
+    val globalTimeout: Timeout = Timeout.seconds(60)
+
 
     @Mock
     private lateinit var liveTvRepository: LiveTvRepository
