@@ -56,6 +56,8 @@ import com.cstv.app.presentation.theme.HankenGrotesk
 import com.cstv.app.presentation.theme.TextPrimary
 import com.cstv.app.presentation.theme.TextSecondary
 import com.cstv.app.presentation.rememberRowScrollState
+import com.cstv.app.presentation.components.TvInitialFocusState
+import com.cstv.app.presentation.components.tvInitialFocusTarget
 import kotlinx.coroutines.delay
 
 @Composable
@@ -72,7 +74,9 @@ fun CategorySectionRow(
     getScroll: (String) -> Pair<Int, Int>,
     saveScroll: (String, Int, Int) -> Unit,
     sectionListState: LazyListState,
-    onSeeAll: (() -> Unit)? = null
+    onSeeAll: (() -> Unit)? = null,
+    initialFocusState: TvInitialFocusState? = null,
+    isInitialTarget: Boolean = false
 ) {
     Column(
         modifier = Modifier
@@ -120,7 +124,8 @@ fun CategorySectionRow(
                 val isFav = favoritesList.any { it.id == stream.streamId && it.type == "live" }
                 // Rayon 12.dp : StreamTvCard n'a pas été unifiée au rayon
                 // 14.dp de B18 (hors périmètre de ce ticket-là).
-                Box(modifier = Modifier.tvPivotItem(isTv, rowState, index, selectorCornerRadius = 12.dp)) {
+                Box(modifier = Modifier.tvPivotItem(isTv, rowState, index, selectorCornerRadius = 12.dp)
+                    .tvInitialFocusTarget(initialFocusState, index == 0 && isInitialTarget)) {
                     if (isTv) {
                         StreamTvCard(
                             stream = stream,
@@ -333,7 +338,9 @@ fun RecentlyWatchedRow(
     onLongClick: (LiveStream) -> Unit,
     getScroll: (String) -> Pair<Int, Int>,
     saveScroll: (String, Int, Int) -> Unit,
-    sectionListState: LazyListState
+    sectionListState: LazyListState,
+    initialFocusState: TvInitialFocusState? = null,
+    isInitialTarget: Boolean = false
 ) {
     Column(
         modifier = Modifier
@@ -359,7 +366,8 @@ fun RecentlyWatchedRow(
             itemsIndexed(streams) { index, stream ->
                 // Rayon 12.dp : StreamTvCard n'a pas été unifiée au rayon
                 // 14.dp de B18 (hors périmètre de ce ticket-là).
-                Box(modifier = Modifier.tvPivotItem(isTv, rowState, index, selectorCornerRadius = 12.dp)) {
+                Box(modifier = Modifier.tvPivotItem(isTv, rowState, index, selectorCornerRadius = 12.dp)
+                    .tvInitialFocusTarget(initialFocusState, index == 0 && isInitialTarget)) {
                     if (isTv) {
                         RecentlyWatchedTvItem(
                             stream = stream,

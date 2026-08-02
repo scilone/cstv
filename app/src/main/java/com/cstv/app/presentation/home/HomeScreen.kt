@@ -14,6 +14,8 @@ import com.cstv.app.presentation.components.tvPivotVerticalStartSpacer
 import com.cstv.app.presentation.components.LocalTvFocusSelector
 import com.cstv.app.presentation.components.TvFocusSelectorOverlay
 import com.cstv.app.presentation.components.TvFocusSelectorState
+import com.cstv.app.presentation.components.rememberTvInitialFocus
+import com.cstv.app.presentation.components.tvInitialFocusTarget
 
 import com.cstv.app.presentation.rememberRowScrollState
 import androidx.compose.foundation.lazy.LazyListState
@@ -114,6 +116,17 @@ fun HomeScreen(
     val onSeeAllSeries = remember(state.firstSeriesCategory, onNavigateToSeriesCategory) {
         state.firstSeriesCategory?.let { category -> { onNavigateToSeriesCategory(category) } }
     }
+
+    // B17 (M1) : ordre de priorité formalisé à l'étape 2, câblé sur la
+    // première rangée non vide (Hero incluse). `targetKey` = la cible elle-
+    // même : l'apparition tardive d'une rangée (Top 10, recommandations) ne
+    // réarme pas la demande tant que la cible retenue n'a pas changé.
+    val homeInitialTarget = remember(state, isTv) { HomeInitialFocusTarget.of(state, isTv) }
+    val homeInitialFocus = rememberTvInitialFocus(
+        isTv = isTv,
+        ready = !state.isLoading && homeInitialTarget != null,
+        targetKey = homeInitialTarget
+    )
 
     // Section affichée en grille verticale ("Voir tout"). null = accueil normal.
     var expandedSection by remember { mutableStateOf<HomeExpandedSection?>(null) }
@@ -408,6 +421,8 @@ fun HomeScreen(
                                     onSeriesClick = { seriesId ->
                                         state.trendingList.find { it.matchedSeries?.seriesId == seriesId }?.matchedSeries?.let(onSelectSeriesDetail)
                                     },
+                                    initialFocusState = homeInitialFocus,
+                                    isInitialTarget = homeInitialTarget == HomeFocusTarget.TRENDING,
                                     modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
                                 )
                             } else {
@@ -441,7 +456,8 @@ fun HomeScreen(
                                     // Rayon 12.dp : HomeResumeWatchingCard n'est
                                     // pas unifiée au rayon 14.dp de B18 (Review
                                     // F23, Mineur R5).
-                                    Box(modifier = Modifier.tvPivotItem(isTv, rowState, index, selectorCornerRadius = 12.dp)) {
+                                    Box(modifier = Modifier.tvPivotItem(isTv, rowState, index, selectorCornerRadius = 12.dp)
+                                        .tvInitialFocusTarget(homeInitialFocus, index == 0 && homeInitialTarget == HomeFocusTarget.RESUME)) {
                                         HomeResumeWatchingCard(
                                             position = position,
                                             onClick = { handleResumeClick(position) },
@@ -472,7 +488,8 @@ fun HomeScreen(
                                 modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).focusGroup()
                             ) {
                                 itemsIndexed(state.favoritesList) { index, fav ->
-                                    Box(modifier = Modifier.tvPivotItem(isTv, rowState, index)) {
+                                    Box(modifier = Modifier.tvPivotItem(isTv, rowState, index)
+                                        .tvInitialFocusTarget(homeInitialFocus, index == 0 && homeInitialTarget == HomeFocusTarget.FAVORITES)) {
                                         HomeFavoriteItemCard(
                                             favorite = fav,
                                             onClick = { handleFavoriteClick(fav) }
@@ -504,7 +521,8 @@ fun HomeScreen(
                                     // Rayon 16.dp : HomeLiveTvCard n'est pas
                                     // unifiée au rayon 14.dp de B18 (Review F23,
                                     // Mineur R5).
-                                    Box(modifier = Modifier.tvPivotItem(isTv, rowState, index, selectorCornerRadius = 16.dp)) {
+                                    Box(modifier = Modifier.tvPivotItem(isTv, rowState, index, selectorCornerRadius = 16.dp)
+                                        .tvInitialFocusTarget(homeInitialFocus, index == 0 && homeInitialTarget == HomeFocusTarget.LIVETV)) {
                                         HomeLiveTvCard(
                                             stream = stream,
                                             epgProgram = state.epgPrograms[stream.streamId],
@@ -534,7 +552,8 @@ fun HomeScreen(
                                 modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).focusGroup()
                             ) {
                                 itemsIndexed(state.firstVodStreams) { index, stream ->
-                                    Box(modifier = Modifier.tvPivotItem(isTv, rowState, index)) {
+                                    Box(modifier = Modifier.tvPivotItem(isTv, rowState, index)
+                                        .tvInitialFocusTarget(homeInitialFocus, index == 0 && homeInitialTarget == HomeFocusTarget.VOD)) {
                                         HomeVodMovieCard(
                                             stream = stream,
                                             onClick = { onSelectMovieDetail(stream) }
@@ -566,7 +585,8 @@ fun HomeScreen(
                                 modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).focusGroup()
                             ) {
                                 itemsIndexed(displayedTopVodStreams) { index, stream ->
-                                    Box(modifier = Modifier.tvPivotItem(isTv, rowState, index)) {
+                                    Box(modifier = Modifier.tvPivotItem(isTv, rowState, index)
+                                        .tvInitialFocusTarget(homeInitialFocus, index == 0 && homeInitialTarget == HomeFocusTarget.TOP_MOVIES)) {
                                         HomeVodMovieCard(
                                             stream = stream,
                                             onClick = { onSelectMovieDetail(stream) },
@@ -596,7 +616,8 @@ fun HomeScreen(
                                 modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).focusGroup()
                             ) {
                                 itemsIndexed(state.recommendedMovies) { index, stream ->
-                                    Box(modifier = Modifier.tvPivotItem(isTv, rowState, index)) {
+                                    Box(modifier = Modifier.tvPivotItem(isTv, rowState, index)
+                                        .tvInitialFocusTarget(homeInitialFocus, index == 0 && homeInitialTarget == HomeFocusTarget.RECOMMENDED_MOVIES)) {
                                         HomeVodMovieCard(
                                             stream = stream,
                                             onClick = { onSelectMovieDetail(stream) }
@@ -625,7 +646,8 @@ fun HomeScreen(
                                 modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).focusGroup()
                             ) {
                                 itemsIndexed(state.firstSeriesStreams) { index, stream ->
-                                    Box(modifier = Modifier.tvPivotItem(isTv, rowState, index)) {
+                                    Box(modifier = Modifier.tvPivotItem(isTv, rowState, index)
+                                        .tvInitialFocusTarget(homeInitialFocus, index == 0 && homeInitialTarget == HomeFocusTarget.SERIES)) {
                                         HomeSeriesShowCard(
                                             stream = stream,
                                             onClick = { onSelectSeriesDetail(stream) }
@@ -654,7 +676,8 @@ fun HomeScreen(
                                 modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).focusGroup()
                             ) {
                                 itemsIndexed(displayedTopSeriesStreams) { index, stream ->
-                                    Box(modifier = Modifier.tvPivotItem(isTv, rowState, index)) {
+                                    Box(modifier = Modifier.tvPivotItem(isTv, rowState, index)
+                                        .tvInitialFocusTarget(homeInitialFocus, index == 0 && homeInitialTarget == HomeFocusTarget.TOP_SERIES)) {
                                         HomeSeriesShowCard(
                                             stream = stream,
                                             onClick = { onSelectSeriesDetail(stream) },
@@ -684,7 +707,8 @@ fun HomeScreen(
                                 modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).focusGroup()
                             ) {
                                 itemsIndexed(state.recommendedSeries) { index, stream ->
-                                    Box(modifier = Modifier.tvPivotItem(isTv, rowState, index)) {
+                                    Box(modifier = Modifier.tvPivotItem(isTv, rowState, index)
+                                        .tvInitialFocusTarget(homeInitialFocus, index == 0 && homeInitialTarget == HomeFocusTarget.RECOMMENDED_SERIES)) {
                                         HomeSeriesShowCard(
                                             stream = stream,
                                             onClick = { onSelectSeriesDetail(stream) }

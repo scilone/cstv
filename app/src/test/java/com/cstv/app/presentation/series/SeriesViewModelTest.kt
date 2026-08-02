@@ -315,4 +315,145 @@ class SeriesViewModelTest {
         verify(catalogSyncManager).syncIfStale()
         assertEquals(null, viewModel.state.value.selectedSeriesDetails)
     }
+
+    // --- F22 : filtres avancés portés par la catégorie TV active ---
+
+    private fun series(seriesId: Int, rating: String?, year: Int?, genre: String?) =
+        SeriesStream(seriesId, "Série $seriesId", null, rating, null, "10", genre, year)
+
+    /**
+     * Catalogue à deux catégories : « Action » (2000 et 2020) et « Comédie »
+     * (2010). Les bornes et genres attendus diffèrent d'une catégorie à l'autre,
+     * ce qui rend visible toute fuite d'état entre elles.
+     */
+    private suspend fun createViewModelWithCategories(): SeriesViewModel {
+        whenever(getSeriesCategoriesUseCase()).thenReturn(
+            flowOf(listOf(SeriesCategory("10", "Action", 0), SeriesCategory("20", "Comédie", 0)))
+        )
+        whenever(getSeriesStreamsUseCase("10")).thenReturn(
+            flowOf(
+                listOf(
+                    series(1, "8.0", 2000, "Action, Drame"),
+                    series(2, "3.0", 2020, "Comédie")
+                )
+            )
+        )
+        whenever(getSeriesStreamsUseCase("20")).thenReturn(flowOf(listOf(series(3, "6.0", 2010, "Comédie"))))
+        whenever(vodRepository.observeAllPlaybackPositions()).thenReturn(flowOf(emptyList()))
+        return createViewModel()
+    }
+
+    @Test
+    fun `changing category resets the advanced filter and closes the sheet`() = runTest(testDispatcher) {
+        viewModel = createViewModelWithCategories()
+        runCurrent()
+        assertTrue(viewModel.selectCategoryById("10"))
+        runCurrent()
+
+        viewModel.setMinRating(4)
+        viewModel.toggleGenre("Action")
+        viewModel.setFilterSheetOpen(true)
+        assertTrue(viewModel.state.value.advancedFilter.isActive)
+
+        assertTrue(viewModel.selectCategoryById("20"))
+        runCurrent()
+
+        val state = viewModel.state.value
+        assertEquals(AdvancedSearchFilter.DEFAULT, state.advancedFilter)
+        assertFalse(state.isFilterSheetOpen)
+        assertEquals(listOf("Comédie"), state.availableGenres)
+        assertEquals(2010..2010, state.categoryYearRange)
+    }
+
+    @Test
+    fun `toggleGenre adds then removes a genre and applyFilter only closes the sheet`() = runTest(testDispatcher) {
+        viewModel = createViewModelWithCategories()
+        runCurrent()
+        viewModel.selectCategoryById("10")
+        runCurrent()
+
+        viewModel.toggleGenre("Action")
+        assertEquals(setOf("Action"), viewModel.state.value.advancedFilter.genres)
+        viewModel.toggleGenre("Action")
+        assertTrue(viewModel.state.value.advancedFilter.genres.isEmpty())
+
+        viewModel.setMinRating(4)
+        viewModel.setFilterSheetOpen(true)
+        viewModel.applyFilter()
+        assertFalse(viewModel.state.value.isFilterSheetOpen)
+        assertEquals(4, viewModel.state.value.advancedFilter.minRating)
+    }
+
+    @Test
+    fun `setYearRange keeps a narrowing range and drops one covering the whole category`() = runTest(testDispatcher) {
+        viewModel = createViewModelWithCategories()
+        runCurrent()
+        viewModel.selectCategoryById("10")
+        runCurrent()
+        assertEquals(2000..2020, viewModel.state.value.categoryYearRange)
+
+        viewModel.setYearRange(2010..2020)
+        assertEquals(2010..2020, viewModel.state.value.advancedFilter.yearRange)
+
+        viewModel.setYearRange(1990..2030)
+        assertNull(viewModel.state.value.advancedFilter.yearRange)
+    }
+
+    @Test
+    fun `removing one filter leaves the other criteria untouched`() = runTest(testDispatcher) {
+        viewModel = createViewModelWithCategories()
+        runCurrent()
+        viewModel.selectCategoryById("10")
+        runCurrent()
+
+        viewModel.setMinRating(4)
+        viewModel.setYearRange(2010..2020)
+        viewModel.toggleGenre("Comédie")
+
+        viewModel.removeMinRatingFilter()
+        var filter = viewModel.state.value.advancedFilter
+        assertNull(filter.minRating)
+        assertEquals(2010..2020, filter.yearRange)
+        assertEquals(setOf("Comédie"), filter.genres)
+
+        viewModel.removeGenreFilter("Comédie")
+        filter = viewModel.state.value.advancedFilter
+        assertTrue(filter.genres.isEmpty())
+        assertEquals(2010..2020, filter.yearRange)
+
+        viewModel.removeYearRangeFilter()
+        assertTrue(viewModel.state.value.advancedFilter.isEmpty)
+    }
+
+    @Test
+    fun `filteredCount and available genres follow the active category filter`() = runTest(testDispatcher) {
+        viewModel = createViewModelWithCategories()
+        runCurrent()
+        viewModel.selectCategoryById("10")
+        runCurrent()
+
+        val loaded = viewModel.state.value
+        assertEquals(listOf("Action", "Comédie", "Drame"), loaded.availableGenres)
+        assertEquals(2, loaded.filteredCount)
+
+        viewModel.setMinRating(4)
+        assertEquals(1, viewModel.state.value.filteredCount)
+
+        // La seule série « Comédie » est notée 3.0 : les critères se cumulent.
+        viewModel.toggleGenre("Comédie")
+        assertEquals(0, viewModel.state.value.filteredCount)
+
+        viewModel.resetFilter()
+        assertTrue(viewModel.state.value.advancedFilter.isEmpty)
+        assertEquals(2, viewModel.state.value.filteredCount)
+    }
+
+    private fun createViewModel() = SeriesViewModel(
+        getSeriesCategoriesUseCase, getSeriesCategoryCountsUseCase, getSeriesStreamsUseCase,
+        getSeriesDetailsUseCase, getRelatedSeriesUseCase, savePlaybackPositionUseCase, credentialsManager,
+        settingsManager, trackPreferenceRepository, categoryPreferenceRepository, vodRepository, seriesRepository,
+        removeFromContinueWatchingUseCase, mediaRatingRepository, setMediaRatingUseCase,
+        observeCatalogStatusUseCase, catalogSyncManager, canPlayContentUseCase, getTrailerPreviewUseCase,
+        invalidateTrailerPreviewUseCase
+    )
 }

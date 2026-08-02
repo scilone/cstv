@@ -66,6 +66,10 @@ import com.cstv.app.presentation.components.CategoryFilterSheet
 import com.cstv.app.presentation.components.CategorySheetEntry
 import com.cstv.app.presentation.components.CategorySelectorTrigger
 import com.cstv.app.presentation.components.CategorySearchField
+import com.cstv.app.presentation.components.rememberTvInitialFocus
+import com.cstv.app.presentation.components.tvInitialFocusTarget
+import com.cstv.app.presentation.vod.CatalogFocusTarget
+import com.cstv.app.presentation.vod.CatalogInitialFocusTarget
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Check
 import kotlinx.coroutines.delay
@@ -215,6 +219,22 @@ private fun TvLayout(
         val favoriteLiveIds = favoritesList.filter { it.type == "live" }.map { it.id }.toSet()
         filteredStreams.filter { it.streamId in favoriteLiveIds }
     }
+    val firstCategoryId = actualCategories.firstOrNull { (groupedStreams[it.categoryId] ?: emptyList()).isNotEmpty() }?.categoryId
+    // B17 review (C1) : `filteredStreams` (déjà scopé à la catégorie active et
+    // filtré par le texte) est stable, contrairement à `pagedStreams.itemCount`
+    // qui retombe transitoirement à 0 à chaque frappe (voir VodScreen).
+    val initialTarget = remember(isAllSelected, state.recentlyWatched, favoriteStreams, firstCategoryId, filteredStreams.size) {
+        CatalogInitialFocusTarget.of(isAllSelected, state.recentlyWatched.isNotEmpty(), favoriteStreams.isNotEmpty(), firstCategoryId, filteredStreams.size)
+    }
+    // B17 (M4, décision 6) : voir VodScreen — un scroll restauré prime sur le
+    // focus par défaut en tête de liste.
+    val scrollKey = if (isAllSelected) "livetv_tv_all_vertical" else "livetv_tv_cat_" + (state.selectedCategory?.categoryId ?: "0")
+    val hasRestorableScroll = remember(scrollKey) { getScroll(scrollKey) != Pair(0, 0) }
+    val initialFocus = rememberTvInitialFocus(
+        isTv = true,
+        ready = !state.isLoadingStreams && !state.isLoadingCategories && initialTarget != null && !hasRestorableScroll,
+        targetKey = initialTarget to state.selectedCategory?.categoryId
+    )
 
     Column(
         modifier = Modifier
@@ -283,6 +303,8 @@ private fun TvLayout(
                             getScroll = getScroll,
                             saveScroll = saveScroll,
                             sectionListState = listState
+                            ,initialFocusState = initialFocus
+                            ,isInitialTarget = initialTarget == CatalogFocusTarget.RESUME
                         )
                     }
                 }
@@ -303,6 +325,8 @@ private fun TvLayout(
                             getScroll = getScroll,
                             saveScroll = saveScroll,
                             sectionListState = listState
+                            ,initialFocusState = initialFocus
+                            ,isInitialTarget = initialTarget == CatalogFocusTarget.FAVORITES
                         )
                     }
                 }
@@ -323,6 +347,8 @@ private fun TvLayout(
                             getScroll = getScroll,
                             saveScroll = saveScroll,
                             sectionListState = listState
+                            ,initialFocusState = initialFocus
+                            ,isInitialTarget = initialTarget == CatalogFocusTarget.FIRST_CATEGORY && category.categoryId == firstCategoryId
                         )
                     }
                 }
@@ -386,7 +412,8 @@ private fun TvLayout(
                             Box(
                                 // Rayon 12.dp : StreamTvCard n'a pas été unifiée au
                                 // rayon 14.dp de B18 (hors périmètre de ce ticket-là).
-                                modifier = Modifier.tvPivotCell(true, gridState, index, selectorCornerRadius = 12.dp),
+                                modifier = Modifier.tvPivotCell(true, gridState, index, selectorCornerRadius = 12.dp)
+                                    .tvInitialFocusTarget(initialFocus, index == 0 && initialTarget == CatalogFocusTarget.GRID_FIRST_CELL),
                                 // Cf. VodScreen.kt (Review F19, Majeur #1) : force la
                                 // propagation de la contrainte min de la cellule à l'enfant.
                                 propagateMinConstraints = true

@@ -41,6 +41,8 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import com.cstv.app.presentation.components.LocalTvFocusSelector
+import com.cstv.app.presentation.components.TvInitialFocusState
+import com.cstv.app.presentation.components.tvInitialFocusTarget
 import com.cstv.app.presentation.components.publishFrom
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -89,6 +91,8 @@ fun HomeTrendingCarouselTv(
     onPreviewPlaybackFailed: (TrailerMedia) -> Unit,
     onMovieClick: (Int) -> Unit,
     onSeriesClick: (Int) -> Unit,
+    initialFocusState: TvInitialFocusState? = null,
+    isInitialTarget: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     if (trendingItems.isEmpty()) return
@@ -151,6 +155,7 @@ fun HomeTrendingCarouselTv(
         modifier = modifier
             .fillMaxWidth()
             .height(300.dp)
+            .tvInitialFocusTarget(initialFocusState, isInitialTarget)
             .onFocusChanged { hasFocus = it.hasFocus }
             .onKeyEvent { event ->
                 if (event.type != KeyEventType.KeyDown) return@onKeyEvent false

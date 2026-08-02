@@ -1,5 +1,21 @@
 # Journal des Modifications (Changelog) - CSTV IPTV
 
+## [v1.69.0] - 2026-08-02
+### ✨ Sélecteur de catégories TV et filtres avancés (F22) et Focus initial D-pad robuste (B17)
+* **Sélecteur TV plein écran et filtres avancés sur Films/Séries (F22)** :
+  - **Dialogue plein écran focusable (M3)** : Remplacement de `DropdownMenu` par un `Dialog` plein écran (`DialogProperties(usePlatformDefaultWidth=false)`) exploitant le même patron que `ProfileSelectionScreen`. Focus demandé sur l'entrée sélectionnée à l'ouverture ; anneau `AccentLavande` 3dp sur le déclencheur et chaque ligne.
+  - **Composant partagé `ActiveFilterChipsRow` (M1)** : Extraction complète du composant de `SearchScreen.kt`, suppression de la duplication. Paramètres optionnels (`availableCategories`, `onRemoveMediaType`, `onRemoveCategory`) permettent l'utilisation tant en Recherche globale qu'en filtres de catégories VOD/Séries.
+  - **États vides et chaînes i18n (m1, m2)** : Distinction des états vides (catégorie réellement vide vs. recherche texte vs. filtre trop restrictif). 11 entrées `strings.xml` remplacent les littéraux (`vod_category_selector_label`, `series_category_selector_label`, `catalog_no_search_result`, états vides, etc.). Libellé du déclencheur capitalisé (« FILMS : TOUT »).
+  - **Indentation et couverture tests (m3, m4)** : Réindentatation des blocs `if` de `AdvancedSearchSheet`. Ajout de 2 cas de test manquants dans `CatalogFilterMatcherTest` (`ratingAboveThresholdIsIncludedAndBelowIsExcluded`, `emptyGenreSetMeansNoFilter`).
+* **Focus initial D-pad robuste et sans vol de focus (B17)** :
+  - **Découplage du flicker Paging (C1)** : `rememberTvInitialFocus` : `targetKey` découplé du flicker transitoire de `pagedStreams.itemCount` (qui retombe à 0 chaque frappe recherche/filtre). VOD/Séries/Live TV utilisent un compte stable dérivé de `state.streams` au lieu de `LazyPagingItems`. `ready` lu en direct via `snapshotFlow` sans redémarrage de l'effet — le focus ne vole plus pendant la frappe de l'utilisateur.
+  - **Câblage complet Accueil (M1)** : `HomeScreen` propage `homeInitialFocus` via `HomeInitialFocusTarget.of(state, isTv)` à la Hero et aux 9 premières lignes (Reprise, Favoris, TV, Films, Top Films, Recommandés Films, Séries, Top Séries, Recommandés Séries). Bug incident : branche `DOWNLOADS` supprimée (rangée n'existe que mobile, jamais focusable sur TV).
+  - **Respect du scroll restauré (M4)** : VOD/Séries/Live TV : focus initial bypassé si `getScroll(key) != (0, 0)` — scroll restauré prime sur focus forcé en index 0. Accueil reste hors périmètre (documenté).
+  - **Tests JVM et core robuste (M2, M3)** : 6 cas manquants ajoutés à `HomeInitialFocusTargetTest` (priorité Hero, repli RESUME/FAVORITES/LIVETV, rangée tardive seule, état vide). Logique de tentatives extraite en fonction pure `runInitialFocusAttempts` (4 cas JVM : arrêt dès acquisition, épuisement des 10 tentatives, attente de `ready`, aucune si déjà acquis). Constantes `INITIAL_FOCUS_ATTEMPTS`/`INITIAL_FOCUS_RETRY_MS` promues `internal` pour testabilité.
+  - **Variante no-op (m2)** : Surcharge `Modifier.tvInitialFocusTarget(state?, active: Boolean)` élimine la duplication du `.then(if (…) … else Modifier)` ×6 sites.
+
+> Validation automatisée : `testDebugUnitTest` (81 suites, 615 tests, 0 échec), `assembleDebug`, `lintDebug` tous verts.
+
 ## [v1.68.0] - 2026-08-02
 ### ✨ Sélecteur TV à double couche (F23), Unification des cartes (B18) et Limitation des rangées (T10)
 * **Double couche de navigation TV à sélecteur pivot fixe (F23)** :

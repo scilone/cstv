@@ -9,6 +9,9 @@ import com.cstv.app.data.local.storage.ResizeMode
 import com.cstv.app.domain.model.VodCategory
 import com.cstv.app.domain.model.VodDetails
 import com.cstv.app.domain.model.VodStream
+import com.cstv.app.domain.model.AdvancedSearchFilter
+import com.cstv.app.domain.model.CatalogFilterMatcher
+import com.cstv.app.domain.model.GenreParser
 import com.cstv.app.domain.usecase.GetVodCategoriesUseCase
 import com.cstv.app.domain.usecase.GetVodCategoryCountsUseCase
 import com.cstv.app.domain.usecase.GetVodDetailsUseCase
@@ -236,8 +239,43 @@ class VodViewModel @Inject constructor(
     }
 
     fun selectCategory(category: VodCategory) {
-        _state.update { it.copy(selectedCategory = category, streams = emptyList()) }
+        _state.update {
+            it.copy(
+                selectedCategory = category,
+                streams = emptyList(),
+                advancedFilter = AdvancedSearchFilter.DEFAULT,
+                isFilterSheetOpen = false,
+                filteredCount = 0
+            )
+        }
         observeStreams(category.categoryId)
+    }
+
+    fun setFilterSheetOpen(isOpen: Boolean) { _state.update { it.copy(isFilterSheetOpen = isOpen) } }
+    fun setMinRating(rating: Int?) { updateAdvancedFilter { it.copy(minRating = rating) } }
+    fun setYearRange(range: IntRange?) { updateAdvancedFilter { filter ->
+        val bounds = _state.value.categoryYearRange
+        filter.copy(yearRange = range?.takeUnless { it.first <= bounds.first && it.last >= bounds.last })
+    } }
+    fun toggleGenre(genre: String) { updateAdvancedFilter { filter ->
+        filter.copy(genres = if (genre in filter.genres) filter.genres - genre else filter.genres + genre)
+    } }
+    fun resetFilter() { updateAdvancedFilter { AdvancedSearchFilter.DEFAULT } }
+    fun applyFilter() { _state.update { it.copy(isFilterSheetOpen = false) } }
+    fun removeMinRatingFilter() = setMinRating(null)
+    fun removeYearRangeFilter() = setYearRange(null)
+    fun removeGenreFilter(genre: String) = toggleGenre(genre)
+
+    private fun updateAdvancedFilter(transform: (AdvancedSearchFilter) -> AdvancedSearchFilter) {
+        _state.update { current ->
+            val filter = transform(current.advancedFilter)
+            current.copy(
+                advancedFilter = filter,
+                filteredCount = current.streams.count {
+                    CatalogFilterMatcher.matchesContent(it.rating, it.releaseYear, it.genre, filter)
+                }
+            )
+        }
     }
 
     /** Returns true only when the category has been applied to the current state. */
@@ -256,7 +294,21 @@ class VodViewModel @Inject constructor(
             // synchronisation en cours n'a plus le droit de bloquer l'écran.
             _state.update { it.copy(isLoadingStreams = it.streams.isEmpty(), error = null) }
             getVodStreamsUseCase(categoryId).collect { streams ->
-                _state.update { it.copy(streams = streams, isLoadingStreams = false) }
+                _state.update { current ->
+                    val genres = streams.flatMap { GenreParser.parseGenres(it.genre) }
+                        .distinctBy { GenreParser.normalize(it) }.sorted()
+                    val years = streams.mapNotNull { it.releaseYear }
+                    val bounds = if (years.isEmpty()) 1980..2025 else years.min()..years.max()
+                    current.copy(
+                        streams = streams,
+                        isLoadingStreams = false,
+                        availableGenres = genres,
+                        categoryYearRange = bounds,
+                        filteredCount = streams.count {
+                            CatalogFilterMatcher.matchesContent(it.rating, it.releaseYear, it.genre, current.advancedFilter)
+                        }
+                    )
+                }
                 refreshCategoryCounts()
             }
         }

@@ -48,6 +48,7 @@ import coil.compose.AsyncImage
 import com.cstv.app.domain.model.LiveStream
 import com.cstv.app.domain.model.SeriesStream
 import com.cstv.app.domain.model.VodStream
+import com.cstv.app.presentation.components.ActiveFilterChipsRow
 import com.cstv.app.presentation.favorites.FavoritesViewModel
 import com.cstv.app.presentation.theme.AccentLavande
 import com.cstv.app.presentation.theme.BricolageGrotesque
@@ -646,100 +647,3 @@ private fun SearchCardRatingBadge(rating: String?, modifier: Modifier = Modifier
     }
 }
 
-/**
- * Chips de filtres actifs supprimables (×), sous la barre de recherche
- * (docs/design-reference/screenshots/advanced-search-result.png).
- */
-@Composable
-private fun ActiveFilterChipsRow(
-    filter: com.cstv.app.domain.model.AdvancedSearchFilter,
-    availableCategories: List<com.cstv.app.domain.model.CategoryWithCount>,
-    isTv: Boolean,
-    onRemoveMediaType: () -> Unit,
-    onRemoveCategory: () -> Unit,
-    onRemoveMinRating: () -> Unit,
-    onRemoveYearRange: () -> Unit,
-    onRemoveGenre: (String) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val filmLabel = stringResource(R.string.search_movies)
-    val seriesLabel = stringResource(R.string.search_series)
-
-    LazyRow(
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        modifier = modifier.fillMaxWidth().focusGroup()
-    ) {
-        filter.mediaType?.let { type ->
-            val label = when (type) {
-                com.cstv.app.domain.model.SearchMediaType.FILM -> filmLabel
-                com.cstv.app.domain.model.SearchMediaType.SERIE -> seriesLabel
-            }
-            item { ActiveFilterChip(label = label, isTv = isTv, onRemove = onRemoveMediaType) }
-        }
-        filter.categoryId?.let { categoryId ->
-            val label = availableCategories.firstOrNull { it.id == categoryId }?.name ?: categoryId
-            item { ActiveFilterChip(label = label, isTv = isTv, onRemove = onRemoveCategory) }
-        }
-        filter.minRating?.let { rating ->
-            val label = if (rating >= 10) "Note 10" else "Note $rating+"
-            item { ActiveFilterChip(label = label, isTv = isTv, onRemove = onRemoveMinRating) }
-        }
-        // yearRange non-null signifie déjà "resserré" : le VM normalise à null
-        // toute sélection qui couvre tout le catalogue (voir setYearRange).
-        filter.yearRange?.let { range ->
-            item { ActiveFilterChip(label = "${range.first}–${range.last}", isTv = isTv, onRemove = onRemoveYearRange) }
-        }
-        items(filter.genres.toList()) { genre ->
-            ActiveFilterChip(label = genre, isTv = isTv, onRemove = { onRemoveGenre(genre) })
-        }
-    }
-}
-
-/**
- * Chip de filtre actif supprimable. Sur mobile, seule la croix est cliquable
- * (précision au doigt). Sur TV, tout le chip est UNE seule cible de focus
- * D-pad — un focus dédié à la croix de 16dp serait trop petit/impraticable —
- * et la sélection (OK/Entrée) retire directement le filtre.
- */
-@Composable
-private fun ActiveFilterChip(
-    label: String,
-    isTv: Boolean,
-    onRemove: () -> Unit
-) {
-    var isFocused by remember { mutableStateOf(false) }
-    val shape = RoundedCornerShape(20.dp)
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
-            .onFocusChanged { isFocused = it.isFocused }
-            .clip(shape)
-            .background(AccentLavande.copy(alpha = 0.16f))
-            .border(1.dp, AccentLavande.copy(alpha = 0.4f), shape)
-            .then(
-                if (isTv) Modifier.border(3.dp, if (isFocused) AccentLavande else Color.Transparent, shape)
-                else Modifier
-            )
-            .then(if (isTv) Modifier.clickable { onRemove() } else Modifier)
-            .padding(start = 12.dp, end = 8.dp, top = 6.dp, bottom = 6.dp)
-    ) {
-        Text(
-            text = label,
-            fontFamily = HankenGrotesk,
-            fontSize = 12.5.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = AccentLavande,
-            maxLines = 1
-        )
-        Spacer(modifier = Modifier.width(6.dp))
-        Icon(
-            imageVector = Icons.Default.Close,
-            contentDescription = stringResource(R.string.search_remove_filter),
-            tint = AccentLavande,
-            modifier = Modifier
-                .size(16.dp)
-                .clip(RoundedCornerShape(50))
-                .then(if (!isTv) Modifier.clickable { onRemove() } else Modifier)
-        )
-    }
-}

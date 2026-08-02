@@ -6,6 +6,7 @@ import com.cstv.app.domain.model.SeriesDetails
 import com.cstv.app.domain.model.SeriesStream
 import com.cstv.app.domain.model.MediaRatingValue
 import com.cstv.app.presentation.components.TrailerPreviewUiState
+import com.cstv.app.domain.model.AdvancedSearchFilter
 
 data class SeriesState(
     val categories: List<SeriesCategory> = emptyList(),
@@ -21,6 +22,12 @@ data class SeriesState(
     val error: String? = null,
     // Compteur de séries par categoryId (cache local), pour la bottom sheet.
     val categoryCounts: Map<String, Int> = emptyMap(),
+    /** F22 — filters are scoped to the selected TV category. */
+    val advancedFilter: AdvancedSearchFilter = AdvancedSearchFilter.DEFAULT,
+    val isFilterSheetOpen: Boolean = false,
+    val availableGenres: List<String> = emptyList(),
+    val categoryYearRange: IntRange = 1980..2025,
+    val filteredCount: Int = 0,
     val resumeSeries: List<PlaybackPosition> = emptyList(),
     val isRemovingHistory: Boolean = false,
     val historyRemovalError: String? = null,

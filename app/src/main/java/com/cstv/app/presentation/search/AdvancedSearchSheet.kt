@@ -93,6 +93,8 @@ fun AdvancedSearchSheet(
     resultCount: Int,
     catalogYearRange: IntRange,
     isTv: Boolean = false,
+    showMediaTypeFilter: Boolean = true,
+    showCategoryFilter: Boolean = true,
     onMediaTypeSelected: (SearchMediaType?) -> Unit,
     onCategorySelected: (String?) -> Unit,
     onMinRatingSelected: (Int?) -> Unit,
@@ -149,52 +151,55 @@ fun AdvancedSearchSheet(
                     )
                 }
 
-                // --- Catégorie du média (choix exclusif) ---
-                SectionLabel("CATÉGORIE DU MÉDIA")
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
-                ) {
-                    MediaTypeChip(
-                        label = "Film",
-                        selected = filter.mediaType == SearchMediaType.FILM,
+                // In a category screen, type and category are fixed by context.
+                if (showMediaTypeFilter) {
+                    SectionLabel("CATÉGORIE DU MÉDIA")
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
+                    ) {
+                        MediaTypeChip(
+                            label = "Film",
+                            selected = filter.mediaType == SearchMediaType.FILM,
+                            isTv = isTv,
+                            onClick = {
+                                categoryExpanded = false
+                                onMediaTypeSelected(
+                                    if (filter.mediaType == SearchMediaType.FILM) null else SearchMediaType.FILM
+                                )
+                            },
+                            modifier = Modifier.weight(1f)
+                        )
+                        MediaTypeChip(
+                            label = "Série",
+                            selected = filter.mediaType == SearchMediaType.SERIE,
+                            isTv = isTv,
+                            onClick = {
+                                categoryExpanded = false
+                                onMediaTypeSelected(
+                                    if (filter.mediaType == SearchMediaType.SERIE) null else SearchMediaType.SERIE
+                                )
+                            },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+                // --- Dropdown catégorie (dépend du type) ---
+                if (showCategoryFilter) {
+                    CategoryDropdown(
+                        enabled = filter.mediaType != null,
+                        selectedCategoryId = filter.categoryId,
+                        categories = availableCategories,
+                        expanded = categoryExpanded,
                         isTv = isTv,
-                        onClick = {
+                        onToggleExpanded = { categoryExpanded = !categoryExpanded },
+                        onSelect = { id ->
                             categoryExpanded = false
-                            onMediaTypeSelected(
-                                if (filter.mediaType == SearchMediaType.FILM) null else SearchMediaType.FILM
-                            )
-                        },
-                        modifier = Modifier.weight(1f)
-                    )
-                    MediaTypeChip(
-                        label = "Série",
-                        selected = filter.mediaType == SearchMediaType.SERIE,
-                        isTv = isTv,
-                        onClick = {
-                            categoryExpanded = false
-                            onMediaTypeSelected(
-                                if (filter.mediaType == SearchMediaType.SERIE) null else SearchMediaType.SERIE
-                            )
-                        },
-                        modifier = Modifier.weight(1f)
+                            // "all" (Toutes les catégories) = pas de filtre catégorie.
+                            onCategorySelected(if (id == "all") null else id)
+                        }
                     )
                 }
-
-                // --- Dropdown catégorie (dépend du type) ---
-                CategoryDropdown(
-                    enabled = filter.mediaType != null,
-                    selectedCategoryId = filter.categoryId,
-                    categories = availableCategories,
-                    expanded = categoryExpanded,
-                    isTv = isTv,
-                    onToggleExpanded = { categoryExpanded = !categoryExpanded },
-                    onSelect = { id ->
-                        categoryExpanded = false
-                        // "all" (Toutes les catégories) = pas de filtre catégorie.
-                        onCategorySelected(if (id == "all") null else id)
-                    }
-                )
 
                 Spacer(Modifier.height(20.dp))
 

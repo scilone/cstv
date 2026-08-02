@@ -35,6 +35,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import kotlinx.coroutines.flow.map
@@ -43,6 +44,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.focusGroup
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -64,6 +67,13 @@ import com.cstv.app.presentation.components.CategoryFilterSheet
 import com.cstv.app.presentation.components.CategorySheetEntry
 import com.cstv.app.presentation.components.CategorySelectorTrigger
 import com.cstv.app.presentation.components.CategorySearchField
+import com.cstv.app.presentation.components.TvCategoryPickerDialog
+import com.cstv.app.presentation.components.TvCategorySelectorTrigger
+import com.cstv.app.presentation.components.ActiveFilterChipsRow
+import com.cstv.app.presentation.components.rememberTvInitialFocus
+import com.cstv.app.presentation.components.tvInitialFocusTarget
+import com.cstv.app.presentation.search.AdvancedSearchSheet
+import com.cstv.app.domain.model.CatalogFilterMatcher
 import com.cstv.app.presentation.home.components.HomeVodMovieCard
 import com.cstv.app.presentation.components.HistoryRemovalDialog
 import com.cstv.app.presentation.components.historyItemActions
@@ -113,12 +123,15 @@ fun VodScreen(
         }
     }
 
-    val pagedStreams = remember(viewModel.pagedStreams, searchQuery) {
-        if (searchQuery.isBlank()) {
+    val pagedStreams = remember(viewModel.pagedStreams, searchQuery, state.advancedFilter) {
+        if (searchQuery.isBlank() && state.advancedFilter.isEmpty) {
             viewModel.pagedStreams
         } else {
             viewModel.pagedStreams.map { pagingData ->
-                pagingData.filter { it.name.contains(searchQuery, ignoreCase = true) }
+                pagingData.filter {
+                    (searchQuery.isBlank() || it.name.contains(searchQuery, ignoreCase = true)) &&
+                        CatalogFilterMatcher.matchesContent(it.rating, it.releaseYear, it.genre, state.advancedFilter)
+                }
             }
         }
     }.collectAsLazyPagingItems()
@@ -148,6 +161,16 @@ fun VodScreen(
                 getScroll = getScroll,
                 saveScroll = saveScroll,
                 tvFocusSelector = tvFocusSelector
+                ,onFilterSheetOpen = { viewModel.setFilterSheetOpen(true) }
+                ,onFilterSheetDismiss = { viewModel.setFilterSheetOpen(false) }
+                ,onMinRatingSelected = viewModel::setMinRating
+                ,onYearRangeChanged = viewModel::setYearRange
+                ,onGenreToggled = viewModel::toggleGenre
+                ,onResetFilter = viewModel::resetFilter
+                ,onApplyFilter = viewModel::applyFilter
+                ,onRemoveMinRating = viewModel::removeMinRatingFilter
+                ,onRemoveYearRange = viewModel::removeYearRangeFilter
+                ,onRemoveGenre = viewModel::removeGenreFilter
             )
             TvFocusSelectorOverlay(tvFocusSelector, modifier = Modifier.fillMaxSize())
         } else {
@@ -196,7 +219,17 @@ private fun TvLayout(
     onHistoryRemove: (VodStream) -> Unit,
     getScroll: (String) -> Pair<Int, Int>,
     saveScroll: (String, Int, Int) -> Unit,
-    tvFocusSelector: TvFocusSelectorState
+    tvFocusSelector: TvFocusSelectorState,
+    onFilterSheetOpen: () -> Unit,
+    onFilterSheetDismiss: () -> Unit,
+    onMinRatingSelected: (Int?) -> Unit,
+    onYearRangeChanged: (IntRange) -> Unit,
+    onGenreToggled: (String) -> Unit,
+    onResetFilter: () -> Unit,
+    onApplyFilter: () -> Unit,
+    onRemoveMinRating: () -> Unit,
+    onRemoveYearRange: () -> Unit,
+    onRemoveGenre: (String) -> Unit
 ) {
     val isAllSelected = state.selectedCategory?.categoryId == "all"
 
@@ -230,7 +263,34 @@ private fun TvLayout(
     val resumeLabels = remember(state.resumeMovies) {
         EpisodeLabel.buildResumeLabels(state.resumeMovies) { it.streamId }
     }
+    val firstCategoryId = actualCategories.firstOrNull { (groupedStreams[it.categoryId] ?: emptyList()).isNotEmpty() }?.categoryId
+    // B17 review (C1) : dérivé de `state.streams` (déjà en mémoire), pas de
+    // `pagedStreams.itemCount` — ce dernier retombe transitoirement à 0 chaque
+    // fois que `pagingData.filter { … }` recrée le flux Paging (recherche
+    // texte/filtre tapée sur la catégorie active), ce qui réarmait la demande
+    // de focus initial et arrachait le focus du champ de recherche.
+    val gridFilteredCount = remember(state.streams, searchQuery, state.advancedFilter) {
+        state.streams.count { stream ->
+            (searchQuery.isBlank() || stream.name.contains(searchQuery, ignoreCase = true)) &&
+                CatalogFilterMatcher.matchesContent(stream.rating, stream.releaseYear, stream.genre, state.advancedFilter)
+        }
+    }
+    val initialTarget = remember(isAllSelected, resumeMoviesStreams, favoriteMovies, firstCategoryId, gridFilteredCount) {
+        CatalogInitialFocusTarget.of(isAllSelected, resumeMoviesStreams.isNotEmpty(), favoriteMovies.isNotEmpty(), firstCategoryId, gridFilteredCount)
+    }
+    // B17 (M4, décision 6) : une position de défilement restaurée (l'utilisateur
+    // a déjà consulté cet onglet/cette catégorie) prime sur le focus par défaut
+    // — ne pas ramener de force en tête de liste par-dessus le scroll restauré.
+    val scrollKey = if (isAllSelected) "vod_tv_all_vertical" else "vod_tv_cat_" + (state.selectedCategory?.categoryId ?: "0")
+    val hasRestorableScroll = remember(scrollKey) { getScroll(scrollKey) != Pair(0, 0) }
+    val initialFocus = rememberTvInitialFocus(
+        isTv = true,
+        ready = !state.isLoadingStreams && !state.isLoadingCategories && initialTarget != null && !hasRestorableScroll,
+        targetKey = initialTarget to state.selectedCategory?.categoryId
+    )
 
+    var showCategoryPicker by remember { mutableStateOf(false) }
+    val categoryTriggerFocusRequester = remember { FocusRequester() }
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -240,7 +300,7 @@ private fun TvLayout(
         // du contenu (règle « une donnée ancienne reste consultable »).
         OfflineBanner(status = state.catalogStatus, onRetry = onRefresh)
 
-        // Top categories filter row
+        // F22: one D-pad-friendly trigger replaces the horizontal chip rail.
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -248,21 +308,35 @@ private fun TvLayout(
                 .fillMaxWidth()
                 .padding(bottom = 12.dp)
         ) {
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                modifier = Modifier.weight(1f).focusGroup()
-            ) {
-                items(state.categories) { category ->
-                    val isSelected = state.selectedCategory?.categoryId == category.categoryId
-                    CategoryFilterChip(
-                        category = category,
-                        isSelected = isSelected,
-                        onClick = { onCategorySelected(category) }
-                    )
-                }
-            }
+            TvCategorySelectorTrigger(
+                label = stringResource(R.string.vod_category_selector_label, (state.selectedCategory?.categoryName ?: "Tout").uppercase()),
+                onClick = { showCategoryPicker = true },
+                modifier = Modifier.weight(1f).focusRequester(categoryTriggerFocusRequester)
+            )
             IconButton(onClick = onRefresh) {
-                Icon(Icons.Default.Refresh, contentDescription = "Rafraîchir", tint = Color.White)
+                Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.catalog_refresh_button_description), tint = Color.White)
+            }
+        }
+        if (showCategoryPicker) {
+            TvCategoryPickerDialog(
+                entries = state.categories.map { CategorySheetEntry(it.categoryId, it.categoryName, state.categoryCounts[it.categoryId]) },
+                selectedId = state.selectedCategory?.categoryId,
+                onSelect = { id ->
+                    state.categories.firstOrNull { it.categoryId == id }?.let(onCategorySelected)
+                    showCategoryPicker = false
+                },
+                onDismiss = { showCategoryPicker = false }
+            )
+        }
+        // Focus perdu à la fermeture du dialogue (risque étape 4) : redemandé
+        // sur le déclencheur après une fermeture réelle (pas à l'entrée sur
+        // l'écran, où B17 pilote déjà le focus initial sur le premier média).
+        var hasOpenedCategoryPicker by remember { mutableStateOf(false) }
+        LaunchedEffect(showCategoryPicker) {
+            if (showCategoryPicker) {
+                hasOpenedCategoryPicker = true
+            } else if (hasOpenedCategoryPicker) {
+                runCatching { categoryTriggerFocusRequester.requestFocus() }
             }
         }
 
@@ -298,6 +372,8 @@ private fun TvLayout(
                             saveScroll = saveScroll,
                             sectionListState = listState,
                             badgeFor = { stream -> resumeLabels[stream.streamId] }
+                            ,initialFocusState = initialFocus
+                            ,isInitialTarget = initialTarget == CatalogFocusTarget.RESUME
                         )
                     }
                 }
@@ -312,6 +388,8 @@ private fun TvLayout(
                             getScroll = getScroll,
                             saveScroll = saveScroll,
                             sectionListState = listState
+                            ,initialFocusState = initialFocus
+                            ,isInitialTarget = initialTarget == CatalogFocusTarget.FAVORITES
                         )
                     }
                 }
@@ -327,6 +405,8 @@ private fun TvLayout(
                             getScroll = getScroll,
                             saveScroll = saveScroll,
                             sectionListState = listState
+                            ,initialFocusState = initialFocus
+                            ,isInitialTarget = initialTarget == CatalogFocusTarget.FIRST_CATEGORY && category.categoryId == firstCategoryId
                         )
                     }
                 }
@@ -344,6 +424,7 @@ private fun TvLayout(
             )
 
             if (isSpecificCategory) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 8.dp)) {
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = onSearchQueryChanged,
@@ -356,16 +437,26 @@ private fun TvLayout(
                         focusedTextColor = Color.White,
                         unfocusedTextColor = Color.White
                     ),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 12.dp)
+                    modifier = Modifier.weight(1f)
                 )
+                IconButton(onClick = onFilterSheetOpen) {
+                    Icon(Icons.Default.Tune, stringResource(R.string.catalog_filters_button_description), tint = if (state.advancedFilter.isActive) AccentLavande else Color.White)
+                }
+                }
+                if (state.advancedFilter.isActive) {
+                    ActiveFilterChipsRow(state.advancedFilter, true, onRemoveMinRating, onRemoveYearRange, onRemoveGenre,
+                        Modifier.padding(bottom = 12.dp))
+                }
             }
 
             if (pagedStreams.itemCount == 0) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(
-                        text = if (searchQuery.isBlank()) "Aucun film dans cette catégorie" else "Aucun résultat pour « $searchQuery »",
+                        text = when {
+                            searchQuery.isNotBlank() -> stringResource(R.string.catalog_no_search_result, searchQuery)
+                            state.advancedFilter.isActive -> stringResource(R.string.vod_empty_filtered)
+                            else -> stringResource(R.string.vod_empty_category)
+                        },
                         color = Color.Gray
                     )
                 }
@@ -387,7 +478,8 @@ private fun TvLayout(
                         val stream = pagedStreams[index]
                         if (stream != null) {
                             Box(
-                                modifier = Modifier.tvPivotCell(true, gridState, index),
+                                modifier = Modifier.tvPivotCell(true, gridState, index)
+                                    .tvInitialFocusTarget(initialFocus, index == 0 && initialTarget == CatalogFocusTarget.GRID_FIRST_CELL),
                                 // GridCells.Fixed mesure chaque cellule avec une largeur
                                 // exacte (min = max) ; Box relâche par défaut la contrainte
                                 // min pour ses enfants, ce qui laisserait la carte rétrécir
@@ -407,6 +499,16 @@ private fun TvLayout(
                 }
             }
         }
+    }
+    if (state.isFilterSheetOpen) {
+        AdvancedSearchSheet(
+            filter = state.advancedFilter, availableGenres = state.availableGenres, availableCategories = emptyList(),
+            resultCount = state.filteredCount, catalogYearRange = state.categoryYearRange, isTv = true,
+            showMediaTypeFilter = false, showCategoryFilter = false,
+            onMediaTypeSelected = {}, onCategorySelected = {}, onMinRatingSelected = onMinRatingSelected,
+            onYearRangeChanged = onYearRangeChanged, onGenreToggled = onGenreToggled, onReset = onResetFilter,
+            onApply = onApplyFilter, onDismiss = onFilterSheetDismiss
+        )
     }
 }
 
@@ -638,7 +740,9 @@ private fun CategorySectionRow(
     onSeeAll: (() -> Unit)? = null,
     onLongClick: ((VodStream) -> Unit)? = null,
     /** Badge court en surimpression (ex. « S01 E03 »), réservé à la rangée « Reprendre » (B18). */
-    badgeFor: ((VodStream) -> String?)? = null
+    badgeFor: ((VodStream) -> String?)? = null,
+    initialFocusState: com.cstv.app.presentation.components.TvInitialFocusState? = null,
+    isInitialTarget: Boolean = false
 ) {
     Column(
         modifier = Modifier
@@ -683,7 +787,8 @@ private fun CategorySectionRow(
             modifier = Modifier.fillMaxWidth().focusGroup()
         ) {
             itemsIndexed(movies) { index, stream ->
-                Box(modifier = Modifier.tvPivotItem(isTv, rowState, index)) {
+                Box(modifier = Modifier.tvPivotItem(isTv, rowState, index)
+                    .tvInitialFocusTarget(initialFocusState, index == 0 && isInitialTarget)) {
                     HomeVodMovieCard(
                         stream = stream,
                         onClick = { onMovieSelected(stream) },
@@ -729,4 +834,3 @@ private fun CategoryFilterChip(
         )
     }
 }
-

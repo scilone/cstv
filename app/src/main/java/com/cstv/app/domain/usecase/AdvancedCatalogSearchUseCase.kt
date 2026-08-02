@@ -1,8 +1,8 @@
 package com.cstv.app.domain.usecase
 
 import com.cstv.app.domain.model.AdvancedSearchFilter
+import com.cstv.app.domain.model.CatalogFilterMatcher
 import com.cstv.app.domain.model.CategoryType
-import com.cstv.app.domain.model.GenreParser
 import com.cstv.app.domain.model.LocalSearchQuery
 import com.cstv.app.domain.model.SearchMediaType
 import com.cstv.app.domain.model.SearchResult
@@ -90,35 +90,12 @@ class AdvancedCatalogSearchUseCase @Inject constructor(
             }
         }
 
-        // Apply minRating
-        if (filter.minRating != null) {
-            val minRatingDouble = filter.minRating.toDouble()
-            vodFiltered = vodFiltered.filter {
-                val r = it.rating?.trim()?.toDoubleOrNull() ?: 0.0
-                r >= minRatingDouble
-            }
-            seriesFiltered = seriesFiltered.filter {
-                val r = it.rating?.trim()?.toDoubleOrNull() ?: 0.0
-                r >= minRatingDouble
-            }
+        // Advanced content predicates are shared with category-specific TV views.
+        vodFiltered = vodFiltered.filter { stream ->
+            CatalogFilterMatcher.matchesContent(stream.rating, stream.releaseYear, stream.genre, filter)
         }
-
-        // Apply yearRange — null = pas de filtre (voir AdvancedSearchFilter).
-        // Les items non enrichis (releaseYear null) ne sont exclus QUE si un
-        // filtre année est explicitement actif.
-        filter.yearRange?.let { yr ->
-            vodFiltered = vodFiltered.filter { it.releaseYear != null && it.releaseYear in yr }
-            seriesFiltered = seriesFiltered.filter { it.releaseYear != null && it.releaseYear in yr }
-        }
-
-        // Apply genres (AND logic : l'item doit contenir TOUS les genres sélectionnés)
-        if (filter.genres.isNotEmpty()) {
-            vodFiltered = vodFiltered.filter { stream ->
-                filter.genres.all { selectedGenre -> GenreParser.matches(stream.genre, selectedGenre) }
-            }
-            seriesFiltered = seriesFiltered.filter { stream ->
-                filter.genres.all { selectedGenre -> GenreParser.matches(stream.genre, selectedGenre) }
-            }
+        seriesFiltered = seriesFiltered.filter { stream ->
+            CatalogFilterMatcher.matchesContent(stream.rating, stream.releaseYear, stream.genre, filter)
         }
 
         SearchResult(
