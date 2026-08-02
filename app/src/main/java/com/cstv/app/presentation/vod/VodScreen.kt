@@ -34,7 +34,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.*
@@ -314,7 +313,7 @@ private fun TvLayout(
                 label = stringResource(R.string.vod_category_selector_label, (state.selectedCategory?.categoryName ?: "Tout").uppercase()),
                 onClick = { showCategoryPicker = true },
                 modifier = Modifier
-                    .weight(if (isSpecificCategory) 0.4f else 1f)
+                    .weight(1f)
                     .focusRequester(categoryTriggerFocusRequester)
             )
             if (isSpecificCategory) {
@@ -357,7 +356,7 @@ private fun TvLayout(
                         unfocusedTextColor = Color.White,
                         cursorColor = AccentLavande
                     ),
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(0.4f)
                 )
                 Spacer(modifier = Modifier.width(12.dp))
                 IconButton(
@@ -373,9 +372,6 @@ private fun TvLayout(
                         tint = if (state.advancedFilter.isActive) Color(0xFF17131F) else Color.White
                     )
                 }
-            }
-            IconButton(onClick = onRefresh) {
-                Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.catalog_refresh_button_description), tint = Color.White)
             }
         }
         if (showCategoryPicker) {
