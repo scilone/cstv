@@ -17,6 +17,7 @@ import androidx.core.view.WindowCompat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusGroup
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.text.font.FontWeight
@@ -352,6 +353,10 @@ class MainActivity : ComponentActivity() {
                                 modifier = Modifier
                                     .fillMaxSize()
                                     .focusRequester(contentFocusRequester)
+                                    // Restaure la vignette précise après un aller-retour
+                                    // par la barre latérale, au lieu de laisser la recherche
+                                    // de focus repartir sur une rangée voisine.
+                                    .focusRestorer()
                                     .onFocusChanged { contentChildFocused = it.hasFocus && !it.isFocused }
                                     .focusGroup()
                             ) {

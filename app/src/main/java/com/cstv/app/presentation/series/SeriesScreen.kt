@@ -293,10 +293,9 @@ private fun TvLayout(
     val initialTarget = remember(isAllSelected, resumeSeriesStreams, favoriteSeries, firstCategoryId, gridFilteredCount) {
         CatalogInitialFocusTarget.of(isAllSelected, resumeSeriesStreams.isNotEmpty(), favoriteSeries.isNotEmpty(), firstCategoryId, gridFilteredCount)
     }
-    // B17 (M4, décision 6) : voir VodScreen — un scroll restauré prime sur le
-    // focus par défaut en tête de liste.
-    val scrollKey = if (isAllSelected) "series_tv_all_vertical" else "series_tv_cat_" + (state.selectedCategory?.categoryId ?: "0")
-    val hasRestorableScroll = remember(scrollKey) { getScroll(scrollKey) != Pair(0, 0) }
+    // Un changement de section doit toujours poser le pivot sur une vraie
+    // vignette. Le retour depuis une fiche reste traité par [restoredFocus]
+    // et conserve, lui, le média exact.
     val hasFocusRestoreTarget = lastFocusedCategoryId != null && lastFocusedSeriesId != null &&
         (isAllSelected || lastFocusedCategoryId == state.selectedCategory?.categoryId)
     val restoredFocus = rememberTvInitialFocus(
@@ -306,7 +305,7 @@ private fun TvLayout(
     )
     val initialFocus = rememberTvInitialFocus(
         isTv = true,
-        ready = !state.isLoadingStreams && !state.isLoadingCategories && initialTarget != null && !hasRestorableScroll && !hasFocusRestoreTarget,
+        ready = !state.isLoadingStreams && !state.isLoadingCategories && initialTarget != null && !hasFocusRestoreTarget,
         targetKey = initialTarget to state.selectedCategory?.categoryId
     )
 
@@ -333,7 +332,7 @@ private fun TvLayout(
                 label = stringResource(R.string.series_category_selector_label, (state.selectedCategory?.categoryName ?: "Tout").uppercase()),
                 onClick = { showCategoryPicker = true },
                 modifier = Modifier
-                    .weight(1f)
+                    .weight(0.45f)
                     .focusRequester(categoryTriggerFocusRequester)
             )
             if (isSpecificCategory) {
@@ -376,7 +375,7 @@ private fun TvLayout(
                         unfocusedTextColor = Color.White,
                         cursorColor = AccentLavande
                     ),
-                    modifier = Modifier.weight(0.4f)
+                    modifier = Modifier.weight(1f)
                 )
                 Spacer(modifier = Modifier.width(12.dp))
                 IconButton(
@@ -531,8 +530,9 @@ private fun TvLayout(
                     // Même vignette 130 × 195 dp que les rangées « Tout » :
                     // les colonnes s'adaptent à l'écran sans étirer l'affiche.
                     columns = GridCells.Adaptive(minSize = 130.dp),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    // Même respiration compacte que les rangées du mode « Tout ».
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
                     contentPadding = PaddingValues(
                         horizontal = 12.dp,
                         vertical = LocalConfiguration.current.screenHeightDp.dp / 2
