@@ -1,5 +1,26 @@
 # Journal des Modifications (Changelog) - CSTV IPTV
 
+## [v1.68.0] - 2026-08-02
+### ✨ Sélecteur TV à double couche (F23), Unification des cartes (B18) et Limitation des rangées (T10)
+* **Double couche de navigation TV à sélecteur pivot fixe (F23)** :
+  - **Couche avant parfaitement statique (`TvFocusSelector.kt`)** : Introduction d'un cadre de focus global, dessiné dans une surimpression (overlay) non focusable et non cliquable à la racine de l'écran. Lors de la navigation, le cadre reste parfaitement immobile, et les cartes d'arrière-plan glissent sous lui de manière fluide et amortie.
+  - **Publication à la convergence du pivot** : Les extensions de défilement de `TvPivotScroll.kt` publient les coordonnées géométriques de la cible uniquement lorsque la convergence sur l'axe du pivot est stabilisée. Les cartes n'affichent plus individuellement leur cadre au moment de l'acquisition de focus Compose, supprimant définitivement l'effet de "saut" ou de "rebond".
+  - **Coordination multi-axes temporelle** : Pour les rangées horizontales (mouvement en X) situées dans une liste verticale (mouvement en Y), un mécanisme d'arbitrage de publication (`reportAxisStabilised`) attend que les deux mouvements soient convergés dans une fenêtre de 2 frames Compose avant de mettre à jour le sélecteur, empêchant tout tracé transitoire inesthétique.
+  - **Mesure géométrique précise** : Le sélecteur mesure précisément les dimensions du descendant Compose réellement focalisé (`onFocusedBoundsChanged`), prenant en compte les marges et formes spécifiques (comme les cartes Top 10 ou les tuiles de Live TV à coins arrondis).
+  - **Superposition de la Hero Card** : La Hero Card sur l'Accueil publie ses coordonnées réelles de l'affiche clippée immédiatement après sa prise de focus (nœud immobile), permettant d'entourer l'affiche d'un anneau de 16.dp sans inclure les gouttières et paddings du pager.
+  - **Ressort de transition amorti** : Toutes les dimensions, positions et rayons du sélecteur partagent une même spécification d'animation amortie (`spring(dampingRatio = DampingRatioNoBouncy, stiffness = StiffnessMediumLow)`), sans aucun rebond visuel.
+  - **Repli et masquage sûrs** : Le cadre est automatiquement masqué lors de la perte de focus de la section média (navigation vers le rail latéral, un dialogue ou un contrôle d'action) et ne laisse aucun cadre orphelin.
+  - **Tests unitaires dédiés** : Ajout de la classe `TvFocusSelectorStateTest` vérifiant la stabilité de l'état, l'invisibilité par défaut, le masquage et la conversion géométrique de repères d'hôte décalés (largeur de rail, insets de statut, etc.) via la fonction pure `localBounds`.
+* **Unification esthétique des cartes de Films et Séries (B18)** :
+  - **Carte unique réutilisable (`HomeCards.kt`)** : Unification complète du rendu visuel des cartes médias sous `HomeVodMovieCard` et `HomeSeriesShowCard`. Suppression définitive des anciennes cartes personnalisées `MovieTvCard` et `SeriesTvCard` ainsi que des grilles codées en dur avec titres textuels inesthétiques en dessous.
+  - **Régime adaptatif par paramètre (`fillCell`)** : Ajout du mode `fillCell = true` pour les grilles verticales de catégories (mobile et TV). La carte s'adapte automatiquement à la largeur imposée par les colonnes et déduit dynamiquement sa hauteur selon le ratio premium 2:3, sans déformation d'affiche ni gouttières asymétriques.
+  - **Badge de progression de reprise de lecture** : Remplacement du titre textuel TV pour la rangée de reprise de lecture par un badge d'overlay esthétique « S01 E03 » en haut à gauche de la vignette (obtenu de façon réactive via le mapping pure `EpisodeLabel.buildResumeLabels` couvert par tests), préservant l'homogénéité visuelle absolue (aucune écriture sous l'affiche) tout en conservant l'information cruciale d'avancement.
+  - **Nettoyage exhaustif des imports** : Élimination complète de tous les composants de mise en page et imports obsolètes au sein de `VodScreen.kt` et `SeriesScreen.kt` (`AsyncImage`, `ContentScale`, `TextOverflow`, etc.), validée par un lint vert de 0 erreur.
+* **Limitation des lignes horizontales du mode Tout à 250 éléments (T10)** :
+  - **Optimisation dans le remember du groupBy** : Limitation stricte du nombre de médias transmis aux rangées horizontales du mode "Tout" à un maximum de 250 éléments. Le calcul est effectué dans le `remember(filteredStreams)` du partitionnement pour éviter toute réallocation de liste à chaque recomposition d'item de la `LazyRow`.
+  - **Garantie de fluidité et de focus D-pad** : Allègement considérable du coût d'acquisition de focus et du parcours de défilement horizontal, tout en conservant l'accès au catalogue exhaustif via les grilles paginées complètes au clic sur "Voir tout" ou la sélection de catégorie.
+  - **Préservation des rangées bornées** : Les lignes de Favoris et de reprise de lecture ("Continuer à regarder") restent volontairement en dehors de ce plafond, car elles sont structurellement limitées par l'activité du profil utilisateur.
+
 ## [v1.67.0] - 2026-08-02
 ### ✨ Notification de nouveaux épisodes (F12) et Retrait téléchargement TV (F21)
 * **Notification de nouveaux épisodes de séries suivies (F12)** :

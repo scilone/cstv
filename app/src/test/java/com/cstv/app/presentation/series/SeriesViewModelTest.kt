@@ -218,7 +218,8 @@ class SeriesViewModelTest {
             seasonNum = eq(1),
             plot = eq(""),
             duration = eq(""),
-            releaseDate = eq("")
+            releaseDate = eq(""),
+            categoryId = isNull()
         )
     }
 
@@ -269,7 +270,8 @@ class SeriesViewModelTest {
             seasonNum = eq(1),
             plot = eq(""),
             duration = eq(""),
-            releaseDate = eq("")
+            releaseDate = eq(""),
+            categoryId = isNull()
         )
     }
 

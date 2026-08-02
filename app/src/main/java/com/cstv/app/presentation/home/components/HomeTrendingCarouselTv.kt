@@ -36,8 +36,12 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import com.cstv.app.presentation.components.LocalTvFocusSelector
+import com.cstv.app.presentation.components.publishFrom
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.util.lerp
@@ -99,6 +103,18 @@ fun HomeTrendingCarouselTv(
 
     val currentItem = trendingItems.getOrNull(pagerState.currentPage)
     val previewEligible = hasFocus && lifecycleStarted && !pagerState.isScrollInProgress
+
+    // Couche avant du focus TV (F23) : la Hero ne défile pas via un pivot
+    // (TvPivotScroll) — sa position est déjà définitive dès que la carte
+    // courante du pager est mesurée et que le pager a le focus. On republie
+    // à chaque changement de page une fois le défilement du pager terminé.
+    val tvFocusSelector = LocalTvFocusSelector.current
+    var currentCardCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
+    LaunchedEffect(tvFocusSelector, hasFocus, pagerState.currentPage, pagerState.isScrollInProgress) {
+        if (tvFocusSelector != null && hasFocus && !pagerState.isScrollInProgress) {
+            tvFocusSelector.publishFrom(currentCardCoordinates, cornerRadius = 16.dp)
+        }
+    }
 
     // La clé inclut la slide courante : changer de tendance annule l'aperçu en
     // cours et repart d'une temporisation complète.
@@ -198,6 +214,17 @@ fun HomeTrendingCarouselTv(
                     transformOrigin = TransformOrigin(0.5f + 0.5f * relativeOffset, 0.5f)
                 }
                 .padding(horizontal = 8.dp)
+                // Capturé après le padding, juste avant le `clip(shape)` de
+                // HomeTrendingSlideTv : ce sont les bounds de la surface
+                // effectivement visible/clippée, pas celles de la zone de page
+                // du pager (Review F23, Majeur R4).
+                .then(
+                    if (isCurrent) {
+                        Modifier.onGloballyPositioned { currentCardCoordinates = it }
+                    } else {
+                        Modifier
+                    }
+                )
         )
     }
 }

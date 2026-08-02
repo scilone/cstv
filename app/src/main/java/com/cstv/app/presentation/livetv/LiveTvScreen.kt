@@ -20,6 +20,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import com.cstv.app.presentation.components.CatalogUnavailableState
 import com.cstv.app.presentation.components.OfflineBanner
 import com.cstv.app.presentation.components.tvPivotCell
+import com.cstv.app.presentation.components.LocalTvFocusSelector
+import com.cstv.app.presentation.components.TvFocusSelectorOverlay
+import com.cstv.app.presentation.components.TvFocusSelectorState
 import com.cstv.app.presentation.components.tvPivotVerticalEndSpacer
 import com.cstv.app.presentation.components.tvPivotVerticalStartSpacer
 import androidx.compose.foundation.lazy.LazyRow
@@ -121,6 +124,7 @@ fun LiveTvScreen(
 
     val getScroll: (String) -> Pair<Int, Int> = { viewModel.getScrollPosition(it) }
     val saveScroll: (String, Int, Int) -> Unit = { k, i, o -> viewModel.saveScrollPosition(k, i, o) }
+    val tvFocusSelector = remember { TvFocusSelectorState() }
 
     Box(
         modifier = modifier
@@ -146,8 +150,10 @@ fun LiveTvScreen(
                 onLoadEpg = { viewModel.loadEpgForStream(it) },
                 onHistoryRemove = { pendingRemoval = it },
                 getScroll = getScroll,
-                saveScroll = saveScroll
+                saveScroll = saveScroll,
+                tvFocusSelector = tvFocusSelector
             )
+            TvFocusSelectorOverlay(tvFocusSelector, modifier = Modifier.fillMaxSize())
         } else {
             MobileLayout(
                 state = state,
@@ -192,7 +198,8 @@ private fun TvLayout(
     onLoadEpg: (Int) -> Unit,
     onHistoryRemove: (LiveStream) -> Unit,
     getScroll: (String) -> Pair<Int, Int>,
-    saveScroll: (String, Int, Int) -> Unit
+    saveScroll: (String, Int, Int) -> Unit,
+    tvFocusSelector: TvFocusSelectorState
 ) {
     val isAllSelected = state.selectedCategory?.categoryId == "all"
 
@@ -255,10 +262,12 @@ private fun TvLayout(
         } else if (isAllSelected) {
             // Mode "Tout" : vertical categories list of horizontal rows
             val listState = rememberForeverLazyListState("livetv_tv_all_vertical", getScroll, saveScroll)
+            CompositionLocalProvider(LocalTvFocusSelector provides tvFocusSelector) {
             LazyColumn(
                 state = listState,
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 modifier = Modifier.fillMaxSize()
+                    .onFocusChanged { if (!it.hasFocus) tvFocusSelector.clear() }
             ) {
                 tvPivotVerticalStartSpacer(true)
                 // Section 1: Récemment regardées (if not empty)
@@ -319,6 +328,7 @@ private fun TvLayout(
                 }
                 tvPivotVerticalEndSpacer(true)
             }
+            }
         } else {
             // Mode "Catégorie spécifique" : Search & Vertical Grid
             Text(
@@ -357,6 +367,7 @@ private fun TvLayout(
                 }
             } else {
                 val gridState = rememberForeverLazyGridState("livetv_tv_cat_" + (state.selectedCategory?.categoryId ?: "0"), getScroll, saveScroll)
+                CompositionLocalProvider(LocalTvFocusSelector provides tvFocusSelector) {
                 LazyVerticalGrid(
                     state = gridState,
                     columns = GridCells.Fixed(3),
@@ -366,13 +377,16 @@ private fun TvLayout(
                         vertical = LocalConfiguration.current.screenHeightDp.dp / 2
                     ),
                     modifier = Modifier.fillMaxSize().focusGroup()
+                        .onFocusChanged { if (!it.hasFocus) tvFocusSelector.clear() }
                 ) {
                     items(pagedStreams.itemCount) { index ->
                         val stream = pagedStreams[index]
                         if (stream != null) {
                             val isFav = favoritesList.any { it.id == stream.streamId && it.type == "live" }
                             Box(
-                                modifier = Modifier.tvPivotCell(true, gridState, index),
+                                // Rayon 12.dp : StreamTvCard n'a pas été unifiée au
+                                // rayon 14.dp de B18 (hors périmètre de ce ticket-là).
+                                modifier = Modifier.tvPivotCell(true, gridState, index, selectorCornerRadius = 12.dp),
                                 // Cf. VodScreen.kt (Review F19, Majeur #1) : force la
                                 // propagation de la contrainte min de la cellule à l'enfant.
                                 propagateMinConstraints = true
@@ -388,6 +402,7 @@ private fun TvLayout(
                             }
                         }
                     }
+                }
                 }
             }
         }

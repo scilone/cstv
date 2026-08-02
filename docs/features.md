@@ -235,6 +235,35 @@ Afin d'épurer l'interface d'Android TV, d'économiser son stockage limité et d
 
 ---
 
+## 22. Unification esthétique des cartes de Films et Séries (B18)
+Cette évolution élimine la dette de design et de maintenance visuelle en remplaçant toutes les variations et codes de cartes spécifiques des listes de films et séries par les cartes de référence partagées, et en supprimant définitivement le titre textuel redondant situé en dessous de l'affiche.
+* **Composant unique partagé (`HomeCards.kt`)** : Utilisation exclusive de `HomeVodMovieCard` et `HomeSeriesShowCard` sur tous les écrans (Accueil, mode "Tout" horizontal mobile et TV, et grilles de catégorie verticale mobile et TV).
+* **Régime de redimensionnement adaptatif (`fillCell`)** : Ajout d'un paramètre `fillCell` pour les grilles verticales de catégories. La carte s'adapte automatiquement à la largeur de sa cellule et calcule sa hauteur de manière proportionnelle selon le ratio 2:3, éliminant les asymétries de gouttières et déformations d'images.
+* **Badge de progression d'épisode en surimpression** : Maintien de l'information essentielle du numéro d'épisode en cours de reprise dans les rangées TV grâce à l'overlay d'un badge « S01 E03 » en haut à gauche de la vignette, assurant une esthétique épurée identique à l'Accueil (aucune écriture sous l'affiche) sans perte fonctionnelle.
+* **Ménage et linting vert** : Suppression des fonctions privées obsolètes `MovieTvCard`/`SeriesTvCard` et nettoyage de tous les imports morts (`AsyncImage`, `ContentScale`, etc.) au sein de `VodScreen.kt` et `SeriesScreen.kt`.
+
+---
+
+## 23. Double couche de navigation TV à sélecteur pivot fixe (F23)
+Cette fonctionnalité offre une expérience de navigation TV ultra-premium (similaire à Apple TV ou aux Smart TV haut de gamme) en immobilisant le sélecteur de focus (cadre de focus lumineux) au point de pivot et en faisant glisser le catalogue sous lui de façon continue, éliminant ainsi tout effet de saut ou de rebond.
+* **Couche avant immobile (`TvFocusSelector.kt`)** : Dessin d'un unique cadre de sélection au premier plan de l'écran, non focusable et non cliquable. Le cadre reste stable au point de pivot, et ce sont les affiches en arrière-plan qui glissent dessous lors du défilement.
+* **Ancrage sur positions stabilisées** : Les extensions asynchrones de défilement de `TvPivotScroll.kt` ne publient la géométrie de la cible qu'après convergence et stabilisation complète, tandis que `tvFocusHighlight` neutralise la peinture de bordure locale de la carte focalisée pendant le glissement.
+* **Arbitrage multi-axes temporel** : Pour les rangées horizontales au sein d'une liste verticale, le système de publication temporise et coordonne les rapports de défilement sur 2 frames Compose pour éviter que le cadre ne s'affiche sur des états intermédiaires de déplacement.
+* **Détection géométrique exacte** : Utilisation d'`onFocusedBoundsChanged` pour mesurer précisément la zone visible réelle du descendant focalisé, s'adaptant parfaitement aux cartes Top 10, aux tuiles paysage de Live TV (rayon 12.dp) et aux cartes standard (rayon 14.dp).
+* **Superposition de la Hero Card** : Intégration de la Hero Card de l'Accueil qui publie ses coordonnées réelles de l'affiche clippée immédiatement après sa prise de focus pour y superposer un cadre de rayon 16.dp, ignorant ainsi les gouttières asynchrones du pager.
+* **Fermeture propre et résilience** : Masquage automatique du sélecteur dès que le focus quitte la zone de listes de médias (par ex. pour aller vers la barre latérale ou un dialogue), évitant tout cadre orphelin.
+
+---
+
+## 24. Limitation du nombre d'éléments par ligne en mode "Tout" (T10)
+Cette optimisation de performance technique prévient l'épuisement de la mémoire vive (RAM) et maintient une fluidité de défilement et de focus optimale lors de l'exploration de très gros catalogues IPTV.
+* **Limite à 250 éléments** : Plafonnement strict à 250 éléments du nombre de médias passés aux rangées horizontales (`LazyRow`) de chaque catégorie du mode "Tout" des Films (VOD) et des Séries.
+* **Calcul mémorisé dans le `remember`** : Application de la troncature directement au sein du bloc de partitionnement `remember(filteredStreams)` pour éviter toute réallocation de liste lors des recompositions de cellules de la rangée.
+* **Maintien de l'exhaustivité** : L'accès à l'intégralité des milliers de films ou séries d'une catégorie reste possible d'un clic sur le bouton « Voir tout » (mobile) ou sur la puce de catégorie (TV) qui ouvrent la grille complète paginée de manière performante via Paging 3.
+* **Rangées d'activité de profil exclues** : Les rangées « Favoris » et « Continuer à regarder » restent exclues de ce plafond technique pour ne masquer aucun choix explicite de l'utilisateur.
+
+---
+
 ## 🚫 Fonctionnalités hors périmètre (Exclusions validées)
 Pour des raisons de performance, de stabilité ou d'expérience utilisateur, les fonctionnalités suivantes sont **strictement hors périmètre** :
 * **Multi-comptes Xtream** : L'application gère un seul compte Xtream Codes actif à la fois (les profils sont purement locaux et rattachés à ce compte unique).

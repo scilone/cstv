@@ -11,6 +11,9 @@ import com.cstv.app.presentation.components.tvPivotSection
 import com.cstv.app.presentation.components.tvPivotHorizontalEndSpacer
 import com.cstv.app.presentation.components.tvPivotVerticalEndSpacer
 import com.cstv.app.presentation.components.tvPivotVerticalStartSpacer
+import com.cstv.app.presentation.components.LocalTvFocusSelector
+import com.cstv.app.presentation.components.TvFocusSelectorOverlay
+import com.cstv.app.presentation.components.TvFocusSelectorState
 
 import com.cstv.app.presentation.rememberRowScrollState
 import androidx.compose.foundation.lazy.LazyListState
@@ -70,6 +73,8 @@ import com.cstv.app.domain.model.FavoriteItem
 import com.cstv.app.domain.model.LiveStream
 import com.cstv.app.domain.model.VodStream
 import com.cstv.app.domain.model.SeriesStream
+import com.cstv.app.domain.model.SeriesCategory
+import com.cstv.app.domain.model.VodCategory
 import com.cstv.app.domain.model.DownloadedItem
 
 @OptIn(ExperimentalTvMaterial3Api::class)
@@ -83,7 +88,8 @@ fun HomeScreen(
     onNavigateToLiveTv: () -> Unit,
     onNavigateToVod: () -> Unit,
     onNavigateToSeries: () -> Unit,
-    onNavigateToRecentlyAdded: (Boolean) -> Unit,
+    onNavigateToVodCategory: (VodCategory) -> Unit,
+    onNavigateToSeriesCategory: (SeriesCategory) -> Unit,
     onNavigateToFavorites: () -> Unit,
     onNavigateToSearch: () -> Unit,
     onNavigateToSettings: () -> Unit,
@@ -100,8 +106,14 @@ fun HomeScreen(
     lazyListState: LazyListState = rememberLazyListState()
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    val displayedTopVodStreams = state.popularTopVodStreams ?: state.topVodStreams
-    val displayedTopSeriesStreams = state.popularTopSeriesStreams ?: state.topSeriesStreams
+    val displayedTopVodStreams = state.popularTopVodStreams.orEmpty()
+    val displayedTopSeriesStreams = state.popularTopSeriesStreams.orEmpty()
+    val onSeeAllVod = remember(state.firstVodCategory, onNavigateToVodCategory) {
+        state.firstVodCategory?.let { category -> { onNavigateToVodCategory(category) } }
+    }
+    val onSeeAllSeries = remember(state.firstSeriesCategory, onNavigateToSeriesCategory) {
+        state.firstSeriesCategory?.let { category -> { onNavigateToSeriesCategory(category) } }
+    }
 
     // Section affichée en grille verticale ("Voir tout"). null = accueil normal.
     var expandedSection by remember { mutableStateOf<HomeExpandedSection?>(null) }
@@ -177,6 +189,11 @@ fun HomeScreen(
         }
     }
 
+    // Couche avant du sélecteur pivot fixe (F23) : un seul état par écran,
+    // fourni uniquement aux conteneurs de listes de médias TV, jamais au
+    // mobile ni au bandeau de navigation.
+    val tvFocusSelector = remember { TvFocusSelectorState() }
+
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -203,6 +220,7 @@ fun HomeScreen(
                     modifier = Modifier.fillMaxSize()
                 )
             } ?: run {
+                CompositionLocalProvider(LocalTvFocusSelector provides if (isTv) tvFocusSelector else null) {
                 LazyColumn(
                 state = lazyListState,
                 // Sur TV, la marge haute est portée par la fenêtre de défilement
@@ -217,7 +235,7 @@ fun HomeScreen(
                 // l'air — d'où une asymétrie visible.
                 modifier = Modifier.fillMaxSize().then(
                     if (isTv) Modifier.padding(top = 24.dp, bottom = 24.dp) else Modifier
-                ),
+                ).onFocusChanged { if (!it.hasFocus) tvFocusSelector.clear() },
                 contentPadding = if (isTv) {
                     PaddingValues(start = 16.dp, end = 16.dp, bottom = 16.dp)
                 } else {
@@ -420,7 +438,10 @@ fun HomeScreen(
                                 modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).focusGroup()
                             ) {
                                 itemsIndexed(state.resumeWatchingList) { index, position ->
-                                    Box(modifier = Modifier.tvPivotItem(isTv, rowState, index)) {
+                                    // Rayon 12.dp : HomeResumeWatchingCard n'est
+                                    // pas unifiée au rayon 14.dp de B18 (Review
+                                    // F23, Mineur R5).
+                                    Box(modifier = Modifier.tvPivotItem(isTv, rowState, index, selectorCornerRadius = 12.dp)) {
                                         HomeResumeWatchingCard(
                                             position = position,
                                             onClick = { handleResumeClick(position) },
@@ -480,7 +501,10 @@ fun HomeScreen(
                                 modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).focusGroup()
                             ) {
                                 itemsIndexed(state.firstLiveStreams) { index, stream ->
-                                    Box(modifier = Modifier.tvPivotItem(isTv, rowState, index)) {
+                                    // Rayon 16.dp : HomeLiveTvCard n'est pas
+                                    // unifiée au rayon 14.dp de B18 (Review F23,
+                                    // Mineur R5).
+                                    Box(modifier = Modifier.tvPivotItem(isTv, rowState, index, selectorCornerRadius = 16.dp)) {
                                         HomeLiveTvCard(
                                             stream = stream,
                                             epgProgram = state.epgPrograms[stream.streamId],
@@ -501,7 +525,7 @@ fun HomeScreen(
                         HomeSectionRow(
                             title = stringResource(R.string.home_section_vod),
                             isTv = isTv,
-                            onSeeAll = { onNavigateToRecentlyAdded(false) },
+                            onSeeAll = onSeeAllVod,
                             modifier = Modifier.tvPivotSection(isTv, lazyListState, "home_vod")
                         ) {
                             LazyRow(
@@ -592,7 +616,7 @@ fun HomeScreen(
                         HomeSectionRow(
                             title = stringResource(R.string.home_section_series),
                             isTv = isTv,
-                            onSeeAll = { onNavigateToRecentlyAdded(true) },
+                            onSeeAll = onSeeAllSeries,
                             modifier = Modifier.tvPivotSection(isTv, lazyListState, "home_series")
                         ) {
                             LazyRow(
@@ -711,7 +735,11 @@ fun HomeScreen(
                 }
                 tvPivotVerticalEndSpacer(isTv)
                 }
+                }
             }
+        }
+        if (isTv) {
+            TvFocusSelectorOverlay(tvFocusSelector, modifier = Modifier.fillMaxSize())
         }
         SnackbarHost(hostState = historySnackbarHost, modifier = Modifier.align(Alignment.BottomCenter))
         pendingRemoval?.let { position ->

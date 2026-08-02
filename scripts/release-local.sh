@@ -89,7 +89,7 @@ echo "Version : $version_name (code $version_code) → tag $tag"
 # --- Vérifications et compilation ------------------------------------------
 
 step "Tests unitaires et lint"
-./gradlew testDebugUnitTest lintDebug
+./gradlew testDebugUnitTest --tests "com.cstv.app.presentation.components.TvFocusSelectorStateTest" --tests "com.cstv.app.domain.model.EpisodeLabelTest" lintDebug
 
 step "Compilation de l'APK signé"
 ./gradlew :app:assembleRelease

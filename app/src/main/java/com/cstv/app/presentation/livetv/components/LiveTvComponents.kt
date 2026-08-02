@@ -78,7 +78,7 @@ fun CategorySectionRow(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp)
-            .tvPivotSection(isTv, sectionListState, categoryId)
+            .tvPivotSection(isTv, sectionListState, categoryId, selectorCornerRadius = 12.dp)
     ) {
         // Phase 56 : titre de catégorie grisé (texte secondaire) + lien "Voir tout".
         Row(
@@ -118,7 +118,9 @@ fun CategorySectionRow(
         ) {
             itemsIndexed(streams) { index, stream ->
                 val isFav = favoritesList.any { it.id == stream.streamId && it.type == "live" }
-                Box(modifier = Modifier.tvPivotItem(isTv, rowState, index)) {
+                // Rayon 12.dp : StreamTvCard n'a pas été unifiée au rayon
+                // 14.dp de B18 (hors périmètre de ce ticket-là).
+                Box(modifier = Modifier.tvPivotItem(isTv, rowState, index, selectorCornerRadius = 12.dp)) {
                     if (isTv) {
                         StreamTvCard(
                             stream = stream,
@@ -337,7 +339,7 @@ fun RecentlyWatchedRow(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp)
-            .tvPivotSection(isTv, sectionListState, "recently_watched")
+            .tvPivotSection(isTv, sectionListState, "recently_watched", selectorCornerRadius = 12.dp)
     ) {
         Text(
             text = "RÉCEMMENT REGARDÉES",
@@ -355,7 +357,9 @@ fun RecentlyWatchedRow(
             modifier = Modifier.fillMaxWidth().focusGroup()
         ) {
             itemsIndexed(streams) { index, stream ->
-                Box(modifier = Modifier.tvPivotItem(isTv, rowState, index)) {
+                // Rayon 12.dp : StreamTvCard n'a pas été unifiée au rayon
+                // 14.dp de B18 (hors périmètre de ce ticket-là).
+                Box(modifier = Modifier.tvPivotItem(isTv, rowState, index, selectorCornerRadius = 12.dp)) {
                     if (isTv) {
                         RecentlyWatchedTvItem(
                             stream = stream,

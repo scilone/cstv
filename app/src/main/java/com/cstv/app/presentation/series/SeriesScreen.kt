@@ -21,6 +21,9 @@ import com.cstv.app.presentation.components.tvPivotSection
 import com.cstv.app.presentation.components.tvPivotHorizontalEndSpacer
 import com.cstv.app.presentation.components.tvPivotVerticalEndSpacer
 import com.cstv.app.presentation.components.tvPivotVerticalStartSpacer
+import com.cstv.app.presentation.components.LocalTvFocusSelector
+import com.cstv.app.presentation.components.TvFocusSelectorOverlay
+import com.cstv.app.presentation.components.TvFocusSelectorState
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -30,11 +33,8 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import kotlinx.coroutines.flow.map
@@ -45,16 +45,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.focusGroup
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.LocalConfiguration
 import com.cstv.app.R
+import com.cstv.app.domain.model.EpisodeLabel
 import com.cstv.app.domain.model.FavoriteItem
 import com.cstv.app.domain.model.SeriesCategory
 import com.cstv.app.domain.model.SeriesStream
@@ -62,8 +59,6 @@ import com.cstv.app.presentation.theme.AccentLavande
 import com.cstv.app.presentation.theme.BricolageGrotesque
 import com.cstv.app.presentation.theme.HankenGrotesk
 import com.cstv.app.presentation.theme.Surface1
-import com.cstv.app.presentation.theme.Surface2
-import com.cstv.app.presentation.theme.Surface3
 import com.cstv.app.presentation.theme.TextSecondary
 import com.cstv.app.presentation.components.CategoryFilterSheet
 import com.cstv.app.presentation.components.CategorySheetEntry
@@ -130,6 +125,7 @@ fun SeriesScreen(
 
     val getScroll: (String) -> Pair<Int, Int> = { viewModel.getScrollPosition(it) }
     val saveScroll: (String, Int, Int) -> Unit = { k, i, o -> viewModel.saveScrollPosition(k, i, o) }
+    val tvFocusSelector = remember { TvFocusSelectorState() }
 
     Box(
         modifier = modifier
@@ -150,8 +146,10 @@ fun SeriesScreen(
                 isSpecificCategory = isSpecificCategory,
                 onHistoryRemove = { stream -> pendingRemoval = state.resumeSeries.firstOrNull { (it.seriesId ?: it.streamId) == stream.seriesId } },
                 getScroll = getScroll,
-                saveScroll = saveScroll
+                saveScroll = saveScroll,
+                tvFocusSelector = tvFocusSelector
             )
+            TvFocusSelectorOverlay(tvFocusSelector, modifier = Modifier.fillMaxSize())
         } else {
             MobileLayout(
                 state = state,
@@ -175,6 +173,14 @@ fun SeriesScreen(
     }
 }
 
+/**
+ * Plafond d'une rangée horizontale du mode « Tout ». Au-delà, la LazyRow
+ * retient des milliers d'éléments dont aucun ne sera atteint au D-pad : la
+ * grille de la catégorie ("Voir tout" / puce de catégorie) reste le chemin
+ * exhaustif (T10).
+ */
+private const val CATEGORY_ROW_MAX_ITEMS = 250
+
 @Composable
 private fun TvLayout(
     state: SeriesState,
@@ -189,12 +195,15 @@ private fun TvLayout(
     isSpecificCategory: Boolean,
     onHistoryRemove: (SeriesStream) -> Unit,
     getScroll: (String) -> Pair<Int, Int>,
-    saveScroll: (String, Int, Int) -> Unit
+    saveScroll: (String, Int, Int) -> Unit,
+    tvFocusSelector: TvFocusSelectorState
 ) {
     val isAllSelected = state.selectedCategory?.categoryId == "all"
 
     val groupedStreams = remember(filteredStreams) {
-        filteredStreams.groupBy { it.categoryId }
+        filteredStreams
+            .groupBy { it.categoryId }
+            .mapValues { (_, streams) -> streams.take(CATEGORY_ROW_MAX_ITEMS) }
     }
     val actualCategories = remember(state.categories) {
         state.categories.filter { it.categoryId != "all" }
@@ -215,6 +224,11 @@ private fun TvLayout(
                 categoryId = ""
             )
         }
+    }
+    // Badge "S01 E03" en surimpression sur la rangée "Reprendre" (B18) : seule
+    // information perdue par le retrait du titre, pour un épisode en cours.
+    val resumeLabels = remember(state.resumeSeries) {
+        EpisodeLabel.buildResumeLabels(state.resumeSeries) { it.seriesId ?: it.streamId }
     }
 
     Column(
@@ -263,10 +277,12 @@ private fun TvLayout(
         } else if (isAllSelected) {
             // Mode "Tout" : vertical categories list of horizontal rows
             val listState = rememberForeverLazyListState("series_tv_all_vertical", getScroll, saveScroll)
+            CompositionLocalProvider(LocalTvFocusSelector provides tvFocusSelector) {
             LazyColumn(
                 state = listState,
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 modifier = Modifier.fillMaxSize()
+                    .onFocusChanged { if (!it.hasFocus) tvFocusSelector.clear() }
             ) {
                 tvPivotVerticalStartSpacer(true)
                 if (resumeSeriesStreams.isNotEmpty()) {
@@ -280,7 +296,8 @@ private fun TvLayout(
                             onLongClick = onHistoryRemove,
                             getScroll = getScroll,
                             saveScroll = saveScroll,
-                            sectionListState = listState
+                            sectionListState = listState,
+                            badgeFor = { stream -> resumeLabels[stream.seriesId] }
                         )
                     }
                 }
@@ -314,6 +331,7 @@ private fun TvLayout(
                     }
                 }
                 tvPivotVerticalEndSpacer(true)
+            }
             }
         } else {
             // Mode "Catégorie spécifique" : Search & Vertical Grid
@@ -353,6 +371,7 @@ private fun TvLayout(
                 }
             } else {
                 val gridState = rememberForeverLazyGridState("series_tv_cat_" + (state.selectedCategory?.categoryId ?: "0"), getScroll, saveScroll)
+                CompositionLocalProvider(LocalTvFocusSelector provides tvFocusSelector) {
                 LazyVerticalGrid(
                     state = gridState,
                     columns = GridCells.Fixed(4),
@@ -362,6 +381,7 @@ private fun TvLayout(
                         vertical = LocalConfiguration.current.screenHeightDp.dp / 2
                     ),
                     modifier = Modifier.fillMaxSize().focusGroup()
+                        .onFocusChanged { if (!it.hasFocus) tvFocusSelector.clear() }
                 ) {
                     items(pagedStreams.itemCount) { index ->
                         val stream = pagedStreams[index]
@@ -369,17 +389,20 @@ private fun TvLayout(
                             Box(
                                 modifier = Modifier.tvPivotCell(true, gridState, index),
                                 // Cf. VodScreen.kt : Box relâche la contrainte min par
-                                // défaut, ce qui laissait `SeriesTvCard` (largeur fixe)
-                                // rétrécir dans la cellule (Review F19, Majeur #1).
+                                // défaut, ce qui laisserait la carte rétrécir dans la
+                                // cellule (Review F19, Majeur #1).
                                 propagateMinConstraints = true
                             ) {
-                                SeriesTvCard(
+                                HomeSeriesShowCard(
                                     stream = stream,
-                                    onClick = { onSeriesSelected(stream) }
+                                    onClick = { onSeriesSelected(stream) },
+                                    isTv = true,
+                                    fillCell = true
                                 )
                             }
                         }
                     }
+                }
                 }
             }
         }
@@ -407,7 +430,9 @@ private fun MobileLayout(
     val isAllSelected = state.selectedCategory?.categoryId == "all"
 
     val groupedStreams = remember(filteredStreams) {
-        filteredStreams.groupBy { it.categoryId }
+        filteredStreams
+            .groupBy { it.categoryId }
+            .mapValues { (_, streams) -> streams.take(CATEGORY_ROW_MAX_ITEMS) }
     }
     val actualCategories = remember(state.categories) {
         state.categories.filter { it.categoryId != "all" }
@@ -428,6 +453,11 @@ private fun MobileLayout(
                 categoryId = ""
             )
         }
+    }
+    // Badge "S01 E03" en surimpression sur la rangée "Reprendre" (B18) : seule
+    // information perdue par le retrait du titre, pour un épisode en cours.
+    val resumeLabels = remember(state.resumeSeries) {
+        EpisodeLabel.buildResumeLabels(state.resumeSeries) { it.seriesId ?: it.streamId }
     }
 
     var showCategorySheet by remember { mutableStateOf(false) }
@@ -512,7 +542,8 @@ private fun MobileLayout(
                             onLongClick = onHistoryRemove,
                             getScroll = getScroll,
                             saveScroll = saveScroll,
-                            sectionListState = listState
+                            sectionListState = listState,
+                            badgeFor = { stream -> resumeLabels[stream.seriesId] }
                         )
                     }
                 }
@@ -580,72 +611,11 @@ private fun MobileLayout(
                     items(pagedStreams.itemCount) { index ->
                         val stream = pagedStreams[index]
                         if (stream != null) {
-                            Card(
-                                colors = CardDefaults.cardColors(containerColor = Surface3),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable { onSeriesSelected(stream) }
-                            ) {
-                                Column {
-                                    // Poster Box
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .aspectRatio(2f / 3f)
-                                            .background(Surface1),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        if (!stream.cover.isNullOrBlank()) {
-                                            AsyncImage(
-                                                model = stream.cover,
-                                                contentDescription = stream.name,
-                                                contentScale = ContentScale.Crop,
-                                                modifier = Modifier.fillMaxSize()
-                                            )
-                                        } else {
-                                            Icon(
-                                                imageVector = Icons.Default.PlayArrow,
-                                                contentDescription = null,
-                                                tint = Color.DarkGray,
-                                                modifier = Modifier.size(36.dp)
-                                            )
-                                        }
-
-                                        // Rating Badge
-                                        val cleanRating = stream.rating?.trim()
-                                        if (!cleanRating.isNullOrBlank() && cleanRating != "0" && cleanRating != "0.0") {
-                                            Box(
-                                                modifier = Modifier
-                                                    .align(Alignment.TopEnd)
-                                                    .padding(6.dp)
-                                                    .clip(RoundedCornerShape(4.dp))
-                                                    .background(Color(0xCC000000))
-                                                    .padding(horizontal = 6.dp, vertical = 3.dp)
-                                            ) {
-                                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                                    Icon(Icons.Default.Star, contentDescription = null, tint = Color.Yellow, modifier = Modifier.size(10.dp))
-                                                    Spacer(modifier = Modifier.width(3.dp))
-                                                    Text(cleanRating, color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                                                }
-                                            }
-                                        }
-                                    }
-
-                                    // Title
-                                    Text(
-                                        text = stream.name,
-                                        color = Color.White,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 11.sp,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(6.dp),
-                                        textAlign = TextAlign.Center
-                                    )
-                                }
-                            }
+                            HomeSeriesShowCard(
+                                stream = stream,
+                                onClick = { onSeriesSelected(stream) },
+                                fillCell = true
+                            )
                         }
                     }
                 }
@@ -665,7 +635,9 @@ private fun CategorySectionRow(
     saveScroll: (String, Int, Int) -> Unit,
     sectionListState: LazyListState,
     onSeeAll: (() -> Unit)? = null,
-    onLongClick: ((SeriesStream) -> Unit)? = null
+    onLongClick: ((SeriesStream) -> Unit)? = null,
+    /** Badge court en surimpression (ex. « S01 E03 »), réservé à la rangée « Reprendre » (B18). */
+    badgeFor: ((SeriesStream) -> String?)? = null
 ) {
     Column(
         modifier = Modifier
@@ -711,22 +683,13 @@ private fun CategorySectionRow(
         ) {
             itemsIndexed(series) { index, stream ->
                 Box(modifier = Modifier.tvPivotItem(isTv, rowState, index)) {
-                    if (isTv) {
-                        SeriesTvCard(
-                            stream = stream,
-                            onClick = { onSeriesSelected(stream) },
-                            onLongClick = onLongClick?.let { { it(stream) } }
-                        )
-                    } else {
-                        // Phase 57 : carte unifiée avec celle de la Home (même taille,
-                        // note de notation intégrée).
-                        HomeSeriesShowCard(
-                            stream = stream,
-                            onClick = { onSeriesSelected(stream) },
-                            onLongClick = onLongClick?.let { { it(stream) } },
-                            isTv = false
-                        )
-                    }
+                    HomeSeriesShowCard(
+                        stream = stream,
+                        onClick = { onSeriesSelected(stream) },
+                        onLongClick = onLongClick?.let { { it(stream) } },
+                        isTv = isTv,
+                        badgeLabel = badgeFor?.invoke(stream)
+                    )
                 }
             }
             tvPivotHorizontalEndSpacer(isTv)
@@ -766,80 +729,3 @@ private fun CategoryFilterChip(
     }
 }
 
-@Composable
-private fun SeriesTvCard(
-    stream: SeriesStream,
-    onClick: () -> Unit,
-    onLongClick: (() -> Unit)? = null
-) {
-    var isFocused by remember { mutableStateOf(false) }
-
-    Card(
-        colors = CardDefaults.cardColors(
-            containerColor = if (isFocused) Color(0xFF23232D) else Surface3
-        ),
-        modifier = Modifier
-            .width(150.dp)
-            .onFocusChanged { isFocused = it.isFocused }
-            .tvFocusHighlight(isFocused, RoundedCornerShape(12.dp))
-            .clip(RoundedCornerShape(12.dp))
-            .historyItemActions(isTv = true, onClick = onClick, onLongClick = onLongClick)
-    ) {
-        Column {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(2f / 3f)
-                    .background(Surface1),
-                contentAlignment = Alignment.Center
-            ) {
-                if (!stream.cover.isNullOrBlank()) {
-                    AsyncImage(
-                        model = stream.cover,
-                        contentDescription = stream.name,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                } else {
-                    Icon(
-                        imageVector = Icons.Default.Warning,
-                        contentDescription = null,
-                        tint = Color.DarkGray,
-                        modifier = Modifier.size(36.dp)
-                    )
-                }
-
-                val cleanRating = stream.rating?.trim()
-                if (!cleanRating.isNullOrBlank() && cleanRating != "0" && cleanRating != "0.0") {
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            .padding(8.dp)
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(Color(0xCC000000))
-                            .padding(horizontal = 6.dp, vertical = 3.dp)
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.Star, contentDescription = null, tint = Color.Yellow, modifier = Modifier.size(12.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(cleanRating, color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                        }
-                    }
-                }
-            }
-
-            Text(
-                text = stream.name,
-                color = Color.White,
-                fontWeight = FontWeight.Bold,
-                fontSize = 11.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(6.dp),
-                textAlign = TextAlign.Center
-            )
-        }
-    }
-}

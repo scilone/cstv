@@ -385,23 +385,33 @@ fun HomeVodMovieCard(
     onClick: () -> Unit,
     rank: Int? = null,
     onLongClick: (() -> Unit)? = null,
-    isTv: Boolean = false
+    isTv: Boolean = false,
+    /**
+     * `true` en cellule de grille (`LazyVerticalGrid`) : la carte occupe toute
+     * la largeur imposée par `GridCells` et dérive sa hauteur du ratio 2:3.
+     * `false` (défaut) : dimensions fixes de rangée (130 × 195 dp), inchangées
+     * pour les sept appels existants de la Home (B18).
+     */
+    fillCell: Boolean = false,
+    /** Badge court en surimpression, coin haut-gauche de l'affiche (ex. « S01 E03 »). */
+    badgeLabel: String? = null
 ) {
     var isFocused by remember { mutableStateOf(false) }
 
     val rankWidth = if (rank == 10) 112.dp else 74.dp
     val cardWidth = if (rank == null) 130.dp else 130.dp + rankWidth - 30.dp
-    val posterModifier = Modifier
-        .width(130.dp)
-        .fillMaxHeight()
+    val sizeModifier = if (fillCell) {
+        Modifier.fillMaxWidth().aspectRatio(2f / 3f)
+    } else {
+        Modifier.width(cardWidth).height(195.dp) // standard 2:3 ratio
+    }
+    val posterModifier = (if (fillCell) Modifier.fillMaxSize() else Modifier.width(130.dp).fillMaxHeight())
         .tvFocusHighlight(isFocused, RoundedCornerShape(14.dp))
         .clip(RoundedCornerShape(14.dp))
         .background(Surface1)
 
     Box(
-        modifier = Modifier
-            .width(cardWidth)
-            .height(195.dp) // standard 2:3 ratio
+        modifier = sizeModifier
             .onFocusChanged { isFocused = it.isFocused }
             .historyItemActions(isTv, onClick, onLongClick),
         contentAlignment = Alignment.Center
@@ -440,6 +450,19 @@ fun HomeVodMovieCard(
                         Spacer(modifier = Modifier.width(2.dp))
                         Text(cleanRating, color = Color.White, fontSize = 8.sp, fontWeight = FontWeight.Bold)
                     }
+                }
+            }
+
+            if (!badgeLabel.isNullOrBlank()) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(6.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(Color(0xCC000000))
+                        .padding(horizontal = 4.dp, vertical = 2.dp)
+                ) {
+                    Text(badgeLabel, color = Color.White, fontSize = 8.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -507,23 +530,28 @@ fun HomeSeriesShowCard(
     onClick: () -> Unit,
     rank: Int? = null,
     onLongClick: (() -> Unit)? = null,
-    isTv: Boolean = false
+    isTv: Boolean = false,
+    /** Voir [HomeVodMovieCard] : `true` en cellule de grille (B18). */
+    fillCell: Boolean = false,
+    /** Badge court en surimpression, coin haut-gauche de l'affiche (ex. « S01 E03 »). */
+    badgeLabel: String? = null
 ) {
     var isFocused by remember { mutableStateOf(false) }
 
     val rankWidth = if (rank == 10) 112.dp else 74.dp
     val cardWidth = if (rank == null) 130.dp else 130.dp + rankWidth - 30.dp
-    val posterModifier = Modifier
-        .width(130.dp)
-        .fillMaxHeight()
+    val sizeModifier = if (fillCell) {
+        Modifier.fillMaxWidth().aspectRatio(2f / 3f)
+    } else {
+        Modifier.width(cardWidth).height(195.dp) // standard 2:3 ratio
+    }
+    val posterModifier = (if (fillCell) Modifier.fillMaxSize() else Modifier.width(130.dp).fillMaxHeight())
         .tvFocusHighlight(isFocused, RoundedCornerShape(14.dp))
         .clip(RoundedCornerShape(14.dp))
         .background(Surface1)
 
     Box(
-        modifier = Modifier
-            .width(cardWidth)
-            .height(195.dp) // standard 2:3 ratio
+        modifier = sizeModifier
             .onFocusChanged { isFocused = it.isFocused }
             .historyItemActions(isTv, onClick, onLongClick),
         contentAlignment = Alignment.Center
@@ -562,6 +590,19 @@ fun HomeSeriesShowCard(
                         Spacer(modifier = Modifier.width(2.dp))
                         Text(cleanRating, color = Color.White, fontSize = 8.sp, fontWeight = FontWeight.Bold)
                     }
+                }
+            }
+
+            if (!badgeLabel.isNullOrBlank()) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(6.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(Color(0xCC000000))
+                        .padding(horizontal = 4.dp, vertical = 2.dp)
+                ) {
+                    Text(badgeLabel, color = Color.White, fontSize = 8.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }

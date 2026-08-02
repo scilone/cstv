@@ -14,12 +14,13 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusState
 import androidx.compose.ui.focus.focusProperties
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -56,6 +57,17 @@ private class PivotCellCoordinates(
     var focusedChild: LayoutCoordinates? = null,
     var correctionJob: Job? = null
 )
+
+private class PivotItemCoordinates(
+    var focusedChild: LayoutCoordinates? = null,
+    var correctionJob: Job? = null
+)
+
+/**
+ * Rayon par défaut publié à la couche avant du focus (F23) : rayon unifié des
+ * cartes de rangée/grille depuis B18 (`HomeVodMovieCard`/`HomeSeriesShowCard`).
+ */
+private val TV_SELECTOR_DEFAULT_RADIUS = 14.dp
 
 /**
  * La carte active reste ancrée sur l'emplacement initial de la première
@@ -136,14 +148,50 @@ suspend fun LazyListState.animateScrollToPivot(
  * Non-op si `enabled = false`. S'applique en enveloppe autour de la carte
  * (`hasFocus`) : fonctionne que la carte expose ou non son propre paramètre
  * `modifier`, sans dépendre de sa structure interne.
+ *
+ * Publie sa géométrie stabilisée à la couche avant du focus (F23,
+ * [LocalTvFocusSelector]) une fois l'animation de défilement terminée — pas
+ * avant, sinon le cadre fixe hériterait de la position transitoire que F23
+ * supprime précisément. Utilise [TvFocusSelectorState.reportAxisStabilised]
+ * plutôt qu'une publication directe : la rangée porte aussi un `tvPivotSection`
+ * ancêtre qui se stabilise verticalement de façon indépendante pour la même
+ * acquisition de focus, et publier au premier axe stabilisé réintroduirait un
+ * saut (Review F23, Majeur R3). Utilise `onFocusedBoundsChanged` plutôt que
+ * `onGloballyPositioned`/`onFocusChanged` pour mesurer les bounds du
+ * descendant réellement focalisé plutôt que ceux du `Box` d'enveloppe
+ * (Review F23, Majeur R4) : un wrapper de carte « Top 10 » inclut le grand
+ * chiffre, plus large que le poster que l'ancien anneau entourait seul.
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun Modifier.tvPivotItem(enabled: Boolean, state: LazyListState, index: Int): Modifier {
+fun Modifier.tvPivotItem(
+    enabled: Boolean,
+    state: LazyListState,
+    index: Int,
+    selectorCornerRadius: Dp = TV_SELECTOR_DEFAULT_RADIUS
+): Modifier {
     if (!enabled) return this
     val scope = rememberCoroutineScope()
-    return this.onFocusChanged { focusState: FocusState ->
-        if (focusState.hasFocus) {
-            scope.launch { state.animateScrollToPivot(index, TV_PIVOT_HORIZONTAL, 0f) }
+    val selector = LocalTvFocusSelector.current
+    val coordinates = remember { PivotItemCoordinates() }
+    return this.onFocusedBoundsChanged { focusedCoordinates ->
+        if (focusedCoordinates == null) {
+            coordinates.focusedChild = null
+            coordinates.correctionJob?.cancel()
+            coordinates.correctionJob = null
+            return@onFocusedBoundsChanged
+        }
+        val targetChanged = coordinates.focusedChild !== focusedCoordinates
+        coordinates.focusedChild = focusedCoordinates
+        if (!targetChanged && coordinates.correctionJob?.isActive == true) {
+            return@onFocusedBoundsChanged
+        }
+        coordinates.correctionJob?.cancel()
+        coordinates.correctionJob = scope.launch {
+            state.animateScrollToPivot(index, TV_PIVOT_HORIZONTAL, 0f)
+            if (selector != null && focusedCoordinates.isAttached) {
+                selector.reportAxisStabilised(scope, focusedCoordinates, selectorCornerRadius)
+            }
         }
     }
 }
@@ -196,12 +244,21 @@ fun LazyListScope.tvPivotVerticalEndSpacer(enabled: Boolean) {
  * Pivot vertical strict (50 %, centre) sur une cellule d'une [LazyGridState].
  * Le callback de bounds reste actif après le focus initial afin de corriger un
  * éventuel `bringIntoView` tardif de Compose.
+ *
+ * Publie sa géométrie stabilisée à la couche avant du focus (F23) une fois la
+ * convergence verticale terminée.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun Modifier.tvPivotCell(enabled: Boolean, state: LazyGridState, index: Int): Modifier {
+fun Modifier.tvPivotCell(
+    enabled: Boolean,
+    state: LazyGridState,
+    index: Int,
+    selectorCornerRadius: Dp = TV_SELECTOR_DEFAULT_RADIUS
+): Modifier {
     if (!enabled) return this
     val scope = rememberCoroutineScope()
+    val selector = LocalTvFocusSelector.current
     val coordinates = remember { PivotCellCoordinates() }
     return this.onFocusedBoundsChanged { focusedCoordinates ->
         if (focusedCoordinates == null) {
@@ -217,10 +274,13 @@ fun Modifier.tvPivotCell(enabled: Boolean, state: LazyGridState, index: Int): Mo
         }
         coordinates.correctionJob?.cancel()
         coordinates.correctionJob = scope.launch {
-            state.convergeCellToVerticalPivot(
+            val stabilised = state.convergeCellToVerticalPivot(
                 index = index,
                 animatePrimaryCorrection = targetChanged
             )
+            if (stabilised) {
+                selector?.publishFrom(focusedCoordinates, selectorCornerRadius)
+            }
         }
     }
 }
@@ -233,12 +293,22 @@ fun Modifier.tvPivotCell(enabled: Boolean, state: LazyGridState, index: Int): Mo
  * les sections d'une `LazyColumn` conditionnelle (ex. Accueil) changent
  * d'index quand une section apparaît ou disparaît, la clé stable reste seule
  * fiable. Aucune cible trouvée pour la clé après [SECTION_KEY_RESOLUTION_TIMEOUT_MS] → no-op.
+ *
+ * Publie sa géométrie stabilisée à la couche avant du focus (F23) une fois la
+ * convergence verticale terminée, via [TvFocusSelectorState.reportAxisStabilised]
+ * (coordination avec l'axe horizontal de `tvPivotItem` — Review F23, Majeur R3).
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun Modifier.tvPivotSection(enabled: Boolean, state: LazyListState, key: Any): Modifier {
+fun Modifier.tvPivotSection(
+    enabled: Boolean,
+    state: LazyListState,
+    key: Any,
+    selectorCornerRadius: Dp = TV_SELECTOR_DEFAULT_RADIUS
+): Modifier {
     if (!enabled) return this
     val scope = rememberCoroutineScope()
+    val selector = LocalTvFocusSelector.current
     val coordinates = remember { PivotSectionCoordinates() }
     return this
         .onGloballyPositioned { coordinates.section = it }
@@ -259,22 +329,31 @@ fun Modifier.tvPivotSection(enabled: Boolean, state: LazyListState, key: Any): M
             }
             coordinates.correctionJob?.cancel()
             coordinates.correctionJob = scope.launch {
-                state.convergeSectionToVerticalPivot(
+                val stabilised = state.convergeSectionToVerticalPivot(
                     key = key,
                     section = section,
                     focusedChild = focusedCoordinates,
                     animatePrimaryCorrection = targetChanged
                 )
+                if (stabilised && selector != null && focusedCoordinates.isAttached) {
+                    selector.reportAxisStabilised(scope, focusedCoordinates, selectorCornerRadius)
+                }
             }
         }
 }
 
+/**
+ * @return `true` si la convergence a atteint le pivot (cible stabilisée),
+ * `false` si les [VERTICAL_PIVOT_MAX_PASSES] passes se sont épuisées sans
+ * jamais trouver l'item ou sans se stabiliser — dans ce cas F23 ne doit rien
+ * publier à la couche avant plutôt que d'y afficher une position transitoire.
+ */
 private suspend fun LazyListState.convergeSectionToVerticalPivot(
     key: Any,
     section: LayoutCoordinates,
     focusedChild: LayoutCoordinates,
     animatePrimaryCorrection: Boolean
-) {
+): Boolean {
     var stablePasses = 0
     var primaryCorrectionPending = animatePrimaryCorrection
     repeat(VERTICAL_PIVOT_MAX_PASSES) {
@@ -283,9 +362,9 @@ private suspend fun LazyListState.convergeSectionToVerticalPivot(
             val focusedOffset = try {
                 section.localPositionOf(focusedChild, Offset.Zero).y
             } catch (e: IllegalArgumentException) {
-                return
+                return false
             } catch (e: IllegalStateException) {
-                return
+                return false
             }
             val info = layoutInfo
             val delta = focusedChildPivotDelta(
@@ -297,7 +376,7 @@ private suspend fun LazyListState.convergeSectionToVerticalPivot(
             )
             if (abs(delta) <= VERTICAL_PIVOT_TOLERANCE_PX) {
                 stablePasses++
-                if (stablePasses >= VERTICAL_PIVOT_STABLE_PASSES) return
+                if (stablePasses >= VERTICAL_PIVOT_STABLE_PASSES) return true
             } else {
                 stablePasses = 0
                 if (primaryCorrectionPending) {
@@ -310,12 +389,14 @@ private suspend fun LazyListState.convergeSectionToVerticalPivot(
         }
         withFrameNanos { }
     }
+    return false
 }
 
+/** @return voir [convergeSectionToVerticalPivot]. */
 private suspend fun LazyGridState.convergeCellToVerticalPivot(
     index: Int,
     animatePrimaryCorrection: Boolean
-) {
+): Boolean {
     var stablePasses = 0
     var primaryCorrectionPending = animatePrimaryCorrection
     repeat(VERTICAL_PIVOT_MAX_PASSES) {
@@ -331,7 +412,7 @@ private suspend fun LazyGridState.convergeCellToVerticalPivot(
             )
             if (abs(delta) <= VERTICAL_PIVOT_TOLERANCE_PX) {
                 stablePasses++
-                if (stablePasses >= VERTICAL_PIVOT_STABLE_PASSES) return
+                if (stablePasses >= VERTICAL_PIVOT_STABLE_PASSES) return true
             } else {
                 stablePasses = 0
                 if (primaryCorrectionPending) {
@@ -344,6 +425,7 @@ private suspend fun LazyGridState.convergeCellToVerticalPivot(
         }
         withFrameNanos { }
     }
+    return false
 }
 
 /**
