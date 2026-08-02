@@ -19,12 +19,12 @@ class EpisodeLabelTest {
 
     @Test
     fun format_padsSingleDigitSeasonAndEpisode() {
-        assertEquals("S01 E03", EpisodeLabel.format(1, 3))
+        assertEquals("S01E03", EpisodeLabel.format(1, 3))
     }
 
     @Test
     fun format_keepsNumbersAboveNinetyNineIntact() {
-        assertEquals("S10 E128", EpisodeLabel.format(10, 128))
+        assertEquals("S10E128", EpisodeLabel.format(10, 128))
     }
 
     @Test
@@ -57,7 +57,7 @@ class EpisodeLabelTest {
 
         val labels = EpisodeLabel.buildResumeLabels(positions) { it.seriesId ?: it.streamId }
 
-        assertEquals(mapOf(42 to "S01 E03"), labels)
+        assertEquals(mapOf(42 to "S01E03"), labels)
     }
 
     @Test
@@ -90,7 +90,7 @@ class EpisodeLabelTest {
 
         val labels = EpisodeLabel.buildResumeLabels(positions) { it.seriesId ?: it.streamId }
 
-        assertEquals(mapOf(10 to "S01 E01", 30 to "S04 E12"), labels)
+        assertEquals(mapOf(10 to "S01E01", 30 to "S04E12"), labels)
     }
 
     @Test
@@ -101,6 +101,6 @@ class EpisodeLabelTest {
 
         val labels = EpisodeLabel.buildResumeLabels(positions) { it.seriesId ?: it.streamId }
 
-        assertEquals(mapOf(99 to "S01 E02"), labels)
+        assertEquals(mapOf(99 to "S01E02"), labels)
     }
 }

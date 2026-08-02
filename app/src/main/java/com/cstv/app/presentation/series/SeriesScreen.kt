@@ -261,7 +261,7 @@ private fun TvLayout(
             )
         }
     }
-    // Badge "S01 E03" en surimpression sur la rangée "Reprendre" (B18) : seule
+    // Badge "S01E03" en surimpression sur la rangée "Reprendre" (B18) : seule
     // information perdue par le retrait du titre, pour un épisode en cours.
     val resumeLabels = remember(state.resumeSeries) {
         EpisodeLabel.buildResumeLabels(state.resumeSeries) { it.seriesId ?: it.streamId }
@@ -584,7 +584,7 @@ private fun MobileLayout(
             )
         }
     }
-    // Badge "S01 E03" en surimpression sur la rangée "Reprendre" (B18) : seule
+    // Badge "S01E03" en surimpression sur la rangée "Reprendre" (B18) : seule
     // information perdue par le retrait du titre, pour un épisode en cours.
     val resumeLabels = remember(state.resumeSeries) {
         EpisodeLabel.buildResumeLabels(state.resumeSeries) { it.seriesId ?: it.streamId }
@@ -766,7 +766,7 @@ private fun CategorySectionRow(
     sectionListState: LazyListState,
     onSeeAll: (() -> Unit)? = null,
     onLongClick: ((SeriesStream) -> Unit)? = null,
-    /** Badge court en surimpression (ex. « S01 E03 »), réservé à la rangée « Reprendre » (B18). */
+    /** Badge court en surimpression (ex. « S01E03 »), réservé à la rangée « Reprendre » (B18). */
     badgeFor: ((SeriesStream) -> String?)? = null,
     initialFocusState: com.cstv.app.presentation.components.TvInitialFocusState? = null,
     isInitialTarget: Boolean = false

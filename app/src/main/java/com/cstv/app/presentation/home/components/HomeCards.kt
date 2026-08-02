@@ -59,7 +59,7 @@ fun HomeResumeWatchingCard(
         position.positionMs.toFloat() / position.durationMs.toFloat()
     } else 0f
 
-    // Phase 55 : ligne meta = "S01 E03 · {temps restant}" en accent, sous le titre.
+    // Phase 55 : ligne meta = "S01E03 · {temps restant}" en accent, sous le titre.
     val metaText = buildString {
         if (position.type == "series") {
             EpisodeLabel.format(position.seasonNum, position.episodeNum)?.let { append(it) }
@@ -393,7 +393,7 @@ fun HomeVodMovieCard(
      * pour les sept appels existants de la Home (B18).
      */
     fillCell: Boolean = false,
-    /** Badge court en surimpression, coin haut-gauche de l'affiche (ex. « S01 E03 »). */
+    /** Badge court en surimpression, coin haut-gauche de l'affiche (ex. « S01E03 »). */
     badgeLabel: String? = null
 ) {
     var isFocused by remember { mutableStateOf(false) }
@@ -535,7 +535,7 @@ fun HomeSeriesShowCard(
     isTv: Boolean = false,
     /** Voir [HomeVodMovieCard] : `true` en cellule de grille (B18). */
     fillCell: Boolean = false,
-    /** Badge court en surimpression, coin haut-gauche de l'affiche (ex. « S01 E03 »). */
+    /** Badge court en surimpression, coin haut-gauche de l'affiche (ex. « S01E03 »). */
     badgeLabel: String? = null
 ) {
     var isFocused by remember { mutableStateOf(false) }

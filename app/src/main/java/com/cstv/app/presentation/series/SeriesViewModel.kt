@@ -460,7 +460,7 @@ class SeriesViewModel @Inject constructor(
         seriesId: Int? = null
     ) {
         viewModelScope.launch {
-            // Format the title as: Series Name - S01 E03 Episode Title
+            // Format the title as: Series Name - S01E03 Episode Title
             val episodeLabel = com.cstv.app.domain.model.EpisodeLabel
                 .format(episode.seasonNum, episode.episodeNum)
                 ?.plus(" ")

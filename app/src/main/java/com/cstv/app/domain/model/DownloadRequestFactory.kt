@@ -43,7 +43,7 @@ object DownloadRequestFactory {
         seriesId = seriesId,
         seasonNum = episode.seasonNum,
         episodeNum = episode.episodeNum,
-        title = "$seriesTitle — S${episode.seasonNum}E${episode.episodeNum}",
+        title = "$seriesTitle — ${EpisodeLabel.format(episode.seasonNum, episode.episodeNum)}",
         subtitle = episode.title,
         coverUrl = cover,
         containerExtension = episode.containerExtension

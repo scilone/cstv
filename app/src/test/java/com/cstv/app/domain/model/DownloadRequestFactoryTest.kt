@@ -67,8 +67,8 @@ class DownloadRequestFactoryTest {
         assertEquals(99, data.seriesId)
         assertEquals(2, data.seasonNum)
         assertEquals(3, data.episodeNum)
-        // Titre = "Série — SxEy", sous-titre = nom d'épisode.
-        assertEquals("Friends — S2E3", data.title)
+        // Titre = « Série — SxxExx », sous-titre = nom d'épisode.
+        assertEquals("Friends — S02E03", data.title)
         assertEquals("The One With The Test", data.subtitle)
         assertEquals("s.jpg", data.coverUrl)
         assertEquals("mp4", data.containerExtension)
