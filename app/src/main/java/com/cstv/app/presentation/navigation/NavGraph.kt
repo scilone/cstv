@@ -134,7 +134,11 @@ private fun MediaDetailsErrorState(
 private fun rememberTabViewModelOwner(
     navController: NavHostController,
     tabEntry: NavBackStackEntry
-): ViewModelStoreOwner = remember(tabEntry) { navController.getBackStackEntry(MobileNavigation.ROOT_ROUTE) }
+): ViewModelStoreOwner = remember(tabEntry) {
+    // Invariant des onglets mobile : `home` est l'entrée racine conservée par
+    // navigateToRootTab(), donc elle est toujours présente ici.
+    navController.getBackStackEntry(MobileNavigation.ROOT_ROUTE)
+}
 
 /**
  * Déclare une route dont le contenu commence sous la barre d'état.
@@ -246,8 +250,15 @@ fun AppNavGraph(
                 onNavigateToSeries = {
                     navController.navigateToRootTab("series")
                 },
-                onNavigateToRecentlyAdded = { isSeries ->
-                    navController.navigate("recently_added/$isSeries")
+                onNavigateToVodCategory = { category ->
+                    navController.getBackStackEntry(MobileNavigation.ROOT_ROUTE)
+                        .savedStateHandle[MobileNavigation.PENDING_VOD_CATEGORY] = category.categoryId
+                    navController.navigateToRootTab("movies")
+                },
+                onNavigateToSeriesCategory = { category ->
+                    navController.getBackStackEntry(MobileNavigation.ROOT_ROUTE)
+                        .savedStateHandle[MobileNavigation.PENDING_SERIES_CATEGORY] = category.categoryId
+                    navController.navigateToRootTab("series")
                 },
                 onNavigateToFavorites = {
                     navController.navigate("favorites")
@@ -372,6 +383,20 @@ fun AppNavGraph(
         }
         composableBelowStatusBar("movies", topInset) { tabEntry ->
             val vodViewModel: VodViewModel = hiltViewModel(rememberTabViewModelOwner(navController, tabEntry))
+            val vodState by vodViewModel.state.collectAsStateWithLifecycle()
+            // Même invariant que rememberTabViewModelOwner : Home est la racine
+            // du graphe d'onglets mobile lorsqu'une catégorie est transmise.
+            val rootEntry = remember(tabEntry) { navController.getBackStackEntry(MobileNavigation.ROOT_ROUTE) }
+            val pendingCategory by rootEntry.savedStateHandle
+                .getStateFlow<String?>(MobileNavigation.PENDING_VOD_CATEGORY, null)
+                .collectAsStateWithLifecycle()
+            LaunchedEffect(pendingCategory, vodState.categories) {
+                pendingCategory?.let { categoryId ->
+                    if (vodViewModel.selectCategoryById(categoryId)) {
+                        rootEntry.savedStateHandle[MobileNavigation.PENDING_VOD_CATEGORY] = null
+                    }
+                }
+            }
             VodScreen(
                 viewModel = vodViewModel,
                 isTv = isTv,
@@ -385,6 +410,20 @@ fun AppNavGraph(
         }
         composableBelowStatusBar("series", topInset) { tabEntry ->
             val seriesViewModel: SeriesViewModel = hiltViewModel(rememberTabViewModelOwner(navController, tabEntry))
+            val seriesState by seriesViewModel.state.collectAsStateWithLifecycle()
+            // Même invariant que rememberTabViewModelOwner : Home est la racine
+            // du graphe d'onglets mobile lorsqu'une catégorie est transmise.
+            val rootEntry = remember(tabEntry) { navController.getBackStackEntry(MobileNavigation.ROOT_ROUTE) }
+            val pendingCategory by rootEntry.savedStateHandle
+                .getStateFlow<String?>(MobileNavigation.PENDING_SERIES_CATEGORY, null)
+                .collectAsStateWithLifecycle()
+            LaunchedEffect(pendingCategory, seriesState.categories) {
+                pendingCategory?.let { categoryId ->
+                    if (seriesViewModel.selectCategoryById(categoryId)) {
+                        rootEntry.savedStateHandle[MobileNavigation.PENDING_SERIES_CATEGORY] = null
+                    }
+                }
+            }
             SeriesScreen(
                 viewModel = seriesViewModel,
                 isTv = isTv,
