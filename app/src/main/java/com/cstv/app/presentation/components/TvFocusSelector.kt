@@ -98,6 +98,11 @@ class TvFocusSelectorState {
         settleJob = null
         isVisible = false
     }
+
+    /** Réaffiche le dernier cadre stable quand le focus revient dans la liste. */
+    fun show() {
+        if (target != null) isVisible = true
+    }
 }
 
 /** Fourni par les écrans catalogue TV ; `null` hors TV ou quand la couche avant est inactive. */

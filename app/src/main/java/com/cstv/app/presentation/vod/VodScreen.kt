@@ -334,7 +334,7 @@ private fun TvLayout(
                 label = stringResource(R.string.vod_category_selector_label, (state.selectedCategory?.categoryName ?: "Tout").uppercase()),
                 onClick = { showCategoryPicker = true },
                 modifier = Modifier
-                    .weight(0.45f)
+                    .weight(1f)
                     .focusRequester(categoryTriggerFocusRequester)
             )
             if (isSpecificCategory) {
@@ -434,7 +434,9 @@ private fun TvLayout(
                 state = listState,
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 modifier = Modifier.fillMaxSize()
-                    .onFocusChanged { if (!it.hasFocus) tvFocusSelector.clear() }
+                    .onFocusChanged {
+                        if (it.hasFocus) tvFocusSelector.show() else tvFocusSelector.clear()
+                    }
             ) {
                 tvPivotVerticalStartSpacer(true)
                 if (resumeMoviesStreams.isNotEmpty()) {
@@ -527,20 +529,30 @@ private fun TvLayout(
             } else {
                 val gridState = rememberForeverLazyGridState("vod_tv_cat_" + (state.selectedCategory?.categoryId ?: "0"), getScroll, saveScroll)
                 CompositionLocalProvider(LocalTvFocusSelector provides tvFocusSelector) {
+                BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                    // `Adaptive` répartit le reliquat de largeur dans les cellules :
+                    // des affiches fixes semblent alors plus espacées qu'en rangée.
+                    // La largeur calculée garde des cellules de 130 dp exactes et
+                    // le même écart visible de 12 dp que le mode « Tout ».
+                    val horizontalPadding = 24.dp
+                    val cardWidth = 130.dp
+                    val gridGap = 12.dp
+                    val availableWidth = (maxWidth - horizontalPadding).coerceAtLeast(cardWidth)
+                    val columns = ((availableWidth + gridGap) / (cardWidth + gridGap)).toInt().coerceAtLeast(1)
+                    val gridWidth = horizontalPadding + cardWidth * columns + gridGap * (columns - 1)
                 LazyVerticalGrid(
                     state = gridState,
-                    // Même vignette 130 × 195 dp que les rangées « Tout » :
-                    // les colonnes s'adaptent à l'écran sans étirer l'affiche.
-                    columns = GridCells.Adaptive(minSize = 130.dp),
-                    // Même respiration compacte que les rangées du mode « Tout ».
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    columns = GridCells.Fixed(columns),
+                    horizontalArrangement = Arrangement.spacedBy(gridGap),
+                    verticalArrangement = Arrangement.spacedBy(gridGap),
                     contentPadding = PaddingValues(
                         horizontal = 12.dp,
                         vertical = LocalConfiguration.current.screenHeightDp.dp / 2
                     ),
-                    modifier = Modifier.fillMaxSize().focusGroup()
-                        .onFocusChanged { if (!it.hasFocus) tvFocusSelector.clear() }
+                    modifier = Modifier.width(gridWidth).fillMaxHeight().focusGroup()
+                        .onFocusChanged {
+                            if (it.hasFocus) tvFocusSelector.show() else tvFocusSelector.clear()
+                        }
                 ) {
                     items(pagedStreams.itemCount) { index ->
                         val stream = pagedStreams[index]
@@ -563,6 +575,7 @@ private fun TvLayout(
                             }
                         }
                     }
+                }
                 }
                 }
             }
