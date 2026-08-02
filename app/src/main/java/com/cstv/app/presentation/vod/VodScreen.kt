@@ -33,9 +33,11 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -213,9 +215,9 @@ fun VodScreen(
  * Plafond d'une rangée horizontale du mode « Tout ». Au-delà, la LazyRow
  * retient des milliers d'éléments dont aucun ne sera atteint au D-pad : la
  * grille de la catégorie ("Voir tout" / puce de catégorie) reste le chemin
- * exhaustif (T10).
+ * exhaustif (T10). Modifié de 250 à 100 avec une vignette "Voir tout" (101e).
  */
-private const val CATEGORY_ROW_MAX_ITEMS = 250
+private const val CATEGORY_ROW_MAX_ITEMS = 100
 
 @Composable
 private fun TvLayout(
@@ -252,7 +254,6 @@ private fun TvLayout(
     val groupedStreams = remember(filteredStreams) {
         filteredStreams
             .groupBy { it.categoryId }
-            .mapValues { (_, streams) -> streams.take(CATEGORY_ROW_MAX_ITEMS) }
     }
     val actualCategories = remember(state.categories) {
         state.categories.filter { it.categoryId != "all" }
@@ -491,8 +492,9 @@ private fun TvLayout(
                             isTv = true,
                             getScroll = getScroll,
                             saveScroll = saveScroll,
-                            sectionListState = listState
-                            ,restoredFocusState = restoredFocus
+                            sectionListState = listState,
+                            onSeeAll = { onCategorySelected(category) },
+                            restoredFocusState = restoredFocus
                             ,restoredCategoryId = lastFocusedCategoryId
                             ,restoredStreamId = lastFocusedStreamId
                             ,onMediaFocused = onMediaFocused
@@ -602,7 +604,6 @@ private fun MobileLayout(
     val groupedStreams = remember(filteredStreams) {
         filteredStreams
             .groupBy { it.categoryId }
-            .mapValues { (_, streams) -> streams.take(CATEGORY_ROW_MAX_ITEMS) }
     }
     val actualCategories = remember(state.categories) {
         state.categories.filter { it.categoryId != "all" }
@@ -851,13 +852,15 @@ private fun CategorySectionRow(
         }
 
         val rowState = rememberRowScrollState(isTv, "vod_row_${categoryId}", getScroll, saveScroll)
+        val displayList = remember(movies) { movies.take(CATEGORY_ROW_MAX_ITEMS) }
+        val showSeeAllCard = onSeeAll != null && movies.size > CATEGORY_ROW_MAX_ITEMS
         LazyRow(
             state = rowState,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             contentPadding = PaddingValues(horizontal = 12.dp),
             modifier = Modifier.fillMaxWidth().focusGroup()
         ) {
-            itemsIndexed(movies) { index, stream ->
+            itemsIndexed(displayList) { index, stream ->
                 val isRestoredTarget = categoryId == restoredCategoryId && stream.streamId == restoredStreamId
                 val focusState = if (isRestoredTarget) restoredFocusState else initialFocusState
                 Box(modifier = Modifier.tvPivotItem(isTv, rowState, index)
@@ -872,7 +875,64 @@ private fun CategorySectionRow(
                     )
                 }
             }
+            if (showSeeAllCard) {
+                item(key = "see_all_card") {
+                    Box(modifier = Modifier.tvPivotItem(isTv, rowState, CATEGORY_ROW_MAX_ITEMS)) {
+                        SeeAllCard(
+                            onClick = { onSeeAll?.invoke() }
+                        )
+                    }
+                }
+            }
             tvPivotHorizontalEndSpacer(isTv)
+        }
+    }
+}
+
+@Composable
+private fun SeeAllCard(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var isFocused by remember { mutableStateOf(false) }
+
+    val shape = RoundedCornerShape(14.dp)
+
+    Box(
+        modifier = modifier
+            .width(130.dp)
+            .height(195.dp)
+            .onFocusChanged { isFocused = it.isFocused }
+            .tvFocusHighlight(isFocused, shape)
+            .clip(shape)
+            .background(Surface3)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = androidx.compose.material.ripple.rememberRipple(bounded = true),
+                onClick = onClick
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+            modifier = Modifier.padding(12.dp)
+        ) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                contentDescription = null,
+                tint = AccentLavande,
+                modifier = Modifier.size(32.dp)
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = "VOIR TOUT",
+                color = Color.White,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                fontFamily = HankenGrotesk,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
         }
     }
 }
