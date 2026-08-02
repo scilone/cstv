@@ -526,10 +526,13 @@ private fun TvLayout(
                 CompositionLocalProvider(LocalTvFocusSelector provides tvFocusSelector) {
                 LazyVerticalGrid(
                     state = gridState,
-                    columns = GridCells.Fixed(4),
+                    // Même vignette 130 × 195 dp que les rangées « Tout » :
+                    // les colonnes s'adaptent à l'écran sans étirer l'affiche.
+                    columns = GridCells.Adaptive(minSize = 130.dp),
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                     contentPadding = PaddingValues(
+                        horizontal = 12.dp,
                         vertical = LocalConfiguration.current.screenHeightDp.dp / 2
                     ),
                     modifier = Modifier.fillMaxSize().focusGroup()
@@ -544,16 +547,13 @@ private fun TvLayout(
                                         if (lastFocusedCategoryId == state.selectedCategory?.categoryId && lastFocusedSeriesId == stream.seriesId) restoredFocus else initialFocus,
                                         (lastFocusedCategoryId == state.selectedCategory?.categoryId && lastFocusedSeriesId == stream.seriesId) || (index == 0 && initialTarget == CatalogFocusTarget.GRID_FIRST_CELL)
                                     ),
-                                // Cf. VodScreen.kt : Box relâche la contrainte min par
-                                // défaut, ce qui laisserait la carte rétrécir dans la
-                                // cellule (Review F19, Majeur #1).
-                                propagateMinConstraints = true
+                                contentAlignment = Alignment.Center
                             ) {
                                 HomeSeriesShowCard(
                                     stream = stream,
                                     onClick = { onSeriesSelected(stream) },
                                     isTv = true,
-                                    fillCell = true,
+                                    fillCell = false,
                                     modifier = Modifier.onFocusChanged { if (it.isFocused) onMediaFocused(state.selectedCategory?.categoryId.orEmpty(), stream.seriesId) }
                                 )
                             }

@@ -529,10 +529,13 @@ private fun TvLayout(
                 CompositionLocalProvider(LocalTvFocusSelector provides tvFocusSelector) {
                 LazyVerticalGrid(
                     state = gridState,
-                    columns = GridCells.Fixed(4),
+                    // Même vignette 130 × 195 dp que les rangées « Tout » :
+                    // les colonnes s'adaptent à l'écran sans étirer l'affiche.
+                    columns = GridCells.Adaptive(minSize = 130.dp),
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                     contentPadding = PaddingValues(
+                        horizontal = 12.dp,
                         vertical = LocalConfiguration.current.screenHeightDp.dp / 2
                     ),
                     modifier = Modifier.fillMaxSize().focusGroup()
@@ -547,17 +550,13 @@ private fun TvLayout(
                                         if (lastFocusedCategoryId == state.selectedCategory?.categoryId && lastFocusedStreamId == stream.streamId) restoredFocus else initialFocus,
                                         (lastFocusedCategoryId == state.selectedCategory?.categoryId && lastFocusedStreamId == stream.streamId) || (index == 0 && initialTarget == CatalogFocusTarget.GRID_FIRST_CELL)
                                     ),
-                                // GridCells.Fixed mesure chaque cellule avec une largeur
-                                // exacte (min = max) ; Box relâche par défaut la contrainte
-                                // min pour ses enfants, ce qui laisserait la carte rétrécir
-                                // au lieu d'occuper toute la cellule (Review F19, Majeur #1).
-                                propagateMinConstraints = true
+                                contentAlignment = Alignment.Center
                             ) {
                                 HomeVodMovieCard(
                                     stream = stream,
                                     onClick = { onMovieSelected(stream) },
                                     isTv = true,
-                                    fillCell = true,
+                                    fillCell = false,
                                     modifier = Modifier.onFocusChanged { if (it.isFocused) onMediaFocused(state.selectedCategory?.categoryId.orEmpty(), stream.streamId) }
                                 )
                             }
