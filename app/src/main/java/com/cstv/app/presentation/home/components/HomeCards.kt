@@ -394,7 +394,8 @@ fun HomeVodMovieCard(
      */
     fillCell: Boolean = false,
     /** Badge court en surimpression, coin haut-gauche de l'affiche (ex. « S01E03 »). */
-    badgeLabel: String? = null
+    badgeLabel: String? = null,
+    modifier: Modifier = Modifier
 ) {
     var isFocused by remember { mutableStateOf(false) }
 
@@ -405,7 +406,7 @@ fun HomeVodMovieCard(
     } else {
         Modifier.width(cardWidth).height(195.dp) // standard 2:3 ratio
     }
-    val posterModifier = (if (fillCell) Modifier.fillMaxSize() else Modifier.width(130.dp).fillMaxHeight())
+    val posterModifier = modifier.then(if (fillCell) Modifier.fillMaxSize() else Modifier.width(130.dp).fillMaxHeight())
         .onFocusChanged { isFocused = it.isFocused }
         .tvFocusHighlight(isFocused, RoundedCornerShape(14.dp))
         .clip(RoundedCornerShape(14.dp))
@@ -536,7 +537,8 @@ fun HomeSeriesShowCard(
     /** Voir [HomeVodMovieCard] : `true` en cellule de grille (B18). */
     fillCell: Boolean = false,
     /** Badge court en surimpression, coin haut-gauche de l'affiche (ex. « S01E03 »). */
-    badgeLabel: String? = null
+    badgeLabel: String? = null,
+    modifier: Modifier = Modifier
 ) {
     var isFocused by remember { mutableStateOf(false) }
 
@@ -547,7 +549,7 @@ fun HomeSeriesShowCard(
     } else {
         Modifier.width(cardWidth).height(195.dp) // standard 2:3 ratio
     }
-    val posterModifier = (if (fillCell) Modifier.fillMaxSize() else Modifier.width(130.dp).fillMaxHeight())
+    val posterModifier = modifier.then(if (fillCell) Modifier.fillMaxSize() else Modifier.width(130.dp).fillMaxHeight())
         .onFocusChanged { isFocused = it.isFocused }
         .tvFocusHighlight(isFocused, RoundedCornerShape(14.dp))
         .clip(RoundedCornerShape(14.dp))
