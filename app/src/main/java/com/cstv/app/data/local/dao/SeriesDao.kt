@@ -42,6 +42,9 @@ interface SeriesDao {
     @Query("SELECT categoryId, COUNT(*) AS count FROM series_streams GROUP BY categoryId")
     suspend fun getCategoryCounts(): List<CategoryCount>
 
+    @Query("SELECT EXISTS(SELECT 1 FROM series_streams)")
+    suspend fun hasStreams(): Boolean
+
     @Query("SELECT * FROM series_streams WHERE categoryId = :categoryId ORDER BY orderIndex ASC")
     suspend fun getStreamsByCategory(categoryId: String): List<SeriesStreamEntity>
 
@@ -111,6 +114,9 @@ interface SeriesDao {
 
     @Query("SELECT * FROM series_streams WHERE seriesId = :seriesId LIMIT 1")
     suspend fun getStreamById(seriesId: Int): SeriesStreamEntity?
+
+    @Query("SELECT categoryId FROM series_streams WHERE seriesId = :seriesId LIMIT 1")
+    suspend fun getCategoryIdForSeries(seriesId: Int): String?
 
     // --- Saisons et épisodes (T4 : fiche série hors ligne) ---
     // Peuplés à la consultation d'une fiche en ligne, jamais par balayage.

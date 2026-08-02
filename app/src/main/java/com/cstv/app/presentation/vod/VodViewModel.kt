@@ -240,6 +240,13 @@ class VodViewModel @Inject constructor(
         observeStreams(category.categoryId)
     }
 
+    /** Returns true only when the category has been applied to the current state. */
+    fun selectCategoryById(categoryId: String): Boolean {
+        val category = _state.value.categories.firstOrNull { it.categoryId == categoryId } ?: return false
+        selectCategory(category)
+        return true
+    }
+
     private fun observeStreams(categoryId: String) {
         if (observedCategoryId == categoryId && streamsJob?.isActive == true) return
         observedCategoryId = categoryId

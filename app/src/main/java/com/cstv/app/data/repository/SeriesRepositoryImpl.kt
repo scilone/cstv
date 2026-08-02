@@ -9,7 +9,6 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import com.cstv.app.data.local.dao.SeriesDao
 import com.cstv.app.data.local.dao.VodDao
-import com.cstv.app.data.local.entity.PlaybackPositionEntity
 import com.cstv.app.data.local.entity.SeriesCategoryEntity
 import com.cstv.app.data.local.entity.SeriesStreamEntity
 import com.cstv.app.data.local.storage.CredentialsManager
@@ -345,6 +344,8 @@ class SeriesRepositoryImpl @Inject constructor(
         return seriesDao.getCategoryCounts().associate { it.categoryId to it.count }
     }
 
+    override suspend fun hasCachedSeriesStreams(): Boolean = seriesDao.hasStreams()
+
     override suspend fun getReleaseYearBounds(): Pair<Int, Int>? {
         val min = seriesDao.getMinReleaseYear() ?: return null
         val max = seriesDao.getMaxReleaseYear() ?: return null
@@ -616,26 +617,6 @@ class SeriesRepositoryImpl @Inject constructor(
         }
 
         seriesDao.replaceSeriesDetail(seriesId, seasonEntities, episodeEntities)
-    }
-
-    override suspend fun savePlaybackPosition(episodeStreamId: Int, positionMs: Long, durationMs: Long) {
-        val entity = PlaybackPositionEntity(
-            streamId = episodeStreamId,
-            profileId = profileManager.currentProfileId(),
-            positionMs = positionMs,
-            durationMs = durationMs,
-            lastAccessedAt = System.currentTimeMillis()
-        )
-        vodDao.savePlaybackPosition(entity)
-    }
-
-    override suspend fun getPlaybackPosition(episodeStreamId: Int): Pair<Long, Long>? {
-        val entity = vodDao.getPlaybackPosition(episodeStreamId, profileManager.currentProfileId()) ?: return null
-        return Pair(entity.positionMs, entity.durationMs)
-    }
-
-    override suspend fun clearPlaybackPosition(episodeStreamId: Int) {
-        vodDao.deletePlaybackPosition(episodeStreamId, profileManager.currentProfileId())
     }
 
     override suspend fun getStreamById(seriesId: Int): SeriesStream? {

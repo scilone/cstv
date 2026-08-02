@@ -41,6 +41,9 @@ interface VodDao {
     @Query("SELECT categoryId, COUNT(*) AS count FROM vod_streams GROUP BY categoryId")
     suspend fun getCategoryCounts(): List<CategoryCount>
 
+    @Query("SELECT EXISTS(SELECT 1 FROM vod_streams)")
+    suspend fun hasStreams(): Boolean
+
     @Query("SELECT * FROM vod_streams WHERE categoryId = :categoryId ORDER BY orderIndex ASC")
     suspend fun getStreamsByCategory(categoryId: String): List<VodStreamEntity>
 
@@ -76,6 +79,9 @@ interface VodDao {
 
     @Query("SELECT * FROM vod_streams WHERE streamId = :streamId LIMIT 1")
     suspend fun getStreamById(streamId: Int): VodStreamEntity?
+
+    @Query("SELECT categoryId FROM vod_streams WHERE streamId = :streamId LIMIT 1")
+    suspend fun getCategoryIdForStream(streamId: Int): String?
 
     @Query("DELETE FROM vod_streams WHERE categoryId = :categoryId")
     suspend fun clearStreamsByCategory(categoryId: String)

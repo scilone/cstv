@@ -29,10 +29,6 @@ interface SeriesRepository {
      * ([SeriesDetails.isMetadataIncomplete]) si le panel échoue.
      */
     suspend fun getSeriesDetails(seriesId: Int): SeriesDetails
-    suspend fun savePlaybackPosition(episodeStreamId: Int, positionMs: Long, durationMs: Long)
-    suspend fun getPlaybackPosition(episodeStreamId: Int): Pair<Long, Long>?
-    suspend fun clearPlaybackPosition(episodeStreamId: Int)
-
     /**
      * Enrichit (acteurs/réalisateur/genre) les séries qui en manquent encore,
      * par lots successifs jusqu'à [maxBatches] ou jusqu'à ce que le catalogue
@@ -51,6 +47,9 @@ interface SeriesRepository {
 
     /** Nombre de séries par categoryId, basé sur le cache local (sélecteur de catégorie). */
     suspend fun getCategoryCounts(): Map<String, Int>
+
+    /** True when the local Series catalog has at least one stream. */
+    suspend fun hasCachedSeriesStreams(): Boolean
 
     /**
      * Bornes (année min, année max) des séries dont l'année de sortie est

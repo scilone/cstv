@@ -100,6 +100,10 @@ class VodViewModelTest {
         val state = viewModel.state.value
         assertEquals(1, state.resumeMovies.size)
         assertEquals(101, state.resumeMovies[0].streamId)
+        assertTrue(viewModel.selectCategoryById("all"))
+        assertEquals("all", viewModel.state.value.selectedCategory?.categoryId)
+        assertFalse(viewModel.selectCategoryById("unknown"))
+        assertEquals("all", viewModel.state.value.selectedCategory?.categoryId)
     }
 
     @Test

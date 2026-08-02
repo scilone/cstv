@@ -42,7 +42,8 @@ interface VodRepository {
         seasonNum: Int? = null,
         plot: String? = null,
         duration: String? = null,
-        releaseDate: String? = null
+        releaseDate: String? = null,
+        categoryId: String? = null
     )
     suspend fun getPlaybackPosition(streamId: Int): Pair<Long, Long>?
     suspend fun clearPlaybackPosition(streamId: Int)
@@ -53,6 +54,9 @@ interface VodRepository {
 
     /** Nombre de films par categoryId, basé sur le cache local (sélecteur de catégorie). */
     suspend fun getCategoryCounts(): Map<String, Int>
+
+    /** True when the local VOD catalog has at least one stream. */
+    suspend fun hasCachedVodStreams(): Boolean
 
     /**
      * Bornes (année min, année max) des films dont l'année de sortie est

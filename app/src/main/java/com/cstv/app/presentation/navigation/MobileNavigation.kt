@@ -8,6 +8,8 @@ object MobileNavigation {
      * graph may start at login, which would otherwise be removed from the stack.
      */
     const val ROOT_ROUTE = "home"
+    const val PENDING_VOD_CATEGORY = "pending_vod_category"
+    const val PENDING_SERIES_CATEGORY = "pending_series_category"
 
     private val DETAIL_ROUTE_TO_TAB = mapOf(
         "vod_details" to "movies",

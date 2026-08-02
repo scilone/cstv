@@ -468,4 +468,26 @@ val MIGRATION_21_22 = object : Migration(21, 22) {
     }
 }
 
-val ALL_MIGRATIONS = arrayOf(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22)
+/**
+ * MIGRATION_22_23 (T9) : mémorise la catégorie d'une reprise pour que
+ * l'Accueil puisse respecter les catégories masquées sans relire les deux
+ * catalogues complets. La colonne est additive et le backfill s'exécute une
+ * seule fois sur les positions existantes.
+ */
+val MIGRATION_22_23 = object : Migration(22, 23) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE playback_positions ADD COLUMN categoryId TEXT")
+        db.execSQL(
+            "UPDATE playback_positions SET categoryId = (" +
+                "SELECT v.categoryId FROM vod_streams v WHERE v.streamId = playback_positions.streamId" +
+            ") WHERE seriesId IS NULL"
+        )
+        db.execSQL(
+            "UPDATE playback_positions SET categoryId = (" +
+                "SELECT s.categoryId FROM series_streams s WHERE s.seriesId = playback_positions.seriesId" +
+            ") WHERE seriesId IS NOT NULL"
+        )
+    }
+}
+
+val ALL_MIGRATIONS = arrayOf(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23)

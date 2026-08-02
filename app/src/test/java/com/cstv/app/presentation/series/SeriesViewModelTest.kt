@@ -102,6 +102,10 @@ class SeriesViewModelTest {
         val state = viewModel.state.value
         assertEquals(1, state.resumeSeries.size)
         assertEquals(1001, state.resumeSeries[0].seriesId)
+        assertTrue(viewModel.selectCategoryById("all"))
+        assertEquals("all", viewModel.state.value.selectedCategory?.categoryId)
+        assertFalse(viewModel.selectCategoryById("unknown"))
+        assertEquals("all", viewModel.state.value.selectedCategory?.categoryId)
     }
 
     @Test

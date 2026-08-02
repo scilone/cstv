@@ -4,6 +4,7 @@ import androidx.paging.Pager
 import androidx.paging.PagingConfig
 import androidx.paging.PagingData
 import androidx.paging.map
+import com.cstv.app.data.local.dao.SeriesDao
 import com.cstv.app.data.local.dao.VodDao
 import com.cstv.app.data.local.entity.PlaybackPositionEntity
 import com.cstv.app.data.local.entity.VodCategoryEntity
@@ -35,6 +36,7 @@ import javax.inject.Singleton
 class VodRepositoryImpl @Inject constructor(
     private val apiService: XtreamApiService,
     private val vodDao: VodDao,
+    private val seriesDao: SeriesDao,
     private val credentialsManager: CredentialsManager,
     private val profileManager: com.cstv.app.data.local.storage.ProfileManager,
     private val requestGate: XtreamRequestGate,
@@ -54,12 +56,13 @@ class VodRepositoryImpl @Inject constructor(
     constructor(
         apiService: XtreamApiService,
         vodDao: VodDao,
+        seriesDao: SeriesDao,
         credentialsManager: CredentialsManager,
         profileManager: com.cstv.app.data.local.storage.ProfileManager,
         requestGate: XtreamRequestGate,
         networkMonitor: NetworkMonitor,
         dispatcher: CoroutineDispatcher
-    ) : this(apiService, vodDao, credentialsManager, profileManager, requestGate, networkMonitor) {
+    ) : this(apiService, vodDao, seriesDao, credentialsManager, profileManager, requestGate, networkMonitor) {
         this.enrichmentDispatcher = dispatcher
     }
 
@@ -405,6 +408,8 @@ class VodRepositoryImpl @Inject constructor(
         return vodDao.getCategoryCounts().associate { it.categoryId to it.count }
     }
 
+    override suspend fun hasCachedVodStreams(): Boolean = vodDao.hasStreams()
+
     override suspend fun getReleaseYearBounds(): Pair<Int, Int>? {
         val min = vodDao.getMinReleaseYear() ?: return null
         val max = vodDao.getMaxReleaseYear() ?: return null
@@ -573,7 +578,8 @@ class VodRepositoryImpl @Inject constructor(
         seasonNum: Int?,
         plot: String?,
         duration: String?,
-        releaseDate: String?
+        releaseDate: String?,
+        categoryId: String?
     ) {
         val profileId = profileManager.currentProfileId()
         val existing = vodDao.getPlaybackPosition(streamId, profileId)
@@ -588,6 +594,15 @@ class VodRepositoryImpl @Inject constructor(
         val finalPlot = if (plot.isNullOrBlank()) existing?.plot else plot
         val finalDuration = if (duration.isNullOrBlank()) existing?.duration else duration
         val finalReleaseDate = if (releaseDate.isNullOrBlank()) existing?.releaseDate else releaseDate
+        // Une position existante sans catégorie représente aussi une résolution
+        // déjà tentée : ne pas rejouer la requête DAO à chaque tick du player.
+        val finalCategoryId = categoryId ?: if (existing != null) {
+            existing.categoryId
+        } else if (finalSeriesId != null) {
+            seriesDao.getCategoryIdForSeries(finalSeriesId)
+        } else {
+            vodDao.getCategoryIdForStream(streamId)
+        }
 
         val entity = PlaybackPositionEntity(
             streamId = streamId,
@@ -604,7 +619,8 @@ class VodRepositoryImpl @Inject constructor(
             seasonNum = finalSeasonNum,
             plot = finalPlot,
             duration = finalDuration,
-            releaseDate = finalReleaseDate
+            releaseDate = finalReleaseDate,
+            categoryId = finalCategoryId
         )
         vodDao.savePlaybackPosition(entity)
     }
@@ -619,24 +635,7 @@ class VodRepositoryImpl @Inject constructor(
     }
 
     override suspend fun getAllPlaybackPositions(): List<PlaybackPosition> {
-        return vodDao.getAllPlaybackPositions(profileManager.currentProfileId()).map { entity ->
-            PlaybackPosition(
-                streamId = entity.streamId,
-                positionMs = entity.positionMs,
-                durationMs = entity.durationMs,
-                lastAccessedAt = entity.lastAccessedAt,
-                title = entity.title,
-                coverUrl = entity.coverUrl,
-                type = entity.type,
-                containerExtension = entity.containerExtension,
-                seriesId = entity.seriesId,
-                episodeNum = entity.episodeNum,
-                seasonNum = entity.seasonNum,
-                plot = entity.plot,
-                duration = entity.duration,
-                releaseDate = entity.releaseDate
-            )
-        }
+        return vodDao.getAllPlaybackPositions(profileManager.currentProfileId()).map { it.toDomain() }
     }
 
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
@@ -644,26 +643,27 @@ class VodRepositoryImpl @Inject constructor(
         return profileManager.activeProfileId.flatMapLatest { profileId ->
             vodDao.observeAllPlaybackPositions(profileId)
         }.map { entities ->
-            entities.map { entity ->
-                PlaybackPosition(
-                    streamId = entity.streamId,
-                    positionMs = entity.positionMs,
-                    durationMs = entity.durationMs,
-                    lastAccessedAt = entity.lastAccessedAt,
-                    title = entity.title,
-                    coverUrl = entity.coverUrl,
-                    type = entity.type,
-                    containerExtension = entity.containerExtension,
-                    seriesId = entity.seriesId,
-                    episodeNum = entity.episodeNum,
-                    seasonNum = entity.seasonNum,
-                    plot = entity.plot,
-                    duration = entity.duration,
-                    releaseDate = entity.releaseDate
-                )
-            }
+            entities.map { it.toDomain() }
         }
     }
+
+    private fun PlaybackPositionEntity.toDomain() = PlaybackPosition(
+        streamId = streamId,
+        positionMs = positionMs,
+        durationMs = durationMs,
+        lastAccessedAt = lastAccessedAt,
+        title = title,
+        coverUrl = coverUrl,
+        type = type,
+        containerExtension = containerExtension,
+        seriesId = seriesId,
+        episodeNum = episodeNum,
+        seasonNum = seasonNum,
+        plot = plot,
+        duration = duration,
+        releaseDate = releaseDate,
+        categoryId = categoryId
+    )
 
     override suspend fun getStreamById(streamId: Int): VodStream? {
         val entity = vodDao.getStreamById(streamId) ?: return null

@@ -3,6 +3,7 @@ package com.cstv.app.data.repository
 import com.google.gson.JsonPrimitive
 import com.google.gson.JsonArray
 import com.cstv.app.data.local.dao.VodDao
+import com.cstv.app.data.local.dao.SeriesDao
 import com.cstv.app.data.local.entity.PlaybackPositionEntity
 import com.cstv.app.data.local.entity.VodCategoryEntity
 import com.cstv.app.data.local.entity.VodStreamEntity
@@ -14,6 +15,8 @@ import com.cstv.app.data.remote.dto.*
 import com.cstv.app.domain.model.Credentials
 import com.cstv.app.domain.model.VodStream
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.*
 import org.junit.Before
@@ -30,6 +33,9 @@ class VodRepositoryImplTest {
 
     @Mock
     private lateinit var vodDao: VodDao
+
+    @Mock
+    private lateinit var seriesDao: SeriesDao
 
     @Mock
     private lateinit var credentialsManager: CredentialsManager
@@ -54,7 +60,7 @@ class VodRepositoryImplTest {
         whenever(credentialsManager.getCredentials()).thenReturn(credentials)
         doReturn(activeProfileId).whenever(profileManager).currentProfileId()
         whenever(networkMonitor.isCurrentlyOnline()).thenReturn(true)
-        repository = VodRepositoryImpl(apiService, vodDao, credentialsManager, profileManager, com.cstv.app.data.remote.api.XtreamRequestGate(), networkMonitor)
+        repository = VodRepositoryImpl(apiService, vodDao, seriesDao, credentialsManager, profileManager, com.cstv.app.data.remote.api.XtreamRequestGate(), networkMonitor)
     }
 
     // --- 1. PLAY URL CONSTRUCTION TESTS ---
@@ -363,9 +369,80 @@ class VodRepositoryImplTest {
     }
 
     @Test
+    fun test_savePlaybackPosition_resolvesMovieCategoryOnlyOnce() = runTest {
+        whenever(vodDao.getPlaybackPosition(123, activeProfileId)).thenReturn(null)
+        whenever(vodDao.getCategoryIdForStream(123)).thenReturn("action")
+
+        repository.savePlaybackPosition(123, 2_000L, 5_000L)
+
+        verify(vodDao).getCategoryIdForStream(123)
+        verify(seriesDao, never()).getCategoryIdForSeries(any())
+        verify(vodDao).savePlaybackPosition(argThat { categoryId == "action" })
+    }
+
+    @Test
+    fun test_savePlaybackPosition_usesExistingCategoryWithoutResolutionQuery() = runTest {
+        whenever(vodDao.getPlaybackPosition(123, activeProfileId)).thenReturn(
+            PlaybackPositionEntity(123, activeProfileId, 1_000L, 5_000L, 1L, categoryId = "action")
+        )
+
+        repository.savePlaybackPosition(123, 2_000L, 5_000L)
+
+        verify(vodDao, never()).getCategoryIdForStream(any())
+        verify(seriesDao, never()).getCategoryIdForSeries(any())
+        verify(vodDao).savePlaybackPosition(argThat { categoryId == "action" })
+    }
+
+    @Test
+    fun test_savePlaybackPosition_resolvesSeriesCategoryWithoutVodLookup() = runTest {
+        whenever(vodDao.getPlaybackPosition(123, activeProfileId)).thenReturn(null)
+        whenever(seriesDao.getCategoryIdForSeries(9)).thenReturn("drama")
+
+        repository.savePlaybackPosition(123, 2_000L, 5_000L, seriesId = 9)
+
+        verify(seriesDao).getCategoryIdForSeries(9)
+        verify(vodDao, never()).getCategoryIdForStream(any())
+        verify(vodDao).savePlaybackPosition(argThat { categoryId == "drama" })
+    }
+
+    @Test
+    fun test_savePlaybackPosition_explicitCategorySkipsResolution() = runTest {
+        whenever(vodDao.getPlaybackPosition(123, activeProfileId)).thenReturn(null)
+
+        repository.savePlaybackPosition(123, 2_000L, 5_000L, categoryId = "action")
+
+        verify(vodDao, never()).getCategoryIdForStream(any())
+        verify(seriesDao, never()).getCategoryIdForSeries(any())
+        verify(vodDao).savePlaybackPosition(argThat { categoryId == "action" })
+    }
+
+    @Test
+    fun test_savePlaybackPosition_existingUnknownCategoryDoesNotResolveAgain() = runTest {
+        whenever(vodDao.getPlaybackPosition(123, activeProfileId)).thenReturn(
+            PlaybackPositionEntity(123, activeProfileId, 1_000L, 5_000L, 1L)
+        )
+
+        repository.savePlaybackPosition(123, 2_000L, 5_000L)
+
+        verify(vodDao, never()).getCategoryIdForStream(any())
+        verify(seriesDao, never()).getCategoryIdForSeries(any())
+    }
+
+    @Test
+    fun test_playbackPositionCategoryIsMappedForListAndFlow() = runTest {
+        val entity = PlaybackPositionEntity(123, activeProfileId, 1_000L, 5_000L, 1L, categoryId = "action")
+        whenever(vodDao.getAllPlaybackPositions(activeProfileId)).thenReturn(listOf(entity))
+        whenever(vodDao.observeAllPlaybackPositions(activeProfileId)).thenReturn(flowOf(listOf(entity)))
+        doReturn(kotlinx.coroutines.flow.MutableStateFlow(activeProfileId)).whenever(profileManager).activeProfileId
+
+        assertEquals("action", repository.getAllPlaybackPositions().single().categoryId)
+        assertEquals("action", repository.observeAllPlaybackPositions().first().single().categoryId)
+    }
+
+    @Test
     fun test_backgroundEnrichment_triggersAndSavesDetails() = runTest {
         val testDispatcher = kotlinx.coroutines.test.UnconfinedTestDispatcher(testScheduler)
-        val localRepository = VodRepositoryImpl(apiService, vodDao, credentialsManager, profileManager, com.cstv.app.data.remote.api.XtreamRequestGate(), networkMonitor, testDispatcher)
+        val localRepository = VodRepositoryImpl(apiService, vodDao, seriesDao, credentialsManager, profileManager, com.cstv.app.data.remote.api.XtreamRequestGate(), networkMonitor, testDispatcher)
 
         val remoteStreams = listOf(
             VodStreamDto(12, "Star Wars", "icon.png", "8.0", "added", "5")
@@ -406,7 +483,7 @@ class VodRepositoryImplTest {
     @Test
     fun test_backgroundEnrichment_requestsBoundedBatch() = runTest {
         val testDispatcher = kotlinx.coroutines.test.UnconfinedTestDispatcher(testScheduler)
-        val localRepository = VodRepositoryImpl(apiService, vodDao, credentialsManager, profileManager, com.cstv.app.data.remote.api.XtreamRequestGate(), networkMonitor, testDispatcher)
+        val localRepository = VodRepositoryImpl(apiService, vodDao, seriesDao, credentialsManager, profileManager, com.cstv.app.data.remote.api.XtreamRequestGate(), networkMonitor, testDispatcher)
 
         whenever(apiService.getVodStreams("username", "password", "5")).thenReturn(emptyList())
         whenever(vodDao.getStreamsByCategory("5")).thenReturn(emptyList())

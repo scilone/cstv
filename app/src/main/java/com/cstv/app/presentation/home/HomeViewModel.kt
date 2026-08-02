@@ -8,6 +8,8 @@ import com.cstv.app.domain.model.LiveCategory
 import com.cstv.app.domain.model.LiveStream
 import com.cstv.app.domain.model.VodStream
 import com.cstv.app.domain.model.SeriesStream
+import com.cstv.app.domain.model.SeriesCategory
+import com.cstv.app.domain.model.VodCategory
 import com.cstv.app.domain.model.CategoryType
 import com.cstv.app.domain.model.DownloadedItem
 import com.cstv.app.domain.model.DownloadStatus
@@ -19,6 +21,8 @@ import com.cstv.app.domain.repository.SeriesRepository
 import com.cstv.app.domain.repository.VodRepository
 import com.cstv.app.data.local.storage.ProfileManager
 import com.cstv.app.domain.usecase.GetLiveCategoriesUseCase
+import com.cstv.app.domain.usecase.GetSeriesCategoriesUseCase
+import com.cstv.app.domain.usecase.GetVodCategoriesUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
@@ -43,10 +47,10 @@ import com.cstv.app.domain.model.TrailerMedia
 import com.cstv.app.domain.model.TrailerPreview
 import com.cstv.app.domain.model.TrendingCatalogItem
 import kotlinx.coroutines.Job
-import com.cstv.app.domain.model.TopRatedSelector
 import com.cstv.app.presentation.components.TrailerPreviewUiState
 
 private const val EPG_POLL_INTERVAL_MILLIS = 60_000L
+private const val HOME_ROW_LIMIT = 20
 
 /**
  * Attente maximale du premier résultat de tendances avant d'afficher l'accueil.
@@ -69,11 +73,13 @@ data class HomeState(
     val firstLiveCategory: LiveCategory? = null,
     val firstLiveStreams: List<LiveStream> = emptyList(),
     
+    /** Médias de la première catégorie VOD visible du profil (titre générique « Films »). */
+    val firstVodCategory: VodCategory? = null,
     val firstVodStreams: List<VodStream> = emptyList(),
+    /** Médias de la première catégorie Séries visible du profil (titre générique « Séries »). */
+    val firstSeriesCategory: SeriesCategory? = null,
     val firstSeriesStreams: List<SeriesStream> = emptyList(),
     
-    val topVodStreams: List<VodStream> = emptyList(),
-    val topSeriesStreams: List<SeriesStream> = emptyList(),
     val popularTopVodStreams: List<VodStream>? = null,
     val popularTopSeriesStreams: List<SeriesStream>? = null,
     
@@ -97,6 +103,8 @@ class HomeViewModel @Inject constructor(
     private val downloadRepository: DownloadRepository,
     private val getLiveEpgUseCase: GetLiveEpgUseCase,
     private val getLiveCategoriesUseCase: GetLiveCategoriesUseCase,
+    private val getVodCategoriesUseCase: GetVodCategoriesUseCase,
+    private val getSeriesCategoriesUseCase: GetSeriesCategoriesUseCase,
     private val categoryPreferenceRepository: CategoryPreferenceRepository,
     private val getTrendingInCatalogUseCase: com.cstv.app.domain.usecase.GetTrendingInCatalogUseCase,
     private val getRecommendationsUseCase: GetRecommendationsUseCase,
@@ -274,15 +282,13 @@ class HomeViewModel @Inject constructor(
             }.collect { allPositions ->
                 val hiddenVod = hiddenCategoryIds(CategoryType.VOD)
                 val hiddenSeries = hiddenCategoryIds(CategoryType.SERIES)
-                val vodMap = try {
-                    vodRepository.getCachedVodStreams("all").associate { it.streamId to it.categoryId }
+                val (vodCatalogIsEmpty, seriesCatalogIsEmpty) = try {
+                    !vodRepository.hasCachedVodStreams() to !seriesRepository.hasCachedSeriesStreams()
                 } catch (e: Exception) {
-                    emptyMap()
-                }
-                val seriesMap = try {
-                    seriesRepository.getCachedSeriesStreams("all").associate { it.seriesId to it.categoryId }
-                } catch (e: Exception) {
-                    emptyMap()
+                    if (e is kotlinx.coroutines.CancellationException) throw e
+                    // En cas d'erreur, la catégorie inconnue reste masquée : le
+                    // repli protège les préférences de visibilité du profil.
+                    false to false
                 }
 
                 _state.update {
@@ -291,8 +297,8 @@ class HomeViewModel @Inject constructor(
                             allPositions = allPositions,
                             hiddenVodCategories = hiddenVod,
                             hiddenSeriesCategories = hiddenSeries,
-                            vodStreamCategoryMap = vodMap,
-                            seriesStreamCategoryMap = seriesMap
+                            vodCatalogIsEmpty = vodCatalogIsEmpty,
+                            seriesCatalogIsEmpty = seriesCatalogIsEmpty
                         )
                     )
                 }
@@ -357,19 +363,20 @@ class HomeViewModel @Inject constructor(
         allPositions: List<PlaybackPosition>,
         hiddenVodCategories: Set<String>,
         hiddenSeriesCategories: Set<String>,
-        vodStreamCategoryMap: Map<Int, String>,
-        seriesStreamCategoryMap: Map<Int, String>
+        vodCatalogIsEmpty: Boolean,
+        seriesCatalogIsEmpty: Boolean
     ): List<PlaybackPosition> {
         val resumeWatchingRaw = allPositions.filter { pos ->
             pos.positionMs > 0 && pos.positionMs < (pos.durationMs - 15000L)
         }
         val filtered = resumeWatchingRaw.filter { pos ->
-            if (pos.seriesId != null) {
-                val catId = seriesStreamCategoryMap[pos.seriesId]
-                catId == null || catId !in hiddenSeriesCategories
-            } else {
-                val catId = vodStreamCategoryMap[pos.streamId]
-                catId == null || catId !in hiddenVodCategories
+            val isSeries = pos.seriesId != null
+            val hiddenCategories = if (isSeries) hiddenSeriesCategories else hiddenVodCategories
+            val catalogIsEmpty = if (isSeries) seriesCatalogIsEmpty else vodCatalogIsEmpty
+            when {
+                pos.categoryId != null -> pos.categoryId !in hiddenCategories
+                catalogIsEmpty -> true
+                else -> false
             }
         }
         val seenSeriesIds = mutableSetOf<Int>()
@@ -432,10 +439,10 @@ class HomeViewModel @Inject constructor(
                     error = null,
                     firstLiveCategory = null,
                     firstLiveStreams = emptyList(),
+                    firstVodCategory = null,
                     firstVodStreams = emptyList(),
+                    firstSeriesCategory = null,
                     firstSeriesStreams = emptyList(),
-                    topVodStreams = emptyList(),
-                    topSeriesStreams = emptyList(),
                     recommendedMovies = emptyList(),
                     recommendedSeries = emptyList(),
                     trendingList = emptyList(),
@@ -593,53 +600,49 @@ class HomeViewModel @Inject constructor(
                     }
                 } else emptyList()
 
-                // 4. Fetch Movies - Latest additions (toutes catégories confondues)
-                val allVodStreams = try {
-                    vodRepository.getCachedVodStreams("all")
+                // 4. Films : première catégorie visible, déjà ordonnée par profil.
+                val vodCategories = try {
+                    getVodCategoriesUseCase.once()
                 } catch (e: Exception) {
                     if (e is kotlinx.coroutines.CancellationException) throw e
                     emptyList()
                 }
-                val hiddenVodCategories = hiddenCategoryIds(CategoryType.VOD)
-                val filteredVodStreams = allVodStreams.filter { it.categoryId !in hiddenVodCategories }
-                val firstVodStreams = filteredVodStreams
-                    .sortedByDescending { it.added?.toLongOrNull() ?: 0L }
-                    .take(20)
+                val firstVodCat = vodCategories.firstOrNull()
+                val firstVodStreams = if (firstVodCat != null) {
+                    try {
+                        vodRepository.getCachedVodStreams(firstVodCat.categoryId).take(HOME_ROW_LIMIT)
+                    } catch (e: Exception) {
+                        if (e is kotlinx.coroutines.CancellationException) throw e
+                        emptyList()
+                    }
+                } else emptyList()
 
-                val topVodStreams = TopRatedSelector.selectTop10(
-                    items = filteredVodStreams,
-                    ratingExtractor = { it.rating },
-                    addedExtractor = { it.added }
-                )
-
-                // 5. Fetch Series - Latest additions (toutes catégories confondues)
-                val allSeriesStreams = try {
-                    seriesRepository.getCachedSeriesStreams("all")
+                // 5. Séries : première catégorie visible, déjà ordonnée par profil.
+                val seriesCategories = try {
+                    getSeriesCategoriesUseCase.once()
                 } catch (e: Exception) {
                     if (e is kotlinx.coroutines.CancellationException) throw e
                     emptyList()
                 }
-                val hiddenSeriesCategories = hiddenCategoryIds(CategoryType.SERIES)
-                val filteredSeriesStreams = allSeriesStreams.filter { it.categoryId !in hiddenSeriesCategories }
-                val firstSeriesStreams = filteredSeriesStreams
-                    .sortedByDescending { it.added?.toLongOrNull() ?: 0L }
-                    .take(20)
-
-                val topSeriesStreams = TopRatedSelector.selectTop10(
-                    items = filteredSeriesStreams,
-                    ratingExtractor = { it.rating },
-                    addedExtractor = { it.added }
-                )
+                val firstSeriesCat = seriesCategories.firstOrNull()
+                val firstSeriesStreams = if (firstSeriesCat != null) {
+                    try {
+                        seriesRepository.getCachedSeriesStreams(firstSeriesCat.categoryId).take(HOME_ROW_LIMIT)
+                    } catch (e: Exception) {
+                        if (e is kotlinx.coroutines.CancellationException) throw e
+                        emptyList()
+                    }
+                } else emptyList()
 
                 _state.update {
                     it.copy(
                         isLoading = false,
                         firstLiveCategory = firstLiveCat,
                         firstLiveStreams = firstLiveStreams,
+                        firstVodCategory = firstVodCat,
                         firstVodStreams = firstVodStreams,
-                        firstSeriesStreams = firstSeriesStreams,
-                        topVodStreams = topVodStreams,
-                        topSeriesStreams = topSeriesStreams
+                        firstSeriesCategory = firstSeriesCat,
+                        firstSeriesStreams = firstSeriesStreams
                     )
                 }
                 refreshVisibleEpg()

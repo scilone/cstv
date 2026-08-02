@@ -19,7 +19,8 @@ class SavePlaybackPositionUseCase @Inject constructor(
         seasonNum: Int? = null,
         plot: String? = null,
         duration: String? = null,
-        releaseDate: String? = null
+        releaseDate: String? = null,
+        categoryId: String? = null
     ) {
         repository.savePlaybackPosition(
             streamId = streamId,
@@ -34,7 +35,8 @@ class SavePlaybackPositionUseCase @Inject constructor(
             seasonNum = seasonNum,
             plot = plot,
             duration = duration,
-            releaseDate = releaseDate
+            releaseDate = releaseDate,
+            categoryId = categoryId
         )
     }
 }

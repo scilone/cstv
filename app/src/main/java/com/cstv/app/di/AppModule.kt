@@ -383,12 +383,13 @@ object AppModule {
     fun provideVodRepository(
         apiService: XtreamApiService,
         vodDao: VodDao,
+        seriesDao: SeriesDao,
         credentialsManager: CredentialsManager,
         profileManager: ProfileManager,
         requestGate: XtreamRequestGate,
         networkMonitor: com.cstv.app.domain.network.NetworkMonitor
     ): VodRepository {
-        return VodRepositoryImpl(apiService, vodDao, credentialsManager, profileManager, requestGate, networkMonitor)
+        return VodRepositoryImpl(apiService, vodDao, seriesDao, credentialsManager, profileManager, requestGate, networkMonitor)
     }
 
     @Provides
