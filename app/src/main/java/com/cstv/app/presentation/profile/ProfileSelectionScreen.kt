@@ -39,7 +39,7 @@ import com.cstv.app.presentation.theme.HankenGrotesk
 import com.cstv.app.presentation.theme.Surface1
 import com.cstv.app.presentation.theme.Surface2
 import com.cstv.app.presentation.theme.Surface3
-import com.cstv.app.presentation.theme.mobileBackground
+import com.cstv.app.presentation.theme.appScreenBackground
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.shape.RoundedCornerShape
 
@@ -64,13 +64,13 @@ fun ProfileSelectionScreen(
             runCatching { firstProfileFocusRequester.requestFocus() }
         }
     }
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .then(if (isTv) Modifier else Modifier.safeDrawingPadding())
-            .mobileBackground(),
-        contentAlignment = Alignment.Center
-    ) {
+    Box(modifier = modifier.fillMaxSize().appScreenBackground(isTv)) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .then(if (isTv) Modifier else Modifier.safeDrawingPadding()),
+            contentAlignment = Alignment.Center
+        ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier.fillMaxWidth().padding(24.dp)
@@ -169,6 +169,7 @@ fun ProfileSelectionScreen(
                     fontWeight = if (logoutFocused) FontWeight.Bold else FontWeight.Normal
                 )
             }
+        }
         }
     }
 }

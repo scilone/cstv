@@ -26,6 +26,7 @@ class ProfileRepositoryImplTest {
     @Mock private lateinit var trackPreferenceDao: com.cstv.app.data.local.dao.TrackPreferenceDao
     @Mock private lateinit var categoryPreferenceDao: com.cstv.app.data.local.dao.CategoryPreferenceDao
     @Mock private lateinit var mediaRatingDao: com.cstv.app.data.local.dao.MediaRatingDao
+    @Mock private lateinit var seriesWatchStateDao: com.cstv.app.data.local.dao.SeriesWatchStateDao
 
     private lateinit var repository: ProfileRepositoryImpl
 
@@ -35,7 +36,7 @@ class ProfileRepositoryImplTest {
     @Before
     fun setUp() {
         MockitoAnnotations.openMocks(this)
-        repository = ProfileRepositoryImpl(profileDao, profileManager, favoritesDao, vodDao, liveTvDao, trackPreferenceDao, categoryPreferenceDao, mediaRatingDao)
+        repository = ProfileRepositoryImpl(profileDao, profileManager, favoritesDao, vodDao, liveTvDao, trackPreferenceDao, categoryPreferenceDao, mediaRatingDao, seriesWatchStateDao)
     }
 
     @Test
@@ -99,6 +100,7 @@ class ProfileRepositoryImplTest {
         verify(vodDao).deleteAllPlaybackForProfile(5)
         verify(liveTvDao).deleteRecentlyWatchedForProfile(5)
         verify(trackPreferenceDao).deleteAllForProfile(5)
+        verify(seriesWatchStateDao).deleteAllForProfile(5)
         verify(profileDao).deleteById(5)
         // Bascule vers le profil restant.
         verify(profileManager).setActiveProfileId(6)

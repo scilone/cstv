@@ -41,6 +41,34 @@ class SettingsManager @Inject constructor(context: Context) {
         private const val KEY_SERIES_ALL_SYNCED_AT = "series_all_streams_synced_at"
         private const val KEY_RESIZE_MODE = "player_resize_mode"
         private const val KEY_DEBUG_MODE_ENABLED = "debug_mode_enabled"
+        private const val KEY_NEW_EPISODES_CHECK_CURSOR = "new_episodes_check_cursor"
+        private const val KEY_NEW_EPISODES_SERIES_CURSOR_PREFIX = "new_episodes_series_cursor_"
+        private const val KEY_NOTIFICATION_PERMISSION_REQUESTED = "notification_permission_requested"
+    }
+
+    // --- F12 : détection de nouveaux épisodes en arrière-plan ---
+
+    /** Index de profil à partir duquel démarrer la prochaine vérification (équité du budget réseau global). */
+    fun getNewEpisodesCheckCursor(): Int = sharedPreferences.getInt(KEY_NEW_EPISODES_CHECK_CURSOR, 0)
+
+    fun setNewEpisodesCheckCursor(index: Int) {
+        sharedPreferences.edit().putInt(KEY_NEW_EPISODES_CHECK_CURSOR, index).apply()
+    }
+
+    /** Index de série à partir duquel démarrer la prochaine vérification pour un profil (équité intra-profil, F12-R1). */
+    fun getNewEpisodesSeriesCursor(profileId: Int): Int =
+        sharedPreferences.getInt(KEY_NEW_EPISODES_SERIES_CURSOR_PREFIX + profileId, 0)
+
+    fun setNewEpisodesSeriesCursor(profileId: Int, index: Int) {
+        sharedPreferences.edit().putInt(KEY_NEW_EPISODES_SERIES_CURSOR_PREFIX + profileId, index).apply()
+    }
+
+    /** Une seule demande de `POST_NOTIFICATIONS` sur mobile, jamais répétée après un refus. */
+    fun getNotificationPermissionRequested(): Boolean =
+        sharedPreferences.getBoolean(KEY_NOTIFICATION_PERMISSION_REQUESTED, false)
+
+    fun setNotificationPermissionRequested(requested: Boolean) {
+        sharedPreferences.edit().putBoolean(KEY_NOTIFICATION_PERMISSION_REQUESTED, requested).apply()
     }
 
     // --- Horodatages hérités d'avant T4 (obsolètes) ---

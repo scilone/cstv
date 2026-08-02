@@ -119,8 +119,19 @@ Responsable de l'interface utilisateur. Elle utilise **Jetpack Compose** pour l'
   - **Dédoublonnage sémantique robuste** : Le filtrage des doublons entre cache périmé et nouvelles tendances s'effectue sur la paire sementique unique `(tmdbId, isMovie)` pour éviter d'évincer indûment des films et séries TMDB partageant le même identifiant numérique.
   - **Skeleton Loader non-focusable** : Si aucun cache n'est disponible, le loader plein écran n'est pas déclenché par les tendances. À la place, un composant d'attente visuelle Skeleton occupe l'emplacement Hero de manière non interactive, sans intercepter le D-pad et en conservant les autres sections d'Accueil pleinement interactives.
 * **Base de données Room & SQLite** :
-  * Base de données `AppDatabase` (actuellement en version **21**).
-  * **Pas de fallbackToDestructiveMigration()** ! Toutes les migrations sont rédigées en SQL brut de manière explicite dans `Migrations.kt` pour préserver intactes les données des utilisateurs (favoris, profils, historique) lors des mises à jour applicatives (comme la transition 20 → 21 de F17).
+  * Base de données `AppDatabase` (actuellement en version **22**).
+  * **Pas de fallbackToDestructiveMigration()** ! Toutes les migrations sont rédigées en SQL brut de manière explicite dans `Migrations.kt` pour préserver intactes les données des utilisateurs lors des mises à jour applicatives (par exemple, la transition 20 → 21 pour F17 et 21 → 22 pour F12).
+  * **Migration 21 → 22 (F12)** : Ajout de la table physique `series_watch_states` gérée par l'entité Room `SeriesWatchStateEntity` et `SeriesWatchStateDao`, permettant de stocker par couple `(profileId, seriesId)` le dernier épisode connu/visionné d'une série pour la détection en tâche de fond.
+* **Détection de nouveaux épisodes en tâche de fond (F12)** :
+  * **UseCase découplé (`DetectNewEpisodesUseCase`)** : Encapsule la logique d'interrogation de l'API Xtream Codes pour résoudre les saisons/épisodes des séries "suivies" (favorites ou présentes dans l'historique) de chaque profil, et de comparaison des nouveautés par rapport à l'état de lecture enregistré (`SeriesWatchState`).
+  * **Intégration robuste dans `DatabaseSyncWorker`** : Intégration du post-traitement de détection au sein du worker de synchronisation (`DatabaseSyncWorker`) via `runPostSyncDetection`, de manière isolée pour ne pas impacter le résultat global de la synchronisation de catalogue en cas d'anomalie réseau ou de timeout.
+  * **Notificateur abstrait (`NewEpisodeNotifier`)** : Abstraction de la logique de notification (`AndroidNewEpisodeNotifier` implémentant `NewEpisodeNotifier`) pour découpler la logique d'orchestration multi-profils des APIs de rendu graphique ou système d'Android (`NotificationManager`), simplifiant l'écriture de tests unitaires locaux JVM.
+* **Masquage conditionnel des Téléchargements TV (F21)** :
+  * Épuration visuelle ultra-robuste consistant à propager explicitement le drapeau de plateforme `isTv` pour conditionner Compose :
+    - `HomeScreen` : Masque la rangée `"home_downloads"`.
+    - `VodDetailsScreen` : Masque le bouton d'action de téléchargement global (`DownloadActionButton`).
+    - `SeriesDetailsScreen` : Masque les contrôles de téléchargement individuel d'épisode (`EpisodeDownloadControl`).
+  * Aucun impact sur les bases de données ou les fichiers téléchargés (qui restent préservés et actifs lors d'un basculement sur Mobile).
 * **Système de navigation unifié (F18)** :
   * L'application utilise désormais un seul système de navigation via `AppNavGraph` (navigation-compose, `presentation/navigation/NavGraph.kt`) partagé entre Mobile et TV.
   * L'ancien double système (navigation manuelle par enum `AppScreen` et boucle `when` dans `MainActivity.kt`) est obsolète et a été entièrement supprimé.

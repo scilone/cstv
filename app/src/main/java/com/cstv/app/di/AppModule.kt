@@ -217,9 +217,10 @@ object AppModule {
         liveTvDao: LiveTvDao,
         trackPreferenceDao: com.cstv.app.data.local.dao.TrackPreferenceDao,
         categoryPreferenceDao: com.cstv.app.data.local.dao.CategoryPreferenceDao,
-        mediaRatingDao: MediaRatingDao
+        mediaRatingDao: MediaRatingDao,
+        seriesWatchStateDao: com.cstv.app.data.local.dao.SeriesWatchStateDao
     ): ProfileRepository {
-        return ProfileRepositoryImpl(profileDao, profileManager, favoritesDao, vodDao, liveTvDao, trackPreferenceDao, categoryPreferenceDao, mediaRatingDao)
+        return ProfileRepositoryImpl(profileDao, profileManager, favoritesDao, vodDao, liveTvDao, trackPreferenceDao, categoryPreferenceDao, mediaRatingDao, seriesWatchStateDao)
     }
 
     @Provides
@@ -495,6 +496,30 @@ object AppModule {
         @javax.inject.Named("applicationScope") applicationScope: kotlinx.coroutines.CoroutineScope
     ): com.cstv.app.domain.repository.TrailerRepository =
         com.cstv.app.data.repository.TrailerRepositoryImpl(xtreamApiService, tmdbApiService, credentialsManager, requestGate, apiKey, trailerCacheDao, timeProvider, applicationScope)
+
+    // --- F12 : détection et notification de nouveaux épisodes ---
+
+    @Provides
+    @Singleton
+    fun provideSeriesWatchStateDao(database: AppDatabase): com.cstv.app.data.local.dao.SeriesWatchStateDao =
+        database.seriesWatchStateDao()
+
+    @Provides
+    @Singleton
+    fun provideSeriesWatchStateRepository(
+        dao: com.cstv.app.data.local.dao.SeriesWatchStateDao,
+        favoritesDao: FavoritesDao,
+        vodDao: VodDao,
+        timeProvider: com.cstv.app.domain.util.TimeProvider
+    ): com.cstv.app.domain.repository.SeriesWatchStateRepository =
+        com.cstv.app.data.repository.SeriesWatchStateRepositoryImpl(dao, favoritesDao, vodDao, timeProvider)
+
+    @Provides
+    @Singleton
+    fun provideNewEpisodeNotifier(
+        @ApplicationContext context: Context
+    ): com.cstv.app.domain.notification.NewEpisodeNotifier =
+        com.cstv.app.data.notification.AndroidNewEpisodeNotifier(context)
 }
 
 @javax.inject.Qualifier

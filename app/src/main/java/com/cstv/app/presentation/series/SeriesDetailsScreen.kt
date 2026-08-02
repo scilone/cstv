@@ -508,6 +508,7 @@ private fun TvLayout(
                     EpisodeCardItem(
                         episode = episode,
                         onClick = { onEpisodeClick(episode) },
+                        isTv = true,
                         download = episodeDownloads[episode.id],
                         onDownload = { onDownloadEpisode(episode) },
                         onRemoveDownload = { onRemoveEpisodeDownload(episode.id) }
@@ -721,6 +722,7 @@ private fun MobileLayout(
                     EpisodeCardItem(
                         episode = episode,
                         onClick = { onEpisodeClick(episode) },
+                        isTv = false,
                         download = episodeDownloads[episode.id],
                         onDownload = { onDownloadEpisode(episode) },
                         onRemoveDownload = { onRemoveEpisodeDownload(episode.id) }
@@ -842,6 +844,7 @@ private fun EpisodeDownloadControl(
 private fun EpisodeCardItem(
     episode: SeriesEpisode,
     onClick: () -> Unit,
+    isTv: Boolean,
     download: com.cstv.app.domain.model.DownloadedItem? = null,
     onDownload: () -> Unit = {},
     onRemoveDownload: () -> Unit = {}
@@ -916,11 +919,13 @@ private fun EpisodeCardItem(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(episode.duration, color = Color.Gray, fontSize = 12.sp)
                     Spacer(modifier = Modifier.width(4.dp))
-                    EpisodeDownloadControl(
-                        download = download,
-                        onDownload = onDownload,
-                        onRemoveDownload = onRemoveDownload
-                    )
+                    if (!isTv) {
+                        EpisodeDownloadControl(
+                            download = download,
+                            onDownload = onDownload,
+                            onRemoveDownload = onRemoveDownload
+                        )
+                    }
                     Icon(Icons.Default.PlayArrow, contentDescription = "Play", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
                 }
             }

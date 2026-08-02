@@ -221,12 +221,14 @@ fun VodDetailsScreen(
                 )
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
-            com.cstv.app.presentation.components.DownloadActionButton(
-                item = downloadItem,
-                onDownload = onDownload,
-                onRemove = onRemoveDownload
-            )
+            if (!isTv) {
+                Spacer(modifier = Modifier.height(16.dp))
+                com.cstv.app.presentation.components.DownloadActionButton(
+                    item = downloadItem,
+                    onDownload = onDownload,
+                    onRemove = onRemoveDownload
+                )
+            }
 
             if (!isTv) {
                 Spacer(modifier = Modifier.height(12.dp))

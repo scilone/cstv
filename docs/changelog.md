@@ -1,5 +1,22 @@
 # Journal des Modifications (Changelog) - CSTV IPTV
 
+## [v1.67.0] - 2026-08-02
+### ✨ Notification de nouveaux épisodes (F12) et Retrait téléchargement TV (F21)
+* **Notification de nouveaux épisodes de séries suivies (F12)** :
+  - **Alerte locale intelligente** : Déclenchement d'une notification système sur mobile dès que de nouveaux épisodes d'une série terminée par l'utilisateur sont détectés sur le serveur IPTV.
+  - **Détection réseau optimisée d'arrière-plan** : Détection intégrée au sein de `DatabaseSyncWorker` en post-traitement du catalogue, restreinte de façon performante aux séries favorites ou présentes dans l'historique "Continuer à regarder" du profil actif.
+  - **Schéma Room versionné (v22)** : Ajout de la table physique `series_watch_states` via l'entité `SeriesWatchStateEntity` et `SeriesWatchStateDao` pour mémoriser de manière pérenne et par profil le dernier état d'épisodes visionné/notifié (Migration 21 → 22 non destructive).
+  - **Deep-linking direct** : Un tap sur la notification ouvre l'application en naviguant automatiquement vers la fiche détaillée de la série concernée.
+  - **Tests JVM exhaustifs** : Couverture complète de la détection, de l'orchestration multi-profils, des gardes de notification et des routes de redirection via `NewEpisodeDetectorTest`, `DetectNewEpisodesUseCaseTest`, `SeriesDeepLinkTest`, `DatabaseSyncWorkerTest`, et `AndroidNewEpisodeNotifierTest`.
+* **Retrait des fonctionnalités de téléchargement sur Android TV (F21)** :
+  - **Épuration visuelle TV** : Masquage complet de toutes les portes d'entrée de téléchargements sur Android TV (`isTv == true`) afin de libérer de la place et de simplifier l'interface sur les téléviseurs (qui sont connectés en permanence).
+  - **Contrôles visés** : Retrait de la section `"home_downloads"` sur l'Accueil, du bouton `"DownloadActionButton"` sur la fiche Film, et du composant `"EpisodeDownloadControl"` sur chaque ligne de la liste d'épisodes de la fiche Série.
+  - **Préservation mobile** : Maintien de l'intégralité des fonctionnalités, boutons et sections de téléchargement sur mobile à 100 %.
+* **Correctif des barres système blanches au démarrage sur Mobile (B19)** :
+  - **Thème sombre unifié à la racine** : Application de `IptvXtreamTheme` englobant l'intégralité du `setContent` de `MainActivity.kt` dès le premier démarrage pour éliminer la surface blanche par défaut sous-jacente.
+  - **Rapprochement du fond edge-to-edge** : Correction de l'ordre d'application de `safeDrawingPadding()` sur `SplashScreen`, `ProfileSelectionScreen` et `ProfileManagementScreen` afin que le fond sombre soit peint sur l'intégralité de la hauteur physique de l'écran sous les barres système transparentes.
+  - **Respect d'Android TV** : Maintien intact du comportement d'origine sur TV et sur les routes de lecteurs plein écran immersifs.
+
 ## [v1.66.0] - 2026-08-01
 ### ✨ Navigation TV à sélecteur fixe (Fixed Focus Scrolling - F19)
 * **Défilement à sélecteur fixe (Fixed Focus)** :

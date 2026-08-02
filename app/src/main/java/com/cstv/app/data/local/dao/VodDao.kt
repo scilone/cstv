@@ -164,6 +164,10 @@ interface VodDao {
     @Query("DELETE FROM playback_positions WHERE streamId IN (:streamIds) AND profileId = :profileId")
     suspend fun deletePlaybackPositionsByStreamIds(streamIds: Set<Int>, profileId: Int)
 
+    /** Séries présentes dans « Continuer à regarder » du profil (F12 : séries éligibles à la détection de nouveaux épisodes). */
+    @Query("SELECT DISTINCT seriesId FROM playback_positions WHERE profileId = :profileId AND seriesId IS NOT NULL")
+    suspend fun getWatchedSeriesIds(profileId: Int): List<Int>
+
     companion object {
         /** Borne le pic mémoire d'une transaction sur un catalogue de dizaines de milliers d'entrées. */
         const val INSERT_CHUNK_SIZE = 500

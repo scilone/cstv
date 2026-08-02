@@ -7,6 +7,7 @@ import com.cstv.app.data.local.dao.CategoryPreferenceDao
 import com.cstv.app.data.local.dao.TrackPreferenceDao
 import com.cstv.app.data.local.dao.VodDao
 import com.cstv.app.data.local.dao.MediaRatingDao
+import com.cstv.app.data.local.dao.SeriesWatchStateDao
 import com.cstv.app.data.local.entity.ProfileEntity
 import com.cstv.app.data.local.storage.ProfileManager
 import com.cstv.app.domain.model.Profile
@@ -25,7 +26,8 @@ class ProfileRepositoryImpl @Inject constructor(
     private val liveTvDao: LiveTvDao,
     private val trackPreferenceDao: TrackPreferenceDao,
     private val categoryPreferenceDao: CategoryPreferenceDao,
-    private val mediaRatingDao: MediaRatingDao
+    private val mediaRatingDao: MediaRatingDao,
+    private val seriesWatchStateDao: SeriesWatchStateDao
 ) : ProfileRepository {
 
     override fun observeProfiles(): Flow<List<Profile>> =
@@ -77,6 +79,7 @@ class ProfileRepositoryImpl @Inject constructor(
         trackPreferenceDao.deleteAllForProfile(id)
         categoryPreferenceDao.deleteAllForProfile(id)
         mediaRatingDao.deleteAllForProfile(id)
+        seriesWatchStateDao.deleteAllForProfile(id)
         profileDao.deleteById(id)
 
         // Si on supprimait le profil actif, basculer sur un autre.

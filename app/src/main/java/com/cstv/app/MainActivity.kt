@@ -1,13 +1,18 @@
 package com.cstv.app
 
+import android.Manifest
 import android.app.UiModeManager
 import android.content.Context
+import android.content.Intent
 import android.content.res.Configuration
+import android.os.Build
 import android.os.Bundle
 import android.view.KeyEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.view.WindowCompat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusGroup
@@ -33,6 +38,7 @@ import androidx.compose.material.icons.filled.LiveTv
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.Tv
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
@@ -59,6 +65,9 @@ import com.cstv.app.presentation.profile.ProfileViewModel
 import com.cstv.app.presentation.profile.ProfileSelectionScreen
 import com.cstv.app.presentation.navigation.AppNavGraph
 import com.cstv.app.presentation.navigation.MobileNavigation
+import com.cstv.app.presentation.navigation.SeriesDeepLink
+import com.cstv.app.presentation.navigation.SeriesDeepLinkViewModel
+import com.cstv.app.data.local.storage.SettingsManager
 import com.cstv.app.presentation.navigation.navigateToRootTab
 import com.cstv.app.presentation.navigation.TvNavigation
 import com.cstv.app.presentation.components.TvNavigationRail
@@ -80,6 +89,21 @@ enum class MobileTab(val route: String, val title: String, val icon: androidx.co
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+
+    @javax.inject.Inject
+    lateinit var settingsManager: SettingsManager
+
+    // Le deep link de notification (F12) arrive via onNewIntent, un callback
+    // Activity classique hors composition : ce state hissé au niveau de la
+    // classe est le seul moyen de le faire traverser jusqu'à Compose.
+    private val pendingDeepLinkIntent = mutableStateOf<Intent?>(null)
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        pendingDeepLinkIntent.value = intent
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         WindowCompat.setDecorFitsSystemWindows(window, false)
@@ -87,9 +111,14 @@ class MainActivity : ComponentActivity() {
             val context = LocalContext.current
             val isTv = remember { isTvDevice(context) }
 
+            // Le thème doit envelopper toute l'application dès la première composition :
+            // sans lui, la Surface racine et les écrans de gate (Splash, sélection de
+            // profil) résolvent leurs couleurs sur le lightColorScheme() par défaut de
+            // Compose, provoquant des bandes système blanches (B19).
+            IptvXtreamTheme {
             // Covers splash and profile-gate states, which are rendered outside the NavHost.
             SystemBarsController(isTv = isTv, isPlayerRoute = false)
-            Surface(modifier = Modifier.fillMaxSize()) {
+            Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                 val loginViewModel: LoginViewModel = hiltViewModel()
                 val favoritesViewModel: FavoritesViewModel = hiltViewModel()
                 val homeViewModel: HomeViewModel = hiltViewModel()
@@ -157,6 +186,40 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
+                // --- F12 : deep link de notification "nouveaux épisodes" ---
+                var pendingSeriesId by remember { mutableStateOf<Int?>(null) }
+                var pendingDeepLinkProfileId by remember { mutableStateOf<Int?>(null) }
+
+                LaunchedEffect(Unit) {
+                    SeriesDeepLink.extract(intent)?.let {
+                        pendingSeriesId = it.seriesId
+                        pendingDeepLinkProfileId = it.profileId
+                    }
+                }
+                LaunchedEffect(pendingDeepLinkIntent.value) {
+                    val target = SeriesDeepLink.extract(pendingDeepLinkIntent.value) ?: return@LaunchedEffect
+                    pendingSeriesId = target.seriesId
+                    pendingDeepLinkProfileId = target.profileId
+                    pendingDeepLinkIntent.value = null
+                }
+
+                // Une seule demande de POST_NOTIFICATIONS sur mobile, après le gate de
+                // profil, jamais renouvelée après un refus (règle métier F12).
+                val notificationPermissionLauncher = rememberLauncherForActivityResult(
+                    ActivityResultContracts.RequestPermission()
+                ) { /* Résultat ignoré : abandon silencieux si refusé, jamais de nouvelle demande. */ }
+                LaunchedEffect(isTv, loggedInUser, profileGateResolved) {
+                    if (!isTv &&
+                        loggedInUser != null &&
+                        profileGateResolved &&
+                        Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                        !settingsManager.getNotificationPermissionRequested()
+                    ) {
+                        settingsManager.setNotificationPermissionRequested(true)
+                        notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    }
+                }
+
                 // Garde le splash tant que la vérification est en cours, ET tant que
                 // l'auto-login a réussi mais que loggedInUser n'est pas encore propagé
                 // par le LaunchedEffect. Sans ça, sur mobile le NavHost se compose avec
@@ -191,8 +254,9 @@ class MainActivity : ComponentActivity() {
                         }
                     )
                 } else {
-                    // Unified Jetpack Compose Navigation Layout for BOTH TV and Mobile
-                    IptvXtreamTheme {
+                    // Unified Jetpack Compose Navigation Layout for BOTH TV and Mobile.
+                    // Le thème est déjà posé à la racine de setContent (voir plus haut).
+                    run {
                         val navController = rememberNavController()
                         val navBackStackEntry by navController.currentBackStackEntryAsState()
                         val currentRoute = navBackStackEntry?.destination?.route
@@ -235,6 +299,26 @@ class MainActivity : ComponentActivity() {
                                     contentFocusRequester.requestFocusSafely()
                                     kotlinx.coroutines.delay(FOCUS_REQUEST_RETRY_MS)
                                 }
+                            }
+                        }
+
+                        // --- F12 : ouverture de la fiche série depuis la notification ---
+                        val seriesDeepLinkViewModel: SeriesDeepLinkViewModel = hiltViewModel()
+                        LaunchedEffect(pendingSeriesId, loggedInUser, profileGateResolved) {
+                            val id = pendingSeriesId ?: return@LaunchedEffect
+                            // Attend une session valide (règle métier F12) : couvre le
+                            // splash, l'auto-login, la connexion manuelle et le gate profil.
+                            if (loggedInUser == null || !profileGateResolved) return@LaunchedEffect
+                            val targetProfileId = pendingDeepLinkProfileId
+                            pendingSeriesId = null
+                            pendingDeepLinkProfileId = null
+                            if (targetProfileId != null && targetProfileId != profileState.activeProfileId) {
+                                profileViewModel.selectProfile(targetProfileId)
+                            }
+                            val stream = seriesDeepLinkViewModel.resolveSeries(id)
+                            if (stream != null) {
+                                activeSeriesShow = stream
+                                navController.navigate("series_details")
                             }
                         }
                         val activeProfile = profileState.profiles.firstOrNull { it.id == profileState.activeProfileId }
@@ -385,6 +469,7 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 }
+            }
             }
         }
     }

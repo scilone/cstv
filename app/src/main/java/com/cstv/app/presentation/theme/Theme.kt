@@ -3,6 +3,7 @@ package com.cstv.app.presentation.theme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.foundation.background
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.draw.drawBehind
@@ -36,6 +37,15 @@ fun IptvXtreamTheme(
         content = content
     )
 }
+
+/**
+ * Fond plein écran des écrans hors `Scaffold` (splash, gate profil) : le fond
+ * est peint sur toute la fenêtre (edge-to-edge), les insets sûrs ne s'appliquent
+ * qu'au contenu. Sans cette séparation, le fond s'arrête aux barres système et
+ * laisse apparaître la surface sous-jacente (B19).
+ */
+fun Modifier.appScreenBackground(isTv: Boolean): Modifier =
+    if (isTv) this.background(Surface1) else this.mobileBackground()
 
 fun Modifier.mobileBackground(): Modifier = composed {
     Modifier.drawBehind {

@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">CSTV</string>
+    <string name="new_episodes_channel_name">Nouveautés séries</string>
+    <string name="new_episodes_channel_description">Alerte quand de nouveaux épisodes sont disponibles pour une série terminée</string>
+    <string name="new_episodes_notification_title">Nouveaux épisodes disponibles</string>
     <string name="placeholder_message">CSTV - App Active</string>
     <string name="login_title_brand">XTREAM CODES</string>
     <string name="login_portal">PORTAIL DE CONNEXION</string>

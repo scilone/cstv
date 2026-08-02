@@ -6,19 +6,19 @@ Type:
 Feature
 
 Status:
-TASK BREAKDOWN
+RELEASED
 
 Created:
 2026-07-25
 
 Target version:
-v1.55.0
+v1.67.0
 
 Version:
-v1.55.0
+v1.67.0
 
 Date:
-2026-07-25
+2026-08-02
 
 ---
 
@@ -500,7 +500,7 @@ détection vis-à-vis de la synchronisation catalogue.
 
 ### Tâche 1 — Créer l'état de suivi de séries et son accès profilé
 
-- [ ] Ajouter la table Room non destructive, les modèles, le DAO et le repository
+- [x] Ajouter la table Room non destructive, les modèles, le DAO et le repository
   explicitement paramétré par profil.
 
 Objectif :
@@ -531,7 +531,7 @@ Validation :
 
 ### Tâche 2 — Implémenter et tester la décision pure de nouveaux épisodes
 
-- [ ] Créer `EpisodeRef` et `NewEpisodeDetector` avec sa matrice de décisions.
+- [x] Créer `EpisodeRef` et `NewEpisodeDetector` avec sa matrice de décisions.
 
 Objectif :
 Centraliser hors d'Android et de Room la comparaison saison/épisode, le seuil de
@@ -553,7 +553,7 @@ Validation :
 
 ### Tâche 3 — Orchestrer la détection multi-profils après la synchronisation
 
-- [ ] Ajouter le use case, son budget global et son appel isolé dans le worker.
+- [x] Ajouter le use case, son budget global et son appel isolé dans le worker.
 
 Objectif :
 Parcourir tous les profils et leurs séries éligibles, pré-filtrer localement,
@@ -580,7 +580,7 @@ Validation :
 
 ### Tâche 4 — Afficher les notifications locales mobiles
 
-- [ ] Fournir l'implémentation Android du notifier et les ressources associées.
+- [x] Fournir l'implémentation Android du notifier et les ressources associées.
 
 Objectif :
 Créer le canal dédié et une notification par série avec `PendingIntent` sûr,
@@ -604,7 +604,7 @@ Validation :
 
 ### Tâche 5 — Consommer le deep link de notification et demander la permission
 
-- [ ] Ajouter l'extraction testable du deep link et le routage différé mobile.
+- [x] Ajouter l'extraction testable du deep link et le routage différé mobile.
 
 Objectif :
 Ouvrir la fiche de la série demandée après résolution de session, sélectionner
@@ -630,7 +630,7 @@ Validation :
 
 ### Tâche 6 — Valider la fonctionnalité complète et ses non-régressions
 
-- [ ] Exécuter les contrôles automatisés et les parcours fonctionnels F12.
+- [x] Exécuter les contrôles automatisés et les parcours fonctionnels F12.
 
 Objectif :
 Vérifier le parcours de détection de bout en bout, la migration et l'absence de
@@ -649,3 +649,183 @@ Validation :
 - Sur TV : aucune alerte ni demande de permission ; la synchronisation reste
   fonctionnelle.
 - La migration 17 → 18 est relue manuellement contre le schéma final.
+
+---
+
+# 10. Notes de développement (étape 5)
+
+**Écart assumé par rapport à la spécification technique (§7.3) :** le ticket a
+été rédigé alors que le code documentait encore la version 17 (note en tête de
+§7.3). Au moment de l'implémentation, `AppDatabase` était déjà en version **21**
+(plusieurs migrations livrées entre-temps : T4, appariement TMDB, trailers,
+recherche FTS). La table `series_watch_state` a donc été ajoutée via
+`MIGRATION_21_22` (version 21 → **22**), et non 17 → 18. Le schéma de la table,
+le DAO et la logique de décision sont strictement ceux spécifiés ; seul le
+numéro de version diffère.
+
+**Écarts mineurs d'implémentation :**
+- `SeriesWatchStateRepositoryImpl` reçoit un `TimeProvider` (déjà utilisé
+  ailleurs dans le projet, ex. `TrailerRepositoryImpl`) plutôt que
+  `System.currentTimeMillis()` en dur, pour rester testable — cohérent avec les
+  conventions existantes, non contraire à la spec.
+- `ProfileRepositoryImpl` et son test reçoivent un paramètre supplémentaire
+  (`SeriesWatchStateDao`) : nettoyage de l'état à la suppression d'un profil,
+  conforme à la règle métier du ticket.
+- Le deep link est résolu via un petit `SeriesDeepLinkViewModel` (Hilt) plutôt
+  que par un accès direct au repository depuis `MainActivity` : Compose n'a pas
+  de mécanisme d'injection de champ hors `@AndroidEntryPoint`/ViewModel, et
+  cette indirection reste minimale (un seul appel suspendu).
+- Canal de notification créé via `NotificationChannelCompat` (androidx.core)
+  plutôt que `android.app.NotificationChannel` direct : `NotificationChannel`
+  et `NotificationManager.IMPORTANCE_DEFAULT` nécessitent l'API 24, alors que le
+  projet vise min SDK 21 (détecté par `lintDebug`, corrigé en utilisant
+  `NotificationManagerCompat.IMPORTANCE_DEFAULT`, no-op propre sous API 26).
+
+**Validation exécutée :** `./gradlew testDebugUnitTest assembleDebug lintDebug`
+passent tous (0 erreur lint sur les fichiers F12, 0 régression sur les tests
+existants). Aucune vérification sur device (hors périmètre de l'agent, cf.
+AGENTS.md "Stratégie de tests").
+
+---
+
+# 11. Review (étape 6)
+
+## Critique
+
+Aucun problème critique identifié.
+
+## Majeur
+
+### F12-R1 — Une série terminée peut être privée de vérification indéfiniment
+
+**Description :** `DetectNewEpisodesUseCase.processProfile()` trie toujours les
+candidats par `lastAccessedAt` décroissant, puis reprend les 20 premiers à
+chaque exécution. Le curseur persistant ne fait tourner que le profil de départ.
+Avec un seul profil contenant plus de 20 séries terminées (ou avec un profil qui
+dispose à lui seul du budget restant), les mêmes séries récentes consomment donc
+systématiquement le plafond, y compris lorsqu'elles n'ont aucune nouveauté. Les
+séries plus anciennes ne sont jamais atteintes.
+
+**Impact :** une série pourtant éligible et terminée peut ne jamais produire de
+notification lorsqu'un nouvel épisode paraît. Le plafond global est respecté,
+mais la détection n'est pas équitable entre les séries d'un même profil et un
+critère fonctionnel central de F12 reste non garanti.
+
+**Correction attendue :** rendre aussi la sélection équitable à l'intérieur de
+chaque profil, par exemple avec un curseur persistant par profil ou un
+`lastCheckedAt` par série, tout en conservant le plafond global de 20 et la
+priorisation raisonnable des séries récentes. Ajouter un test avec plus de 20
+séries terminées prouvant que plusieurs exécutions finissent par toutes les
+interroger.
+
+**Status: RESOLVED** — ajout d'un curseur persistant par profil
+(`SettingsManager.getNewEpisodesSeriesCursor`/`setNewEpisodesSeriesCursor`,
+clé `new_episodes_series_cursor_<profileId>`). `processProfile()` démarre
+désormais chaque exécution à cet index dans la liste triée par
+`lastAccessedAt` et boucle avec un wrap-around (`% sorted.size`) au lieu de
+toujours repartir de l'élément 0, tout en conservant le plafond global de 20
+et la priorisation des séries récentes en tête de rotation. Test ajouté :
+`DetectNewEpisodesUseCaseTest.perProfileSeriesCursor_rotatesSoAllCandidatesEventuallyGetChecked`
+(25 séries candidates sur un seul profil, budget 20 — prouve qu'après deux
+exécutions les 25 séries ont bien été interrogées, y compris celles qui
+n'étaient jamais atteintes auparavant).
+
+## Mineur
+
+### F12-R2 — Les limites d'intégration du worker et du notifier ne sont pas testées directement
+
+**Description :** les tests couvrent la décision pure, l'orchestration nominale
+et l'extraction du deep link, mais pas l'appel conditionnel depuis
+`DatabaseSyncWorker` ni les gardes du notifier Android (TV, notifications
+désactivées, unicité profil/série du `PendingIntent`). Le plan de développement
+mentionnait pourtant les tests du worker concernés.
+
+**Impact :** une régression future pourrait rattacher la détection à un résultat
+de sync incorrect, transformer une annulation en succès ou casser l'isolation
+des notifications sans être détectée par la suite JVM ciblée.
+
+**Correction attendue :** ajouter au minimum des tests automatisés des branches
+du worker (détection seulement après `SUCCESS`, exception isolée, annulation
+repropagée) et extraire, si nécessaire, la construction des identifiants/extras
+du notifier dans une logique JVM testable.
+
+**Status: RESOLVED** — la branche d'orchestration post-sync de
+`DatabaseSyncWorker.doWork()` (jamais testable directement en JVM, elle passe
+par `EntryPointAccessors.fromApplication`) est extraite dans une fonction pure
+`DatabaseSyncWorker.runPostSyncDetection(syncResult, detect)` couverte par
+`DatabaseSyncWorkerTest` : détection ignorée hors `SUCCESS`, exception isolée
+et journalisée sans propagation, `CancellationException` repropagée. Côté
+notifier, `AndroidNewEpisodeNotifier` reste dépendant de
+`Context`/`NotificationManagerCompat`/`UiModeManager` (non mockables en JVM,
+aucun Robolectric dans le projet) ; les gardes métier (TV, notifications
+désactivées) et le calcul de l'identifiant de notification garantissant
+l'unicité par couple profil/série sont extraits en fonctions pures
+`shouldShowNotification()`/`buildNotificationId()`, couvertes par
+`AndroidNewEpisodeNotifierTest`.
+
+## Contrôles de review
+
+- Tests F12 ciblés exécutés : `NewEpisodeDetectorTest`,
+  `DetectNewEpisodesUseCaseTest`, `SeriesDeepLinkTest` — succès.
+- Migration 21 → 22 relue contre `SeriesWatchStateEntity` : schéma cohérent,
+  aucune migration destructive.
+- Aucun correctif de code appliqué à cette étape.
+
+## Corrections (étape 7)
+
+- F12-R1 et F12-R2 corrigés (voir Status: RESOLVED ci-dessus).
+- Tests ajoutés : `DetectNewEpisodesUseCaseTest.perProfileSeriesCursor_rotatesSoAllCandidatesEventuallyGetChecked`,
+  `DatabaseSyncWorkerTest` (nouveau fichier), `AndroidNewEpisodeNotifierTest`
+  (nouveau fichier).
+- `./gradlew testDebugUnitTest` : succès (suite complète, aucune régression).
+- `./gradlew assembleDebug` : succès.
+
+---
+
+# 12. Validation finale (étape 8)
+
+**Comportement attendu :** la détection tourne en post-traitement du sync
+planifié (`DatabaseSyncWorker`), uniquement après un `SyncCacheResult.SUCCESS`,
+sans jamais transformer un sync réussi en échec/retry (`runPostSyncDetection`).
+La sélection des séries à vérifier respecte le plafond global de 20 par
+exécution et, depuis la correction F12-R1, garantit désormais l'équité
+intra-profil via le curseur persistant par profil — plus de série
+indéfiniment privée de vérification.
+
+**Règles métier :** aucune notification sur Android TV, aucune notification si
+l'utilisateur a désactivé les notifications système, aucune donnée Xtream
+(identifiants, URL de flux) ni nom de profil dans le contenu visible — seuls
+`profileId`/`seriesId` transitent en extras du `PendingIntent`. Ces gardes
+sont désormais couvertes par des tests JVM (`AndroidNewEpisodeNotifierTest`).
+
+**Expérience utilisateur :** tap sur la notification → deep link vers la fiche
+série (`SeriesDeepLinkTest`), identifiant de notification unique par couple
+profil/série (pas d'écrasement croisé).
+
+**Qualité technique :** logique d'orchestration multi-profils, gardes du
+notifier et branchement post-sync du worker sont désormais couverts par des
+tests JVM automatisés là où c'était possible sans instrumentation/Robolectric
+(absents du projet, cf. `AGENTS.md`) ; le reste (rendu réel de la notification
+Android, comportement `PendingIntent` en conditions réelles) reste hors
+périmètre de validation automatisée, conformément à l'exclusion des tests
+device/manuels.
+
+**Absence de régression :** suite complète `./gradlew testDebugUnitTest` verte
+après corrections F12-R1/F12-R2 ; `./gradlew assembleDebug` vert.
+
+**Tests validés :** `NewEpisodeDetectorTest`, `DetectNewEpisodesUseCaseTest`
+(incluant le nouveau test de rotation du curseur par profil),
+`SeriesDeepLinkTest`, `DatabaseSyncWorkerTest`, `AndroidNewEpisodeNotifierTest`.
+
+**Status: VALIDATED**
+
+---
+
+# 9. Release
+
+Version : v1.67.0
+
+Commit : :sparkles: feat(series): release series new episodes push notification (F12)
+
+Date : 2026-08-02
+

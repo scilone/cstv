@@ -675,7 +675,7 @@ fun HomeScreen(
 
                 // 11. F15: les téléchargements terminés restent un raccourci de lecture,
                 // leur gestion complète est conservée dans DownloadsScreen.
-                if (state.downloadedItems.isNotEmpty()) {
+                if (!isTv && state.downloadedItems.isNotEmpty()) {
                     item(key = "home_downloads") {
                         val rowState = rememberRowScrollState(isTv, "home_downloads", { viewModel.getScrollPosition(it) }, { k, i, o -> viewModel.saveScrollPosition(k, i, o) })
                         HomeSectionRow(

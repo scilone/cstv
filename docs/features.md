@@ -121,6 +121,7 @@ Cette fonctionnalité rétablit l'affichage de la barre de statut système penda
 * **Barre d'état visible hors lecture** : Permet à l'utilisateur de consulter l'heure, la batterie et les notifications système pendant la navigation (Connexion, Profils, Accueil, Catalogues, Détails, Paramètres) avec une apparence esthétique harmonieuse.
 * **Mode immersif dynamique** : Masque automatiquement et de force les barres système supérieure (statut) et inférieure (navigation) dès le lancement de la lecture vidéo dans les 3 lecteurs (Live TV, VOD, Séries) pour garantir un plein écran complet.
 * **Respect des zones sûres (Insets)** : Intégration de paddings de sécurité (`statusBarsPadding()`, `safeDrawingPadding()`, etc.) sur tous les écrans de navigation mobile pour éviter que les contrôles ou les titres cliquables ne soient masqués par l'encoche (notch) ou le poinçon de la caméra frontale.
+* **Barres système sombres et thème global (B19)** : Le thème sombre de l'application est appliqué dès le démarrage (Splash screen, Sélection de profil, Gestion des profils), éliminant ainsi les bandes blanches inesthétiques au niveau des barres système (statut et navigation) et assurant une immersion visuelle sombre continue.
 * **Support du mode Cutout "shortEdges"** : Autorise le contenu vidéo des lecteurs à s'étendre derrière l'encoche en mode paysage pour utiliser 100 % de l'écran, tout en protégeant les contrôles tactiles.
 * **Isolation complète de la TV** : Aucune incidence sur Android TV, où les barres système restent toujours invisibles et où le focus et la navigation existants sont préservés.
 
@@ -212,6 +213,25 @@ Cette fonctionnalité apporte une expérience de navigation stable, cinématique
 * **Résilience au layout d'arrière-plan** : Le pivot vertical intègre une attente asynchrone adaptative (jusqu'à 200 ms) via `snapshotFlow` pour détecter la rangée cible lorsqu'elle est temporairement composée hors du viewport ou pendant l'apparition asynchrone de sections de l'Accueil, garantissant un recentrage systématique sans aucun défilement parasite.
 * **Propagation des contraintes de largeur (Majeur #1)** : Les cartes des grilles TV (Films, Séries, Recherche) sont enveloppées dans des conteneurs qui propagent explicitement les contraintes minimales de dimensionnement. Cela prévient tout rétrécissement ou déformation visuelle des cartes lors du calcul du pivot et garantit l'alignement parfait du sélecteur.
 * **Isolation complète du Mobile** : L'intégralité du mécanisme est conditionnée par le paramètre `isTv`. Sur mobile, les gestes tactiles, le défilement standard et la restauration de position d'origine sont parfaitement inchangés.
+
+---
+
+## 20. Notification de nouveaux épisodes pour les séries terminées (F12)
+Cette fonctionnalité permet d'alerter l'utilisateur sur mobile dès que de nouveaux épisodes sont disponibles pour une série qu'il a déjà terminée.
+* **Détection intelligente d'arrière-plan** : La détection s'effectue localement sur l'appareil pendant la tâche périodique de synchronisation du catalogue (`DatabaseSyncWorker`), sans requêtes réseau excessives vers l'API Xtream Codes.
+* **Ciblage optimisé (Séries suivies)** : La recherche de nouveaux épisodes est restreinte aux séries ajoutées aux favoris ou présentes dans l'historique "Continuer à regarder" du profil actif.
+* **Définition d'une série terminée** : Une série est considérée comme terminée si l'utilisateur possède une position de lecture complétée (visionnée à moins de 15 secondes de la fin) pour l'épisode ayant les numéros de saison et d'épisode les plus élevés parmi ceux disponibles localement au moment du visionnage.
+* **Notification locale Android** : L'alerte est émise via un canal de notification système dédié sur mobile. Un clic sur la notification ouvre l'application par un deep link direct vers la fiche détaillée de la série concernée.
+* **Isolation par profil** : L'état d'avancement et les alertes sont strictement isolés par profil local. Aucune information sensible (comme les identifiants Xtream ou les détails d'un autre profil) n'est partagée.
+* **Désactivation TV** : La fonctionnalité est exclusivement activée sur mobile ; elle est totalement inactive sur Android TV.
+
+---
+
+## 21. Retrait des fonctionnalités de téléchargement sur TV (F21)
+Afin d'épurer l'interface d'Android TV, d'économiser son stockage limité et d'éviter les actions inutiles (les téléviseurs étant connectés de façon permanente), toutes les fonctionnalités de téléchargement hors-ligne ont été masquées de l'interface TV.
+* **Masquage de la section Accueil** : La ligne horizontale "Téléchargements" n'apparaît plus sur l'écran d'Accueil sur Android TV, même si des médias ont été téléchargés depuis d'autres appareils du foyer (base Room partagée).
+* **Retrait des fiches de détails** : Le bouton "Télécharger" (`DownloadActionButton`) sur la fiche Film (VOD) et l'icône de téléchargement en face de chaque épisode (`EpisodeDownloadControl`) sur la fiche Série sont totalement masqués sur TV.
+* **Conservation à 100 % sur mobile** : L'expérience de téléchargement mobile reste totalement intacte, active et fonctionnelle.
 
 ---
 

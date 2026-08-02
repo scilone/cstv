@@ -34,7 +34,7 @@ import com.cstv.app.presentation.theme.HankenGrotesk
 import com.cstv.app.presentation.theme.Surface1
 import com.cstv.app.presentation.theme.Surface2
 import com.cstv.app.presentation.theme.Surface3
-import com.cstv.app.presentation.theme.mobileBackground
+import com.cstv.app.presentation.theme.appScreenBackground
 
 /**
  * Écran de gestion des profils façon Netflix (Phase 27, revu suite retour
@@ -55,13 +55,13 @@ fun ProfileManagementScreen(
     var creatingProfile by remember { mutableStateOf(false) }
     var deleteError by remember { mutableStateOf<String?>(null) }
 
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .then(if (isTv) Modifier else Modifier.safeDrawingPadding())
-            .then(if (isTv) Modifier.background(Surface1) else Modifier.mobileBackground()),
-        contentAlignment = Alignment.Center
-    ) {
+    Box(modifier = modifier.fillMaxSize().appScreenBackground(isTv)) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .then(if (isTv) Modifier else Modifier.safeDrawingPadding()),
+            contentAlignment = Alignment.Center
+        ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier
@@ -115,6 +115,7 @@ fun ProfileManagementScreen(
             ) {
                 Text(stringResource(R.string.profile_manage_done), color = Color.White, fontWeight = FontWeight.Bold)
             }
+        }
         }
     }
 
