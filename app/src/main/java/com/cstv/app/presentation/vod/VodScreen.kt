@@ -52,7 +52,6 @@ import androidx.compose.foundation.focusGroup
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -330,6 +329,13 @@ private fun TvLayout(
     val catalogUnavailable = !state.catalogStatus.isComplete && state.catalogStatus.isOffline && state.streams.isEmpty()
     val isLoadingCatalog = state.isLoadingStreams || state.isLoadingCategories
     val hasMediaSection = !catalogUnavailable && !isLoadingCatalog && (isAllSelected || pagedStreams.itemCount > 0)
+    // Le conteneur d'une liste/grille Lazy est un `focusGroup` : il n'est
+    // jamais `isFocused` lui-même, seulement `hasFocus`. Le front montant de
+    // `hasFocus` est donc le seul signal fiable d'une rentrée du focus depuis
+    // l'extérieur (retour du rail latéral) ; il déclenche le retour sur la
+    // vignette exacte quittée, là où un test sur `isFocused` ne s'exécutait
+    // jamais et laissait la recherche de focus retomber sur la première rangée.
+    var mediaSectionHadFocus by remember { mutableStateOf(false) }
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -456,19 +462,20 @@ private fun TvLayout(
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 modifier = Modifier.fillMaxSize()
                     .focusRequester(mediaSectionFocusRequester)
-                    // Sans restaurateur local, le focus entrant se pose sur la
-                    // liste elle-même : aucune vignette n'est focalisée, donc
-                    // aucun pivot n'est publié et le cadre reste absent. Le
-                    // `focusRestorer` de MainActivity ne couvre que son propre
-                    // niveau de groupe, pas celui-ci.
-                    .focusRestorer()
                     .onFocusChanged {
                         if (it.hasFocus) {
                             tvFocusSelector.show()
-                            if (it.isFocused && hasFocusRestoreTarget) {
-                                focusRestoreScope.launch { restoredFocus.requester.requestFocus() }
+                            if (!mediaSectionHadFocus && hasFocusRestoreTarget) {
+                                // Vignette recyclée par la liste : `requestFocus`
+                                // lève, le focus posé par la recherche par défaut
+                                // reste alors valable.
+                                focusRestoreScope.launch { runCatching { restoredFocus.requester.requestFocus() } }
                             }
-                        } else tvFocusSelector.clear()
+                            mediaSectionHadFocus = true
+                        } else {
+                            mediaSectionHadFocus = false
+                            tvFocusSelector.clear()
+                        }
                     }
             ) {
                 tvPivotVerticalStartSpacer(true)
@@ -583,15 +590,18 @@ private fun TvLayout(
                     ),
                     modifier = Modifier.fillMaxSize()
                         .focusRequester(mediaSectionFocusRequester)
-                        .focusRestorer()
                         .focusGroup()
                         .onFocusChanged {
                             if (it.hasFocus) {
                                 tvFocusSelector.show()
-                                if (it.isFocused && hasFocusRestoreTarget) {
-                                    focusRestoreScope.launch { restoredFocus.requester.requestFocus() }
+                                if (!mediaSectionHadFocus && hasFocusRestoreTarget) {
+                                    focusRestoreScope.launch { runCatching { restoredFocus.requester.requestFocus() } }
                                 }
-                            } else tvFocusSelector.clear()
+                                mediaSectionHadFocus = true
+                            } else {
+                                mediaSectionHadFocus = false
+                                tvFocusSelector.clear()
+                            }
                         }
                 ) {
                     items(pagedStreams.itemCount) { index ->
@@ -910,10 +920,13 @@ private fun CategorySectionRow(
             state = rowState,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             contentPadding = PaddingValues(horizontal = 12.dp),
-            // `focusRestorer` ne couvre qu'un niveau de groupe : celui de la
-            // liste verticale ramène sur la rangée, celui-ci ramène sur la
-            // vignette exacte à l'intérieur de la rangée.
-            modifier = Modifier.fillMaxWidth().focusRestorer().focusGroup()
+            // Pas de `focusRestorer` ici : son `enter` renvoie
+            // `FocusRequester.Cancel` dès qu'il croit avoir restauré une
+            // vignette. Recyclée par la LazyRow, celle-ci ne reprend pas le
+            // focus et l'annulation tue la recherche — la navigation vers le
+            // haut devenait alors impossible dès qu'une rangée avait déjà été
+            // visitée. La restauration exacte est pilotée par [restoredFocus].
+            modifier = Modifier.fillMaxWidth().focusGroup()
         ) {
             itemsIndexed(displayList) { index, stream ->
                 val isRestoredTarget = categoryId == restoredCategoryId && stream.streamId == restoredStreamId
