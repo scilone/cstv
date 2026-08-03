@@ -8,7 +8,32 @@ import androidx.room.PrimaryKey
 // L'index sur releaseYear sert l'appariement TMDB : la requête ne remonte que
 // les films de l'année cherchée plus ceux dont l'année n'est pas encore connue,
 // au lieu de charger et normaliser tout le catalogue (T-B15).
-@Entity(tableName = "vod_streams", indices = [Index(value = ["releaseYear"])])
+//
+// L'index sur `categoryRank` est **couvrant** : il porte les huit colonnes de
+// `VodStreamListRow`, si bien que la requête de l'onglet « Tout » se résout
+// entièrement dans l'index — aucun accès à la table, aucun tri temporaire, et
+// le balayage s'arrête au centième élément de chaque catégorie. Sans lui,
+// `ORDER BY orderIndex` sur 39 000 lignes imposait un parcours complet de la
+// table (colonnes lourdes `plot`/`searchText` comprises) suivi d'un tri
+// B-tree : 2 secondes mesurées sur Android TV.
+//
+// L'index `(categoryId, orderIndex)` reste volontairement étroit : la vue
+// « une catégorie » ne remonte que quelques centaines de lignes, pour
+// lesquelles les accès table restent moins coûteux que de dupliquer `name` et
+// `streamIcon` une seconde fois sur le disque.
+@Entity(
+    tableName = "vod_streams",
+    indices = [
+        Index(value = ["releaseYear"]),
+        Index(
+            value = [
+                "categoryRank", "streamId", "name", "streamIcon",
+                "rating", "added", "categoryId", "genre", "releaseYear"
+            ]
+        ),
+        Index(value = ["categoryId", "orderIndex"])
+    ]
+)
 data class VodStreamEntity(
     @PrimaryKey val streamId: Int,
     val name: String,
@@ -21,6 +46,14 @@ data class VodStreamEntity(
     val director: String? = null,
     val genre: String? = null,
     val orderIndex: Int = 0,
+    /**
+     * Rang du film **au sein de sa catégorie** (0 = premier), là où
+     * `orderIndex` est un rang global sur toute la réponse de l'API. C'est ce
+     * rang qui permet à l'onglet « Tout » de ne demander que les 100 premiers
+     * films de chaque catégorie en SQL — les rangées horizontales n'en
+     * affichent pas davantage, le total réel venant de `categoryCounts`.
+     */
+    @ColumnInfo(defaultValue = "0") val categoryRank: Int = 0,
     val releaseYear: Int? = null,
     /** Métadonnées de get_vod_info conservées pour la fiche hors ligne. */
     val plot: String? = null,

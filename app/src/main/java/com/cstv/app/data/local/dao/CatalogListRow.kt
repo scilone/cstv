@@ -1,6 +1,19 @@
 package com.cstv.app.data.local.dao
 
 /**
+ * Nombre de médias remontés par catégorie sur l'onglet « Tout ».
+ *
+ * Les rangées horizontales de cet onglet ne sont pas conçues pour être
+ * parcourues au-delà de quelques dizaines d'éléments — elles proposent
+ * « Voir tout » pour la suite, et le compteur affiché vient de
+ * `getCategoryCounts`, pas de la longueur de la liste. Charger les 39 000
+ * films du catalogue pour n'en afficher qu'une centaine par rangée coûtait
+ * autant en curseur SQLite qu'en objets vivants sur le tas (heap de 192 Mo sur
+ * Android TV).
+ */
+const val ALL_MODE_ROWS_PER_CATEGORY = 100
+
+/**
  * Projection minimale d'un flux pour les listes de catalogue.
  *
  * `SELECT *` sur `vod_streams` ramenait aussi `plot`, `searchText`, `actors`,
@@ -11,6 +24,12 @@ package com.cstv.app.data.local.dao
  * devait être rerempli des dizaines de fois, et le tri temporaire de
  * `ORDER BY orderIndex` déplaçait autant d'octets inutiles. Le même écueil est
  * déjà documenté sur `getStreamsByReleaseYearPage`.
+ *
+ * La projection seule ne suffisait pas : le tri restait, et le curseur portait
+ * toujours les 39 000 lignes. D'où les deux compléments — le plafond
+ * [ALL_MODE_ROWS_PER_CATEGORY] et l'index couvrant déclaré sur
+ * `VodStreamEntity`, qui font de la requête « Tout » un simple balayage
+ * d'index tronqué.
  *
  * Les champs absents du domaine sont donc laissés à leur valeur neutre par les
  * repositories : `actors`, `director` et `searchText` ne sont lus que par la

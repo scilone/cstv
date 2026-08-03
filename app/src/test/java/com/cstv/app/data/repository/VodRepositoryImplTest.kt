@@ -183,6 +183,32 @@ class VodRepositoryImplTest {
         assertEquals(2, inserted[2].orderIndex)
     }
 
+    @Test
+    fun test_syncVodStreams_numbersCategoryRankPerCategory() = runTest {
+        whenever(vodDao.getAllStreams()).thenReturn(emptyList())
+
+        // Réponse « Tout » avec catégories entrelacées : `orderIndex` suit la
+        // réponse complète, `categoryRank` repart de 0 dans chaque catégorie.
+        // C'est ce rang que la requête de l'onglet « Tout » plafonne.
+        val remoteStreams = listOf(
+            VodStreamDto(101, "A", null, null, null, "69"),
+            VodStreamDto(102, "B", null, null, null, "78"),
+            VodStreamDto(103, "C", null, null, null, "69"),
+            VodStreamDto(104, "D", null, null, null, "78"),
+            VodStreamDto(105, "E", null, null, null, "69")
+        )
+        whenever(apiService.getVodStreams("username", "password", null)).thenReturn(remoteStreams)
+
+        repository.syncVodStreams("all")
+
+        val entitiesCaptor = argumentCaptor<List<VodStreamEntity>>()
+        verify(vodDao).replaceAllStreams(entitiesCaptor.capture())
+
+        val inserted = entitiesCaptor.firstValue
+        assertEquals(listOf(0, 1, 2, 3, 4), inserted.map { it.orderIndex })
+        assertEquals(listOf(0, 0, 1, 1, 2), inserted.map { it.categoryRank })
+    }
+
     // --- 4. DETAILED VOD INFO & RESUME PERSISTENCE TESTS ---
     @Test
     fun test_getVodDetails_fallsBackOnCachedRow_whenPanelRefusesMetadata() = runTest {

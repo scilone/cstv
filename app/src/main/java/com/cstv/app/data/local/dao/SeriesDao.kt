@@ -68,11 +68,12 @@ interface SeriesDao {
     fun observeStreamsByCategory(categoryId: String): Flow<List<SeriesStreamEntity>>
 
     // Voir VodDao : projection de liste, mêmes raisons.
+    // Voir VodDao : plafond par catégorie servi par l'index couvrant.
     @Query(
         "SELECT seriesId, name, cover, rating, added, categoryId, genre, releaseYear " +
-            "FROM series_streams ORDER BY orderIndex ASC"
+            "FROM series_streams WHERE categoryRank < :limit ORDER BY categoryRank ASC"
     )
-    fun observeAllStreamListRows(): Flow<List<SeriesStreamListRow>>
+    fun observeAllStreamListRows(limit: Int): Flow<List<SeriesStreamListRow>>
 
     @Query(
         "SELECT seriesId, name, cover, rating, added, categoryId, genre, releaseYear " +

@@ -490,4 +490,92 @@ val MIGRATION_22_23 = object : Migration(22, 23) {
     }
 }
 
-val ALL_MIGRATIONS = arrayOf(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23)
+/**
+ * MIGRATION_23_24 (latence de l'onglet « Tout ») : ajoute `categoryRank` aux
+ * deux tables de catalogue et les index qui permettent de servir les rangées
+ * sans parcourir toute la table.
+ *
+ * Sur Android TV, `SELECT … FROM vod_streams ORDER BY orderIndex` mettait
+ * 2 secondes pour 38 947 lignes : aucun index ne portait `orderIndex`, donc
+ * SQLite balayait la table entière — colonnes `plot`/`searchText` comprises —
+ * puis construisait un tri B-tree temporaire. Trois changements l'évitent :
+ *
+ * 1. `categoryRank`, le rang d'un flux dans sa catégorie, permet de plafonner
+ *    la requête à cent éléments par catégorie (voir `ALL_MODE_ROWS_PER_CATEGORY`) ;
+ * 2. l'index couvrant sur `categoryRank` porte les huit colonnes de la
+ *    projection de liste : la requête se résout dans l'index, sans accès table
+ *    ni tri ;
+ * 3. l'index `(categoryId, orderIndex)` fait de même pour la vue d'une seule
+ *    catégorie, jusqu'ici logée à la même enseigne.
+ *
+ * Purement additif : une colonne avec valeur par défaut et trois index, donc
+ * aucune recopie de table. Les noms d'index reprennent la convention Room
+ * (`index_<table>_<colonnes jointes par _>`), sans quoi la validation de schéma
+ * échouerait au premier accès.
+ *
+ * Le remplissage de `categoryRank` s'appuie sur `ROW_NUMBER()`, absent des
+ * SQLite antérieurs à 3.25 (Android < 11). Sur ces appareils la colonne reste à
+ * 0 : toutes les lignes passent alors le filtre `categoryRank < 100`, ce qui
+ * redonne exactement le comportement actuel — sans régression — jusqu'à la
+ * première synchronisation du catalogue, qui écrit les vrais rangs.
+ */
+val MIGRATION_23_24 = object : Migration(23, 24) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE vod_streams ADD COLUMN categoryRank INTEGER NOT NULL DEFAULT 0")
+        db.execSQL("ALTER TABLE series_streams ADD COLUMN categoryRank INTEGER NOT NULL DEFAULT 0")
+
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS " +
+                "index_vod_streams_categoryRank_streamId_name_streamIcon_rating_added_categoryId_genre_releaseYear " +
+                "ON vod_streams(categoryRank, streamId, name, streamIcon, rating, added, categoryId, genre, releaseYear)"
+        )
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_vod_streams_categoryId_orderIndex ON vod_streams(categoryId, orderIndex)")
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS " +
+                "index_series_streams_categoryRank_seriesId_name_cover_rating_added_categoryId_genre_releaseYear " +
+                "ON series_streams(categoryRank, seriesId, name, cover, rating, added, categoryId, genre, releaseYear)"
+        )
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_series_streams_categoryId_orderIndex ON series_streams(categoryId, orderIndex)")
+
+        if (!supportsWindowFunctions(db)) return
+        categoryRankBackfillStatements(table = "vod_streams", keyColumn = "streamId").forEach(db::execSQL)
+        categoryRankBackfillStatements(table = "series_streams", keyColumn = "seriesId").forEach(db::execSQL)
+    }
+}
+
+/**
+ * `ROW_NUMBER() OVER (PARTITION BY …)` n'existe qu'à partir de SQLite 3.25,
+ * livré avec Android 11. Le `minSdk` du projet étant 21, la version est lue à
+ * l'exécution plutôt que déduite du niveau d'API — le SQLite embarqué n'est pas
+ * strictement lié à ce dernier.
+ */
+private fun supportsWindowFunctions(db: SupportSQLiteDatabase): Boolean =
+    db.query("SELECT sqlite_version()").use { cursor ->
+        if (!cursor.moveToFirst()) return false
+        val parts = cursor.getString(0).split('.')
+        val major = parts.getOrNull(0)?.toIntOrNull() ?: return false
+        val minor = parts.getOrNull(1)?.toIntOrNull() ?: return false
+        major > 3 || (major == 3 && minor >= 25)
+    }
+
+/**
+ * Instructions remplissant `categoryRank` en une passe, à exécuter dans
+ * l'ordre. La table temporaire est indispensable : un
+ * `UPDATE … SET x = (SELECT … ROW_NUMBER() …)` corrélé rematérialiserait la
+ * sous-requête pour chacune des 39 000 lignes.
+ *
+ * Renvoyées plutôt qu'exécutées ici pour que `MigrationsSqlTest` puisse les
+ * rejouer sur un SQLite en mémoire — le projet n'a pas d'infrastructure de test
+ * instrumenté pour valider les migrations (voir AGENTS.md).
+ */
+internal fun categoryRankBackfillStatements(table: String, keyColumn: String): List<String> = listOf(
+    "DROP TABLE IF EXISTS temp.catalog_rank",
+    "CREATE TEMP TABLE catalog_rank AS SELECT $keyColumn AS id, " +
+        "ROW_NUMBER() OVER (PARTITION BY categoryId ORDER BY orderIndex) - 1 AS rk FROM $table",
+    "CREATE INDEX temp.index_catalog_rank_id ON catalog_rank(id)",
+    "UPDATE $table SET categoryRank = " +
+        "ifnull((SELECT rk FROM temp.catalog_rank WHERE id = $table.$keyColumn), 0)",
+    "DROP TABLE temp.catalog_rank"
+)
+
+val ALL_MIGRATIONS = arrayOf(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24)

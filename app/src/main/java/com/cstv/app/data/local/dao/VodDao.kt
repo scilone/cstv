@@ -77,11 +77,22 @@ interface VodDao {
     // Projection de liste : voir VodStreamListRow pour le motif (fenêtre de
     // curseur et tri temporaire). Ces deux requêtes remplacent les variantes
     // `SELECT *` pour les écrans de catalogue.
+    // Onglet « Tout » : plafonné à `limit` films par catégorie, puisque les
+    // rangées horizontales n'en affichent pas davantage et que le total réel
+    // est déjà servi par `getCategoryCounts`.
+    //
+    // `WHERE categoryRank < :limit ORDER BY categoryRank ASC` attaque l'index
+    // couvrant par sa colonne de tête : SQLite s'y positionne, balaie jusqu'au
+    // rang `limit` et s'arrête, sans jamais toucher la table ni construire de
+    // tri temporaire. Le tri par `categoryRank` seul suffit à l'affichage :
+    // l'ordre des rangées vient de la liste des catégories, et `groupBy`
+    // (LinkedHashMap) conserve l'ordre de rencontre à l'intérieur de chaque
+    // groupe — donc les rangs croissants de la catégorie.
     @Query(
         "SELECT streamId, name, streamIcon, rating, added, categoryId, genre, releaseYear " +
-            "FROM vod_streams ORDER BY orderIndex ASC"
+            "FROM vod_streams WHERE categoryRank < :limit ORDER BY categoryRank ASC"
     )
-    fun observeAllStreamListRows(): Flow<List<VodStreamListRow>>
+    fun observeAllStreamListRows(limit: Int): Flow<List<VodStreamListRow>>
 
     @Query(
         "SELECT streamId, name, streamIcon, rating, added, categoryId, genre, releaseYear " +

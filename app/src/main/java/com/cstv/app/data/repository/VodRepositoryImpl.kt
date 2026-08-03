@@ -282,7 +282,7 @@ class VodRepositoryImpl @Inject constructor(
      */
     override fun observeVodStreams(categoryId: String): Flow<List<VodStream>> =
         (if (categoryId == ALL_CATEGORIES) {
-            vodDao.observeAllStreamListRows()
+            vodDao.observeAllStreamListRows(com.cstv.app.data.local.dao.ALL_MODE_ROWS_PER_CATEGORY)
         } else {
             vodDao.observeStreamListRowsByCategory(categoryId)
         })
@@ -369,6 +369,7 @@ class VodRepositoryImpl @Inject constructor(
         val existingById = (if (categoryId == ALL_CATEGORIES) vodDao.getAllStreams() else vodDao.getStreamsByCategory(categoryId))
             .associateBy { it.streamId }
 
+        val rankCounter = CategoryRankCounter()
         val entities = remoteStreams.mapIndexedNotNull { index, dto ->
             val id = dto.streamId
             val name = dto.name
@@ -390,6 +391,7 @@ class VodRepositoryImpl @Inject constructor(
                     director = existing?.director,
                     genre = existing?.genre,
                     orderIndex = index,
+                    categoryRank = rankCounter.next(itemCategoryId),
                     releaseYear = existing?.releaseYear,
                     plot = existing?.plot,
                     duration = existing?.duration,

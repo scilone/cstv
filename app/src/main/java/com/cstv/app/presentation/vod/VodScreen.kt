@@ -268,10 +268,29 @@ private fun TvLayout(
     val actualCategories = remember(state.categories) {
         state.categories.filter { it.categoryId != "all" }
     }
-    // Favoris (Phase 35), première section du mode "Tout".
-    val favoriteMovies = remember(filteredStreams, favoritesList) {
-        val favoriteIds = favoritesList.filter { it.type == "movie" }.map { it.id }.toSet()
-        filteredStreams.filter { it.streamId in favoriteIds }
+    // Favoris (Phase 35), première section du mode "Tout". Pilotés par
+    // `favoritesList` et non par intersection avec `filteredStreams` : l'onglet
+    // « Tout » ne charge plus que les cent premiers films de chaque catégorie
+    // (voir `ALL_MODE_ROWS_PER_CATEGORY`), et un favori classé au-delà
+    // disparaîtrait de la rangée. On préfère malgré tout l'entrée du catalogue
+    // quand elle est chargée : elle porte la note et l'année, absentes de
+    // `FavoriteItem`.
+    val favoriteMovies = remember(filteredStreams, favoritesList, searchQuery) {
+        val loadedById = filteredStreams.associateBy { it.streamId }
+        favoritesList.asSequence()
+            .filter { it.type == "movie" }
+            .map { favorite ->
+                loadedById[favorite.id] ?: VodStream(
+                    streamId = favorite.id,
+                    name = favorite.name,
+                    streamIcon = favorite.cover,
+                    rating = null,
+                    added = null,
+                    categoryId = favorite.categoryId
+                )
+            }
+            .filter { searchQuery.isBlank() || it.name.contains(searchQuery, ignoreCase = true) }
+            .toList()
     }
     val resumeMoviesStreams = remember(state.resumeMovies) {
         state.resumeMovies.map { pos ->
@@ -625,10 +644,29 @@ private fun MobileLayout(
     val actualCategories = remember(state.categories) {
         state.categories.filter { it.categoryId != "all" }
     }
-    // Favoris (Phase 35), première section du mode "Tout".
-    val favoriteMovies = remember(filteredStreams, favoritesList) {
-        val favoriteIds = favoritesList.filter { it.type == "movie" }.map { it.id }.toSet()
-        filteredStreams.filter { it.streamId in favoriteIds }
+    // Favoris (Phase 35), première section du mode "Tout". Pilotés par
+    // `favoritesList` et non par intersection avec `filteredStreams` : l'onglet
+    // « Tout » ne charge plus que les cent premiers films de chaque catégorie
+    // (voir `ALL_MODE_ROWS_PER_CATEGORY`), et un favori classé au-delà
+    // disparaîtrait de la rangée. On préfère malgré tout l'entrée du catalogue
+    // quand elle est chargée : elle porte la note et l'année, absentes de
+    // `FavoriteItem`.
+    val favoriteMovies = remember(filteredStreams, favoritesList, searchQuery) {
+        val loadedById = filteredStreams.associateBy { it.streamId }
+        favoritesList.asSequence()
+            .filter { it.type == "movie" }
+            .map { favorite ->
+                loadedById[favorite.id] ?: VodStream(
+                    streamId = favorite.id,
+                    name = favorite.name,
+                    streamIcon = favorite.cover,
+                    rating = null,
+                    added = null,
+                    categoryId = favorite.categoryId
+                )
+            }
+            .filter { searchQuery.isBlank() || it.name.contains(searchQuery, ignoreCase = true) }
+            .toList()
     }
     val resumeMoviesStreams = remember(state.resumeMovies) {
         state.resumeMovies.map { pos ->

@@ -207,7 +207,7 @@ class SeriesRepositoryImpl @Inject constructor(
     /** Voir VodRepositoryImpl : projection de liste, champs de recherche vides. */
     override fun observeSeriesStreams(categoryId: String): Flow<List<SeriesStream>> =
         (if (categoryId == ALL_CATEGORIES) {
-            seriesDao.observeAllStreamListRows()
+            seriesDao.observeAllStreamListRows(com.cstv.app.data.local.dao.ALL_MODE_ROWS_PER_CATEGORY)
         } else {
             seriesDao.observeStreamListRowsByCategory(categoryId)
         })
@@ -304,6 +304,7 @@ class SeriesRepositoryImpl @Inject constructor(
         val existingById = (if (categoryId == ALL_CATEGORIES) seriesDao.getAllStreams() else seriesDao.getStreamsByCategory(categoryId))
             .associateBy { it.seriesId }
 
+        val rankCounter = CategoryRankCounter()
         val entities = remoteStreams.mapIndexedNotNull { index, dto ->
             val id = dto.seriesId
             val name = dto.name
@@ -325,6 +326,7 @@ class SeriesRepositoryImpl @Inject constructor(
                     director = existing?.director,
                     genre = existing?.genre,
                     orderIndex = index,
+                    categoryRank = rankCounter.next(itemCategoryId),
                     releaseYear = existing?.releaseYear,
                     plot = existing?.plot,
                     detailsCachedAt = existing?.detailsCachedAt

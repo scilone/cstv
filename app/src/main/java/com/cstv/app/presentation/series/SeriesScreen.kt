@@ -267,10 +267,24 @@ private fun TvLayout(
     val actualCategories = remember(state.categories) {
         state.categories.filter { it.categoryId != "all" }
     }
-    // Favoris (Phase 35), première section du mode "Tout".
-    val favoriteSeries = remember(filteredStreams, favoritesList) {
-        val favoriteIds = favoritesList.filter { it.type == "series" }.map { it.id }.toSet()
-        filteredStreams.filter { it.seriesId in favoriteIds }
+    // Voir VodScreen : rangée pilotée par `favoritesList`, pour qu'un favori
+    // classé au-delà du centième de sa catégorie ne disparaisse pas.
+    val favoriteSeries = remember(filteredStreams, favoritesList, searchQuery) {
+        val loadedById = filteredStreams.associateBy { it.seriesId }
+        favoritesList.asSequence()
+            .filter { it.type == "series" }
+            .map { favorite ->
+                loadedById[favorite.id] ?: SeriesStream(
+                    seriesId = favorite.id,
+                    name = favorite.name,
+                    cover = favorite.cover,
+                    rating = null,
+                    added = null,
+                    categoryId = favorite.categoryId
+                )
+            }
+            .filter { searchQuery.isBlank() || it.name.contains(searchQuery, ignoreCase = true) }
+            .toList()
     }
     val resumeSeriesStreams = remember(state.resumeSeries) {
         state.resumeSeries.map { pos ->
@@ -618,10 +632,24 @@ private fun MobileLayout(
     val actualCategories = remember(state.categories) {
         state.categories.filter { it.categoryId != "all" }
     }
-    // Favoris (Phase 35), première section du mode "Tout".
-    val favoriteSeries = remember(filteredStreams, favoritesList) {
-        val favoriteIds = favoritesList.filter { it.type == "series" }.map { it.id }.toSet()
-        filteredStreams.filter { it.seriesId in favoriteIds }
+    // Voir VodScreen : rangée pilotée par `favoritesList`, pour qu'un favori
+    // classé au-delà du centième de sa catégorie ne disparaisse pas.
+    val favoriteSeries = remember(filteredStreams, favoritesList, searchQuery) {
+        val loadedById = filteredStreams.associateBy { it.seriesId }
+        favoritesList.asSequence()
+            .filter { it.type == "series" }
+            .map { favorite ->
+                loadedById[favorite.id] ?: SeriesStream(
+                    seriesId = favorite.id,
+                    name = favorite.name,
+                    cover = favorite.cover,
+                    rating = null,
+                    added = null,
+                    categoryId = favorite.categoryId
+                )
+            }
+            .filter { searchQuery.isBlank() || it.name.contains(searchQuery, ignoreCase = true) }
+            .toList()
     }
     val resumeSeriesStreams = remember(state.resumeSeries) {
         state.resumeSeries.map { pos ->
