@@ -135,6 +135,47 @@ class CategoryRankMigrationSqlTest {
     }
 
     @Test
+    fun liveBackfillRanksByChannelNumberNotByResponseOrder() {
+        DriverManager.getConnection("jdbc:sqlite::memory:").use { connection ->
+            connection.createStatement().use { statement ->
+                statement.execute(
+                    """
+                    CREATE TABLE live_streams (
+                        streamId INTEGER NOT NULL PRIMARY KEY,
+                        name TEXT NOT NULL,
+                        num INTEGER NOT NULL,
+                        categoryId TEXT NOT NULL,
+                        cachedAt INTEGER NOT NULL,
+                        categoryRank INTEGER NOT NULL DEFAULT 0
+                    )
+                    """.trimIndent()
+                )
+                // Le panel renvoie les chaînes dans le désordre : `num` seul
+                // décide de l'affichage, donc du rang.
+                statement.execute(
+                    "INSERT INTO live_streams(streamId, name, num, categoryId, cachedAt) VALUES " +
+                        "(1, 'C', 30, '10', 0), (2, 'A', 10, '10', 0), (3, 'B', 20, '10', 0)"
+                )
+            }
+
+            connection.createStatement().use { statement ->
+                categoryRankBackfillStatements(
+                    table = "live_streams",
+                    keyColumn = "streamId",
+                    orderColumn = "num"
+                ).forEach { statement.execute(it) }
+
+                statement.executeQuery("SELECT name, categoryRank FROM live_streams ORDER BY categoryRank")
+                    .use { result ->
+                        val ranked = mutableListOf<String>()
+                        while (result.next()) ranked += result.getString("name")
+                        assertEquals(listOf("A", "B", "C"), ranked)
+                    }
+            }
+        }
+    }
+
+    @Test
     fun allModeQueryReturnsEverythingWhenRankStaysAtDefault() {
         // Appareils dont le SQLite ne connaît pas `ROW_NUMBER()` : le
         // remplissage est sauté, `categoryRank` reste à 0, et l'onglet

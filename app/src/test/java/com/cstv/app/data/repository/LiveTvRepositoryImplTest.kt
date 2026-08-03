@@ -178,6 +178,37 @@ class LiveTvRepositoryImplTest {
         assertEquals("TF1", result[0].name)
     }
 
+    @Test
+    fun test_syncLiveStreams_ranksEachCategoryByChannelNumber() = runTest {
+        whenever(liveTvDao.getStreamsByCategory(any())).thenReturn(emptyList())
+
+        // Le panel renvoie les chaînes dans le désordre et catégories mêlées.
+        // `categoryRank` doit suivre `num` — l'ordre d'affichage — et non
+        // l'ordre de la réponse, sinon le plafond de l'onglet « Tout »
+        // retiendrait les mauvaises chaînes.
+        val remoteStreams = listOf(
+            LiveStreamDto(1, "C3", null, null, 30, null, "10"),
+            LiveStreamDto(2, "S1", null, null, 5, null, "20"),
+            LiveStreamDto(3, "C1", null, null, 10, null, "10"),
+            LiveStreamDto(4, "C2", null, null, 20, null, "10"),
+            LiveStreamDto(5, "S2", null, null, 7, null, "20")
+        )
+        whenever(apiService.getLiveStreams("username", "password", null)).thenReturn(remoteStreams)
+
+        repository.syncLiveStreams("all")
+
+        val entitiesCaptor = argumentCaptor<List<LiveStreamEntity>>()
+        verify(liveTvDao).replaceAllStreams(entitiesCaptor.capture())
+
+        val rankByName = entitiesCaptor.firstValue.associate { it.name to it.categoryRank }
+        assertEquals(mapOf("C1" to 0, "C2" to 1, "C3" to 2, "S1" to 0, "S2" to 1), rankByName)
+        // L'ordre de la liste insérée reste celui de la réponse.
+        assertEquals(
+            listOf("C3", "S1", "C1", "C2", "S2"),
+            entitiesCaptor.firstValue.map { it.name }
+        )
+    }
+
     // --- 4. RECENTLY WATCHED TESTS ---
     @Test
     fun test_recentlyWatched_persistenceAndRetrieval() = runTest {

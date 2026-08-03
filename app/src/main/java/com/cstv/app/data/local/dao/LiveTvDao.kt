@@ -33,6 +33,26 @@ interface LiveTvDao {
     @Query("SELECT * FROM live_streams ORDER BY num ASC")
     fun observeAllStreams(): Flow<List<LiveStreamEntity>>
 
+    // Projection de liste : voir LiveStreamListRow. Ces deux requêtes
+    // remplacent les variantes `SELECT *` pour les écrans de catalogue.
+    //
+    // Onglet « Tout » : plafonné à `limit` chaînes par catégorie, servi par
+    // l'index couvrant dont `categoryRank` est la colonne de tête — ni accès
+    // table, ni tri temporaire. Voir `VodDao.observeAllStreamListRows` pour le
+    // détail du motif ; `categoryRank` classe ici les chaînes par `num`, qui est
+    // l'ordre d'affichage.
+    @Query(
+        "SELECT streamId, name, streamIcon, epgChannelId, num, categoryId " +
+            "FROM live_streams WHERE categoryRank < :limit ORDER BY categoryRank ASC"
+    )
+    fun observeAllStreamListRows(limit: Int): Flow<List<LiveStreamListRow>>
+
+    @Query(
+        "SELECT streamId, name, streamIcon, epgChannelId, num, categoryId " +
+            "FROM live_streams WHERE categoryId = :categoryId ORDER BY num ASC"
+    )
+    fun observeStreamListRowsByCategory(categoryId: String): Flow<List<LiveStreamListRow>>
+
     @Query("SELECT * FROM live_streams ORDER BY num ASC")
     fun getAllStreamsPaged(): androidx.paging.PagingSource<Int, LiveStreamEntity>
 

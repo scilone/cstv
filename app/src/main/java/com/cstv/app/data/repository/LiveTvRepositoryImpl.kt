@@ -48,10 +48,26 @@ class LiveTvRepositoryImpl @Inject constructor(
             .distinctUntilChanged()
             .map { categories -> categories.map { it.toDomain() } }
 
+    private fun com.cstv.app.data.local.dao.LiveStreamListRow.toDomain() =
+        LiveStream(streamId, name, streamIcon, epgChannelId, num, categoryId)
+
+    /** Voir VodRepositoryImpl : projection de liste, plafond sur l'onglet « Tout ». */
     override fun observeLiveStreams(categoryId: String): Flow<List<LiveStream>> =
-        (if (categoryId == ALL_CATEGORIES) liveTvDao.observeAllStreams() else liveTvDao.observeStreamsByCategory(categoryId))
+        (if (categoryId == ALL_CATEGORIES) {
+            liveTvDao.observeAllStreamListRows(com.cstv.app.data.local.dao.ALL_MODE_ROWS_PER_CATEGORY)
+        } else {
+            liveTvDao.observeStreamListRowsByCategory(categoryId)
+        })
             .distinctUntilChanged()
-            .map { streams -> streams.map { it.toDomain() } }
+            .map { rows ->
+                val startedAt = System.nanoTime()
+                val mapped = rows.map { it.toDomain() }
+                com.cstv.app.di.IptvLog.d(
+                    "PERF",
+                    "Live projection→domaine ${rows.size} lignes en ${(System.nanoTime() - startedAt) / 1_000_000}ms"
+                )
+                mapped
+            }
 
     override suspend fun getCachedLiveCategories(): List<LiveCategory> =
         liveTvDao.getAllCategories().map { it.toDomain() }
@@ -115,7 +131,7 @@ class LiveTvRepositoryImpl @Inject constructor(
                     cachedAt = currentTime
                 )
             } else null
-        }
+        }.let(::withCategoryRanks)
 
         // Remplacement atomique : effacement et repeuplement du catalogue dans
         // la même transaction. Une annulation entre les deux laissait auparavant
@@ -128,6 +144,24 @@ class LiveTvRepositoryImpl @Inject constructor(
 
 
         return entities.map { it.toDomain() }
+    }
+
+    /**
+     * Numérote chaque chaîne au sein de sa catégorie.
+     *
+     * Contrairement aux catalogues VOD et séries, l'ordre d'affichage n'est pas
+     * celui de la réponse mais `num`, le numéro de chaîne du panel. Le rang doit
+     * donc suivre `num`, sans quoi le plafond de l'onglet « Tout » retiendrait
+     * cent chaînes qui ne sont pas les cent premières affichées. L'ordre de la
+     * liste rendue est préservé : seul `categoryRank` change.
+     */
+    private fun withCategoryRanks(entities: List<LiveStreamEntity>): List<LiveStreamEntity> {
+        val rankByStreamId = entities.groupBy { it.categoryId }
+            .flatMap { (_, group) ->
+                group.sortedBy { it.num }.mapIndexed { rank, entity -> entity.streamId to rank }
+            }
+            .toMap()
+        return entities.map { it.copy(categoryRank = rankByStreamId[it.streamId] ?: 0) }
     }
 
     override fun getLiveStreamsPaged(categoryId: String): Flow<PagingData<LiveStream>> {

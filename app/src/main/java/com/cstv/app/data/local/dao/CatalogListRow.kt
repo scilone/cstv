@@ -47,6 +47,23 @@ data class VodStreamListRow(
     val releaseYear: Int?
 )
 
+/**
+ * Voir [VodStreamListRow]. La table `live_streams` est nettement plus étroite,
+ * mais la projection reste nécessaire : c'est elle que porte l'index couvrant,
+ * et `searchText` n'y aurait rien à faire.
+ *
+ * Ces six colonnes sont exactement celles de `LiveStream` : rien n'est laissé à
+ * une valeur neutre côté domaine, contrairement aux catalogues VOD et séries.
+ */
+data class LiveStreamListRow(
+    val streamId: Int,
+    val name: String,
+    val streamIcon: String?,
+    val epgChannelId: String?,
+    val num: Int,
+    val categoryId: String
+)
+
 /** Voir [VodStreamListRow]. */
 data class SeriesStreamListRow(
     val seriesId: Int,

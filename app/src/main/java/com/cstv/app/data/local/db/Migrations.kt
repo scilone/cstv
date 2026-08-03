@@ -568,14 +568,47 @@ private fun supportsWindowFunctions(db: SupportSQLiteDatabase): Boolean =
  * rejouer sur un SQLite en mémoire — le projet n'a pas d'infrastructure de test
  * instrumenté pour valider les migrations (voir AGENTS.md).
  */
-internal fun categoryRankBackfillStatements(table: String, keyColumn: String): List<String> = listOf(
+internal fun categoryRankBackfillStatements(
+    table: String,
+    keyColumn: String,
+    orderColumn: String = "orderIndex"
+): List<String> = listOf(
     "DROP TABLE IF EXISTS temp.catalog_rank",
     "CREATE TEMP TABLE catalog_rank AS SELECT $keyColumn AS id, " +
-        "ROW_NUMBER() OVER (PARTITION BY categoryId ORDER BY orderIndex) - 1 AS rk FROM $table",
+        "ROW_NUMBER() OVER (PARTITION BY categoryId ORDER BY $orderColumn) - 1 AS rk FROM $table",
     "CREATE INDEX temp.index_catalog_rank_id ON catalog_rank(id)",
     "UPDATE $table SET categoryRank = " +
         "ifnull((SELECT rk FROM temp.catalog_rank WHERE id = $table.$keyColumn), 0)",
     "DROP TABLE temp.catalog_rank"
 )
 
-val ALL_MIGRATIONS = arrayOf(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24)
+/**
+ * MIGRATION_24_25 : applique à `live_streams` le traitement que
+ * [MIGRATION_23_24] a réservé aux catalogues VOD et séries.
+ *
+ * La table n'avait aucun index, et `SELECT * … ORDER BY num` la parcourait donc
+ * intégralement avant de trier. À 4 347 chaînes le coût restait supportable
+ * (178 ms mesurées), mais le plan était le même que celui qui coûtait deux
+ * secondes en VOD : il grandit avec le bouquet.
+ *
+ * Seule différence avec les catalogues : le rang suit `num`, le numéro de
+ * chaîne, et non l'ordre de la réponse — c'est `num` qui décide de l'affichage.
+ * Même repli que pour la migration précédente si `ROW_NUMBER()` manque.
+ */
+val MIGRATION_24_25 = object : Migration(24, 25) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE live_streams ADD COLUMN categoryRank INTEGER NOT NULL DEFAULT 0")
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS " +
+                "index_live_streams_categoryRank_streamId_name_streamIcon_epgChannelId_num_categoryId " +
+                "ON live_streams(categoryRank, streamId, name, streamIcon, epgChannelId, num, categoryId)"
+        )
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_live_streams_categoryId_num ON live_streams(categoryId, num)")
+
+        if (!supportsWindowFunctions(db)) return
+        categoryRankBackfillStatements(table = "live_streams", keyColumn = "streamId", orderColumn = "num")
+            .forEach(db::execSQL)
+    }
+}
+
+val ALL_MIGRATIONS = arrayOf(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25)

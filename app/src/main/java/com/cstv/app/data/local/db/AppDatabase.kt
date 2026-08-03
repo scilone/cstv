@@ -58,7 +58,7 @@ import com.cstv.app.data.local.entity.SeriesWatchStateEntity
         TrailerCacheEntity::class,
         SeriesWatchStateEntity::class
     ],
-    version = 24,
+    version = 25,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

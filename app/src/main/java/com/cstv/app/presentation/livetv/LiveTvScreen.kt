@@ -222,9 +222,26 @@ private fun TvLayout(
     }
     // Chaînes favorites (Phase 35), section dédiée du mode "Tout", sous
     // "Récemment regardées" — comme sur Films/Séries.
-    val favoriteStreams = remember(filteredStreams, favoritesList) {
-        val favoriteLiveIds = favoritesList.filter { it.type == "live" }.map { it.id }.toSet()
-        filteredStreams.filter { it.streamId in favoriteLiveIds }
+    // Voir VodScreen : rangée pilotée par `favoritesList`, pour qu'une chaîne
+    // favorite classée au-delà de la centième de sa catégorie ne disparaisse
+    // pas. L'entrée du catalogue est préférée quand elle est chargée : elle
+    // seule porte `epgChannelId`, donc le programme en cours.
+    val favoriteStreams = remember(filteredStreams, favoritesList, searchQuery) {
+        val loadedById = filteredStreams.associateBy { it.streamId }
+        favoritesList.asSequence()
+            .filter { it.type == "live" }
+            .map { favorite ->
+                loadedById[favorite.id] ?: LiveStream(
+                    streamId = favorite.id,
+                    name = favorite.name,
+                    streamIcon = favorite.cover,
+                    epgChannelId = null,
+                    num = 0,
+                    categoryId = favorite.categoryId
+                )
+            }
+            .filter { searchQuery.isBlank() || it.name.contains(searchQuery, ignoreCase = true) }
+            .toList()
     }
     val firstCategoryId = actualCategories.firstOrNull { (groupedStreams[it.categoryId] ?: emptyList()).isNotEmpty() }?.categoryId
     // B17 review (C1) : `filteredStreams` (déjà scopé à la catégorie active et
@@ -470,9 +487,26 @@ private fun MobileLayout(
     }
     // Chaînes favorites (Phase 35), section dédiée du mode "Tout", sous
     // "Récemment regardées" — comme sur Films/Séries.
-    val favoriteStreams = remember(filteredStreams, favoritesList) {
-        val favoriteLiveIds = favoritesList.filter { it.type == "live" }.map { it.id }.toSet()
-        filteredStreams.filter { it.streamId in favoriteLiveIds }
+    // Voir VodScreen : rangée pilotée par `favoritesList`, pour qu'une chaîne
+    // favorite classée au-delà de la centième de sa catégorie ne disparaisse
+    // pas. L'entrée du catalogue est préférée quand elle est chargée : elle
+    // seule porte `epgChannelId`, donc le programme en cours.
+    val favoriteStreams = remember(filteredStreams, favoritesList, searchQuery) {
+        val loadedById = filteredStreams.associateBy { it.streamId }
+        favoritesList.asSequence()
+            .filter { it.type == "live" }
+            .map { favorite ->
+                loadedById[favorite.id] ?: LiveStream(
+                    streamId = favorite.id,
+                    name = favorite.name,
+                    streamIcon = favorite.cover,
+                    epgChannelId = null,
+                    num = 0,
+                    categoryId = favorite.categoryId
+                )
+            }
+            .filter { searchQuery.isBlank() || it.name.contains(searchQuery, ignoreCase = true) }
+            .toList()
     }
 
     var showCategorySheet by remember { mutableStateOf(false) }
