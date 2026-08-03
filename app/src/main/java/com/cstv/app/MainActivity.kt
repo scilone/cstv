@@ -353,14 +353,9 @@ class MainActivity : ComponentActivity() {
                                 modifier = Modifier
                                     .fillMaxSize()
                                     .focusRequester(contentFocusRequester)
-                                    // Ne couvre que les entrées par recherche de focus :
-                                    // `requestFocus()` sur ce conteneur, qui est un
-                                    // `focusGroup` donc non focalisable, passe par
-                                    // `findChildCorrespondingToFocusEnter` et ne consulte
-                                    // pas ces propriétés (Compose 1.6). Le retour sur la
-                                    // vignette exacte est donc piloté par les écrans
-                                    // catalogue eux-mêmes, sur le front montant de leur
-                                    // propre `hasFocus`.
+                                    // Restaure la vignette précise après un aller-retour
+                                    // par la barre latérale, au lieu de laisser la recherche
+                                    // de focus repartir sur une rangée voisine.
                                     .focusRestorer()
                                     .onFocusChanged { contentChildFocused = it.hasFocus && !it.isFocused }
                                     .focusGroup()

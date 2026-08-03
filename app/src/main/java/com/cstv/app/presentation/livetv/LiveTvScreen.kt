@@ -37,9 +37,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.saveable.rememberSaveable
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.launch
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -70,8 +68,6 @@ import com.cstv.app.presentation.components.CategoryFilterSheet
 import com.cstv.app.presentation.components.CategorySheetEntry
 import com.cstv.app.presentation.components.CategorySelectorTrigger
 import com.cstv.app.presentation.components.CategorySearchField
-import com.cstv.app.presentation.components.TvFocusEntryTarget
-import com.cstv.app.presentation.components.tvFocusEntryTarget
 import com.cstv.app.presentation.components.rememberTvInitialFocus
 import com.cstv.app.presentation.components.tvInitialFocusTarget
 import com.cstv.app.presentation.vod.CatalogFocusTarget
@@ -100,11 +96,7 @@ fun LiveTvScreen(
     }
 
     var searchQuery by remember { mutableStateOf("") }
-    // Voir VodScreen : la vignette réellement focalisée est la seule information
-    // permettant de revenir dessus après un aller-retour par le rail latéral.
-    var lastFocusedCategoryId by rememberSaveable { mutableStateOf<String?>(null) }
-    var lastFocusedStreamId by rememberSaveable { mutableStateOf<Int?>(null) }
-
+    
     // Reset search query when the selected category changes
     LaunchedEffect(state.selectedCategory) {
         searchQuery = ""
@@ -165,13 +157,7 @@ fun LiveTvScreen(
                 onHistoryRemove = { pendingRemoval = it },
                 getScroll = getScroll,
                 saveScroll = saveScroll,
-                tvFocusSelector = tvFocusSelector,
-                lastFocusedCategoryId = lastFocusedCategoryId,
-                lastFocusedStreamId = lastFocusedStreamId,
-                onMediaFocused = { categoryId, streamId ->
-                    lastFocusedCategoryId = categoryId
-                    lastFocusedStreamId = streamId
-                }
+                tvFocusSelector = tvFocusSelector
             )
             TvFocusSelectorOverlay(tvFocusSelector, modifier = Modifier.fillMaxSize())
         } else {
@@ -219,10 +205,7 @@ private fun TvLayout(
     onHistoryRemove: (LiveStream) -> Unit,
     getScroll: (String) -> Pair<Int, Int>,
     saveScroll: (String, Int, Int) -> Unit,
-    tvFocusSelector: TvFocusSelectorState,
-    lastFocusedCategoryId: String?,
-    lastFocusedStreamId: Int?,
-    onMediaFocused: (String, Int) -> Unit
+    tvFocusSelector: TvFocusSelectorState
 ) {
     val isAllSelected = state.selectedCategory?.categoryId == "all"
 
@@ -270,46 +253,10 @@ private fun TvLayout(
     val catalogUnavailable = !state.catalogStatus.isComplete && state.catalogStatus.isOffline && state.streams.isEmpty()
     val isLoadingCatalog = state.isLoadingStreams || state.isLoadingCategories
     val hasMediaSection = !catalogUnavailable && !isLoadingCatalog && (isAllSelected || pagedStreams.itemCount > 0)
-    // Un changement de catégorie doit reposer le focus sur une vraie vignette :
-    // la restauration exacte n'a de sens que dans la section quittée.
-    val hasFocusRestoreTarget = lastFocusedCategoryId != null && lastFocusedStreamId != null &&
-        (isAllSelected || lastFocusedCategoryId == state.selectedCategory?.categoryId)
-    val restoredFocus = rememberTvInitialFocus(
-        isTv = true,
-        ready = !state.isLoadingStreams && !state.isLoadingCategories && hasFocusRestoreTarget,
-        targetKey = "livetv_restore_${lastFocusedCategoryId}_${lastFocusedStreamId}"
-    )
-    val focusRestoreScope = rememberCoroutineScope()
-    // Voir VodScreen : `requestFocus()` sur le conteneur de contenu de
-    // MainActivity court-circuite `focusRestorer` et `focusProperties.enter`.
-    // Le front montant de `hasFocus` sur la colonne racine est le seul signal
-    // couvrant tous les chemins d'entrée.
-    var screenHadFocus by remember { mutableStateOf(false) }
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp)
-            .onFocusChanged { focusState ->
-                if (!focusState.hasFocus) {
-                    screenHadFocus = false
-                    return@onFocusChanged
-                }
-                val entry = tvFocusEntryTarget(
-                    alreadyFocused = screenHadFocus,
-                    modalHandoverPending = false,
-                    hasRestoreTarget = hasFocusRestoreTarget,
-                    // Même garde que le focus initial : un scroll restauré prime
-                    // sur le repli en tête de liste (B17, M4).
-                    hasInitialTarget = initialTarget != null && !hasRestorableScroll
-                )
-                screenHadFocus = true
-                val target = when (entry) {
-                    TvFocusEntryTarget.RESTORED_MEDIA -> restoredFocus.requester
-                    TvFocusEntryTarget.INITIAL_MEDIA -> initialFocus.requester
-                    TvFocusEntryTarget.NONE -> null
-                }
-                target?.let { focusRestoreScope.launch { runCatching { it.requestFocus() } } }
-            }
             .focusProperties {
                 enter = { if (hasMediaSection) mediaSectionFocusRequester else FocusRequester.Default }
             }
@@ -376,10 +323,6 @@ private fun TvLayout(
                             sectionListState = listState
                             ,initialFocusState = initialFocus
                             ,isInitialTarget = initialTarget == CatalogFocusTarget.RESUME
-                            ,restoredFocusState = restoredFocus
-                            ,restoredCategoryId = lastFocusedCategoryId
-                            ,restoredStreamId = lastFocusedStreamId
-                            ,onMediaFocused = onMediaFocused
                         )
                     }
                 }
@@ -402,10 +345,6 @@ private fun TvLayout(
                             sectionListState = listState
                             ,initialFocusState = initialFocus
                             ,isInitialTarget = initialTarget == CatalogFocusTarget.FAVORITES
-                            ,restoredFocusState = restoredFocus
-                            ,restoredCategoryId = lastFocusedCategoryId
-                            ,restoredStreamId = lastFocusedStreamId
-                            ,onMediaFocused = onMediaFocused
                         )
                     }
                 }
@@ -428,10 +367,6 @@ private fun TvLayout(
                             sectionListState = listState
                             ,initialFocusState = initialFocus
                             ,isInitialTarget = initialTarget == CatalogFocusTarget.FIRST_CATEGORY && category.categoryId == firstCategoryId
-                            ,restoredFocusState = restoredFocus
-                            ,restoredCategoryId = lastFocusedCategoryId
-                            ,restoredStreamId = lastFocusedStreamId
-                            ,onMediaFocused = onMediaFocused
                         )
                     }
                 }
@@ -494,19 +429,11 @@ private fun TvLayout(
                         val stream = pagedStreams[index]
                         if (stream != null) {
                             val isFav = favoritesList.any { it.id == stream.streamId && it.type == "live" }
-                            val isRestoredTarget = lastFocusedCategoryId == state.selectedCategory?.categoryId &&
-                                lastFocusedStreamId == stream.streamId
                             Box(
                                 // Rayon 12.dp : StreamTvCard n'a pas été unifiée au
                                 // rayon 14.dp de B18 (hors périmètre de ce ticket-là).
                                 modifier = Modifier.tvPivotCell(true, gridState, index, selectorCornerRadius = 12.dp)
-                                    .tvInitialFocusTarget(
-                                        if (isRestoredTarget) restoredFocus else initialFocus,
-                                        isRestoredTarget || (index == 0 && initialTarget == CatalogFocusTarget.GRID_FIRST_CELL)
-                                    )
-                                    .onFocusChanged {
-                                        if (it.isFocused) onMediaFocused(state.selectedCategory?.categoryId.orEmpty(), stream.streamId)
-                                    },
+                                    .tvInitialFocusTarget(initialFocus, index == 0 && initialTarget == CatalogFocusTarget.GRID_FIRST_CELL),
                                 // Cf. VodScreen.kt (Review F19, Majeur #1) : force la
                                 // propagation de la contrainte min de la cellule à l'enfant.
                                 propagateMinConstraints = true

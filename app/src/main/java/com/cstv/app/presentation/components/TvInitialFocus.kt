@@ -19,15 +19,6 @@ import kotlinx.coroutines.flow.first
 internal const val INITIAL_FOCUS_ATTEMPTS = 10
 internal const val INITIAL_FOCUS_RETRY_MS = 80L
 
-/**
- * Fenêtre laissée à une surface modale (dialogue de catégories, panneau de
- * filtres) pour rendre le focus à l'élément qu'elle a choisi, avant que la
- * restauration de vignette des écrans catalogue ne reprenne la main. Sans
- * borne, le drapeau de neutralisation resterait armé et sauterait la
- * restauration du retour de rail suivant.
- */
-const val MODAL_FOCUS_HANDOVER_MS = 500L
-
 @Stable
 class TvInitialFocusState internal constructor() {
     val requester = FocusRequester()
