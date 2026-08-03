@@ -93,7 +93,7 @@ fun LiveTvScreen(
     }
 
     var searchQuery by remember { mutableStateOf("") }
-    
+
     // Reset search query when the selected category changes
     LaunchedEffect(state.selectedCategory) {
         searchQuery = ""
@@ -405,7 +405,8 @@ private fun TvLayout(
                     contentPadding = PaddingValues(
                         vertical = LocalConfiguration.current.screenHeightDp.dp / 2
                     ),
-                    modifier = Modifier.fillMaxSize().focusGroup()
+                    modifier = Modifier.fillMaxSize()
+                        .focusGroup()
                         .onFocusChanged { if (!it.hasFocus) tvFocusSelector.clear() }
                 ) {
                     items(pagedStreams.itemCount) { index ->

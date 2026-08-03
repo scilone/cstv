@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -36,6 +38,7 @@ import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -43,12 +46,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.cstv.app.domain.model.AdvancedSearchFilter
 import com.cstv.app.domain.model.CategoryWithCount
 import com.cstv.app.domain.model.SearchMediaType
@@ -104,16 +111,13 @@ fun AdvancedSearchSheet(
     onApply: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var categoryExpanded by remember { mutableStateOf(false) }
+    val resetFocusRequester = remember { FocusRequester() }
+    LaunchedEffect(isTv) {
+        if (isTv) runCatching { resetFocusRequester.requestFocus() }
+    }
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        containerColor = Surface2,
-        contentColor = Color.White,
-        scrimColor = Color.Black.copy(alpha = 0.55f)
-    ) {
+    val filterControls: @Composable () -> Unit = {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -129,21 +133,32 @@ fun AdvancedSearchSheet(
                     .verticalScroll(rememberScrollState())
             ) {
                 // --- En-tête ---
+                // Sur TV le titre est masqué : l'en-tête se réduit au lien
+                // « Réinitialiser », qui collait alors au bord haut du panneau
+                // tout en restant loin du premier bloc de filtres. On le descend
+                // et on le rapproche de « NOTE MINIMUM » (retour utilisateur).
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 20.dp)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = if (isTv) 12.dp else 0.dp, bottom = if (isTv) 8.dp else 20.dp)
                 ) {
-                    Text(
-                        text = "Recherche avancée",
-                        fontFamily = BricolageGrotesque,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 22.sp,
-                        letterSpacing = (-0.01).sp,
-                        color = TextPrimary,
-                        modifier = Modifier.weight(1f)
-                    )
+                    if (!isTv) {
+                        Text(
+                            text = "Recherche avancée",
+                            fontFamily = BricolageGrotesque,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 22.sp,
+                            letterSpacing = (-0.01).sp,
+                            color = TextPrimary,
+                            modifier = Modifier.weight(1f)
+                        )
+                    } else {
+                        Spacer(modifier = Modifier.weight(1f))
+                    }
                     FocusableLink(
                         text = "Réinitialiser",
+                        modifier = if (isTv) Modifier.focusRequester(resetFocusRequester) else Modifier,
                         onClick = {
                             categoryExpanded = false
                             onReset()
@@ -201,7 +216,11 @@ fun AdvancedSearchSheet(
                     )
                 }
 
-                Spacer(Modifier.height(20.dp))
+                // Séparateur des blocs type/catégorie : inutile quand aucun des
+                // deux n'est rendu (panneau ouvert depuis une catégorie TV).
+                if (showMediaTypeFilter || showCategoryFilter) {
+                    Spacer(Modifier.height(20.dp))
+                }
 
                 // --- Note minimum ---
                 SectionLabel("NOTE MINIMUM")
@@ -251,7 +270,11 @@ fun AdvancedSearchSheet(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 20.dp)
+                    // L'écart doit être *hors* de la zone défilante : une marge
+                    // basse posée sur la liste des genres n'apparaît qu'une fois
+                    // le scroll arrivé au bout, et la dernière rangée visible
+                    // touche donc le bouton le reste du temps (retour utilisateur).
+                    .padding(top = if (isTv) 28.dp else 0.dp, bottom = 20.dp)
             ) {
                 Box(
                     contentAlignment = Alignment.Center,
@@ -281,6 +304,43 @@ fun AdvancedSearchSheet(
             }
         }
     }
+
+    if (isTv) {
+        // Sur TV, les filtres restent à droite : la liste de médias demeure
+        // visible à gauche et l'utilisateur conserve son repère spatial.
+        Dialog(
+            onDismissRequest = onDismiss,
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.55f))
+            ) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .fillMaxHeight()
+                        .width(460.dp)
+                        .background(Surface2)
+                        .border(1.dp, Color.White.copy(alpha = 0.10f))
+                ) {
+                    filterControls()
+                }
+            }
+        }
+    } else {
+        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        ModalBottomSheet(
+            onDismissRequest = onDismiss,
+            sheetState = sheetState,
+            containerColor = Surface2,
+            contentColor = Color.White,
+            scrimColor = Color.Black.copy(alpha = 0.55f)
+        ) {
+            filterControls()
+        }
+    }
 }
 
 @Composable
@@ -297,7 +357,7 @@ private fun SectionLabel(text: String) {
 }
 
 @Composable
-private fun FocusableLink(text: String, onClick: () -> Unit) {
+private fun FocusableLink(text: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
     var isFocused by remember { mutableStateOf(false) }
     Text(
         text = text,
@@ -305,7 +365,7 @@ private fun FocusableLink(text: String, onClick: () -> Unit) {
         fontWeight = FontWeight.SemiBold,
         fontSize = 14.sp,
         color = if (isFocused) Color.White else AccentLavande,
-        modifier = Modifier
+        modifier = modifier
             .onFocusChanged { isFocused = it.isFocused }
             .clip(RoundedCornerShape(6.dp))
             .then(

@@ -41,6 +41,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import kotlinx.coroutines.flow.map
+import kotlin.math.roundToInt
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -384,7 +385,7 @@ private fun TvLayout(
                         unfocusedTextColor = Color.White,
                         cursorColor = AccentLavande
                     ),
-                    modifier = Modifier.weight(0.4f)
+                    modifier = Modifier.weight(1f)
                 )
                 Spacer(modifier = Modifier.width(12.dp))
                 IconButton(
@@ -535,18 +536,27 @@ private fun TvLayout(
             } else {
                 val gridState = rememberForeverLazyGridState("vod_tv_cat_" + (state.selectedCategory?.categoryId ?: "0"), getScroll, saveScroll)
                 CompositionLocalProvider(LocalTvFocusSelector provides tvFocusSelector) {
+                BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                    // `Adaptive` répartit le reliquat de largeur dans les cellules :
+                    // des affiches fixes semblent alors plus espacées qu'en rangée.
+                    // La largeur calculée garde des cellules de 130 dp exactes et
+                    // le même écart visible de 12 dp que le mode « Tout ».
+                    val horizontalPadding = 24.dp
+                    val cardWidth = 130.dp
+                    val gridGap = 12.dp
+                    val availableWidth = (maxWidth - horizontalPadding).coerceAtLeast(cardWidth)
+                    val columns = ((availableWidth + gridGap) / (cardWidth + gridGap)).roundToInt().coerceAtLeast(1)
                 LazyVerticalGrid(
                     state = gridState,
-                    // Même vignette 130 × 195 dp que les rangées « Tout » :
-                    // les colonnes s'adaptent à l'écran sans étirer l'affiche.
-                    columns = GridCells.Adaptive(minSize = 130.dp),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    columns = GridCells.Fixed(columns),
+                    horizontalArrangement = Arrangement.spacedBy(gridGap),
+                    verticalArrangement = Arrangement.spacedBy(gridGap),
                     contentPadding = PaddingValues(
                         horizontal = 12.dp,
                         vertical = LocalConfiguration.current.screenHeightDp.dp / 2
                     ),
-                    modifier = Modifier.fillMaxSize().focusGroup()
+                    modifier = Modifier.fillMaxSize()
+                        .focusGroup()
                         .onFocusChanged { if (!it.hasFocus) tvFocusSelector.clear() }
                 ) {
                     items(pagedStreams.itemCount) { index ->
@@ -570,6 +580,7 @@ private fun TvLayout(
                             }
                         }
                     }
+                }
                 }
                 }
             }
@@ -868,6 +879,12 @@ private fun CategorySectionRow(
             state = rowState,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             contentPadding = PaddingValues(horizontal = 12.dp),
+            // Pas de `focusRestorer` ici : son `enter` renvoie
+            // `FocusRequester.Cancel` dès qu'il croit avoir restauré une
+            // vignette. Recyclée par la LazyRow, celle-ci ne reprend pas le
+            // focus et l'annulation tue la recherche — la navigation vers le
+            // haut devenait alors impossible dès qu'une rangée avait déjà été
+            // visitée. La restauration exacte est pilotée par [restoredFocus].
             modifier = Modifier.fillMaxWidth().focusGroup()
         ) {
             itemsIndexed(displayList) { index, stream ->
