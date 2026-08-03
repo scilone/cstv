@@ -251,10 +251,7 @@ fun AdvancedSearchSheet(
                     FlowRow(
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp),
-                        // Dernière rangée de genres trop proche du bouton
-                        // « Voir les résultats » en TV (retour utilisateur) :
-                        // la marge basse y est élargie.
-                        modifier = Modifier.fillMaxWidth().padding(bottom = if (isTv) 36.dp else 24.dp)
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp)
                     ) {
                         availableGenres.forEach { genre ->
                             GenreChip(
@@ -273,7 +270,11 @@ fun AdvancedSearchSheet(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 20.dp)
+                    // L'écart doit être *hors* de la zone défilante : une marge
+                    // basse posée sur la liste des genres n'apparaît qu'une fois
+                    // le scroll arrivé au bout, et la dernière rangée visible
+                    // touche donc le bouton le reste du temps (retour utilisateur).
+                    .padding(top = if (isTv) 28.dp else 0.dp, bottom = 20.dp)
             ) {
                 Box(
                     contentAlignment = Alignment.Center,

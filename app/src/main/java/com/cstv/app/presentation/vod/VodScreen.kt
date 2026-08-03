@@ -52,6 +52,7 @@ import androidx.compose.foundation.focusGroup
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -455,6 +456,12 @@ private fun TvLayout(
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 modifier = Modifier.fillMaxSize()
                     .focusRequester(mediaSectionFocusRequester)
+                    // Sans restaurateur local, le focus entrant se pose sur la
+                    // liste elle-même : aucune vignette n'est focalisée, donc
+                    // aucun pivot n'est publié et le cadre reste absent. Le
+                    // `focusRestorer` de MainActivity ne couvre que son propre
+                    // niveau de groupe, pas celui-ci.
+                    .focusRestorer()
                     .onFocusChanged {
                         if (it.hasFocus) {
                             tvFocusSelector.show()
@@ -576,6 +583,7 @@ private fun TvLayout(
                     ),
                     modifier = Modifier.fillMaxSize()
                         .focusRequester(mediaSectionFocusRequester)
+                        .focusRestorer()
                         .focusGroup()
                         .onFocusChanged {
                             if (it.hasFocus) {
@@ -902,7 +910,10 @@ private fun CategorySectionRow(
             state = rowState,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             contentPadding = PaddingValues(horizontal = 12.dp),
-            modifier = Modifier.fillMaxWidth().focusGroup()
+            // `focusRestorer` ne couvre qu'un niveau de groupe : celui de la
+            // liste verticale ramène sur la rangée, celui-ci ramène sur la
+            // vignette exacte à l'intérieur de la rangée.
+            modifier = Modifier.fillMaxWidth().focusRestorer().focusGroup()
         ) {
             itemsIndexed(displayList) { index, stream ->
                 val isRestoredTarget = categoryId == restoredCategoryId && stream.streamId == restoredStreamId
