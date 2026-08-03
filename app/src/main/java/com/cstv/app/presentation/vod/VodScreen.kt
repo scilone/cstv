@@ -49,7 +49,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.focusGroup
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
@@ -326,26 +325,10 @@ private fun TvLayout(
     var showCategoryPicker by remember { mutableStateOf(false) }
     val categoryTriggerFocusRequester = remember { FocusRequester() }
     val focusRestoreScope = rememberCoroutineScope()
-    // Un focus entrant depuis l'extérieur (retour du rail latéral) est
-    // capté par le déclencheur de catégorie, premier focusable de la colonne.
-    // La section média ne reçoit alors jamais `hasFocus`, donc le sélecteur
-    // pivot reste masqué par le `clear()` du départ vers le rail. On redirige
-    // l'entrée vers la liste/grille : le chrome (catégorie, recherche, filtres)
-    // reste atteignable en remontant depuis les médias, comportement TV usuel.
-    val mediaSectionFocusRequester = remember { FocusRequester() }
-    // Les trois états sans section média : le requester n'y est attaché à aucun
-    // nœud, la redirection doit donc laisser la recherche de focus par défaut.
-    val catalogUnavailable = !state.catalogStatus.isComplete && state.catalogStatus.isOffline && state.streams.isEmpty()
-    val isLoadingCatalog = state.isLoadingStreams || state.isLoadingCategories
-    val hasMediaSection = !catalogUnavailable && !isLoadingCatalog && (isAllSelected || pagedStreams.itemCount > 0)
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp)
-            .focusProperties {
-                enter = { if (hasMediaSection) mediaSectionFocusRequester else FocusRequester.Default }
-            }
-            .focusGroup()
     ) {
         // F22/B20 : la catégorie, la recherche et les filtres partagent une
         // même ligne dès qu'une catégorie précise est ouverte.
@@ -443,11 +426,11 @@ private fun TvLayout(
             }
         }
 
-        if (catalogUnavailable) {
+        if (!state.catalogStatus.isComplete && state.catalogStatus.isOffline && state.streams.isEmpty()) {
             // Uniquement sans cache ET sans réseau : ne doit jamais se
             // substituer à une liste simplement filtrée à vide.
             CatalogUnavailableState(onRetry = onRefresh, isRetrying = state.catalogStatus.isSyncing)
-        } else if (isLoadingCatalog) {
+        } else if (state.isLoadingStreams || state.isLoadingCategories) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
             }
@@ -459,7 +442,6 @@ private fun TvLayout(
                 state = listState,
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 modifier = Modifier.fillMaxSize()
-                    .focusRequester(mediaSectionFocusRequester)
                     .onFocusChanged {
                         if (it.hasFocus) {
                             tvFocusSelector.show()
@@ -580,9 +562,7 @@ private fun TvLayout(
                         horizontal = 12.dp,
                         vertical = LocalConfiguration.current.screenHeightDp.dp / 2
                     ),
-                    modifier = Modifier.fillMaxSize()
-                        .focusRequester(mediaSectionFocusRequester)
-                        .focusGroup()
+                    modifier = Modifier.fillMaxSize().focusGroup()
                         .onFocusChanged {
                             if (it.hasFocus) {
                                 tvFocusSelector.show()

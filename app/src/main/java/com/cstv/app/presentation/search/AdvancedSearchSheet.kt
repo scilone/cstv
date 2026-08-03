@@ -133,15 +133,9 @@ fun AdvancedSearchSheet(
                     .verticalScroll(rememberScrollState())
             ) {
                 // --- En-tête ---
-                // Sur TV le titre est masqué : l'en-tête se réduit au lien
-                // « Réinitialiser », qui collait alors au bord haut du panneau
-                // tout en restant loin du premier bloc de filtres. On le descend
-                // et on le rapproche de « NOTE MINIMUM » (retour utilisateur).
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = if (isTv) 12.dp else 0.dp, bottom = if (isTv) 8.dp else 20.dp)
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 20.dp)
                 ) {
                     if (!isTv) {
                         Text(
@@ -216,11 +210,7 @@ fun AdvancedSearchSheet(
                     )
                 }
 
-                // Séparateur des blocs type/catégorie : inutile quand aucun des
-                // deux n'est rendu (panneau ouvert depuis une catégorie TV).
-                if (showMediaTypeFilter || showCategoryFilter) {
-                    Spacer(Modifier.height(20.dp))
-                }
+                Spacer(Modifier.height(20.dp))
 
                 // --- Note minimum ---
                 SectionLabel("NOTE MINIMUM")
@@ -251,10 +241,7 @@ fun AdvancedSearchSheet(
                     FlowRow(
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp),
-                        // Dernière rangée de genres trop proche du bouton
-                        // « Voir les résultats » en TV (retour utilisateur) :
-                        // la marge basse y est élargie.
-                        modifier = Modifier.fillMaxWidth().padding(bottom = if (isTv) 36.dp else 24.dp)
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp)
                     ) {
                         availableGenres.forEach { genre ->
                             GenreChip(
