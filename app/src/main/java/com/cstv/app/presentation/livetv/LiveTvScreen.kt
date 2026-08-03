@@ -43,6 +43,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -236,10 +239,21 @@ private fun TvLayout(
         targetKey = initialTarget to state.selectedCategory?.categoryId
     )
 
+    // Voir VodScreen — l'entrée de focus depuis le rail latéral est
+    // redirigée vers la section média, sinon la rangée de chips de catégories
+    // la capte et le sélecteur pivot reste masqué.
+    val mediaSectionFocusRequester = remember { FocusRequester() }
+    val catalogUnavailable = !state.catalogStatus.isComplete && state.catalogStatus.isOffline && state.streams.isEmpty()
+    val isLoadingCatalog = state.isLoadingStreams || state.isLoadingCategories
+    val hasMediaSection = !catalogUnavailable && !isLoadingCatalog && (isAllSelected || pagedStreams.itemCount > 0)
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp)
+            .focusProperties {
+                enter = { if (hasMediaSection) mediaSectionFocusRequester else FocusRequester.Default }
+            }
+            .focusGroup()
     ) {
         // Bannière hors ligne : discrète, non bloquante, jamais en remplacement
         // du contenu (règle « une donnée ancienne reste consultable »).
@@ -271,11 +285,11 @@ private fun TvLayout(
             }
         }
 
-        if (!state.catalogStatus.isComplete && state.catalogStatus.isOffline && state.streams.isEmpty()) {
+        if (catalogUnavailable) {
             // Uniquement sans cache ET sans réseau : ne doit jamais se
             // substituer à une liste simplement filtrée à vide.
             CatalogUnavailableState(onRetry = onRefresh, isRetrying = state.catalogStatus.isSyncing)
-        } else if (state.isLoadingStreams || state.isLoadingCategories) {
+        } else if (isLoadingCatalog) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
             }
@@ -287,7 +301,8 @@ private fun TvLayout(
                 state = listState,
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 modifier = Modifier.fillMaxSize()
-                    .onFocusChanged { if (!it.hasFocus) tvFocusSelector.clear() }
+                    .focusRequester(mediaSectionFocusRequester)
+                    .onFocusChanged { if (it.hasFocus) tvFocusSelector.show() else tvFocusSelector.clear() }
             ) {
                 tvPivotVerticalStartSpacer(true)
                 // Section 1: Récemment regardées (if not empty)
@@ -402,8 +417,10 @@ private fun TvLayout(
                     contentPadding = PaddingValues(
                         vertical = LocalConfiguration.current.screenHeightDp.dp / 2
                     ),
-                    modifier = Modifier.fillMaxSize().focusGroup()
-                        .onFocusChanged { if (!it.hasFocus) tvFocusSelector.clear() }
+                    modifier = Modifier.fillMaxSize()
+                        .focusRequester(mediaSectionFocusRequester)
+                        .focusGroup()
+                        .onFocusChanged { if (it.hasFocus) tvFocusSelector.show() else tvFocusSelector.clear() }
                 ) {
                     items(pagedStreams.itemCount) { index ->
                         val stream = pagedStreams[index]
