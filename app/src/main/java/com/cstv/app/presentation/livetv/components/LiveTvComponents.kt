@@ -23,6 +23,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.foundation.focusGroup
 import androidx.compose.ui.graphics.Color
@@ -118,7 +119,7 @@ fun CategorySectionRow(
             state = rowState,
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             contentPadding = PaddingValues(horizontal = 12.dp),
-            modifier = Modifier.fillMaxWidth().focusGroup()
+            modifier = Modifier.fillMaxWidth().focusRestorer().focusGroup()
         ) {
             itemsIndexed(streams) { index, stream ->
                 val isFav = favoritesList.any { it.id == stream.streamId && it.type == "live" }
@@ -361,7 +362,7 @@ fun RecentlyWatchedRow(
             state = rowState,
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             contentPadding = PaddingValues(horizontal = 12.dp),
-            modifier = Modifier.fillMaxWidth().focusGroup()
+            modifier = Modifier.fillMaxWidth().focusRestorer().focusGroup()
         ) {
             itemsIndexed(streams) { index, stream ->
                 // Rayon 12.dp : StreamTvCard n'a pas été unifiée au rayon
