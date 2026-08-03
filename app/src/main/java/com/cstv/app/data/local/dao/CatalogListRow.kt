@@ -10,6 +10,11 @@ package com.cstv.app.data.local.dao
  * films du catalogue pour n'en afficher qu'une centaine par rangée coûtait
  * autant en curseur SQLite qu'en objets vivants sur le tas (heap de 192 Mo sur
  * Android TV).
+ *
+ * À garder aligné sur les `CATEGORY_ROW_MAX_ITEMS` de `VodScreen`,
+ * `SeriesScreen` et `LiveTvComponents`, qui décident à partir de quel rang la
+ * carte « Voir tout » remplace les vignettes. Une valeur plus basse ici
+ * couperait des rangées sans que la carte n'apparaisse.
  */
 const val ALL_MODE_ROWS_PER_CATEGORY = 100
 

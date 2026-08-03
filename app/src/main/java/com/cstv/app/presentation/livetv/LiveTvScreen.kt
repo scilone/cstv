@@ -367,6 +367,8 @@ private fun TvLayout(
                             getScroll = getScroll,
                             saveScroll = saveScroll,
                             sectionListState = listState
+                            ,onSeeAll = { onCategorySelected(category) }
+                            ,totalCount = state.categoryCounts[category.categoryId]
                             ,initialFocusState = initialFocus
                             ,isInitialTarget = initialTarget == CatalogFocusTarget.FIRST_CATEGORY && category.categoryId == firstCategoryId
                         )
@@ -479,8 +481,16 @@ private fun MobileLayout(
 ) {
     val isAllSelected = state.selectedCategory?.categoryId == "all"
 
+    // Voir VodScreen : mesure présente sur TvLayout, manquante ici.
     val groupedStreams = remember(filteredStreams) {
+        val startedAt = System.nanoTime()
         filteredStreams.groupBy { it.categoryId }
+            .also {
+                com.cstv.app.di.IptvLog.d(
+                    "PERF",
+                    "Live regroupement ${filteredStreams.size} flux en ${(System.nanoTime() - startedAt) / 1_000_000}ms"
+                )
+            }
     }
     val actualCategories = remember(state.categories) {
         state.categories.filter { it.categoryId != "all" }
@@ -628,7 +638,8 @@ private fun MobileLayout(
                             getScroll = getScroll,
                             saveScroll = saveScroll,
                             sectionListState = listState,
-                            onSeeAll = { onCategorySelected(category) }
+                            onSeeAll = { onCategorySelected(category) },
+                            totalCount = state.categoryCounts[category.categoryId]
                         )
                     }
                 }

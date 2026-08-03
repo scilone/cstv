@@ -136,14 +136,15 @@ class VodViewModel @Inject constructor(
                     pos.type == "movie" && pos.positionMs > 0 && pos.positionMs < (pos.durationMs - 15000L)
                 }
 
-                val vodMap = try {
-                    vodRepository.getCachedVodStreams("all").associate { it.streamId to it.categoryId }
-                } catch (e: Exception) {
-                    emptyMap()
-                }
-
+                // La catégorie d'une reprise est mémorisée sur la position
+                // elle-même (T9, MIGRATION_22_23), résolue une fois à
+                // l'enregistrement. La reconstruire ici imposait de relire les
+                // 39 000 lignes du catalogue — `SELECT *`, colonnes lourdes
+                // comprises — à chaque entrée sur l'écran, en concurrence avec
+                // la requête qui alimente justement la liste affichée. Voir
+                // `HomeViewModel.groupResumeWatching`, qui lit déjà ce champ.
                 val filtered = moviesPositions.filter { pos ->
-                    val catId = vodMap[pos.streamId]
+                    val catId = pos.categoryId
                     catId == null || catId !in hiddenVod
                 }
 
@@ -204,7 +205,21 @@ class VodViewModel @Inject constructor(
     private fun observeCategories() {
         viewModelScope.launch {
             _state.update { it.copy(isLoadingCategories = it.categories.isEmpty()) }
+            // Le voile de chargement est levé par `isLoadingCategories` autant
+            // que par `isLoadingStreams` : mesuré séparément, sans quoi une
+            // liste de catégories lente se lit à l'écran comme une liste de
+            // flux lente.
+            val subscribedAt = System.nanoTime()
+            var firstEmission = true
             getVodCategoriesUseCase().collect { categories ->
+                if (firstEmission) {
+                    firstEmission = false
+                    com.cstv.app.di.IptvLog.d(
+                        "PERF",
+                        "VOD première émission catégories=${categories.size} " +
+                            "en ${(System.nanoTime() - subscribedAt) / 1_000_000}ms"
+                    )
+                }
                 val finalCategories = listOf(VodCategory("all", "Tout", 0)) + categories
                 val previousSelectedId = _state.value.selectedCategory?.categoryId
                 val newSelected = finalCategories.find { it.categoryId == previousSelectedId } ?: finalCategories.firstOrNull()
@@ -392,7 +407,16 @@ class VodViewModel @Inject constructor(
     private fun refreshCategoryCounts() {
         viewModelScope.launch {
             try {
+                // `GROUP BY categoryId` sur tout le catalogue, relancé après
+                // chaque émission de la liste : mesuré pour vérifier qu'il
+                // reste bien servi par l'index et ne redevient pas un parcours
+                // de table.
+                val startedAt = System.nanoTime()
                 val counts = getVodCategoryCountsUseCase()
+                com.cstv.app.di.IptvLog.d(
+                    "PERF",
+                    "VOD compteurs catégories=${counts.size} en ${(System.nanoTime() - startedAt) / 1_000_000}ms"
+                )
                 _state.update { it.copy(categoryCounts = counts) }
             } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException) throw e

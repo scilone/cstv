@@ -140,14 +140,10 @@ class SeriesViewModel @Inject constructor(
                     pos.type == "series" && pos.positionMs > 0 && pos.positionMs < (pos.durationMs - 15000L)
                 }
 
-                val seriesMap = try {
-                    seriesRepository.getCachedSeriesStreams("all").associate { it.seriesId to it.categoryId }
-                } catch (e: Exception) {
-                    emptyMap()
-                }
-
+                // Voir VodViewModel : la catégorie vient de la position (T9), pas
+                // d'une relecture du catalogue complet à chaque entrée.
                 val filtered = seriesPositions.filter { pos ->
-                    val catId = pos.seriesId?.let { seriesMap[it] }
+                    val catId = pos.categoryId
                     catId == null || catId !in hiddenSeries
                 }
 

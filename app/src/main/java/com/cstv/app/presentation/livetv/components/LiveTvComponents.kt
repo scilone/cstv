@@ -13,7 +13,9 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import com.cstv.app.presentation.components.tvPivotItem
 import com.cstv.app.presentation.components.tvPivotSection
 import com.cstv.app.presentation.components.tvPivotHorizontalEndSpacer
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
@@ -75,6 +77,7 @@ fun CategorySectionRow(
     saveScroll: (String, Int, Int) -> Unit,
     sectionListState: LazyListState,
     onSeeAll: (() -> Unit)? = null,
+    totalCount: Int? = null,
     initialFocusState: TvInitialFocusState? = null,
     isInitialTarget: Boolean = false
 ) {
@@ -114,13 +117,18 @@ fun CategorySectionRow(
         }
 
         val rowState = rememberRowScrollState(isTv, "livetv_row_${categoryId}", getScroll, saveScroll)
+        val displayList = remember(streams) { streams.take(CATEGORY_ROW_MAX_ITEMS) }
+        // `totalCount` vient des compteurs du cache, pas de la longueur de
+        // `streams` : l'onglet « Tout » ne charge que les premières chaînes de
+        // chaque catégorie, la liste reçue ne dit donc rien du reste.
+        val showSeeAllCard = onSeeAll != null && (totalCount ?: streams.size) > CATEGORY_ROW_MAX_ITEMS
         LazyRow(
             state = rowState,
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             contentPadding = PaddingValues(horizontal = 12.dp),
             modifier = Modifier.fillMaxWidth().focusGroup()
         ) {
-            itemsIndexed(streams) { index, stream ->
+            itemsIndexed(displayList) { index, stream ->
                 val isFav = favoritesList.any { it.id == stream.streamId && it.type == "live" }
                 // Rayon 12.dp : StreamTvCard n'a pas été unifiée au rayon
                 // 14.dp de B18 (hors périmètre de ce ticket-là).
@@ -147,7 +155,76 @@ fun CategorySectionRow(
                     }
                 }
             }
+            if (showSeeAllCard) {
+                item(key = "see_all_card") {
+                    Box(modifier = Modifier.tvPivotItem(isTv, rowState, CATEGORY_ROW_MAX_ITEMS, selectorCornerRadius = 12.dp)) {
+                        SeeAllCard(isTv = isTv, onClick = { onSeeAll?.invoke() })
+                    }
+                }
+            }
             tvPivotHorizontalEndSpacer(isTv)
+        }
+    }
+}
+
+/**
+ * Nombre de chaînes rendues dans une rangée du mode « Tout », au-delà duquel la
+ * carte « Voir tout » prend le relais. Doit rester aligné sur le plafond de la
+ * requête (`ALL_MODE_ROWS_PER_CATEGORY`) : en dessous, la rangée couperait des
+ * chaînes déjà chargées ; au-dessus, elle ne pourrait jamais atteindre son
+ * propre maximum.
+ */
+private const val CATEGORY_ROW_MAX_ITEMS = 100
+
+/**
+ * Voir `VodScreen.SeeAllCard`. Les dimensions suivent la carte voisine plutôt
+ * que celles des affiches de films : une chaîne est une tuile large et basse en
+ * TV (voir [StreamTvCard]), une vignette 150×180 en mobile (voir
+ * [MobileStreamCard]).
+ */
+@Composable
+private fun SeeAllCard(
+    isTv: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var isFocused by remember { mutableStateOf(false) }
+    val shape = RoundedCornerShape(12.dp)
+
+    Box(
+        modifier = modifier
+            .then(if (isTv) Modifier.fillMaxWidth().height(84.dp) else Modifier.width(150.dp).height(180.dp))
+            .onFocusChanged { isFocused = it.isFocused }
+            .tvFocusHighlight(isFocused, shape)
+            .clip(shape)
+            .background(Surface3)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = androidx.compose.material.ripple.rememberRipple(bounded = true),
+                onClick = onClick
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+            modifier = Modifier.padding(12.dp)
+        ) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                contentDescription = null,
+                tint = AccentLavande,
+                modifier = Modifier.size(32.dp)
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = stringResource(R.string.home_see_all).uppercase(),
+                color = Color.White,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                fontFamily = HankenGrotesk,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
         }
     }
 }

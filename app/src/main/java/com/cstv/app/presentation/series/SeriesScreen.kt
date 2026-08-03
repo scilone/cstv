@@ -625,9 +625,17 @@ private fun MobileLayout(
 ) {
     val isAllSelected = state.selectedCategory?.categoryId == "all"
 
+    // Voir VodScreen : mesure présente sur TvLayout, manquante ici.
     val groupedStreams = remember(filteredStreams) {
+        val startedAt = System.nanoTime()
         filteredStreams
             .groupBy { it.categoryId }
+            .also {
+                com.cstv.app.di.IptvLog.d(
+                    "PERF",
+                    "Séries regroupement ${filteredStreams.size} flux en ${(System.nanoTime() - startedAt) / 1_000_000}ms"
+                )
+            }
     }
     val actualCategories = remember(state.categories) {
         state.categories.filter { it.categoryId != "all" }

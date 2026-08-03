@@ -637,9 +637,19 @@ private fun MobileLayout(
 ) {
     val isAllSelected = state.selectedCategory?.categoryId == "all"
 
+    // Même mesure que sur TvLayout : sans elle, un rapport de diagnostic pris
+    // depuis un téléphone ne montre que le coût base de données, et laisse
+    // croire que le thread principal ne fait rien.
     val groupedStreams = remember(filteredStreams) {
+        val startedAt = System.nanoTime()
         filteredStreams
             .groupBy { it.categoryId }
+            .also {
+                com.cstv.app.di.IptvLog.d(
+                    "PERF",
+                    "VOD regroupement ${filteredStreams.size} flux en ${(System.nanoTime() - startedAt) / 1_000_000}ms"
+                )
+            }
     }
     val actualCategories = remember(state.categories) {
         state.categories.filter { it.categoryId != "all" }
