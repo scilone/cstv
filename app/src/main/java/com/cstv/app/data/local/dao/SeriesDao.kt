@@ -67,6 +67,19 @@ interface SeriesDao {
     @Query("SELECT * FROM series_streams WHERE categoryId = :categoryId ORDER BY orderIndex ASC")
     fun observeStreamsByCategory(categoryId: String): Flow<List<SeriesStreamEntity>>
 
+    // Voir VodDao : projection de liste, mêmes raisons.
+    @Query(
+        "SELECT seriesId, name, cover, rating, added, categoryId, genre, releaseYear " +
+            "FROM series_streams ORDER BY orderIndex ASC"
+    )
+    fun observeAllStreamListRows(): Flow<List<SeriesStreamListRow>>
+
+    @Query(
+        "SELECT seriesId, name, cover, rating, added, categoryId, genre, releaseYear " +
+            "FROM series_streams WHERE categoryId = :categoryId ORDER BY orderIndex ASC"
+    )
+    fun observeStreamListRowsByCategory(categoryId: String): Flow<List<SeriesStreamListRow>>
+
     @Query("SELECT * FROM series_streams WHERE categoryId = :categoryId ORDER BY orderIndex ASC")
     fun getStreamsByCategoryPaged(categoryId: String): androidx.paging.PagingSource<Int, SeriesStreamEntity>
 

@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.map
 import com.cstv.app.data.local.dao.SeriesDao
 import com.cstv.app.data.local.dao.VodDao
 import com.cstv.app.data.local.entity.SeriesCategoryEntity
+import com.cstv.app.data.local.dao.SeriesStreamListRow
 import com.cstv.app.data.local.entity.SeriesStreamEntity
 import com.cstv.app.data.local.storage.CredentialsManager
 import com.cstv.app.data.remote.api.RequestPriority
@@ -203,10 +204,34 @@ class SeriesRepositoryImpl @Inject constructor(
             .distinctUntilChanged()
             .map { categories -> categories.map { it.toDomain() } }
 
+    /** Voir VodRepositoryImpl : projection de liste, champs de recherche vides. */
     override fun observeSeriesStreams(categoryId: String): Flow<List<SeriesStream>> =
-        (if (categoryId == ALL_CATEGORIES) seriesDao.observeAllStreams() else seriesDao.observeStreamsByCategory(categoryId))
+        (if (categoryId == ALL_CATEGORIES) {
+            seriesDao.observeAllStreamListRows()
+        } else {
+            seriesDao.observeStreamListRowsByCategory(categoryId)
+        })
             .distinctUntilChanged()
-            .map { streams -> streams.map { it.toDomain() } }
+            .map { rows ->
+                val startedAt = System.nanoTime()
+                val mapped = rows.map { it.toDomain() }
+                com.cstv.app.di.IptvLog.d(
+                    "PERF",
+                    "Séries projection→domaine ${rows.size} lignes en ${(System.nanoTime() - startedAt) / 1_000_000}ms"
+                )
+                mapped
+            }
+
+    private fun SeriesStreamListRow.toDomain() = SeriesStream(
+        seriesId = seriesId,
+        name = name,
+        cover = cover,
+        rating = rating,
+        added = added,
+        categoryId = categoryId,
+        genre = genre,
+        releaseYear = releaseYear?.takeIf { it > 0 }
+    )
 
     override suspend fun getCachedSeriesCategories(): List<SeriesCategory> =
         seriesDao.getAllCategories().map { it.toDomain() }

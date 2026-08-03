@@ -74,6 +74,21 @@ interface VodDao {
     @Query("SELECT * FROM vod_streams WHERE categoryId = :categoryId ORDER BY orderIndex ASC")
     fun observeStreamsByCategory(categoryId: String): Flow<List<VodStreamEntity>>
 
+    // Projection de liste : voir VodStreamListRow pour le motif (fenêtre de
+    // curseur et tri temporaire). Ces deux requêtes remplacent les variantes
+    // `SELECT *` pour les écrans de catalogue.
+    @Query(
+        "SELECT streamId, name, streamIcon, rating, added, categoryId, genre, releaseYear " +
+            "FROM vod_streams ORDER BY orderIndex ASC"
+    )
+    fun observeAllStreamListRows(): Flow<List<VodStreamListRow>>
+
+    @Query(
+        "SELECT streamId, name, streamIcon, rating, added, categoryId, genre, releaseYear " +
+            "FROM vod_streams WHERE categoryId = :categoryId ORDER BY orderIndex ASC"
+    )
+    fun observeStreamListRowsByCategory(categoryId: String): Flow<List<VodStreamListRow>>
+
     @Query("SELECT * FROM vod_streams WHERE categoryId = :categoryId ORDER BY orderIndex ASC")
     fun getStreamsByCategoryPaged(categoryId: String): androidx.paging.PagingSource<Int, VodStreamEntity>
 

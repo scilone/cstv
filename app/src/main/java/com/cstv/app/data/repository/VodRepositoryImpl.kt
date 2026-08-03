@@ -8,6 +8,7 @@ import com.cstv.app.data.local.dao.SeriesDao
 import com.cstv.app.data.local.dao.VodDao
 import com.cstv.app.data.local.entity.PlaybackPositionEntity
 import com.cstv.app.data.local.entity.VodCategoryEntity
+import com.cstv.app.data.local.dao.VodStreamListRow
 import com.cstv.app.data.local.entity.VodStreamEntity
 import com.cstv.app.data.local.storage.CredentialsManager
 import com.cstv.app.data.remote.api.XtreamApiService
@@ -273,10 +274,39 @@ class VodRepositoryImpl @Inject constructor(
             .distinctUntilChanged()
             .map { categories -> categories.map { it.toDomain() } }
 
+    /**
+     * Flux de liste : projection étroite (voir `VodStreamListRow`). `actors`,
+     * `director` et `searchText` restent donc vides ici — la recherche avancée
+     * et les fiches détaillées passent par `getCachedVodStreams` et
+     * `getStreamById`, qui lisent la ligne complète.
+     */
     override fun observeVodStreams(categoryId: String): Flow<List<VodStream>> =
-        (if (categoryId == ALL_CATEGORIES) vodDao.observeAllStreams() else vodDao.observeStreamsByCategory(categoryId))
+        (if (categoryId == ALL_CATEGORIES) {
+            vodDao.observeAllStreamListRows()
+        } else {
+            vodDao.observeStreamListRowsByCategory(categoryId)
+        })
             .distinctUntilChanged()
-            .map { streams -> streams.map { it.toDomain() } }
+            .map { rows ->
+                val startedAt = System.nanoTime()
+                val mapped = rows.map { it.toDomain() }
+                com.cstv.app.di.IptvLog.d(
+                    "PERF",
+                    "VOD projection→domaine ${rows.size} lignes en ${(System.nanoTime() - startedAt) / 1_000_000}ms"
+                )
+                mapped
+            }
+
+    private fun VodStreamListRow.toDomain() = VodStream(
+        streamId = streamId,
+        name = name,
+        streamIcon = streamIcon,
+        rating = rating,
+        added = added,
+        categoryId = categoryId,
+        genre = genre,
+        releaseYear = releaseYear?.takeIf { it > 0 }
+    )
 
     override suspend fun getCachedVodCategories(): List<VodCategory> =
         vodDao.getAllCategories().map { it.toDomain() }
