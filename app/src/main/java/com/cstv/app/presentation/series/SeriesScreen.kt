@@ -552,6 +552,7 @@ private fun TvLayout(
                             saveScroll = saveScroll,
                             sectionListState = listState,
                             onSeeAll = { onCategorySelected(category) },
+                            totalCount = state.categoryCounts[category.categoryId],
                             restoredFocusState = restoredFocus
                             ,restoredCategoryId = lastFocusedCategoryId
                             ,restoredSeriesId = lastFocusedSeriesId
@@ -808,7 +809,8 @@ private fun MobileLayout(
                             getScroll = getScroll,
                             saveScroll = saveScroll,
                             sectionListState = listState,
-                            onSeeAll = { onCategorySelected(category) }
+                            onSeeAll = { onCategorySelected(category) },
+                            totalCount = state.categoryCounts[category.categoryId]
                         )
                     }
                 }
@@ -869,6 +871,8 @@ private fun CategorySectionRow(
     saveScroll: (String, Int, Int) -> Unit,
     sectionListState: LazyListState,
     onSeeAll: (() -> Unit)? = null,
+    /** Voir VodScreen : effectif total, décorrélé du plafond d'affichage. */
+    totalCount: Int? = null,
     onLongClick: ((SeriesStream) -> Unit)? = null,
     /** Badge court en surimpression (ex. « S01E03 »), réservé à la rangée « Reprendre » (B18). */
     badgeFor: ((SeriesStream) -> String?)? = null,
@@ -916,7 +920,7 @@ private fun CategorySectionRow(
 
         val rowState = rememberRowScrollState(isTv, "series_row_${categoryId}", getScroll, saveScroll)
         val displayList = remember(series) { series.take(CATEGORY_ROW_MAX_ITEMS) }
-        val showSeeAllCard = onSeeAll != null && series.size > CATEGORY_ROW_MAX_ITEMS
+        val showSeeAllCard = onSeeAll != null && (totalCount ?: series.size) > CATEGORY_ROW_MAX_ITEMS
         LazyRow(
             state = rowState,
             horizontalArrangement = Arrangement.spacedBy(12.dp),

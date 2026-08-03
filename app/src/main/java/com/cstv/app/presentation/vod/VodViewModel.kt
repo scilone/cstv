@@ -337,6 +337,11 @@ class VodViewModel @Inject constructor(
      * façon.
      */
     private fun buildFacets(categoryId: String, streams: List<VodStream>): com.cstv.app.domain.model.CatalogFacets {
+        // Mode « Tout » : le panneau de filtres n'y est pas accessible, ces
+        // dérivations parcourraient tout le catalogue pour rien.
+        if (categoryId == com.cstv.app.domain.model.ALL_CATEGORIES_ID) {
+            return com.cstv.app.domain.model.CatalogFacets.NONE
+        }
         val startedAt = System.nanoTime()
         val facets = com.cstv.app.domain.model.CatalogFacetsBuilder.build(
             items = streams,

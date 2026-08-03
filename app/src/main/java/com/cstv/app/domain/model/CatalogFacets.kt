@@ -1,11 +1,29 @@
 package com.cstv.app.domain.model
 
+/** Identifiant de la pseudo-catégorie « Tout », commune aux trois catalogues. */
+const val ALL_CATEGORIES_ID = "all"
+
 /** Valeurs dérivées d'une liste de médias pour alimenter le panneau de filtres. */
 data class CatalogFacets(
     val genres: List<String>,
     val yearRange: IntRange,
     val filteredCount: Int
-)
+) {
+    companion object {
+        /**
+         * Facettes neutres, servies quand le panneau de filtres n'est pas
+         * accessible — mode « Tout », où le champ de recherche, le bouton
+         * filtres et `AdvancedSearchSheet` sont tous derrière
+         * `isSpecificCategory`. Les calculer y reviendrait à parcourir le
+         * catalogue entier pour une valeur que personne ne lit.
+         */
+        val NONE = CatalogFacets(
+            genres = emptyList(),
+            yearRange = CatalogFacetsBuilder.DEFAULT_YEAR_RANGE,
+            filteredCount = 0
+        )
+    }
+}
 
 /**
  * Dérivations d'une liste de médias : genres disponibles, amplitude d'années et

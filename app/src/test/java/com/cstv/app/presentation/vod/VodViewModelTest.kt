@@ -317,6 +317,23 @@ class VodViewModelTest {
     }
 
     @Test
+    fun `the all tab leaves the filter facets neutral`() = runTest(testDispatcher) {
+        // Le panneau de filtres n'y est pas accessible : les dériver reviendrait
+        // à parcourir tout le catalogue pour une valeur que personne ne lit.
+        whenever(getVodStreamsUseCase("all")).thenReturn(
+            flowOf(listOf(movie(1, "8.0", 2000, "Action, Drame")))
+        )
+        viewModel = createViewModelWithCategories()
+        runCurrent()
+
+        val state = viewModel.state.value
+        assertEquals("all", state.selectedCategory?.categoryId)
+        assertTrue(state.streams.isNotEmpty())
+        assertTrue(state.availableGenres.isEmpty())
+        assertEquals(0, state.filteredCount)
+    }
+
+    @Test
     fun `toggleGenre adds then removes a genre and applyFilter only closes the sheet`() = runTest(testDispatcher) {
         viewModel = createViewModelWithCategories()
         runCurrent()

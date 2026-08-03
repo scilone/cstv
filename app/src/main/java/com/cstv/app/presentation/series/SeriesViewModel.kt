@@ -334,6 +334,11 @@ class SeriesViewModel @Inject constructor(
      * pouvoir distinguer sur appareil une base lente d'un calcul lent.
      */
     private fun buildFacets(categoryId: String, streams: List<SeriesStream>): com.cstv.app.domain.model.CatalogFacets {
+        // Mode « Tout » : le panneau de filtres n'y est pas accessible, ces
+        // dérivations parcourraient tout le catalogue pour rien.
+        if (categoryId == com.cstv.app.domain.model.ALL_CATEGORIES_ID) {
+            return com.cstv.app.domain.model.CatalogFacets.NONE
+        }
         val startedAt = System.nanoTime()
         val facets = com.cstv.app.domain.model.CatalogFacetsBuilder.build(
             items = streams,

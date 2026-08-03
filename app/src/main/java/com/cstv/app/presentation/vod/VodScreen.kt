@@ -569,6 +569,7 @@ private fun TvLayout(
                             saveScroll = saveScroll,
                             sectionListState = listState,
                             onSeeAll = { onCategorySelected(category) },
+                            totalCount = state.categoryCounts[category.categoryId],
                             restoredFocusState = restoredFocus
                             ,restoredCategoryId = lastFocusedCategoryId
                             ,restoredStreamId = lastFocusedStreamId
@@ -827,7 +828,8 @@ private fun MobileLayout(
                             getScroll = getScroll,
                             saveScroll = saveScroll,
                             sectionListState = listState,
-                            onSeeAll = { onCategorySelected(category) }
+                            onSeeAll = { onCategorySelected(category) },
+                            totalCount = state.categoryCounts[category.categoryId]
                         )
                     }
                 }
@@ -888,6 +890,13 @@ private fun CategorySectionRow(
     saveScroll: (String, Int, Int) -> Unit,
     sectionListState: LazyListState,
     onSeeAll: (() -> Unit)? = null,
+    /**
+     * Effectif total de la catégorie, indépendant du plafond d'affichage.
+     * Sert la seule décision qui portait jusqu'ici sur la liste complète :
+     * afficher ou non la carte « Voir tout ». Faute de valeur, on retombe
+     * sur la taille de la liste reçue.
+     */
+    totalCount: Int? = null,
     onLongClick: ((VodStream) -> Unit)? = null,
     /** Badge court en surimpression (ex. « S01E03 »), réservé à la rangée « Reprendre » (B18). */
     badgeFor: ((VodStream) -> String?)? = null,
@@ -935,7 +944,7 @@ private fun CategorySectionRow(
 
         val rowState = rememberRowScrollState(isTv, "vod_row_${categoryId}", getScroll, saveScroll)
         val displayList = remember(movies) { movies.take(CATEGORY_ROW_MAX_ITEMS) }
-        val showSeeAllCard = onSeeAll != null && movies.size > CATEGORY_ROW_MAX_ITEMS
+        val showSeeAllCard = onSeeAll != null && (totalCount ?: movies.size) > CATEGORY_ROW_MAX_ITEMS
         LazyRow(
             state = rowState,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
