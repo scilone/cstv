@@ -11,8 +11,6 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -137,19 +135,15 @@ fun AdvancedSearchSheet(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.fillMaxWidth().padding(bottom = 20.dp)
                 ) {
-                    if (!isTv) {
-                        Text(
-                            text = "Recherche avancée",
-                            fontFamily = BricolageGrotesque,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 22.sp,
-                            letterSpacing = (-0.01).sp,
-                            color = TextPrimary,
-                            modifier = Modifier.weight(1f)
-                        )
-                    } else {
-                        Spacer(modifier = Modifier.weight(1f))
-                    }
+                    Text(
+                        text = "Recherche avancée",
+                        fontFamily = BricolageGrotesque,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 22.sp,
+                        letterSpacing = (-0.01).sp,
+                        color = TextPrimary,
+                        modifier = Modifier.weight(1f)
+                    )
                     FocusableLink(
                         text = "Réinitialiser",
                         modifier = if (isTv) Modifier.focusRequester(resetFocusRequester) else Modifier,
@@ -292,27 +286,22 @@ fun AdvancedSearchSheet(
     }
 
     if (isTv) {
-        // Sur TV, les filtres restent à droite : la liste de médias demeure
-        // visible à gauche et l'utilisateur conserve son repère spatial.
+        // Une bottom sheet est adaptée au tactile, mais laisse trop peu de
+        // surface et une hiérarchie D-pad peu lisible sur un téléviseur.
+        // La modale centrée garde les actions visibles et le contenu à portée.
         Dialog(
             onDismissRequest = onDismiss,
             properties = DialogProperties(usePlatformDefaultWidth = false)
         ) {
             Box(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.55f))
+                    .fillMaxWidth(0.72f)
+                    .heightIn(min = 480.dp, max = 760.dp)
+                    .clip(RoundedCornerShape(24.dp))
+                    .background(Surface2)
+                    .border(1.dp, Color.White.copy(alpha = 0.10f), RoundedCornerShape(24.dp))
             ) {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.CenterEnd)
-                        .fillMaxHeight()
-                        .width(460.dp)
-                        .background(Surface2)
-                        .border(1.dp, Color.White.copy(alpha = 0.10f))
-                ) {
-                    filterControls()
-                }
+                filterControls()
             }
         }
     } else {
