@@ -36,7 +36,6 @@ import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -44,16 +43,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import com.cstv.app.domain.model.AdvancedSearchFilter
 import com.cstv.app.domain.model.CategoryWithCount
 import com.cstv.app.domain.model.SearchMediaType
@@ -109,13 +104,16 @@ fun AdvancedSearchSheet(
     onApply: () -> Unit,
     onDismiss: () -> Unit
 ) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var categoryExpanded by remember { mutableStateOf(false) }
-    val resetFocusRequester = remember { FocusRequester() }
-    LaunchedEffect(isTv) {
-        if (isTv) runCatching { resetFocusRequester.requestFocus() }
-    }
 
-    val filterControls: @Composable () -> Unit = {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = Surface2,
+        contentColor = Color.White,
+        scrimColor = Color.Black.copy(alpha = 0.55f)
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -146,7 +144,6 @@ fun AdvancedSearchSheet(
                     )
                     FocusableLink(
                         text = "Réinitialiser",
-                        modifier = if (isTv) Modifier.focusRequester(resetFocusRequester) else Modifier,
                         onClick = {
                             categoryExpanded = false
                             onReset()
@@ -284,38 +281,6 @@ fun AdvancedSearchSheet(
             }
         }
     }
-
-    if (isTv) {
-        // Une bottom sheet est adaptée au tactile, mais laisse trop peu de
-        // surface et une hiérarchie D-pad peu lisible sur un téléviseur.
-        // La modale centrée garde les actions visibles et le contenu à portée.
-        Dialog(
-            onDismissRequest = onDismiss,
-            properties = DialogProperties(usePlatformDefaultWidth = false)
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth(0.72f)
-                    .heightIn(min = 480.dp, max = 760.dp)
-                    .clip(RoundedCornerShape(24.dp))
-                    .background(Surface2)
-                    .border(1.dp, Color.White.copy(alpha = 0.10f), RoundedCornerShape(24.dp))
-            ) {
-                filterControls()
-            }
-        }
-    } else {
-        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-        ModalBottomSheet(
-            onDismissRequest = onDismiss,
-            sheetState = sheetState,
-            containerColor = Surface2,
-            contentColor = Color.White,
-            scrimColor = Color.Black.copy(alpha = 0.55f)
-        ) {
-            filterControls()
-        }
-    }
 }
 
 @Composable
@@ -332,7 +297,7 @@ private fun SectionLabel(text: String) {
 }
 
 @Composable
-private fun FocusableLink(text: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun FocusableLink(text: String, onClick: () -> Unit) {
     var isFocused by remember { mutableStateOf(false) }
     Text(
         text = text,
@@ -340,7 +305,7 @@ private fun FocusableLink(text: String, onClick: () -> Unit, modifier: Modifier 
         fontWeight = FontWeight.SemiBold,
         fontSize = 14.sp,
         color = if (isFocused) Color.White else AccentLavande,
-        modifier = modifier
+        modifier = Modifier
             .onFocusChanged { isFocused = it.isFocused }
             .clip(RoundedCornerShape(6.dp))
             .then(

@@ -304,9 +304,11 @@ private fun TvLayout(
     val initialTarget = remember(isAllSelected, resumeMoviesStreams, favoriteMovies, firstCategoryId, gridFilteredCount) {
         CatalogInitialFocusTarget.of(isAllSelected, resumeMoviesStreams.isNotEmpty(), favoriteMovies.isNotEmpty(), firstCategoryId, gridFilteredCount)
     }
-    // Un changement de section doit toujours poser le pivot sur une vraie
-    // vignette. Le retour depuis une fiche reste traité par [restoredFocus]
-    // et conserve, lui, le média exact.
+    // B17 (M4, décision 6) : une position de défilement restaurée (l'utilisateur
+    // a déjà consulté cet onglet/cette catégorie) prime sur le focus par défaut
+    // — ne pas ramener de force en tête de liste par-dessus le scroll restauré.
+    val scrollKey = if (isAllSelected) "vod_tv_all_vertical" else "vod_tv_cat_" + (state.selectedCategory?.categoryId ?: "0")
+    val hasRestorableScroll = remember(scrollKey) { getScroll(scrollKey) != Pair(0, 0) }
     val hasFocusRestoreTarget = lastFocusedCategoryId != null && lastFocusedStreamId != null &&
         (isAllSelected || lastFocusedCategoryId == state.selectedCategory?.categoryId)
     val restoredFocus = rememberTvInitialFocus(
@@ -316,7 +318,7 @@ private fun TvLayout(
     )
     val initialFocus = rememberTvInitialFocus(
         isTv = true,
-        ready = !state.isLoadingStreams && !state.isLoadingCategories && initialTarget != null && !hasFocusRestoreTarget,
+        ready = !state.isLoadingStreams && !state.isLoadingCategories && initialTarget != null && !hasRestorableScroll && !hasFocusRestoreTarget,
         targetKey = initialTarget to state.selectedCategory?.categoryId
     )
 
@@ -339,7 +341,7 @@ private fun TvLayout(
                 label = stringResource(R.string.vod_category_selector_label, (state.selectedCategory?.categoryName ?: "Tout").uppercase()),
                 onClick = { showCategoryPicker = true },
                 modifier = Modifier
-                    .weight(0.45f)
+                    .weight(1f)
                     .focusRequester(categoryTriggerFocusRequester)
             )
             if (isSpecificCategory) {
@@ -382,7 +384,7 @@ private fun TvLayout(
                         unfocusedTextColor = Color.White,
                         cursorColor = AccentLavande
                     ),
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(0.4f)
                 )
                 Spacer(modifier = Modifier.width(12.dp))
                 IconButton(
@@ -538,9 +540,8 @@ private fun TvLayout(
                     // Même vignette 130 × 195 dp que les rangées « Tout » :
                     // les colonnes s'adaptent à l'écran sans étirer l'affiche.
                     columns = GridCells.Adaptive(minSize = 130.dp),
-                    // Même respiration compacte que les rangées du mode « Tout ».
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
                     contentPadding = PaddingValues(
                         horizontal = 12.dp,
                         vertical = LocalConfiguration.current.screenHeightDp.dp / 2
