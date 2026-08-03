@@ -42,6 +42,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -77,6 +78,9 @@ import com.cstv.app.presentation.components.CategorySearchField
 import com.cstv.app.presentation.components.TvCategoryPickerDialog
 import com.cstv.app.presentation.components.TvCategorySelectorTrigger
 import com.cstv.app.presentation.components.ActiveFilterChipsRow
+import com.cstv.app.presentation.components.MODAL_FOCUS_HANDOVER_MS
+import com.cstv.app.presentation.components.TvFocusEntryTarget
+import com.cstv.app.presentation.components.tvFocusEntryTarget
 import com.cstv.app.presentation.components.rememberTvInitialFocus
 import com.cstv.app.presentation.components.tvInitialFocusTarget
 import com.cstv.app.presentation.search.AdvancedSearchSheet
@@ -317,29 +321,69 @@ private fun TvLayout(
     var showCategoryPicker by remember { mutableStateOf(false) }
     val categoryTriggerFocusRequester = remember { FocusRequester() }
     val focusRestoreScope = rememberCoroutineScope()
-    // Un focus entrant depuis l'extérieur (retour du rail latéral) est
-    // capté par le déclencheur de catégorie, premier focusable de la colonne.
-    // La section média ne reçoit alors jamais `hasFocus`, donc le sélecteur
-    // pivot reste masqué par le `clear()` du départ vers le rail. On redirige
-    // l'entrée vers la liste/grille : le chrome (catégorie, recherche, filtres)
-    // reste atteignable en remontant depuis les médias, comportement TV usuel.
+    // Redirection de l'entrée de focus vers la section média plutôt que vers le
+    // déclencheur de catégorie, premier focusable de la colonne. Elle ne couvre
+    // que les chemins où Compose consulte `enter` (recherche de focus entrant,
+    // `moveFocus(Enter)`) — pas le `requestFocus()` de MainActivity, traité par
+    // la restauration explicite ci-dessous. Le chrome reste atteignable en
+    // remontant depuis les médias, comportement TV usuel.
     val mediaSectionFocusRequester = remember { FocusRequester() }
     // Les trois états sans section média : le requester n'y est attaché à aucun
     // nœud, la redirection doit donc laisser la recherche de focus par défaut.
     val catalogUnavailable = !state.catalogStatus.isComplete && state.catalogStatus.isOffline && state.streams.isEmpty()
     val isLoadingCatalog = state.isLoadingStreams || state.isLoadingCategories
     val hasMediaSection = !catalogUnavailable && !isLoadingCatalog && (isAllSelected || pagedStreams.itemCount > 0)
-    // Le conteneur d'une liste/grille Lazy est un `focusGroup` : il n'est
-    // jamais `isFocused` lui-même, seulement `hasFocus`. Le front montant de
-    // `hasFocus` est donc le seul signal fiable d'une rentrée du focus depuis
-    // l'extérieur (retour du rail latéral) ; il déclenche le retour sur la
-    // vignette exacte quittée, là où un test sur `isFocused` ne s'exécutait
-    // jamais et laissait la recherche de focus retomber sur la première rangée.
-    var mediaSectionHadFocus by remember { mutableStateOf(false) }
+    // Retour du rail latéral. MainActivity appelle `requestFocus()` sur son
+    // conteneur de contenu, qui est un `focusGroup` donc non focalisable :
+    // Compose 1.6 traite ce cas par `findChildCorrespondingToFocusEnter`, qui
+    // ne consulte **ni** `focusRestorer` **ni** `focusProperties.enter` et se
+    // contente du premier focusable rencontré — le déclencheur de catégorie.
+    // Le focus atterrissait donc dans le chrome : ni rangée conservée, ni
+    // sélecteur pivot republié. Le front montant de `hasFocus` sur la colonne
+    // racine couvre tous les chemins d'entrée et repose explicitement le focus
+    // sur la vignette quittée.
+    var screenHadFocus by remember { mutableStateOf(false) }
+    // Les surfaces modales de l'écran (choix de catégorie, filtres avancés)
+    // font elles aussi perdre le focus à la colonne. Leur propre retour de
+    // focus prime : la restauration saute alors une fois.
+    var skipFocusRestore by remember { mutableStateOf(false) }
+    LaunchedEffect(showCategoryPicker, state.isFilterSheetOpen) {
+        if (showCategoryPicker || state.isFilterSheetOpen) {
+            skipFocusRestore = true
+        } else if (skipFocusRestore) {
+            // Fenêtre courte : la surface modale rend le focus dans les frames
+            // qui suivent sa fermeture. Passé ce délai, un retour du rail doit à
+            // nouveau restaurer la vignette, sinon le drapeau resterait armé.
+            delay(MODAL_FOCUS_HANDOVER_MS)
+            skipFocusRestore = false
+        }
+    }
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp)
+            .onFocusChanged { focusState ->
+                if (!focusState.hasFocus) {
+                    screenHadFocus = false
+                    return@onFocusChanged
+                }
+                val entry = tvFocusEntryTarget(
+                    alreadyFocused = screenHadFocus,
+                    modalHandoverPending = skipFocusRestore,
+                    hasRestoreTarget = hasFocusRestoreTarget,
+                    hasInitialTarget = initialTarget != null
+                )
+                if (!screenHadFocus) skipFocusRestore = false
+                screenHadFocus = true
+                val target = when (entry) {
+                    TvFocusEntryTarget.RESTORED_MEDIA -> restoredFocus.requester
+                    TvFocusEntryTarget.INITIAL_MEDIA -> initialFocus.requester
+                    TvFocusEntryTarget.NONE -> null
+                }
+                // Vignette recyclée par la liste : la demande lève et le focus
+                // posé par la recherche par défaut reste alors valable.
+                target?.let { focusRestoreScope.launch { runCatching { it.requestFocus() } } }
+            }
             .focusProperties {
                 enter = { if (hasMediaSection) mediaSectionFocusRequester else FocusRequester.Default }
             }
@@ -462,21 +506,7 @@ private fun TvLayout(
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 modifier = Modifier.fillMaxSize()
                     .focusRequester(mediaSectionFocusRequester)
-                    .onFocusChanged {
-                        if (it.hasFocus) {
-                            tvFocusSelector.show()
-                            if (!mediaSectionHadFocus && hasFocusRestoreTarget) {
-                                // Vignette recyclée par la liste : `requestFocus`
-                                // lève, le focus posé par la recherche par défaut
-                                // reste alors valable.
-                                focusRestoreScope.launch { runCatching { restoredFocus.requester.requestFocus() } }
-                            }
-                            mediaSectionHadFocus = true
-                        } else {
-                            mediaSectionHadFocus = false
-                            tvFocusSelector.clear()
-                        }
-                    }
+                    .onFocusChanged { if (it.hasFocus) tvFocusSelector.show() else tvFocusSelector.clear() }
             ) {
                 tvPivotVerticalStartSpacer(true)
                 if (resumeMoviesStreams.isNotEmpty()) {
@@ -591,18 +621,7 @@ private fun TvLayout(
                     modifier = Modifier.fillMaxSize()
                         .focusRequester(mediaSectionFocusRequester)
                         .focusGroup()
-                        .onFocusChanged {
-                            if (it.hasFocus) {
-                                tvFocusSelector.show()
-                                if (!mediaSectionHadFocus && hasFocusRestoreTarget) {
-                                    focusRestoreScope.launch { runCatching { restoredFocus.requester.requestFocus() } }
-                                }
-                                mediaSectionHadFocus = true
-                            } else {
-                                mediaSectionHadFocus = false
-                                tvFocusSelector.clear()
-                            }
-                        }
+                        .onFocusChanged { if (it.hasFocus) tvFocusSelector.show() else tvFocusSelector.clear() }
                 ) {
                     items(pagedStreams.itemCount) { index ->
                         val stream = pagedStreams[index]

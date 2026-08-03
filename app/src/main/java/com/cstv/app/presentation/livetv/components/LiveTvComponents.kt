@@ -76,7 +76,13 @@ fun CategorySectionRow(
     sectionListState: LazyListState,
     onSeeAll: (() -> Unit)? = null,
     initialFocusState: TvInitialFocusState? = null,
-    isInitialTarget: Boolean = false
+    isInitialTarget: Boolean = false,
+    // Voir VodScreen : mémoire de la dernière vignette focalisée, seule façon de
+    // revenir exactement dessus après un aller-retour par le rail latéral.
+    restoredFocusState: TvInitialFocusState? = null,
+    restoredCategoryId: String? = null,
+    restoredStreamId: Int? = null,
+    onMediaFocused: (String, Int) -> Unit = { _, _ -> }
 ) {
     Column(
         modifier = Modifier
@@ -122,10 +128,15 @@ fun CategorySectionRow(
         ) {
             itemsIndexed(streams) { index, stream ->
                 val isFav = favoritesList.any { it.id == stream.streamId && it.type == "live" }
+                val isRestoredTarget = categoryId == restoredCategoryId && stream.streamId == restoredStreamId
                 // Rayon 12.dp : StreamTvCard n'a pas été unifiée au rayon
                 // 14.dp de B18 (hors périmètre de ce ticket-là).
                 Box(modifier = Modifier.tvPivotItem(isTv, rowState, index, selectorCornerRadius = 12.dp)
-                    .tvInitialFocusTarget(initialFocusState, index == 0 && isInitialTarget)) {
+                    .tvInitialFocusTarget(
+                        if (isRestoredTarget) restoredFocusState else initialFocusState,
+                        isRestoredTarget || (index == 0 && isInitialTarget)
+                    )
+                    .onFocusChanged { if (it.isFocused) onMediaFocused(categoryId, stream.streamId) }) {
                     if (isTv) {
                         StreamTvCard(
                             stream = stream,
@@ -340,7 +351,11 @@ fun RecentlyWatchedRow(
     saveScroll: (String, Int, Int) -> Unit,
     sectionListState: LazyListState,
     initialFocusState: TvInitialFocusState? = null,
-    isInitialTarget: Boolean = false
+    isInitialTarget: Boolean = false,
+    restoredFocusState: TvInitialFocusState? = null,
+    restoredCategoryId: String? = null,
+    restoredStreamId: Int? = null,
+    onMediaFocused: (String, Int) -> Unit = { _, _ -> }
 ) {
     Column(
         modifier = Modifier
@@ -364,10 +379,15 @@ fun RecentlyWatchedRow(
             modifier = Modifier.fillMaxWidth().focusGroup()
         ) {
             itemsIndexed(streams) { index, stream ->
+                val isRestoredTarget = restoredCategoryId == "recently_watched" && stream.streamId == restoredStreamId
                 // Rayon 12.dp : StreamTvCard n'a pas été unifiée au rayon
                 // 14.dp de B18 (hors périmètre de ce ticket-là).
                 Box(modifier = Modifier.tvPivotItem(isTv, rowState, index, selectorCornerRadius = 12.dp)
-                    .tvInitialFocusTarget(initialFocusState, index == 0 && isInitialTarget)) {
+                    .tvInitialFocusTarget(
+                        if (isRestoredTarget) restoredFocusState else initialFocusState,
+                        isRestoredTarget || (index == 0 && isInitialTarget)
+                    )
+                    .onFocusChanged { if (it.isFocused) onMediaFocused("recently_watched", stream.streamId) }) {
                     if (isTv) {
                         RecentlyWatchedTvItem(
                             stream = stream,

@@ -42,6 +42,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -77,6 +78,9 @@ import com.cstv.app.presentation.components.CategorySearchField
 import com.cstv.app.presentation.components.TvCategoryPickerDialog
 import com.cstv.app.presentation.components.TvCategorySelectorTrigger
 import com.cstv.app.presentation.components.ActiveFilterChipsRow
+import com.cstv.app.presentation.components.MODAL_FOCUS_HANDOVER_MS
+import com.cstv.app.presentation.components.TvFocusEntryTarget
+import com.cstv.app.presentation.components.tvFocusEntryTarget
 import com.cstv.app.presentation.components.rememberTvInitialFocus
 import com.cstv.app.presentation.components.tvInitialFocusTarget
 import com.cstv.app.presentation.search.AdvancedSearchSheet
@@ -322,13 +326,49 @@ private fun TvLayout(
     val catalogUnavailable = !state.catalogStatus.isComplete && state.catalogStatus.isOffline && state.streams.isEmpty()
     val isLoadingCatalog = state.isLoadingStreams || state.isLoadingCategories
     val hasMediaSection = !catalogUnavailable && !isLoadingCatalog && (isAllSelected || pagedStreams.itemCount > 0)
-    // Voir VodScreen : un conteneur Lazy n'est jamais `isFocused`, seul le
-    // front montant de `hasFocus` signale une rentrée depuis l'extérieur.
-    var mediaSectionHadFocus by remember { mutableStateOf(false) }
+    // Voir VodScreen : `requestFocus()` sur le conteneur de contenu de
+    // MainActivity court-circuite `focusRestorer` et `focusProperties.enter`.
+    // Le front montant de `hasFocus` sur la colonne racine est le seul signal
+    // couvrant tous les chemins d'entrée.
+    var screenHadFocus by remember { mutableStateOf(false) }
+    var skipFocusRestore by remember { mutableStateOf(false) }
+    LaunchedEffect(showCategoryPicker, state.isFilterSheetOpen) {
+        if (showCategoryPicker || state.isFilterSheetOpen) {
+            skipFocusRestore = true
+        } else if (skipFocusRestore) {
+            // Fenêtre courte : la surface modale rend le focus dans les frames
+            // qui suivent sa fermeture. Passé ce délai, un retour du rail doit à
+            // nouveau restaurer la vignette, sinon le drapeau resterait armé.
+            delay(MODAL_FOCUS_HANDOVER_MS)
+            skipFocusRestore = false
+        }
+    }
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp)
+            .onFocusChanged { focusState ->
+                if (!focusState.hasFocus) {
+                    screenHadFocus = false
+                    return@onFocusChanged
+                }
+                val entry = tvFocusEntryTarget(
+                    alreadyFocused = screenHadFocus,
+                    modalHandoverPending = skipFocusRestore,
+                    hasRestoreTarget = hasFocusRestoreTarget,
+                    hasInitialTarget = initialTarget != null
+                )
+                if (!screenHadFocus) skipFocusRestore = false
+                screenHadFocus = true
+                val target = when (entry) {
+                    TvFocusEntryTarget.RESTORED_MEDIA -> restoredFocus.requester
+                    TvFocusEntryTarget.INITIAL_MEDIA -> initialFocus.requester
+                    TvFocusEntryTarget.NONE -> null
+                }
+                // Vignette recyclée par la liste : la demande lève et le focus
+                // posé par la recherche par défaut reste alors valable.
+                target?.let { focusRestoreScope.launch { runCatching { it.requestFocus() } } }
+            }
             .focusProperties {
                 enter = { if (hasMediaSection) mediaSectionFocusRequester else FocusRequester.Default }
             }
@@ -451,18 +491,7 @@ private fun TvLayout(
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 modifier = Modifier.fillMaxSize()
                     .focusRequester(mediaSectionFocusRequester)
-                    .onFocusChanged {
-                        if (it.hasFocus) {
-                            tvFocusSelector.show()
-                            if (!mediaSectionHadFocus && hasFocusRestoreTarget) {
-                                focusRestoreScope.launch { runCatching { restoredFocus.requester.requestFocus() } }
-                            }
-                            mediaSectionHadFocus = true
-                        } else {
-                            mediaSectionHadFocus = false
-                            tvFocusSelector.clear()
-                        }
-                    }
+                    .onFocusChanged { if (it.hasFocus) tvFocusSelector.show() else tvFocusSelector.clear() }
             ) {
                 tvPivotVerticalStartSpacer(true)
                 if (resumeSeriesStreams.isNotEmpty()) {
@@ -575,18 +604,7 @@ private fun TvLayout(
                     modifier = Modifier.fillMaxSize()
                         .focusRequester(mediaSectionFocusRequester)
                         .focusGroup()
-                        .onFocusChanged {
-                            if (it.hasFocus) {
-                                tvFocusSelector.show()
-                                if (!mediaSectionHadFocus && hasFocusRestoreTarget) {
-                                    focusRestoreScope.launch { runCatching { restoredFocus.requester.requestFocus() } }
-                                }
-                                mediaSectionHadFocus = true
-                            } else {
-                                mediaSectionHadFocus = false
-                                tvFocusSelector.clear()
-                            }
-                        }
+                        .onFocusChanged { if (it.hasFocus) tvFocusSelector.show() else tvFocusSelector.clear() }
                 ) {
                     items(pagedStreams.itemCount) { index ->
                         val stream = pagedStreams[index]
