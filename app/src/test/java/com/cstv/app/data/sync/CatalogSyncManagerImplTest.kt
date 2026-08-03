@@ -350,7 +350,7 @@ class CatalogSyncManagerImplTest {
 
     /**
      * T7-R1 : un échec réseau passé ne doit plus maintenir le signal de
-     * connectivité utilisé pour piloter `OfflineBanner` une fois l'appareil
+     * connectivité exposé à l'UI une fois l'appareil
      * reconnecté. `isOffline` (diagnostic combiné) reste vrai pour l'historique,
      * mais `isNetworkOnline` (T7-R1) doit refléter la connectivité réelle.
      */

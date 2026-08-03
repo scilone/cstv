@@ -108,8 +108,7 @@ class CatalogSyncManagerImpl @Inject constructor(
                 // La connectivité seule est optimiste : un transport actif ne
                 // garantit pas que le panel réponde.
                 isOffline = !isOnline || lastFailureKind == SyncFailureKind.NETWORK,
-                // T7-R1 : connectivité réelle, sans l'historique d'échec ci-dessus —
-                // c'est ce champ qui doit décider de la visibilité d'OfflineBanner.
+                // T7-R1 : connectivité réelle, sans l'historique d'échec ci-dessus.
                 isNetworkOnline = isOnline,
                 isSyncing = currentSync is SyncState.Running,
                 lastFailureKind = lastFailureKind

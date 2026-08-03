@@ -83,7 +83,8 @@ class TrendingRepositoryImpl @Inject constructor(
     override suspend fun getCachedMatchedTrendsGlobal(
         lastCatalogSyncTime: Long,
         ignoreSessionRefresh: Boolean,
-        ignoreExpiration: Boolean
+        ignoreExpiration: Boolean,
+        ignoreCatalogSync: Boolean
     ): List<TrendingCatalogItem>? = mutex.withLock {
         if (!ignoreSessionRefresh && sessionRefreshGate.consumeFirstAccess(TRENDS_DATA_KEY)) {
             com.cstv.app.di.IptvLog.d("TMDB", "💾 Cache tendances ignoré au lancement : rafraîchissement forcé.")
@@ -97,7 +98,7 @@ class TrendingRepositoryImpl @Inject constructor(
             return null // Cache expired
         }
 
-        if (lastFetchTime < lastCatalogSyncTime) {
+        if (!ignoreCatalogSync && lastFetchTime < lastCatalogSyncTime) {
             com.cstv.app.di.IptvLog.d("TMDB", "💾 Global trends cache invalidated because the catalog was resynchronized.")
             return null // Invalidate cache on catalog update
         }

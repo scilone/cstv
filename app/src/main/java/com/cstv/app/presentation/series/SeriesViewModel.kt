@@ -10,7 +10,6 @@ import com.cstv.app.domain.model.SeriesEpisode
 import com.cstv.app.domain.model.SeriesStream
 import com.cstv.app.domain.model.AdvancedSearchFilter
 import com.cstv.app.domain.model.CatalogFilterMatcher
-import com.cstv.app.domain.model.GenreParser
 import com.cstv.app.domain.model.PlaybackPosition
 import com.cstv.app.domain.usecase.GetSeriesCategoriesUseCase
 import com.cstv.app.domain.usecase.GetSeriesCategoryCountsUseCase
@@ -26,6 +25,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -65,7 +65,9 @@ class SeriesViewModel @Inject constructor(
     private val catalogSyncManager: com.cstv.app.domain.sync.CatalogSyncManager,
     private val canPlayContentUseCase: com.cstv.app.domain.usecase.CanPlayContentUseCase,
     private val getTrailerPreviewUseCase: GetTrailerPreviewUseCase,
-    private val invalidateTrailerPreviewUseCase: com.cstv.app.domain.usecase.InvalidateTrailerPreviewUseCase
+    private val invalidateTrailerPreviewUseCase: com.cstv.app.domain.usecase.InvalidateTrailerPreviewUseCase,
+    @com.cstv.app.di.DefaultDispatcher
+    private val computationDispatcher: kotlinx.coroutines.CoroutineDispatcher
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(SeriesState())
@@ -296,25 +298,56 @@ class SeriesViewModel @Inject constructor(
         streamsJob?.cancel()
         streamsJob = viewModelScope.launch {
             _state.update { it.copy(isLoadingStreams = it.streams.isEmpty(), error = null) }
-            getSeriesStreamsUseCase(categoryId).collect { streams ->
-                _state.update { current ->
-                    val genres = streams.flatMap { GenreParser.parseGenres(it.genre) }
-                        .distinctBy { GenreParser.normalize(it) }.sorted()
-                    val years = streams.mapNotNull { it.releaseYear }
-                    val bounds = if (years.isEmpty()) 1980..2025 else years.min()..years.max()
-                    current.copy(
-                        streams = streams,
-                        isLoadingStreams = false,
-                        availableGenres = genres,
-                        categoryYearRange = bounds,
-                        filteredCount = streams.count {
-                            CatalogFilterMatcher.matchesContent(it.rating, it.releaseYear, it.genre, current.advancedFilter)
-                        }
-                    )
+            // Voir VodViewModel : délai jusqu'à la première émission de Room.
+            val subscribedAt = System.nanoTime()
+            var firstEmission = true
+            getSeriesStreamsUseCase(categoryId)
+                // Voir VodViewModel : dérivations sorties du dispatcher
+                // principal, leur coût suit la taille du catalogue.
+                .map { streams -> streams to buildFacets(categoryId, streams) }
+                .flowOn(computationDispatcher)
+                .collect { (streams, facets) ->
+                    if (firstEmission) {
+                        firstEmission = false
+                        com.cstv.app.di.IptvLog.d(
+                            "PERF",
+                            "Séries première émission catégorie=$categoryId flux=${streams.size} " +
+                                "en ${(System.nanoTime() - subscribedAt) / 1_000_000}ms"
+                        )
+                    }
+                    _state.update { current ->
+                        current.copy(
+                            streams = streams,
+                            isLoadingStreams = false,
+                            availableGenres = facets.genres,
+                            categoryYearRange = facets.yearRange,
+                            filteredCount = facets.filteredCount
+                        )
+                    }
+                    refreshCategoryCounts()
                 }
-                refreshCategoryCounts()
-            }
         }
+    }
+
+    /**
+     * Voir VodViewModel : dérivations du panneau de filtres, mesurées pour
+     * pouvoir distinguer sur appareil une base lente d'un calcul lent.
+     */
+    private fun buildFacets(categoryId: String, streams: List<SeriesStream>): com.cstv.app.domain.model.CatalogFacets {
+        val startedAt = System.nanoTime()
+        val facets = com.cstv.app.domain.model.CatalogFacetsBuilder.build(
+            items = streams,
+            genreOf = { it.genre },
+            yearOf = { it.releaseYear },
+            ratingOf = { it.rating },
+            filter = _state.value.advancedFilter
+        )
+        val elapsedMs = (System.nanoTime() - startedAt) / 1_000_000
+        com.cstv.app.di.IptvLog.d(
+            "PERF",
+            "Séries facettes catégorie=$categoryId flux=${streams.size} genres=${facets.genres.size} en ${elapsedMs}ms"
+        )
+        return facets
     }
 
     fun refresh() {

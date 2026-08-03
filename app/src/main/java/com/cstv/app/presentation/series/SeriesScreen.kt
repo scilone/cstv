@@ -14,7 +14,6 @@ import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import com.cstv.app.presentation.components.CatalogUnavailableState
-import com.cstv.app.presentation.components.OfflineBanner
 import com.cstv.app.presentation.components.tvPivotItem
 import com.cstv.app.presentation.components.tvPivotCell
 import com.cstv.app.presentation.components.tvPivotSection
@@ -259,9 +258,17 @@ private fun TvLayout(
 ) {
     val isAllSelected = state.selectedCategory?.categoryId == "all"
 
+    // Voir VodScreen : regroupement mesuré, thread principal.
     val groupedStreams = remember(filteredStreams) {
+        val startedAt = System.nanoTime()
         filteredStreams
             .groupBy { it.categoryId }
+            .also {
+                com.cstv.app.di.IptvLog.d(
+                    "PERF",
+                    "Séries regroupement ${filteredStreams.size} flux en ${(System.nanoTime() - startedAt) / 1_000_000}ms"
+                )
+            }
     }
     val actualCategories = remember(state.categories) {
         state.categories.filter { it.categoryId != "all" }
@@ -374,10 +381,6 @@ private fun TvLayout(
             }
             .focusGroup()
     ) {
-        // Bannière hors ligne : discrète, non bloquante, jamais en remplacement
-        // du contenu (règle « une donnée ancienne reste consultable »).
-        OfflineBanner(status = state.catalogStatus, onRetry = onRefresh)
-
         // F22/B20 : la catégorie, la recherche et les filtres partagent une
         // même ligne dès qu'une catégorie précise est ouverte.
         Row(
@@ -707,10 +710,6 @@ private fun MobileLayout(
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        // Bannière hors ligne : discrète, non bloquante, jamais en remplacement
-        // du contenu (règle « une donnée ancienne reste consultable »).
-        OfflineBanner(status = state.catalogStatus, onRetry = onRefresh)
-
         // Sélecteur de catégorie unifié (Phase 56) : pleine largeur, sans bouton
         // "Rafraîchir" (rafraîchissement manuel déplacé dans les Paramètres),
         // espacé du haut, fond neutre transparent comme le reste du layout.

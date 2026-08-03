@@ -11,7 +11,6 @@ import com.cstv.app.domain.model.VodDetails
 import com.cstv.app.domain.model.VodStream
 import com.cstv.app.domain.model.AdvancedSearchFilter
 import com.cstv.app.domain.model.CatalogFilterMatcher
-import com.cstv.app.domain.model.GenreParser
 import com.cstv.app.domain.usecase.GetVodCategoriesUseCase
 import com.cstv.app.domain.usecase.GetVodCategoryCountsUseCase
 import com.cstv.app.domain.usecase.GetVodDetailsUseCase
@@ -26,6 +25,7 @@ import androidx.paging.cachedIn
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.Flow
@@ -62,7 +62,9 @@ class VodViewModel @Inject constructor(
     private val catalogSyncManager: com.cstv.app.domain.sync.CatalogSyncManager,
     private val canPlayContentUseCase: com.cstv.app.domain.usecase.CanPlayContentUseCase,
     private val getTrailerPreviewUseCase: GetTrailerPreviewUseCase,
-    private val invalidateTrailerPreviewUseCase: com.cstv.app.domain.usecase.InvalidateTrailerPreviewUseCase
+    private val invalidateTrailerPreviewUseCase: com.cstv.app.domain.usecase.InvalidateTrailerPreviewUseCase,
+    @com.cstv.app.di.DefaultDispatcher
+    private val computationDispatcher: kotlinx.coroutines.CoroutineDispatcher
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(VodState())
@@ -293,30 +295,67 @@ class VodViewModel @Inject constructor(
             // Chargement affiché uniquement tant que Room n'a rien émis : une
             // synchronisation en cours n'a plus le droit de bloquer l'écran.
             _state.update { it.copy(isLoadingStreams = it.streams.isEmpty(), error = null) }
-            getVodStreamsUseCase(categoryId).collect { streams ->
-                _state.update { current ->
-                    val genres = streams.flatMap { GenreParser.parseGenres(it.genre) }
-                        .distinctBy { GenreParser.normalize(it) }.sorted()
-                    val years = streams.mapNotNull { it.releaseYear }
-                    val bounds = if (years.isEmpty()) 1980..2025 else years.min()..years.max()
-                    current.copy(
-                        streams = streams,
-                        isLoadingStreams = false,
-                        availableGenres = genres,
-                        categoryYearRange = bounds,
-                        filteredCount = streams.count {
-                            CatalogFilterMatcher.matchesContent(it.rating, it.releaseYear, it.genre, current.advancedFilter)
-                        }
-                    )
+            // Délai jusqu'à la première émission de Room : sépare une requête
+            // lente d'un rendu lent, les deux se manifestant à l'écran par le
+            // même onglet « Tout » qui tarde à apparaître.
+            val subscribedAt = System.nanoTime()
+            var firstEmission = true
+            getVodStreamsUseCase(categoryId)
+                // Les dérivations parcourent tout le catalogue sur l'onglet
+                // « Tout » : laissées sur le dispatcher principal, elles
+                // retardaient d'autant le premier rendu de la liste.
+                .map { streams -> streams to buildFacets(categoryId, streams) }
+                .flowOn(computationDispatcher)
+                .collect { (streams, facets) ->
+                    if (firstEmission) {
+                        firstEmission = false
+                        com.cstv.app.di.IptvLog.d(
+                            "PERF",
+                            "VOD première émission catégorie=$categoryId flux=${streams.size} " +
+                                "en ${(System.nanoTime() - subscribedAt) / 1_000_000}ms"
+                        )
+                    }
+                    _state.update { current ->
+                        current.copy(
+                            streams = streams,
+                            isLoadingStreams = false,
+                            availableGenres = facets.genres,
+                            categoryYearRange = facets.yearRange,
+                            filteredCount = facets.filteredCount
+                        )
+                    }
+                    refreshCategoryCounts()
                 }
-                refreshCategoryCounts()
-            }
         }
     }
 
     /**
+     * Dérivations du panneau de filtres, mesurées : c'est le poste de coût qui
+     * décide de la latence d'affichage de l'onglet « Tout ». Le journal permet
+     * de trancher sur appareil entre une base lente (`Room`) et un calcul lent
+     * (`CatalogFacetsBuilder`), les deux se présentant à l'écran de la même
+     * façon.
+     */
+    private fun buildFacets(categoryId: String, streams: List<VodStream>): com.cstv.app.domain.model.CatalogFacets {
+        val startedAt = System.nanoTime()
+        val facets = com.cstv.app.domain.model.CatalogFacetsBuilder.build(
+            items = streams,
+            genreOf = { it.genre },
+            yearOf = { it.releaseYear },
+            ratingOf = { it.rating },
+            filter = _state.value.advancedFilter
+        )
+        val elapsedMs = (System.nanoTime() - startedAt) / 1_000_000
+        com.cstv.app.di.IptvLog.d(
+            "PERF",
+            "VOD facettes catégorie=$categoryId flux=${streams.size} genres=${facets.genres.size} en ${elapsedMs}ms"
+        )
+        return facets
+    }
+
+    /**
      * Actualisation explicite. Le catalogue local reste servi pendant la
-     * synchronisation ; seul l'indicateur de la bannière en rend compte.
+     * synchronisation, sans commentaire à l'écran.
      */
     fun refresh() {
         viewModelScope.launch {

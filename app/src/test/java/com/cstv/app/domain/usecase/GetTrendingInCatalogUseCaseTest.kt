@@ -476,7 +476,11 @@ class GetTrendingInCatalogUseCaseTest {
         whenever(trendingRepository.getCachedMatchedTrendsGlobal(0L)).thenReturn(null)
         // …mais TMDB est injoignable.
         whenever(trendingRepository.getTrending()).thenReturn(emptyList())
-        whenever(trendingRepository.getCachedMatchedTrendsGlobal(0L, ignoreSessionRefresh = true)).thenReturn(
+        whenever(trendingRepository.getCachedMatchedTrendsGlobal(
+            ignoreSessionRefresh = true,
+            ignoreExpiration = true,
+            ignoreCatalogSync = true
+        )).thenReturn(
             listOf(
                 TrendingCatalogItem(
                     trendingTitle = TrendingTitle(1, "Dune", isMovie = true, year = 2021, posterUrl = null),
@@ -510,10 +514,13 @@ class GetTrendingInCatalogUseCaseTest {
         whenever(catalogFreshness.seriesSyncedAt()).thenReturn(200L)
 
         val movie = VodStream(7, "Dune", null, null, null, "visible", releaseYear = 2021)
+        // `cached()` lève aussi l'invalidation « catalogue resynchronisé » : au
+        // démarrage à froid, c'est justement la synchronisation qui vient de
+        // s'exécuter, et la Hero Card manquait donc à chaque lancement.
         whenever(trendingRepository.getCachedMatchedTrendsGlobal(
-            lastCatalogSyncTime = 200L,
             ignoreSessionRefresh = true,
-            ignoreExpiration = true
+            ignoreExpiration = true,
+            ignoreCatalogSync = true
         )).thenReturn(
             listOf(
                 TrendingCatalogItem(

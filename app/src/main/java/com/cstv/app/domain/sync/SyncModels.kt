@@ -72,10 +72,11 @@ sealed interface SyncState {
  * dernier échec typé NETWORK.
  *
  * [isNetworkOnline] (T7-R1) est en revanche la connectivité réelle brute,
- * sans historique d'échec. C'est ce champ, et lui seul, qui doit piloter la
- * visibilité d'`OfflineBanner` : un ancien échec réseau ne doit pas maintenir
- * le bandeau affiché une fois la connexion revenue, alors qu'une
- * synchronisation silencieuse s'en occupe déjà (règles métier 4/5 de T7).
+ * sans historique d'échec : un ancien échec réseau ne doit pas continuer à
+ * décrire l'appareil comme déconnecté une fois la connexion revenue, alors
+ * qu'une synchronisation silencieuse s'en occupe déjà (règles métier 4/5 de T7).
+ * Aucun bandeau hors ligne n'est affiché sur les listes de médias : le
+ * catalogue local reste servi tel quel, sans commentaire.
  */
 data class CatalogStatus(
     /** Les 6 sections catalogue ont toutes au moins une synchronisation réussie. */

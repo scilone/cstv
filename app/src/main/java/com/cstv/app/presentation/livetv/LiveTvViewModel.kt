@@ -220,7 +220,19 @@ class LiveTvViewModel @Inject constructor(
         streamsJob?.cancel()
         streamsJob = viewModelScope.launch {
             _state.update { it.copy(isLoadingStreams = it.streams.isEmpty(), error = null) }
+            // Voir VodViewModel : délai jusqu'à la première émission de Room,
+            // pour séparer une requête lente d'un rendu lent.
+            val subscribedAt = System.nanoTime()
+            var firstEmission = true
             getLiveStreamsUseCase(categoryId).collect { streams ->
+                if (firstEmission) {
+                    firstEmission = false
+                    com.cstv.app.di.IptvLog.d(
+                        "PERF",
+                        "Live première émission catégorie=$categoryId flux=${streams.size} " +
+                            "en ${(System.nanoTime() - subscribedAt) / 1_000_000}ms"
+                    )
+                }
                 _state.update { it.copy(streams = streams, isLoadingStreams = false) }
                 refreshCategoryCounts()
             }

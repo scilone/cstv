@@ -42,7 +42,13 @@ class GetTrendingInCatalogUseCase @Inject constructor(
             // persistant, qui n'a pas été effacé.
             buildMatchedTrends().takeIf { it.isNotEmpty() }
                 ?: trendingRepository
-                    .getCachedMatchedTrendsGlobal(lastCatalogSyncTime, ignoreSessionRefresh = true)
+                    // Repli de dernier recours : mêmes dérogations que `cached()`,
+                    // une ligne Tendances datée valant mieux que pas de ligne.
+                    .getCachedMatchedTrendsGlobal(
+                        ignoreSessionRefresh = true,
+                        ignoreExpiration = true,
+                        ignoreCatalogSync = true
+                    )
                     .orEmpty()
                     .also { fallback ->
                         if (fallback.isNotEmpty()) {
@@ -82,11 +88,21 @@ class GetTrendingInCatalogUseCase @Inject constructor(
      * Hero Card n'apparaissait donc qu'après un aller-retour réseau complet, et
      * s'insérait dans un accueil déjà rendu. Cette entrée sert le contenu déjà
      * connu tout de suite ; l'appelant enchaîne sur `invoke()` en arrière-plan.
+     *
+     * Aucune des trois invalidations ne s'applique ici, pas même celle du
+     * catalogue resynchronisé (B-3) : au démarrage à froid, la synchronisation
+     * du catalogue est justement ce qui vient de s'exécuter, donc la condition
+     * était toujours vraie et la Hero Card manquait à chaque lancement. Un
+     * appariement périmé n'a d'effet que sur un identifiant de flux, corrigé
+     * quelques secondes plus tard par le rafraîchissement.
      */
     suspend fun cached(): List<TrendingCatalogItem> = withContext(Dispatchers.Default) {
-        val lastCatalogSyncTime = maxOf(catalogFreshness.vodSyncedAt(), catalogFreshness.seriesSyncedAt())
         val cached = trendingRepository
-            .getCachedMatchedTrendsGlobal(lastCatalogSyncTime, ignoreSessionRefresh = true, ignoreExpiration = true)
+            .getCachedMatchedTrendsGlobal(
+                ignoreSessionRefresh = true,
+                ignoreExpiration = true,
+                ignoreCatalogSync = true
+            )
             .orEmpty()
         if (cached.isEmpty()) return@withContext emptyList()
 
