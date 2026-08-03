@@ -185,7 +185,20 @@ class LiveTvViewModel @Inject constructor(
     private fun observeCategories() {
         viewModelScope.launch {
             _state.update { it.copy(isLoadingCategories = it.categories.isEmpty()) }
+            // Voir VodViewModel : l'abonnement aux flux n'a lieu qu'une fois les
+            // catégories arrivées, donc tout retard ici décale d'autant la
+            // requête de liste — et le voile de chargement avec.
+            val subscribedAt = System.nanoTime()
+            var firstEmission = true
             getLiveCategoriesUseCase().collect { categories ->
+                if (firstEmission) {
+                    firstEmission = false
+                    com.cstv.app.di.IptvLog.d(
+                        "PERF",
+                        "Live première émission catégories=${categories.size} " +
+                            "en ${(System.nanoTime() - subscribedAt) / 1_000_000}ms"
+                    )
+                }
                 val finalCategories = listOf(LiveCategory("all", "Tout", 0)) + categories
                 val previousSelectedId = _state.value.selectedCategory?.categoryId
                 val newSelected = finalCategories.find { it.categoryId == previousSelectedId } ?: finalCategories.firstOrNull()

@@ -205,7 +205,18 @@ class SeriesViewModel @Inject constructor(
     private fun observeCategories() {
         viewModelScope.launch {
             _state.update { it.copy(isLoadingCategories = it.categories.isEmpty()) }
+            // Voir VodViewModel : mesure du second verrou d'affichage.
+            val subscribedAt = System.nanoTime()
+            var firstEmission = true
             getSeriesCategoriesUseCase().collect { categories ->
+                if (firstEmission) {
+                    firstEmission = false
+                    com.cstv.app.di.IptvLog.d(
+                        "PERF",
+                        "Séries première émission catégories=${categories.size} " +
+                            "en ${(System.nanoTime() - subscribedAt) / 1_000_000}ms"
+                    )
+                }
                 val finalCategories = listOf(SeriesCategory("all", "Tout", 0)) + categories
                 val previousSelectedId = _state.value.selectedCategory?.categoryId
                 val newSelected = finalCategories.find { it.categoryId == previousSelectedId } ?: finalCategories.firstOrNull()

@@ -142,7 +142,24 @@ class CatalogSyncManagerImpl @Inject constructor(
         }
     }
 
+    /**
+     * Déclenché à l'entrée sur chaque onglet de catalogue. Mesuré : c'est le
+     * seul travail capable de durer plusieurs secondes sur ce chemin, et il
+     * écrit dans les mêmes tables que les requêtes qui alimentent l'écran. Sans
+     * cette trace, un écran lent à l'ouverture ne se distingue pas d'un écran
+     * qui attend une synchronisation déclenchée par son propre affichage.
+     */
     override suspend fun syncIfStale(): SyncOutcome {
+        val startedAt = System.nanoTime()
+        val outcome = syncIfStaleInternal()
+        IptvLog.d(
+            "PERF",
+            "Sync syncIfStale=${outcome::class.simpleName} en ${(System.nanoTime() - startedAt) / 1_000_000}ms"
+        )
+        return outcome
+    }
+
+    private suspend fun syncIfStaleInternal(): SyncOutcome {
         syncStateInitializer.ensureInitialized()
         if (!networkMonitor.isCurrentlyOnline()) return SyncOutcome.Skipped
 
