@@ -41,8 +41,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.launch
-import kotlin.math.roundToInt
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -324,7 +322,6 @@ private fun TvLayout(
 
     var showCategoryPicker by remember { mutableStateOf(false) }
     val categoryTriggerFocusRequester = remember { FocusRequester() }
-    val focusRestoreScope = rememberCoroutineScope()
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -443,12 +440,7 @@ private fun TvLayout(
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 modifier = Modifier.fillMaxSize()
                     .onFocusChanged {
-                        if (it.hasFocus) {
-                            tvFocusSelector.show()
-                            if (it.isFocused && hasFocusRestoreTarget) {
-                                focusRestoreScope.launch { restoredFocus.requester.requestFocus() }
-                            }
-                        } else tvFocusSelector.clear()
+                        if (it.hasFocus) tvFocusSelector.show() else tvFocusSelector.clear()
                     }
             ) {
                 tvPivotVerticalStartSpacer(true)
@@ -552,7 +544,8 @@ private fun TvLayout(
                     val cardWidth = 130.dp
                     val gridGap = 12.dp
                     val availableWidth = (maxWidth - horizontalPadding).coerceAtLeast(cardWidth)
-                    val columns = ((availableWidth + gridGap) / (cardWidth + gridGap)).roundToInt().coerceAtLeast(1)
+                    val columns = ((availableWidth + gridGap) / (cardWidth + gridGap)).toInt().coerceAtLeast(1)
+                    val gridWidth = horizontalPadding + cardWidth * columns + gridGap * (columns - 1)
                 LazyVerticalGrid(
                     state = gridState,
                     columns = GridCells.Fixed(columns),
@@ -562,14 +555,9 @@ private fun TvLayout(
                         horizontal = 12.dp,
                         vertical = LocalConfiguration.current.screenHeightDp.dp / 2
                     ),
-                    modifier = Modifier.fillMaxSize().focusGroup()
+                    modifier = Modifier.width(gridWidth).fillMaxHeight().focusGroup()
                         .onFocusChanged {
-                            if (it.hasFocus) {
-                                tvFocusSelector.show()
-                                if (it.isFocused && hasFocusRestoreTarget) {
-                                    focusRestoreScope.launch { restoredFocus.requester.requestFocus() }
-                                }
-                            } else tvFocusSelector.clear()
+                            if (it.hasFocus) tvFocusSelector.show() else tvFocusSelector.clear()
                         }
                 ) {
                     items(pagedStreams.itemCount) { index ->
