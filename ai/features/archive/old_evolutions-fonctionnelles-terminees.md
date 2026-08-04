@@ -663,3 +663,17 @@ Bouton "Voir tout" sur les sections favoris, passage en grille à 3 colonnes pou
 - **Tâche 2 (Presentation) :** Deux sections `HomeSectionRow` « Recommandé pour vous » (Films/Séries) sur la Home mobile + TV (D-pad), masquées si vide (cold start), calcul découplé du chargement principal (comme TMDB, jamais bloquant). « Voir tout » ouvre la vue développée en grille existante (`HomeExpandedSection`).
 - **Revue & corrections post-livraison (Sonnet 5) :** section « Séries recommandées » — le bouton « Voir tout » était non câblé (`onSeeAll = null`), sans variante `HomeExpandedSection.RECOMMENDED_SERIES` dans la grille développée ; ajouté (enum, titre, count, grille, clic détail série). Correction d'un crash potentiel sur Android < 7 (`Map.getOrDefault` requiert l'API 24, minSdk du projet = 21) dans `RecommendationEngine` — remplacé par l'idiome `map[key] ?: default`, détecté par `lintDebug`. Ajout de 2 tests `HomeViewModelTest` couvrant le peuplement des sections recommandées et le cold start (manquants du cahier des charges Tâche 2.4).
 - **Stabilité & Tests :** `RecommendationEngineTest`, `GetRecommendationsUseCaseTest`, tests `HomeViewModelTest` dédiés. `assembleDebug` + `lintDebug` + `testDebugUnitTest` au vert.
+
+---
+
+### Feature F20 : Retour à l'affichage de la première catégorie pour les Films et Séries sur l'Accueil
+
+✅ **TERMINÉE** (Livrée)
+- **Objectif :** Revenir à l'affichage de la première catégorie de Films (VOD) et Séries préférée du profil actif sur la Home (mobile et TV) à la place des « Derniers ajouts » globaux, tout en respectant scrupuleusement le masquage et l'ordre des catégories définis dans les préférences.
+- **Modifications :**
+  - Dans `HomeViewModel.kt`, remplacement de la logique de chargement CPU global « derniers ajouts » et des deux requêtes `"all"` par l'utilisation de `GetVodCategoriesUseCase` et `GetSeriesCategoriesUseCase` pour récupérer réactivement la première catégorie visible de l'utilisateur, puis chargement direct du contenu associé.
+  - Suppression de l'objet de calcul obsolète `TopRatedSelector` et de ses tests.
+  - Câblage des redirections « Voir tout » des sections Films et Séries vers la catégorie correspondante dans `NavGraph.kt`.
+  - Mise à jour de `HomeScreen.kt` pour prendre en compte les nouveaux paramètres et supprimer l'affichage du Top 10 CPU au profit du TMDB uniquement.
+- **Stabilité & Tests :** Suppression des tests de `TopRatedSelectorTest` et ajout/mise à jour des tests dans `HomeViewModelTest` pour vérifier le chargement correct et réactif des premières catégories visibles et la gestion des cas limites.
+

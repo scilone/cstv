@@ -190,4 +190,20 @@ Ce document rassemble l'historique des audits, correctifs techniques, mises à n
 > 3. Réduis `MainActivity` à : détection isTv, thème, état de session, hôte du NavGraph.
 > 4. Aucune régression : parcours complet mobile + TV (login → home → chaque écran → back), `assembleDebug` + `lintDebug` + `testDebugUnitTest`.
 
+---
+
+### 18. Optimisation des performances de l'Accueil sur TV (T9)
+
+✅ **TERMINÉE** — `perf(home): élimination du goulot d'étranglement au chargement des reprises de lecture (T9)`
+
+**Constat.** L'application souffrait d'un long temps de chargement (4 à 5 secondes) sur Android TV après la sélection du profil, causé par le calcul CPU complexe et des requêtes lourdes (`getCachedVodStreams("all")` et `getCachedSeriesStreams("all")`) à chaque démarrage de l'Accueil pour filtrer la liste "Continuer à regarder" (Playback Positions) par rapport aux catégories masquées du profil.
+
+**Prompt originel.**
+> Dans l'app Android cstv : élimine le chargement complet du catalogue pour le filtrage des reprises de lecture en stockant directement l'identifiant de catégorie (`categoryId`) dans la table des positions de lecture (`playback_positions`).
+> 1. Évolution de Room : ajouter la colonne `categoryId: String? = null` sur `PlaybackPositionEntity` et réaliser la migration `22→23` (sans perte de données).
+> 2. Mettre à jour le modèle `PlaybackPosition` et propager `categoryId` via les mappers entité ⇄ domaine.
+> 3. Enregistrer systématiquement `categoryId` lors de la mise à jour de la position de lecture depuis les lecteurs de médias.
+> 4. Optimiser `HomeViewModel.kt` : supprimer définitivement les lectures globales `"all"` du collecteur de positions et filtrer directement à partir du champ `categoryId` de la position de lecture, avec un repli ultra-rapide par identifiant pour les anciennes entrées migrées.
+
+
 
