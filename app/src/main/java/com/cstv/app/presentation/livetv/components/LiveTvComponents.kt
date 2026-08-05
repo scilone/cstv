@@ -26,6 +26,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.foundation.focusGroup
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -50,6 +51,7 @@ import com.cstv.app.presentation.theme.DarkBackground
 import com.cstv.app.presentation.theme.FavoriteGold
 import com.cstv.app.presentation.theme.Surface1
 import com.cstv.app.presentation.components.historyItemActions
+import com.cstv.app.presentation.components.tvLongPressActions
 import com.cstv.app.presentation.theme.Surface2
 import com.cstv.app.presentation.theme.Surface3
 import com.cstv.app.presentation.theme.BricolageGrotesque
@@ -78,7 +80,8 @@ fun CategorySectionRow(
     onSeeAll: (() -> Unit)? = null,
     totalCount: Int? = null,
     initialFocusState: TvInitialFocusState? = null,
-    isInitialTarget: Boolean = false
+    isInitialTarget: Boolean = false,
+    previewState: LiveChannelPreviewState? = null
 ) {
     Column(
         modifier = Modifier
@@ -140,7 +143,12 @@ fun CategorySectionRow(
                             epgProgram = epgPrograms[stream.streamId],
                             onLoadEpg = { onLoadEpg(stream.streamId) },
                             onToggleFavorite = { onToggleFavorite(stream) },
-                            onClick = { onStreamSelected(stream) }
+                            onClick = { onStreamSelected(stream) },
+                            previewActive = previewState?.activeStreamId == stream.streamId,
+                            previewPlayer = previewState?.player,
+                            onPreviewFocusChanged = previewState?.let { ps ->
+                                { focused: Boolean -> ps.onFocusChanged(stream, focused) }
+                            }
                         )
                     } else {
                         MobileStreamCard(
@@ -176,6 +184,14 @@ fun CategorySectionRow(
 private const val CATEGORY_ROW_MAX_ITEMS = 100
 
 /**
+ * Hauteur commune des tuiles de chaîne TV (StreamTvCard, SeeAllCard). Portée à
+ * 92 dp (F26) : à 84 dp, l'EPG (titre, barre de progression, horaire) sans
+ * interligne explicite dépassait la hauteur disponible et coupait la plage
+ * horaire verticalement, notamment avec un `fontScale` d'accessibilité > 1.
+ */
+internal val LIVE_TV_CARD_HEIGHT = 92.dp
+
+/**
  * Voir `VodScreen.SeeAllCard`. Les dimensions suivent la carte voisine plutôt
  * que celles des affiches de films : une chaîne est une tuile large et basse en
  * TV (voir [StreamTvCard]), une vignette 150×180 en mobile (voir
@@ -192,7 +208,7 @@ private fun SeeAllCard(
 
     Box(
         modifier = modifier
-            .then(if (isTv) Modifier.fillMaxWidth().height(84.dp) else Modifier.width(150.dp).height(180.dp))
+            .then(if (isTv) Modifier.fillMaxWidth().height(LIVE_TV_CARD_HEIGHT) else Modifier.width(150.dp).height(180.dp))
             .onFocusChanged { isFocused = it.isFocused }
             .tvFocusHighlight(isFocused, shape)
             .clip(shape)
@@ -778,7 +794,10 @@ fun StreamTvCard(
     epgProgram: LiveEpgProgram?,
     onLoadEpg: () -> Unit,
     onToggleFavorite: () -> Unit,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    previewActive: Boolean = false,
+    previewPlayer: androidx.media3.exoplayer.ExoPlayer? = null,
+    onPreviewFocusChanged: ((Boolean) -> Unit)? = null
 ) {
     var isFocused by remember { mutableStateOf(false) }
 
@@ -795,11 +814,21 @@ fun StreamTvCard(
         ),
         modifier = Modifier
             .fillMaxWidth()
-            .height(84.dp)
-            .onFocusChanged { isFocused = it.isFocused }
+            .height(LIVE_TV_CARD_HEIGHT)
+            .onFocusChanged {
+                isFocused = it.isFocused
+                onPreviewFocusChanged?.invoke(it.isFocused)
+            }
             .tvFocusHighlight(isFocused, RoundedCornerShape(12.dp))
             .clip(RoundedCornerShape(12.dp))
-            .clickable { onClick() }
+            // Favori porté par l'appui long (F25) : l'étoile n'est plus une
+            // cible D-Pad séparée, voir plus bas.
+            .tvLongPressActions(
+                isTv = true,
+                onClick = onClick,
+                onLongClick = onToggleFavorite,
+                longClickLabel = stringResource(R.string.livetv_favorite_toggle_label)
+            )
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -812,7 +841,18 @@ fun StreamTvCard(
                     .background(Surface1),
                 contentAlignment = Alignment.Center
             ) {
-                if (!stream.streamIcon.isNullOrBlank()) {
+                if (previewActive && previewPlayer != null) {
+                    androidx.compose.ui.viewinterop.AndroidView(
+                        factory = { ctx ->
+                            androidx.media3.ui.PlayerView(ctx).apply {
+                                useController = false
+                                player = previewPlayer
+                            }
+                        },
+                        update = { view -> view.player = previewPlayer },
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else if (!stream.streamIcon.isNullOrBlank()) {
                     AsyncImage(
                         model = stream.streamIcon,
                         contentDescription = stream.name,
@@ -836,6 +876,7 @@ fun StreamTvCard(
                     text = "CH ${stream.num} ${stream.name}",
                     color = Color.White,
                     fontSize = 13.sp,
+                    lineHeight = 16.sp,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -846,12 +887,13 @@ fun StreamTvCard(
                         text = epgProgram.title,
                         color = MaterialTheme.colorScheme.primary,
                         fontSize = 11.sp,
+                        lineHeight = 13.sp,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.padding(top = 2.dp)
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(3.dp))
                     EpgProgressBar(
                         program = epgProgram,
                         modifier = Modifier
@@ -863,13 +905,17 @@ fun StreamTvCard(
                         text = epgProgram.formattedTimeRange(),
                         color = Color.Gray,
                         fontSize = 9.sp,
-                        modifier = Modifier.padding(top = 2.dp)
+                        lineHeight = 11.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(top = 1.dp)
                     )
                 } else {
                     Text(
                         text = "Aucune information de programme",
                         color = Color.Gray,
                         fontSize = 11.sp,
+                        lineHeight = 13.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.padding(top = 2.dp)
@@ -877,15 +923,17 @@ fun StreamTvCard(
                 }
             }
 
-            // Favorite Star on focus or favorite status
-            if (isFocused || isFavorite) {
-                IconButton(onClick = onToggleFavorite) {
-                    Icon(
-                        imageVector = Icons.Default.Star,
-                        contentDescription = "Favori",
-                        tint = if (isFavorite) Color.Yellow else Color.DarkGray
-                    )
-                }
+            // Indicateur de favori décoratif (F25) : plus de cible D-Pad
+            // séparée, l'appui long de la carte entière porte l'action.
+            if (isFavorite) {
+                Icon(
+                    imageVector = Icons.Default.Star,
+                    contentDescription = stringResource(R.string.livetv_favorite_state_description),
+                    tint = Color.Yellow,
+                    modifier = Modifier
+                        .size(20.dp)
+                        .focusProperties { canFocus = false }
+                )
             }
         }
     }

@@ -54,11 +54,13 @@ L'application est entièrement optimisée pour deux types d'appareils :
   - **Sur mobile** : Vous naviguez horizontalement à l'aide des puces de catégories défilantes en haut de l'écran.
   - **Sur TV (télécommande)** : L'interface est harmonisée avec les écrans de Films et Séries. Un sélecteur unique stable est disposé en tête de grille. Cliquez dessus pour ouvrir un dialogue plein écran et sélectionner verticalement et confortablement votre catégorie parmi la liste complète des bouquets IPTV (avec rappel dynamique des compteurs de chaînes).
 * **EPG (Guide des programmes)** :
-  * Sur l'écran de la liste des chaînes, l'application affiche directement le titre du programme actuellement en cours ainsi que celui à venir.
+  * Sur l'écran de la liste des chaînes, l'application affiche directement le titre du programme actuellement en cours ainsi que celui à venir. La hauteur des cartes de chaînes TV a été accrue de 84 dp à 92 dp avec des hauteurs d'interlignes explicites pour que toutes les informations (nom de chaîne, titre de programme, barre de progression et plage horaire) s'affichent de façon parfaitement lisible sans aucune troncature verticale, même avec de forts réglages d'accessibilité.
   * En cliquant sur une chaîne, vous pouvez consulter le guide des programmes complet pour voir la grille horaire de la journée.
+* **Prévisualisation vidéo (F25 - TV uniquement)** :
+  - Sur Android TV, lorsque vous gardez le focus sur une carte de chaîne pendant plus d'une seconde (1000 ms), une prévisualisation vidéo en direct avec son démarre automatiquement dans la miniature de la carte (que ce soit dans les rangées horizontales ou dans la grille verticale de catégorie spécifique). Cette prévisualisation s'arrête instantanément dès que vous déplacez le focus, changez de section ou lancez le lecteur immersif plein écran. Elle est automatiquement désactivée si vous êtes hors ligne.
 * **Ajout aux favoris** : 
   * **Sur mobile** : Appuyez simplement sur l'icône d'étoile en haut à droite du logo de la chaîne directement depuis la rangée (dans l'écran « Tout ») ou depuis la grille d'une catégorie. L'étoile devient or/jaune pour confirmer l'état de favori. Vous pouvez également rester appuyé longuement sur une chaîne pour faire basculer son statut.
-  * **Sur TV (télécommande)** : Appuyez longuement sur le bouton central OK pour l'ajouter ou la retirer de votre liste de favoris rapides.
+  * **Sur TV (télécommande)** : Appuyez longuement sur le bouton central OK d'une carte de chaîne pour l'ajouter ou la retirer de votre liste de favoris rapides. L'étoile jaune décorative s'affiche alors pour confirmer le statut sans perturber le focus de votre télécommande (aucun focus secondaire sur l'étoile). Cette action est disponible sur toutes les cartes sauf dans la rangée historique « Récemment regardées ».
 * **Zapping direct** : Lors de la lecture d'une chaîne, vous pouvez zapper instantanément à la chaîne suivante ou précédente via les flèches Haut/Bas de votre télécommande ou en glissant verticalement sur votre écran de téléphone.
 
 ---

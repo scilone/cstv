@@ -1,5 +1,21 @@
 # Journal des Modifications (Changelog) - CSTV IPTV
 
+## [v1.74.0] - 2026-08-05
+### ✨ Prévisualisation vidéo Live TV (F25) & Ajustement hauteur et interlignes des cartes (F26)
+* **Prévisualisation vidéo au survol de chaîne et favori en appui long sur Android TV (F25)** :
+  - **Aperçu vidéo miniature en direct** : L'accès à une carte de chaîne Live TV en mode TV déclenche, après une seconde de focus continu et stable (1000 ms), un aperçu vidéo en direct de la chaîne. Cet aperçu est joué de manière audible dans la miniature de la carte.
+  - **Garantie de coupure immédiate** : Perdre le focus, changer de section, ouvrir le lecteur immersif ou basculer en arrière-plan (`ON_STOP` du cycle de vie) arrête instantanément le flux d'aperçu et son audio.
+  - **Unicité du lecteur d'aperçu (`LiveChannelPreview.kt`)** : Hissage d'un unique `ExoPlayer` d'aperçu au niveau de la racine `TvLayout` partagé par l'ensemble des cartes, évitant toute instabilité ou goulot d'étranglement de décodeurs sur les équipements de faible puissance. L'état `LiveChannelPreviewState` reste stable face aux changements hors ligne ou d'identifiants (répercutés en place via `SideEffect`), résolvant la fuite potentielle de lecture (F25-R1).
+  - **Bannissement des flux défaillants** : Tout échec de chargement/préparation (via `onPlayerError`) ajoute la chaîne à une table d'échecs (`failedStreams`), bloquant toute nouvelle tentative de prévisualisation afin de préserver les ressources.
+  - **Assainissement du D-Pad** : Remplacement de l'étoile interactive de favori (cible D-pad secondaire ambiguë) par un indicateur décoratif purement visuel non focalisable (`focusProperties { canFocus = false }`).
+  - **Favori en appui long** : Câblage de l'action de favori sur l'appui long de la carte entière (maintien du bouton de validation central de la télécommande) via le modificateur générique `tvLongPressActions` (extrait de l'historique), réutilisant la sécurité d'appariement clavier B20.
+  - **Exclusion de l'historique (F25-R2)** : La rangée « Récemment regardées » reste explicitement exclue du contrat d'aperçu/appui long de F25 pour préserver son action de retrait d'historique préexistante.
+  - **Validation unitaire exhaustive** : Ajout de tests unitaires complets au sein de `LiveChannelPreviewTest.kt` couvrant la temporisation de 1000 ms, l'annulation sur changement de focus rapide, le passage hors ligne, le nettoyage sans lecture active, et le bannissement après échec.
+* **Ajustement de la hauteur et des interlignes EPG sur les cartes Live TV (F26)** :
+  - **Ajustement géométrique & Fin de troncature** : Augmentation de la hauteur des cartes de chaînes TV de 84 dp à 92 dp combinée à un resserrement des marges internes (Spacer à 3 dp, marge horaire à 1 dp) et à l'application d'interlignes explicites (`lineHeight` fixés à 16 sp, 13 sp et 11 sp) pour immuniser l'affichage contre les forts grossissements d'accessibilité (`fontScale` jusqu'à ~1,5).
+  - **Alignement avec la carte « Voir tout »** : Partage de la hauteur via la constante globale `LIVE_TV_CARD_HEIGHT = 92.dp` appliquée de manière uniforme à `StreamTvCard` et `SeeAllCard` pour prévenir tout désalignement horizontal.
+  - **Propagation asymétrique dans la grille de catégorie** : Propagation de l'état d'aperçu unique et partagé de F25 à la grille d'affichage verticale de catégorie spécifique (`LazyVerticalGrid`), offrant un comportement homogène sur tout l'écran Live TV sans aucune instanciation de second lecteur.
+
 ## [v1.73.0] - 2026-08-05
 ### ✨ Appariement D-Pad (B20), Réserve (T12), Sélecteur Live TV (F24), Masquage recherche (F27) et Croix d'effacement (B21)
 * **Appariement D-Pad robuste pour dialogue de confirmation d'historique (B20)** :

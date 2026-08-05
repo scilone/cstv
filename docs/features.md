@@ -269,6 +269,27 @@ Cette optimisation de performance technique prévient l'épuisement de la mémoi
 
 ---
 
+## 25. Prévisualisation vidéo au survol de chaîne et favori en appui long sur Android TV (F25)
+Cette fonctionnalité apporte une interactivité moderne et immersive à l'onglet Live TV (en direct) sur Android TV en démarrant une miniature de prévisualisation vidéo en direct sur les cartes de chaînes après un focus stable, tout en assainissant les interactions au D-Pad pour la gestion des favoris.
+* **Prévisualisation vidéo miniature** : Après une seconde (1000 ms) de focus continu et stable sur une carte de chaîne Live TV, un aperçu vidéo en direct audible de la chaîne démarre automatiquement au sein de l'emplacement réservé à la miniature de la carte.
+* **Garantie d'arrêt immédiat** : Tout déplacement du focus, changement d'onglet, mise en arrière-plan (événement `ON_STOP` du cycle de vie), ouverture du lecteur immersif plein écran ou basculement hors connexion coupe instantanément et sans délai l'audio et le flux d'aperçu en cours.
+* **Une seule instance de lecteur partagée** : Un seul `ExoPlayer` d'aperçu est instancié à la racine de la mise en page de l'écran (`TvLayout`) pour tout l'onglet Live TV. Ce lecteur unique est partagé par l'ensemble des cartes composées à l'écran, ce qui garantit une empreinte mémoire constante et prévient toute instabilité ou goulot d'étranglement de décodeurs sur les équipements TV de faible puissance.
+* **Gating hors ligne & gestion d'échecs** : En mode hors connexion, aucun aperçu vidéo n'est tenté. Si un flux d'aperçu échoue (problème réseau ou de flux), la carte revient silencieusement à son visuel statique d'origine sans message d'erreur intrusif, et la chaîne n'est plus retentée pendant la session active pour préserver les ressources.
+* **Retrait de l'étoile focalisable** : L'icône étoile interactive de favori (qui constituait une cible D-pad secondaire ambiguë au sein de la carte) est remplacée par une icône décorative purement visuelle non interactive affichée uniquement si la chaîne est favorite.
+* **Favori rapide par appui long** : L'action de marquage d'un favori est redirigée vers un appui long sur la carte de chaîne entière (maintien du bouton central OK de la télécommande). Cette action réutilise le mécanisme d'appariement KeyDown/KeyUp de B20 pour éviter tout lancement involontaire du lecteur immersif au relâchement de la touche.
+* **Exclusion de la rangée « Récemment regardées » (F25-R2)** : Cette rangée reste volontairement en dehors du contrat d'aperçu vidéo et d'appui long pour éviter tout conflit avec l'action préexistante de retrait d'historique (qui utilise déjà l'appui long avec confirmation pour le retrait).
+
+---
+
+## 26. Ajustement de la hauteur et des interlignes EPG sur les cartes Live TV (F26)
+Cette évolution résout les problèmes de troncature verticale des informations de grille des programmes (EPG) sur les cartes de chaînes Live TV (`StreamTvCard`) tout en propageant de manière homogène le système de prévisualisation vidéo.
+* **Mise en page déterministe & Interlignes explicites** : Ajout d'interlignes explicites (`lineHeight` fixés à 16 sp, 13 sp, et 11 sp) sur les textes de la carte de chaîne (Nom, Titre EPG, Plage Horaire) afin de rendre leur hauteur stable et insensible aux métriques de polices spécifiques ou au facteur d'échelle `fontScale` d'accessibilité.
+* **Resserrement des marges & Hauteur accrue** : Augmentation de la hauteur des cartes de chaînes TV de 84 dp à 92 dp combinée à un resserrement des marges internes (Spacer de 3 dp, marge horaire de 1 dp) pour offrir une marge de sécurité absorbant un `fontScale` d'accessibilité allant jusqu'à 1,5 sans aucune troncature verticale.
+* **Partage et cohérence avec SeeAllCard** : La constante globale `LIVE_TV_CARD_HEIGHT = 92.dp` est partagée de manière stricte entre `StreamTvCard` et la carte d'enchaînement « Voir tout » (`SeeAllCard`), évitant ainsi toute rupture d'alignement ou décalage visuel au sein des rangées.
+* **Prévisualisation propagée dans la grille de catégorie** : L'infrastructure d'aperçu vidéo unique et partagée de F25 est pleinement propagée à la grille verticale d'affichage de catégorie spécifique (`LazyVerticalGrid`), offrant un comportement de survol, de favori en appui long et de lecture identiques à ceux du mode "Tout".
+
+---
+
 ## 🚫 Fonctionnalités hors périmètre (Exclusions validées)
 Pour des raisons de performance, de stabilité ou d'expérience utilisateur, les fonctionnalités suivantes sont **strictement hors périmètre** :
 * **Multi-comptes Xtream** : L'application gère un seul compte Xtream Codes actif à la fois (les profils sont purement locaux et rattachés à ce compte unique).

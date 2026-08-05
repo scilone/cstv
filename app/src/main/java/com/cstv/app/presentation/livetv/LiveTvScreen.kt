@@ -132,6 +132,9 @@ fun LiveTvScreen(
     val getScroll: (String) -> Pair<Int, Int> = { viewModel.getScrollPosition(it) }
     val saveScroll: (String, Int, Int) -> Unit = { k, i, o -> viewModel.saveScrollPosition(k, i, o) }
     val tvFocusSelector = remember { TvFocusSelectorState() }
+    // F25 : identifiants pour l'aperçu vidéo, résolus une fois par entrée sur
+    // l'écran (mêmes identifiants que ceux utilisés pour la lecture normale).
+    val previewCredentials = remember { viewModel.getCredentials() }
 
     Box(
         modifier = modifier
@@ -158,7 +161,8 @@ fun LiveTvScreen(
                 onHistoryRemove = { pendingRemoval = it },
                 getScroll = getScroll,
                 saveScroll = saveScroll,
-                tvFocusSelector = tvFocusSelector
+                tvFocusSelector = tvFocusSelector,
+                previewCredentials = previewCredentials
             )
             TvFocusSelectorOverlay(tvFocusSelector, modifier = Modifier.fillMaxSize())
         } else {
@@ -206,11 +210,22 @@ private fun TvLayout(
     onHistoryRemove: (LiveStream) -> Unit,
     getScroll: (String) -> Pair<Int, Int>,
     saveScroll: (String, Int, Int) -> Unit,
-    tvFocusSelector: TvFocusSelectorState
+    tvFocusSelector: TvFocusSelectorState,
+    previewCredentials: com.cstv.app.domain.model.Credentials?
 ) {
     val isAllSelected = state.selectedCategory?.categoryId == "all"
     var showCategoryPicker by remember { mutableStateOf(false) }
     val categoryTriggerFocusRequester = remember { FocusRequester() }
+    // F25 : une seule instance de lecteur d'aperçu pour tout l'écran, quelle
+    // que soit la vue affichée (« Tout » ou catégorie précise, voir F26).
+    val previewState = com.cstv.app.presentation.livetv.components.rememberLiveChannelPreviewState(
+        enabled = !state.catalogStatus.isOffline && previewCredentials != null,
+        credentials = previewCredentials
+    )
+    val onStreamSelectedStoppingPreview: (LiveStream) -> Unit = { stream ->
+        previewState.stop()
+        onStreamSelected(stream)
+    }
 
     // Voir VodScreen : regroupement mesuré, thread principal.
     val groupedStreams = remember(filteredStreams) {
@@ -346,7 +361,7 @@ private fun TvLayout(
                     item(key = "recently_watched") {
                         RecentlyWatchedRow(
                             streams = state.recentlyWatched,
-                            onStreamSelected = onStreamSelected,
+                            onStreamSelected = onStreamSelectedStoppingPreview,
                             isTv = true,
                             epgPrograms = epgPrograms,
                             onLoadEpg = onLoadEpg,
@@ -369,7 +384,7 @@ private fun TvLayout(
                             streams = favoriteStreams,
                             favoritesList = favoritesList,
                             onToggleFavorite = onToggleFavorite,
-                            onStreamSelected = onStreamSelected,
+                            onStreamSelected = onStreamSelectedStoppingPreview,
                             isTv = true,
                             epgPrograms = epgPrograms,
                             onLoadEpg = onLoadEpg,
@@ -378,6 +393,7 @@ private fun TvLayout(
                             sectionListState = listState
                             ,initialFocusState = initialFocus
                             ,isInitialTarget = initialTarget == CatalogFocusTarget.FAVORITES
+                            ,previewState = previewState
                         )
                     }
                 }
@@ -391,7 +407,7 @@ private fun TvLayout(
                             streams = catStreams,
                             favoritesList = favoritesList,
                             onToggleFavorite = onToggleFavorite,
-                            onStreamSelected = onStreamSelected,
+                            onStreamSelected = onStreamSelectedStoppingPreview,
                             isTv = true,
                             epgPrograms = epgPrograms,
                             onLoadEpg = onLoadEpg,
@@ -402,6 +418,7 @@ private fun TvLayout(
                             ,totalCount = state.categoryCounts[category.categoryId]
                             ,initialFocusState = initialFocus
                             ,isInitialTarget = initialTarget == CatalogFocusTarget.FIRST_CATEGORY && category.categoryId == firstCategoryId
+                            ,previewState = previewState
                         )
                     }
                 }
@@ -479,7 +496,10 @@ private fun TvLayout(
                                     epgProgram = epgPrograms[stream.streamId],
                                     onLoadEpg = { onLoadEpg(stream.streamId) },
                                     onToggleFavorite = { onToggleFavorite(stream) },
-                                    onClick = { onStreamSelected(stream) }
+                                    onClick = { onStreamSelectedStoppingPreview(stream) },
+                                    previewActive = previewState.activeStreamId == stream.streamId,
+                                    previewPlayer = previewState.player,
+                                    onPreviewFocusChanged = { focused -> previewState.onFocusChanged(stream, focused) }
                                 )
                             }
                         }
