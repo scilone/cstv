@@ -45,7 +45,6 @@ import com.cstv.app.domain.model.PlaybackPosition
 import com.cstv.app.domain.model.FavoriteItem
 import com.cstv.app.domain.model.LiveStream
 import com.cstv.app.domain.model.LiveEpgProgram
-import com.cstv.app.domain.model.LiveCategory
 import com.cstv.app.presentation.theme.AccentLavande
 import com.cstv.app.presentation.theme.DarkBackground
 import com.cstv.app.presentation.theme.FavoriteGold
@@ -349,38 +348,6 @@ fun MobileStreamCard(
                 modifier = Modifier.padding(top = 4.dp)
             )
         }
-    }
-}
-
-@Composable
-fun CategoryFilterChip(
-    category: LiveCategory,
-    isSelected: Boolean,
-    onClick: () -> Unit
-) {
-    var isFocused by remember { mutableStateOf(false) }
-
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(16.dp))
-            .onFocusChanged { isFocused = it.isFocused }
-            .tvFocusHighlight(isFocused, RoundedCornerShape(16.dp))
-            .background(
-                when {
-                    isSelected -> MaterialTheme.colorScheme.primary
-                    isFocused -> Color(0xFF2C2C35)
-                    else -> Color(0xFF2A2A35)
-                }
-            )
-            .clickable { onClick() }
-            .padding(horizontal = 14.dp, vertical = 6.dp)
-    ) {
-        Text(
-            text = category.categoryName,
-            color = Color.White,
-            fontSize = 13.sp,
-            fontWeight = if (isSelected || isFocused) FontWeight.Bold else FontWeight.Normal
-        )
     }
 }
 

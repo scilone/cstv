@@ -129,16 +129,18 @@ fun SearchScreen(
                             modifier = Modifier.size(18.dp)
                         )
                     },
-                    trailingIcon = {
-                        if (state.searchQuery.isNotEmpty()) {
-                            IconButton(
-                                onClick = { viewModel.onSearchQueryChanged("") }
-                            ) {
-                                Icon(
-                                    Icons.Default.Close,
-                                    contentDescription = stringResource(R.string.common_clear),
-                                    tint = Color.Gray
-                                )
+                    trailingIcon = if (isTv) null else {
+                        {
+                            if (state.searchQuery.isNotEmpty()) {
+                                IconButton(
+                                    onClick = { viewModel.onSearchQueryChanged("") }
+                                ) {
+                                    Icon(
+                                        Icons.Default.Close,
+                                        contentDescription = stringResource(R.string.common_clear),
+                                        tint = Color.Gray
+                                    )
+                                }
                             }
                         }
                     },

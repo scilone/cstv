@@ -63,18 +63,30 @@ fun TvCategorySelectorTrigger(label: String, onClick: () -> Unit, modifier: Modi
 }
 
 /**
+ * Résout l'entrée que le dialogue doit focaliser : la sélection courante si
+ * elle existe toujours dans `entries`, sinon un repli sûr sur la première
+ * entrée (F24-R1 — une catégorie disparue pendant l'ouverture ne doit
+ * jamais laisser le focus sur une cible absente).
+ */
+internal fun resolveCategoryPickerFocusTarget(entries: List<CategorySheetEntry>, selectedId: String?): String? =
+    entries.firstOrNull { it.id == selectedId }?.id ?: entries.firstOrNull()?.id
+
+/**
  * Dialogue plein écran (pas `DropdownMenu`, dont la gestion du focus D-pad
  * n'est pas fiable en material3) : même patron que `ProfileSelectionScreen`,
  * seule liste verticale focusable plein écran éprouvée en D-pad du projet.
- * Le focus est demandé sur l'entrée sélectionnée dès l'ouverture.
+ * Le focus est demandé sur l'entrée sélectionnée dès l'ouverture, et à
+ * nouveau chaque fois que la cible change (F24-R1 : un rafraîchissement des
+ * catégories pendant que le dialogue est ouvert peut faire disparaître
+ * l'entrée focalisée).
  */
 @Composable
 fun TvCategoryPickerDialog(
     entries: List<CategorySheetEntry>, selectedId: String?, onSelect: (String) -> Unit, onDismiss: () -> Unit
 ) {
     val selectedFocusRequester = remember { FocusRequester() }
-    val focusTargetId = entries.firstOrNull { it.id == selectedId }?.id ?: entries.firstOrNull()?.id
-    LaunchedEffect(Unit) {
+    val focusTargetId = resolveCategoryPickerFocusTarget(entries, selectedId)
+    LaunchedEffect(focusTargetId) {
         runCatching { selectedFocusRequester.requestFocus() }
     }
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {

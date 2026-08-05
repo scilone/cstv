@@ -367,47 +367,6 @@ private fun TvLayout(
             )
             if (isSpecificCategory) {
                 Spacer(modifier = Modifier.width(12.dp))
-                OutlinedTextField(
-                    value = searchQuery,
-                    onValueChange = onSearchQueryChanged,
-                    placeholder = {
-                        Text(
-                            stringResource(R.string.vod_search_placeholder),
-                            color = Color.Gray,
-                            fontSize = 13.sp,
-                            maxLines = 1,
-                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                        )
-                    },
-                    leadingIcon = {
-                        Icon(
-                            Icons.Default.Search,
-                            contentDescription = null,
-                            tint = AccentLavande,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    },
-                    trailingIcon = {
-                        if (searchQuery.isNotEmpty()) {
-                            IconButton(onClick = { onSearchQueryChanged("") }) {
-                                Icon(Icons.Default.Close, stringResource(R.string.common_clear), tint = Color.Gray)
-                            }
-                        }
-                    },
-                    singleLine = true,
-                    shape = RoundedCornerShape(14.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = Surface3,
-                        unfocusedContainerColor = Surface3,
-                        focusedBorderColor = Color.White.copy(alpha = 0.12f),
-                        unfocusedBorderColor = Color.White.copy(alpha = 0.08f),
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White,
-                        cursorColor = AccentLavande
-                    ),
-                    modifier = Modifier.weight(1f)
-                )
-                Spacer(modifier = Modifier.width(12.dp))
                 IconButton(
                     onClick = onFilterSheetOpen,
                     modifier = Modifier.background(

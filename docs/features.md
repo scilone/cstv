@@ -32,6 +32,7 @@ Introduits en Phase 27, les profils locaux permettent un partage personnalisé d
 
 ## 3. Live TV (Télévision en direct)
 * **Grille des chaînes** : Navigation fluide par catégories de chaînes.
+* **Sélecteur de catégorie standardisé TV (F24)** : Remplacement des puces horizontales de défilement de catégories sur Android TV par un sélecteur de catégorie standardisé (`TvCategorySelectorTrigger`) ouvrant un dialogue de sélection plein écran (`TvCategoryPickerDialog`), harmonisant l'ergonomie de l'écran avec celle des Films (VOD) et des Séries pour une meilleure navigation au D-pad.
 * **EPG (Electronic Program Guide)** :
   * Affichage des programmes "En cours / Suivant" directement sur la liste des chaînes.
   * Guide complet détaillé par chaîne pour planifier ses soirées.
@@ -43,6 +44,7 @@ Introduits en Phase 27, les profils locaux permettent un partage personnalisé d
 
 ## 4. Vidéo à la Demande (VOD)
 * **Catalogue de films** : Navigation par catégories avec affichage des affiches et des métadonnées (durée, genre, année de sortie, description).
+* **Retrait de la recherche par catégorie TV (F27)** : Retrait de la barre de recherche textuelle locale dans l'en-tête de catégorie spécifique sur TV. La saisie de texte à la télécommande étant fastidieuse, cette suppression épure le bandeau supérieur pour ne conserver que le déclencheur de sélection de catégorie et le bouton de filtres avancés (le mobile conserve sa recherche de catégorie et la recherche globale reste disponible pour l'accès universel).
 * **Reprise de lecture** : Mémorisation automatique de la position de lecture dans la base de données Room (propre à chaque profil). Reprise fluide là où l'utilisateur s'est arrêté.
 * **Recommandations & Titres similaires** : Moteur de recommandation local affichant des suggestions de titres similaires basées sur les genres, l'année ou les réalisateurs.
 * **Tendances Accueil via TMDB** : Intégration de l'API externe TMDB pour afficher les films populaires mondiaux sur l'écran d'accueil, avec repli transparent si la clé API locale est absente ou si le réseau externe est indisponible. Le rapprochement (matching) avec le catalogue IPTV local est renforcé par la validation rigoureuse de l'année de sortie (tolérance maximale de +/- 1 an) pour éviter les faux positifs (comme les remakes ou homonymes d'autres époques), avec un repli textuel si l'année est inconnue.
@@ -56,6 +58,7 @@ Introduits en Phase 27, les profils locaux permettent un partage personnalisé d
 
 ## 5. Séries TV
 * **Navigation par saisons & épisodes** : Interface optimisée permettant de parcourir facilement les saisons d'une série et d'accéder à la liste de ses épisodes.
+* **Retrait de la recherche par catégorie TV (F27)** : Retrait de la barre de recherche textuelle locale dans l'en-tête de catégorie spécifique sur TV, identique au comportement appliqué sur la VOD.
 * **Métadonnées détaillées** : Résumé des épisodes, notes et dates de sortie.
 * **Reprise de lecture par épisode** : Suivi de l'état de lecture propre à chaque épisode et à chaque profil local.
 * **Enchaînement automatique** : Option pour lancer l'épisode suivant directement après la fin de la lecture de l'épisode en cours.
@@ -64,6 +67,7 @@ Introduits en Phase 27, les profils locaux permettent un partage personnalisé d
 
 ## 6. Recherche Locale Globalisée par sous-chaîne (F17)
 Cette fonctionnalité remplace l'ancien moteur FTS par un système de recherche par sous-chaîne arbitraire (type `LIKE '%keyword%'`), garantissant une flexibilité totale de saisie.
+* **Masquage de la croix de nettoyage sur TV (B21)** : L'icône de nettoyage (croix) dans le champ de recherche globale est masquée en mode TV. Ce bouton n'étant pas atteignable via le D-Pad d'une télécommande, sa présence était inutile et déroutante ; sa suppression élimine l'élément inatteignable tout en conservant la croix tactile pleinement active sur mobile.
 * **Recherche par sous-chaîne flexible** : Saisir un fragment placé au début, au milieu ou à la fin d'un mot (ex: `pilami` ou `lami` trouve `Marsupilami`) permet de retrouver immédiatement le média sans connaître le début exact des mots.
 * **Insensibilité complète à la casse et aux accents** : La normalisation de la recherche (minuscules, normalisation NFD, repli des diacritiques latins et des ligatures courantes comme `œ`→`oe`, `ß`→`ss`) garantit que des saisies comme `odysee`, `ODYSEE` ou `odysée` trouvent toutes `Odysée`, et que `rene` trouve `René`.
 * **Recherche multi-mots d'ordre libre** : Les requêtes contenant plusieurs mots sont découpées et exigent la présence de chaque fragment dans le média (sur tous les champs recherchables combinés), quel que soit leur ordre de saisie (ex: `jean reno` ou `reno jean` trouve le média).

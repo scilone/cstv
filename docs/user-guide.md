@@ -50,6 +50,9 @@ L'application est entièrement optimisée pour deux types d'appareils :
 ## 4. Télévision en Direct (Live TV) & EPG
 
 * **Sélection des chaînes** : Naviguez parmi vos catégories de chaînes préférées (Généralistes, Sport, Cinéma, Documentaires...).
+* **Sélection des catégories (F24)** :
+  - **Sur mobile** : Vous naviguez horizontalement à l'aide des puces de catégories défilantes en haut de l'écran.
+  - **Sur TV (télécommande)** : L'interface est harmonisée avec les écrans de Films et Séries. Un sélecteur unique stable est disposé en tête de grille. Cliquez dessus pour ouvrir un dialogue plein écran et sélectionner verticalement et confortablement votre catégorie parmi la liste complète des bouquets IPTV (avec rappel dynamique des compteurs de chaînes).
 * **EPG (Guide des programmes)** :
   * Sur l'écran de la liste des chaînes, l'application affiche directement le titre du programme actuellement en cours ainsi que celui à venir.
   * En cliquant sur une chaîne, vous pouvez consulter le guide des programmes complet pour voir la grille horaire de la journée.
@@ -93,6 +96,11 @@ L'application dispose d'un moteur de recherche locale extrêmement flexible pour
 3. **Mots multiples dans le désordre** : Si vous saisissez plusieurs mots séparés par des espaces, l'application s'assure que chaque mot est présent dans le média, peu importe leur ordre de saisie ou les champs dans lesquels ils se trouvent (ex: chercher `reno jean` affichera les films avec l'acteur `Jean Reno`).
 4. **Recherche étendue sur crédits** : Pour les films et séries, la recherche examine le titre, la catégorie thématique, mais également les acteurs, le réalisateur et le genre littéraire. Vous pouvez d'ailleurs cliquer directement sur le nom d'un acteur ou d'un réalisateur depuis une fiche de détails pour lancer une recherche instantanée de ses œuvres associées (ce qui réinitialise automatiquement vos anciens filtres de recherche pour éviter les résultats vides inattendus).
 5. **Filtres de recherche avancée** : En cliquant sur le bouton de filtre, vous pouvez restreindre les résultats par type de média (uniquement la TV en direct, uniquement les films, uniquement les séries), par catégorie d'abonnements, ou encore trier les résultats par date d'ajout, note ou nom. Ces filtres s'appliquent de manière cumulative avec votre saisie textuelle.
+
+### 📺 Optimisation de l'Interface de Recherche sur Android TV
+Pour une meilleure ergonomie à la télécommande (D-pad), plusieurs simplifications ont été apportées :
+* **Masquage de la croix d'effacement (B21)** : Dans le champ de recherche de l'écran Recherche globale, le bouton d'effacement rapide (croix) a été retiré en mode TV car il est physiquement inatteignable à la télécommande, évitant ainsi un élément inerte confus (le mobile conserve ce bouton d'effacement rapide).
+* **Retrait des barres de recherche locales de catégories (F27)** : Les champs de recherche locale qui apparaissaient auparavant dans l'en-tête de catégorie spécifique sur Films (VOD) et Séries ont été supprimés sur TV. La saisie de texte à la télécommande étant fastidieuse, cette suppression épure le bandeau supérieur pour ne conserver que les sélecteurs de catégories et le bouton de filtres avancés (le mobile conserve la recherche par catégorie et la recherche globale reste disponible pour tous sur TV).
 
 ---
 

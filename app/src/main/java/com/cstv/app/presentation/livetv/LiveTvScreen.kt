@@ -25,7 +25,6 @@ import com.cstv.app.presentation.components.TvFocusSelectorState
 import com.cstv.app.presentation.components.tvPivotVerticalEndSpacer
 import com.cstv.app.presentation.components.TV_PIVOT_VERTICAL_START_RESERVE
 import com.cstv.app.presentation.components.tvPivotVerticalStartReserve
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -66,8 +65,12 @@ import com.cstv.app.presentation.components.CategoryFilterSheet
 import com.cstv.app.presentation.components.CategorySheetEntry
 import com.cstv.app.presentation.components.CategorySelectorTrigger
 import com.cstv.app.presentation.components.CategorySearchField
+import com.cstv.app.presentation.components.TvCategorySelectorTrigger
+import com.cstv.app.presentation.components.TvCategoryPickerDialog
 import com.cstv.app.presentation.components.rememberTvInitialFocus
 import com.cstv.app.presentation.components.tvInitialFocusTarget
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import com.cstv.app.presentation.vod.CatalogFocusTarget
 import com.cstv.app.presentation.vod.CatalogInitialFocusTarget
 import androidx.compose.material.icons.filled.ArrowDropDown
@@ -206,6 +209,8 @@ private fun TvLayout(
     tvFocusSelector: TvFocusSelectorState
 ) {
     val isAllSelected = state.selectedCategory?.categoryId == "all"
+    var showCategoryPicker by remember { mutableStateOf(false) }
+    val categoryTriggerFocusRequester = remember { FocusRequester() }
 
     // Voir VodScreen : regroupement mesuré, thread principal.
     val groupedStreams = remember(filteredStreams) {
@@ -266,29 +271,54 @@ private fun TvLayout(
             .fillMaxSize()
             .padding(16.dp)
     ) {
-        // Top categories filter row
+        // Top categories filter row (F24 : sélecteur dropdown, aligné VOD/Séries)
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(bottom = 12.dp)
         ) {
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                modifier = Modifier.weight(1f).focusGroup()
-            ) {
-                items(state.categories) { category ->
-                    val isSelected = state.selectedCategory?.categoryId == category.categoryId
-                    CategoryFilterChip(
-                        category = category,
-                        isSelected = isSelected,
-                        onClick = { onCategorySelected(category) }
-                    )
-                }
-            }
+            TvCategorySelectorTrigger(
+                label = stringResource(
+                    R.string.livetv_category_selector_label,
+                    (state.selectedCategory?.categoryName ?: "Tout").uppercase()
+                ),
+                onClick = { showCategoryPicker = true },
+                modifier = Modifier
+                    .weight(1f)
+                    .focusRequester(categoryTriggerFocusRequester)
+            )
             IconButton(onClick = onRefresh) {
-                Icon(Icons.Default.Refresh, contentDescription = "Rafraîchir", tint = Color.White)
+                Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.catalog_refresh_button_description), tint = Color.White)
+            }
+        }
+        if (showCategoryPicker) {
+            val totalCount = state.categoryCounts.values.sum().takeIf { it > 0 }
+            TvCategoryPickerDialog(
+                entries = state.categories.map { category ->
+                    CategorySheetEntry(
+                        id = category.categoryId,
+                        label = category.categoryName,
+                        count = if (category.categoryId == "all") totalCount
+                                else state.categoryCounts[category.categoryId]
+                    )
+                },
+                selectedId = state.selectedCategory?.categoryId,
+                onSelect = { id ->
+                    state.categories.firstOrNull { it.categoryId == id }?.let(onCategorySelected)
+                    showCategoryPicker = false
+                },
+                onDismiss = { showCategoryPicker = false }
+            )
+        }
+        // Focus perdu à la fermeture du dialogue : redemandé sur le
+        // déclencheur après une fermeture réelle (cf. VodScreen/SeriesScreen).
+        var hasOpenedCategoryPicker by remember { mutableStateOf(false) }
+        LaunchedEffect(showCategoryPicker) {
+            if (showCategoryPicker) {
+                hasOpenedCategoryPicker = true
+            } else if (hasOpenedCategoryPicker) {
+                runCatching { categoryTriggerFocusRequester.requestFocus() }
             }
         }
 

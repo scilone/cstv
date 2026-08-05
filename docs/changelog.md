@@ -1,15 +1,22 @@
 # Journal des Modifications (Changelog) - CSTV IPTV
 
 ## [v1.73.0] - 2026-08-05
-### ✨ Appariement D-Pad d'activation de dialogue (B20) et Réserve de défilement vertical TV (T12)
+### ✨ Appariement D-Pad (B20), Réserve (T12), Sélecteur Live TV (F24), Masquage recherche (F27) et Croix d'effacement (B21)
 * **Appariement D-Pad robuste pour dialogue de confirmation d'historique (B20)** :
   - **Filtre d'activation orpheline (`ActivationKeyGate`)** : Résolution du problème de fermeture intempestive instantanée du dialogue de confirmation de retrait de l'historique lors d'un appui long TV. Introduction d'une barrière d'événements clavier exigeant d'avoir observé la touche enfoncée (`KeyDown`) au sein du dialogue avant d'autoriser une touche relâchée (`KeyUp`) à déclencher des actions interactives de type clic.
-  - **Correctif d'état de perte de focus** : Réinitialisation propre du drapeau `consumeKeyUp` lors de la perte de focus de la carte de média. Cela évite d'avaler un clic légitime ultérieur si la carte est de nouveau focalisée après la fermeture du dialogue.
+  - **Correctif d'état de perte de focus** : Réinitialisation propre du drapeau `consumeKeyUp` lors de la perte de focus de la carte de média. Cela évite d'avaler un clic légitime ultérieur si la carte is de nouveau focalisée après la fermeture du dialogue.
   - **Couverture par tests unitaires** : Validation complète via `ActivationKeyGateTest` couvrant l'absorption de KeyUp orphelin, la non-absorption de séquences KeyDown-KeyUp appariées, et la persistance de l'absorption après plusieurs événements orphelins.
 * **Réserve de défilement vertical TV et détection de butée (T12)** :
   - **Réserve haute optimisée** : Remplacement de l'espace vide de 50 % du viewport par une réserve fixe et élégante de 24 dp en haut des écrans de liste (Live TV, Films, Séries, Favoris). Cela élimine l'important vide visuel initial, plaçant la première rangée de médias juste sous l'en-tête de catégorie.
   - **Détection de butée (`isPivotClamped`)** : Intégration d'un mécanisme de convergence asymétrique. Si la liste bute sur son sommet (offset 0), l'écart restant est considéré comme stable, forçant la publication géométrique correcte pour le cadre de focus de surimpression (F23) sur la première rangée.
   - **Couverture par tests unitaires** : Enrichissement de `TvPivotScrollTest.kt` avec des tests unitaires dédiés validant le calcul et la détection de butée (`isPivotClamped`) avec écart nul, résiduel avec consommation nulle ou partielle.
+* **Sélecteur de catégories standardisé pour le Live TV sur TV (F24)** :
+  - **Sélecteur et dialogue standardisés** : Remplacement de la ligne horizontale de puces de catégories défilantes sur Android TV par un déclencheur stable (`TvCategorySelectorTrigger`) ouvrant un dialogue de sélection plein écran (`TvCategoryPickerDialog`). Cela aligne l'ergonomie de l'écran Live TV avec celle des écrans Films (VOD) et Séries, améliorant la navigation au D-pad.
+  - **Suppression de composants morts** : Suppression du composant `CategoryFilterChip` de `LiveTvComponents.kt` devenu inutilisé.
+* **Masquage de la recherche textuelle locale par catégorie sur TV (F27)** :
+  - **Suppression du champ de recherche d'en-tête** : Retrait complet de la barre de recherche textuelle locale `OutlinedTextField` dans l'en-tête de catégorie spécifique sur TV pour les Films (VOD) et les Séries. La saisie à la télécommande étant ardue, cette suppression épure le bandeau supérieur pour ne conserver que le déclencheur de sélection de catégorie et le bouton de filtres avancés, évitant l'encombrement et la double saisie avec la recherche globale (le mobile conserve pleinement son fonctionnement).
+* **Masquage de la croix d'effacement inatteignable sur TV (B21)** :
+  - **Croix invisible et non focusable** : Désactivation du `trailingIcon` (passé à `null`) dans le champ de recherche globale de l'écran Recherche si l'application tourne en mode TV. La croix étant inatteignable à la télécommande, sa suppression évite la confusion de présenter un bouton non interactif (le mobile conserve la croix tactile).
 
 > Validation automatisée : `testDebugUnitTest` (tout au vert), `./gradlew lintDebug` et compilation réussies avec succès.
 
