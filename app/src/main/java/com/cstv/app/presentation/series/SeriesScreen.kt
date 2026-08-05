@@ -19,7 +19,8 @@ import com.cstv.app.presentation.components.tvPivotCell
 import com.cstv.app.presentation.components.tvPivotSection
 import com.cstv.app.presentation.components.tvPivotHorizontalEndSpacer
 import com.cstv.app.presentation.components.tvPivotVerticalEndSpacer
-import com.cstv.app.presentation.components.tvPivotVerticalStartSpacer
+import com.cstv.app.presentation.components.TV_PIVOT_VERTICAL_START_RESERVE
+import com.cstv.app.presentation.components.tvPivotVerticalStartReserve
 import com.cstv.app.presentation.components.LocalTvFocusSelector
 import com.cstv.app.presentation.components.TvFocusSelectorOverlay
 import com.cstv.app.presentation.components.TvFocusSelectorState
@@ -453,7 +454,7 @@ private fun TvLayout(
                 modifier = Modifier.fillMaxSize()
                     .onFocusChanged { if (!it.hasFocus) tvFocusSelector.clear() }
             ) {
-                tvPivotVerticalStartSpacer(true)
+                tvPivotVerticalStartReserve(true)
                 if (resumeSeriesStreams.isNotEmpty()) {
                     item(key = "resume_watching") {
                         CategorySectionRow(
@@ -559,8 +560,10 @@ private fun TvLayout(
                     horizontalArrangement = Arrangement.spacedBy(gridGap),
                     verticalArrangement = Arrangement.spacedBy(gridGap),
                     contentPadding = PaddingValues(
-                        horizontal = 12.dp,
-                        vertical = LocalConfiguration.current.screenHeightDp.dp / 2
+                        start = 12.dp,
+                        end = 12.dp,
+                        top = TV_PIVOT_VERTICAL_START_RESERVE,
+                        bottom = LocalConfiguration.current.screenHeightDp.dp / 2
                     ),
                     modifier = Modifier.fillMaxSize()
                         .focusGroup()

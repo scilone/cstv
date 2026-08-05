@@ -10,6 +10,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
@@ -61,5 +62,6 @@ fun Modifier.historyItemActions(
             }
             else -> false
         }
-    }.clickable(onClick = onClick)
+    }.onFocusChanged { if (!it.isFocused) consumeKeyUp = false }
+        .clickable(onClick = onClick)
 }

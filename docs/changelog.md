@@ -1,5 +1,18 @@
 # Journal des Modifications (Changelog) - CSTV IPTV
 
+## [v1.73.0] - 2026-08-05
+### ✨ Appariement D-Pad d'activation de dialogue (B20) et Réserve de défilement vertical TV (T12)
+* **Appariement D-Pad robuste pour dialogue de confirmation d'historique (B20)** :
+  - **Filtre d'activation orpheline (`ActivationKeyGate`)** : Résolution du problème de fermeture intempestive instantanée du dialogue de confirmation de retrait de l'historique lors d'un appui long TV. Introduction d'une barrière d'événements clavier exigeant d'avoir observé la touche enfoncée (`KeyDown`) au sein du dialogue avant d'autoriser une touche relâchée (`KeyUp`) à déclencher des actions interactives de type clic.
+  - **Correctif d'état de perte de focus** : Réinitialisation propre du drapeau `consumeKeyUp` lors de la perte de focus de la carte de média. Cela évite d'avaler un clic légitime ultérieur si la carte est de nouveau focalisée après la fermeture du dialogue.
+  - **Couverture par tests unitaires** : Validation complète via `ActivationKeyGateTest` couvrant l'absorption de KeyUp orphelin, la non-absorption de séquences KeyDown-KeyUp appariées, et la persistance de l'absorption après plusieurs événements orphelins.
+* **Réserve de défilement vertical TV et détection de butée (T12)** :
+  - **Réserve haute optimisée** : Remplacement de l'espace vide de 50 % du viewport par une réserve fixe et élégante de 24 dp en haut des écrans de liste (Live TV, Films, Séries, Favoris). Cela élimine l'important vide visuel initial, plaçant la première rangée de médias juste sous l'en-tête de catégorie.
+  - **Détection de butée (`isPivotClamped`)** : Intégration d'un mécanisme de convergence asymétrique. Si la liste bute sur son sommet (offset 0), l'écart restant est considéré comme stable, forçant la publication géométrique correcte pour le cadre de focus de surimpression (F23) sur la première rangée.
+  - **Couverture par tests unitaires** : Enrichissement de `TvPivotScrollTest.kt` avec des tests unitaires dédiés validant le calcul et la détection de butée (`isPivotClamped`) avec écart nul, résiduel avec consommation nulle ou partielle.
+
+> Validation automatisée : `testDebugUnitTest` (tout au vert), `./gradlew lintDebug` et compilation réussies avec succès.
+
 ## [v1.69.0] - 2026-08-02
 ### ✨ Sélecteur de catégories TV et filtres avancés (F22) et Focus initial D-pad robuste (B17)
 * **Sélecteur TV plein écran et filtres avancés sur Films/Séries (F22)** :

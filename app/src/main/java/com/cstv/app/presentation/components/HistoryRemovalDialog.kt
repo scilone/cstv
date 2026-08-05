@@ -28,6 +28,7 @@ fun HistoryRemovalDialog(
         if (isTv) cancelFocusRequester.requestFocus()
     }
     AlertDialog(
+        modifier = if (isTv) Modifier.consumeOrphanActivationKeys() else Modifier,
         onDismissRequest = { if (!isRemoving) onDismiss() },
         title = { Text(stringResource(R.string.history_removal_title)) },
         text = { Text(stringResource(R.string.history_removal_message, contentName)) },

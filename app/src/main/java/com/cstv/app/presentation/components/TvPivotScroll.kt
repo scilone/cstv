@@ -4,6 +4,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.onFocusedBoundsChanged
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyListScope
@@ -224,6 +225,27 @@ fun LazyListScope.tvPivotVerticalStartSpacer(enabled: Boolean) {
     }
 }
 
+/** Réserve haute réduite : la première rangée reste sous le bandeau (T12). */
+val TV_PIVOT_VERTICAL_START_RESERVE = 24.dp
+
+/**
+ * Réserve verticale de début réduite (T12) : la première rangée d'une liste
+ * reste proche du bandeau d'en-tête plutôt que centrée au pivot vertical.
+ * Conserve la clé `"tv_pivot_vertical_start"` : les positions de défilement
+ * persistées ([rememberForeverLazyListState]) référencent un index d'item,
+ * que retirer ou renommer cet item décalerait.
+ */
+fun LazyListScope.tvPivotVerticalStartReserve(enabled: Boolean) {
+    if (!enabled) return
+    item(key = "tv_pivot_vertical_start") {
+        Spacer(
+            modifier = Modifier
+                .height(0.dp)
+                .focusProperties { canFocus = false }
+        )
+    }
+}
+
 /**
  * Réserve verticale de fin. Une demi-hauteur de viewport suffit pour centrer
  * le descendant focalisé du dernier item, quelle que soit sa position dans la
@@ -343,6 +365,16 @@ fun Modifier.tvPivotSection(
 }
 
 /**
+ * Vrai quand le défilement demandé n'a rien consommé alors qu'un écart
+ * subsiste : la liste est en butée, la position atteinte est la plus proche
+ * possible du pivot et doit être considérée comme stable (T12).
+ *
+ * Fonction pure, sans dépendance Compose, pour rester testable en JVM.
+ */
+internal fun isPivotClamped(delta: Float, consumed: Float): Boolean =
+    abs(delta) > VERTICAL_PIVOT_TOLERANCE_PX && abs(consumed) <= VERTICAL_PIVOT_TOLERANCE_PX
+
+/**
  * @return `true` si la convergence a atteint le pivot (cible stabilisée),
  * `false` si les [VERTICAL_PIVOT_MAX_PASSES] passes se sont épuisées sans
  * jamais trouver l'item ou sans se stabiliser — dans ce cas F23 ne doit rien
@@ -378,13 +410,14 @@ private suspend fun LazyListState.convergeSectionToVerticalPivot(
                 stablePasses++
                 if (stablePasses >= VERTICAL_PIVOT_STABLE_PASSES) return true
             } else {
-                stablePasses = 0
-                if (primaryCorrectionPending) {
+                val consumed = if (primaryCorrectionPending) {
                     primaryCorrectionPending = false
                     animateScrollBy(delta)
                 } else {
                     scrollBy(delta)
                 }
+                if (isPivotClamped(delta, consumed)) return true
+                stablePasses = 0
             }
         }
         withFrameNanos { }
@@ -414,13 +447,14 @@ private suspend fun LazyGridState.convergeCellToVerticalPivot(
                 stablePasses++
                 if (stablePasses >= VERTICAL_PIVOT_STABLE_PASSES) return true
             } else {
-                stablePasses = 0
-                if (primaryCorrectionPending) {
+                val consumed = if (primaryCorrectionPending) {
                     primaryCorrectionPending = false
                     animateScrollBy(delta)
                 } else {
                     scrollBy(delta)
                 }
+                if (isPivotClamped(delta, consumed)) return true
+                stablePasses = 0
             }
         }
         withFrameNanos { }

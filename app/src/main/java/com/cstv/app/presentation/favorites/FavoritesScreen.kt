@@ -17,7 +17,7 @@ import com.cstv.app.presentation.components.tvPivotItem
 import com.cstv.app.presentation.components.tvPivotSection
 import com.cstv.app.presentation.components.tvPivotHorizontalEndSpacer
 import com.cstv.app.presentation.components.tvPivotVerticalEndSpacer
-import com.cstv.app.presentation.components.tvPivotVerticalStartSpacer
+import com.cstv.app.presentation.components.tvPivotVerticalStartReserve
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -109,7 +109,7 @@ fun FavoritesScreen(
                     verticalArrangement = Arrangement.spacedBy(24.dp),
                     modifier = Modifier.fillMaxSize()
                 ) {
-                    tvPivotVerticalStartSpacer(isTv)
+                    tvPivotVerticalStartReserve(isTv)
                     // 1. Live TV Favorites row
                     if (liveFavorites.isNotEmpty()) {
                         item(key = "favorites_live") {

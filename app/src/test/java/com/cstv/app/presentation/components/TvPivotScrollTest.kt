@@ -1,6 +1,8 @@
 package com.cstv.app.presentation.components
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.Timeout
@@ -151,5 +153,25 @@ class TvPivotScrollTest {
                 focusedSize = 200
             )
         )
+    }
+
+    @Test
+    fun zeroDeltaIsNotClamped() {
+        assertFalse(isPivotClamped(delta = 0f, consumed = 0f))
+    }
+
+    @Test
+    fun residualDeltaWithNoConsumptionIsClamped() {
+        assertTrue(isPivotClamped(delta = 120f, consumed = 0f))
+    }
+
+    @Test
+    fun residualDeltaWithPartialConsumptionIsNotClamped() {
+        assertFalse(isPivotClamped(delta = 120f, consumed = 45f))
+    }
+
+    @Test
+    fun negativeResidualDeltaWithNoConsumptionIsClamped() {
+        assertTrue(isPivotClamped(delta = -120f, consumed = 0f))
     }
 }

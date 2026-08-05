@@ -23,7 +23,8 @@ import com.cstv.app.presentation.components.LocalTvFocusSelector
 import com.cstv.app.presentation.components.TvFocusSelectorOverlay
 import com.cstv.app.presentation.components.TvFocusSelectorState
 import com.cstv.app.presentation.components.tvPivotVerticalEndSpacer
-import com.cstv.app.presentation.components.tvPivotVerticalStartSpacer
+import com.cstv.app.presentation.components.TV_PIVOT_VERTICAL_START_RESERVE
+import com.cstv.app.presentation.components.tvPivotVerticalStartReserve
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -309,7 +310,7 @@ private fun TvLayout(
                 modifier = Modifier.fillMaxSize()
                     .onFocusChanged { if (!it.hasFocus) tvFocusSelector.clear() }
             ) {
-                tvPivotVerticalStartSpacer(true)
+                tvPivotVerticalStartReserve(true)
                 // Section 1: Récemment regardées (if not empty)
                 if (state.recentlyWatched.isNotEmpty()) {
                     item(key = "recently_watched") {
@@ -422,7 +423,8 @@ private fun TvLayout(
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                     contentPadding = PaddingValues(
-                        vertical = LocalConfiguration.current.screenHeightDp.dp / 2
+                        top = TV_PIVOT_VERTICAL_START_RESERVE,
+                        bottom = LocalConfiguration.current.screenHeightDp.dp / 2
                     ),
                     modifier = Modifier.fillMaxSize()
                         .focusGroup()
