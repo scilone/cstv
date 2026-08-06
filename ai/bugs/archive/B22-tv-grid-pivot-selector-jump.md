@@ -158,13 +158,60 @@ rangées de bord, un pivot exprimé comme un emplacement fixe le peut toujours.
 
 ---
 
-# 9. Release
+# 9. Suites constatées à l'usage (v1.73.4)
+
+L'ancre haute supprime bien le saut, mais deux effets de bord sont apparus.
+
+## Descente glissée, remontée sèche
+
+L'arrivée du focus sur une cellule déclenche le `bringIntoView` implicite de
+Compose. À la **descente**, la cellule visée est déjà visible (la réserve basse
+en expose plusieurs lignes) : aucune demande n'est émise, notre animation fait
+tout le trajet — c'est le glissement apprécié. À la **remontée**, la cellule est
+composée hors viewport, en réserve de recherche de focus : Compose l'amène d'un
+bond sec, et il ne reste à notre animation qu'un résidu de la hauteur de la
+réserve haute, imperceptible.
+
+Foundation 1.6.3 n'expose pas `LocalBringIntoViewSpec` (arrivé en 1.7) et un
+`BringIntoViewResponder` ne peut pas interrompre la propagation vers le
+scrollable parent — les deux sont lancés en parallèle. Le levier retenu est donc
+la **priorité de mutation** : toute la convergence d'une grille se déroule
+désormais sous `scroll(MutatePriority.UserInput)`, que le défilement implicite
+(priorité `Default`) ne peut ni devancer ni préempter. L'animation primaire
+utilise `animate` dans ce `ScrollScope` déjà ouvert, avec le ressort par défaut
+d'`animateScrollBy` : le ressenti de la descente est inchangé.
+
+Tenir le verrou dès la première passe suppose de ne pas attendre que la cellule
+devienne mesurable — attendre, c'est laisser Compose exécuter son bond.
+`offscreenRowPivotDelta` estime donc la distance en comptant les lignes d'écart,
+exact à quelques pixels près sur des cellules homogènes, le reliquat étant
+corrigé dès que la position réelle est lisible. `VERTICAL_PIVOT_MAX_PASSES`
+passe de 5 à 8, l'animation consommant une passe entière.
+
+## Descente du déclencheur vers le milieu de la ligne
+
+Le déclencheur de catégorie occupe toute la largeur : son centre tombe sur la
+colonne du milieu, et la recherche de focus par défaut, qui choisit le candidat
+géométriquement le plus proche, y faisait atterrir la descente.
+`Modifier.tvFocusDownTo` demande explicitement le focus sur la première cellule.
+L'échec est silencieux et non consommé (grille absente en mode « Tout », index
+hors composition après un défilement restauré) : Compose reprend alors sa
+recherche par défaut, aucun appui ne reste sans effet.
+
+## Vérifications automatisées
+
+- `./gradlew testDebugUnitTest lintDebug assembleDebug` : **BUILD SUCCESSFUL**
+  (2026-08-07). Tests ajoutés sur `offscreenRowPivotDelta`.
+
+---
+
+# 10. Release
 
 Version :
-v1.73.3
+v1.73.3 (ancre haute), puis v1.73.4 (suites ci-dessus)
 
 Commit :
 🐛 fix(tv): ancre haute du sélecteur pivot dans les grilles de catégorie (B22)
 
 Date :
-2026-08-06
+2026-08-06, complété le 2026-08-07

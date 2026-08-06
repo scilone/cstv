@@ -1,6 +1,9 @@
 package com.cstv.app.presentation.components
 
+import androidx.compose.animation.core.animate
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.MutatePriority
+import androidx.compose.foundation.gestures.ScrollScope
 import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Spacer
@@ -45,7 +48,10 @@ private const val SECTION_KEY_RESOLUTION_TIMEOUT_MS = 200L
  * Plusieurs passes couvrent le `bringIntoView` implicite de Compose, qui peut
  * encore déplacer la liste dans les frames suivant l'acquisition du focus.
  */
-private const val VERTICAL_PIVOT_MAX_PASSES = 5
+// Une passe entière est désormais consommée par l'animation primaire des
+// grilles, qui se déroule sous verrou (B22) : la marge couvre les passes de
+// correction et de stabilisation qui la suivent.
+private const val VERTICAL_PIVOT_MAX_PASSES = 8
 private const val VERTICAL_PIVOT_STABLE_PASSES = 2
 private const val VERTICAL_PIVOT_TOLERANCE_PX = 0.5f
 
@@ -128,6 +134,37 @@ internal fun topAnchoredPivotDelta(
     beforeContentPadding: Int,
     itemOffset: Int
 ): Float = (itemOffset - (viewportStartOffset + beforeContentPadding)).toFloat()
+
+/**
+ * Distance **estimée** pour amener sur l'ancre haute une cellule qui n'est pas
+ * encore mesurable (B22).
+ *
+ * C'est le cas de la remontée : la cellule visée est composée hors du viewport,
+ * en réserve de recherche de focus, et n'apparaît donc pas dans
+ * `visibleItemsInfo` — aucune position à lire. Comme les grilles TV posent des
+ * cellules de hauteur homogène (`GridCells.Fixed`, cartes de taille fixe),
+ * compter les lignes d'écart donne une distance juste à quelques pixels près,
+ * et les passes suivantes corrigent le reliquat une fois la cellule mesurable.
+ *
+ * Estimer plutôt qu'attendre est ce qui permet de tenir le verrou de défilement
+ * dès la première passe : attendre que Compose rende la cellule visible, c'est
+ * précisément lui laisser exécuter le bond sec que ce verrou doit empêcher.
+ *
+ * Retourne `0` si la grille n'est pas encore mesurée — rien à estimer.
+ *
+ * Fonction pure, sans dépendance Compose, pour rester testable en JVM.
+ */
+internal fun offscreenRowPivotDelta(
+    targetIndex: Int,
+    firstVisibleIndex: Int,
+    columns: Int,
+    rowHeight: Int,
+    mainAxisItemSpacing: Int
+): Float {
+    if (columns <= 0 || rowHeight <= 0) return 0f
+    val rowsAway = targetIndex / columns - firstVisibleIndex / columns
+    return (rowsAway * (rowHeight + mainAxisItemSpacing)).toFloat()
+}
 
 /**
  * Distance à faire défiler pour aligner le centre du descendant focalisé sur
@@ -476,39 +513,96 @@ private suspend fun LazyListState.convergeSectionToVerticalPivot(
     return false
 }
 
-/** @return voir [convergeSectionToVerticalPivot]. */
+/**
+ * Convergence d'une cellule de grille vers l'ancre haute.
+ *
+ * Toute la convergence se déroule sous un `scroll` de priorité
+ * [MutatePriority.UserInput] (B22). Le défilement implicite de Compose
+ * (`bringIntoView`, déclenché par l'arrivée du focus, priorité
+ * [MutatePriority.Default]) ne peut alors ni s'exécuter avant elle, ni la
+ * préempter en cours de route. Sans ce verrou, la **remontée** d'une ligne était
+ * avalée d'un bond sec par Compose — la cellule visée n'y est composée qu'en
+ * réserve de recherche de focus, hors du viewport, donc systématiquement objet
+ * d'un `bringIntoView` — et il ne restait à notre animation qu'un résidu de la
+ * hauteur de la réserve haute, imperceptible. La descente, elle, visait une
+ * cellule déjà visible : aucune demande implicite, notre animation faisait tout
+ * le trajet. D'où une descente glissée et une remontée sèche. Le verrou rend les
+ * deux sens identiques.
+ *
+ * @return voir [convergeSectionToVerticalPivot].
+ */
 private suspend fun LazyGridState.convergeCellToVerticalPivot(
     index: Int,
     animatePrimaryCorrection: Boolean
 ): Boolean {
-    var stablePasses = 0
-    var primaryCorrectionPending = animatePrimaryCorrection
-    repeat(VERTICAL_PIVOT_MAX_PASSES) {
-        val info = layoutInfo
-        val itemInfo = info.visibleItemsInfo.firstOrNull { it.index == index }
-        if (itemInfo != null) {
-            val delta = topAnchoredPivotDelta(
-                viewportStartOffset = info.viewportStartOffset,
-                beforeContentPadding = info.beforeContentPadding,
-                itemOffset = itemInfo.offset.y
-            )
+    var stabilised = false
+    scroll(MutatePriority.UserInput) {
+        var stablePasses = 0
+        var primaryCorrectionPending = animatePrimaryCorrection
+        repeat(VERTICAL_PIVOT_MAX_PASSES) {
+            val info = layoutInfo
+            val itemInfo = info.visibleItemsInfo.firstOrNull { it.index == index }
+            val delta = if (itemInfo != null) {
+                topAnchoredPivotDelta(
+                    viewportStartOffset = info.viewportStartOffset,
+                    beforeContentPadding = info.beforeContentPadding,
+                    itemOffset = itemInfo.offset.y
+                )
+            } else {
+                offscreenRowPivotDelta(
+                    targetIndex = index,
+                    firstVisibleIndex = info.visibleItemsInfo.firstOrNull()?.index ?: 0,
+                    columns = info.visibleItemsInfo.maxOfOrNull { it.column + 1 } ?: 0,
+                    rowHeight = info.visibleItemsInfo.firstOrNull()?.size?.height ?: 0,
+                    mainAxisItemSpacing = info.mainAxisItemSpacing
+                )
+            }
             if (abs(delta) <= VERTICAL_PIVOT_TOLERANCE_PX) {
-                stablePasses++
-                if (stablePasses >= VERTICAL_PIVOT_STABLE_PASSES) return true
+                // Une cellule hors viewport dont l'estimation ne donne rien
+                // (grille pas encore mesurée) n'est pas une convergence :
+                // seule une position réellement mesurée peut stabiliser.
+                if (itemInfo != null) {
+                    stablePasses++
+                    if (stablePasses >= VERTICAL_PIVOT_STABLE_PASSES) {
+                        stabilised = true
+                        return@scroll
+                    }
+                }
             } else {
                 val consumed = if (primaryCorrectionPending) {
                     primaryCorrectionPending = false
-                    animateScrollBy(delta)
+                    animateScrollByInScope(delta)
                 } else {
                     scrollBy(delta)
                 }
-                if (isPivotClamped(delta, consumed)) return true
+                // La butée ne conclut que sur une position mesurée : hors
+                // viewport, l'estimation peut simplement être fausse.
+                if (itemInfo != null && isPivotClamped(delta, consumed)) {
+                    stabilised = true
+                    return@scroll
+                }
                 stablePasses = 0
             }
+            withFrameNanos { }
         }
-        withFrameNanos { }
     }
-    return false
+    return stabilised
+}
+
+/**
+ * Équivalent de `animateScrollBy` **à l'intérieur** d'un [ScrollScope] déjà
+ * ouvert : le verrou de défilement est tenu par l'appelant, qui l'a pris à une
+ * priorité choisie. Même ressort par défaut que `animateScrollBy`, donc même
+ * ressenti qu'avant (B22).
+ *
+ * @return la distance réellement consommée, pour [isPivotClamped].
+ */
+private suspend fun ScrollScope.animateScrollByInScope(delta: Float): Float {
+    var consumed = 0f
+    animate(initialValue = 0f, targetValue = delta) { current, _ ->
+        consumed += scrollBy(current - consumed)
+    }
+    return consumed
 }
 
 /**

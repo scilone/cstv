@@ -13,6 +13,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 
@@ -85,3 +90,27 @@ fun Modifier.tvInitialFocusTarget(state: TvInitialFocusState): Modifier =
 /** No-op variant for call sites that only conditionally own the initial-focus target (F19/B17 grids). */
 fun Modifier.tvInitialFocusTarget(state: TvInitialFocusState?, active: Boolean): Modifier =
     if (active && state != null) tvInitialFocusTarget(state) else this
+
+/**
+ * Descente explicite vers [requester] depuis un contrôle large posé au-dessus
+ * d'une grille (B22) — typiquement le déclencheur de catégorie, qui occupe
+ * toute la largeur.
+ *
+ * La recherche de focus par défaut choisit le candidat géométriquement le plus
+ * proche : le centre d'un contrôle pleine largeur tombe sur la **colonne du
+ * milieu**, et la descente atterrissait donc au milieu de la première ligne
+ * plutôt que sur sa première vignette.
+ *
+ * L'échec est volontairement silencieux : si la cible n'est pas composée
+ * (grille absente en mode « Tout », position de défilement restaurée hors de
+ * l'index visé), `requestFocus` lève et l'événement n'est **pas** consommé —
+ * Compose reprend alors sa recherche par défaut. Aucun appui ne reste sans
+ * effet.
+ */
+fun Modifier.tvFocusDownTo(requester: FocusRequester): Modifier = onKeyEvent { event ->
+    if (event.type != KeyEventType.KeyDown || event.key != Key.DirectionDown) {
+        false
+    } else {
+        runCatching { requester.requestFocus() }.isSuccess
+    }
+}

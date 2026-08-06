@@ -239,4 +239,107 @@ class TvPivotScrollTest {
             topAnchoredPivotDelta(viewportStartOffset = 0, beforeContentPadding = 0, itemOffset = 0)
         )
     }
+
+    // --- Estimation pour une cellule hors viewport (B22) ---
+
+    @Test
+    fun rowAboveTheViewportIsEstimatedOneStrideBackwards() {
+        // Remontée d'une ligne : cible index 3, première ligne visible = 6..8
+        // sur 3 colonnes. Une foulée de ligne vers le haut.
+        assertEquals(
+            -(220f + 16f),
+            offscreenRowPivotDelta(
+                targetIndex = 3,
+                firstVisibleIndex = 6,
+                columns = 3,
+                rowHeight = 220,
+                mainAxisItemSpacing = 16
+            )
+        )
+    }
+
+    @Test
+    fun estimationCountsWholeRowsNotItems() {
+        // Deux lignes d'écart, quel que soit le rang de la cellule dans sa ligne.
+        assertEquals(
+            -(2 * (220f + 16f)),
+            offscreenRowPivotDelta(
+                targetIndex = 2,
+                firstVisibleIndex = 8,
+                columns = 3,
+                rowHeight = 220,
+                mainAxisItemSpacing = 16
+            )
+        )
+    }
+
+    @Test
+    fun cellOnTheFirstVisibleRowNeedsNoEstimatedScroll() {
+        // Même ligne que le premier item visible : rien à estimer, la position
+        // mesurée prendra le relais dès qu'elle sera disponible.
+        assertEquals(
+            0f,
+            offscreenRowPivotDelta(
+                targetIndex = 8,
+                firstVisibleIndex = 6,
+                columns = 3,
+                rowHeight = 220,
+                mainAxisItemSpacing = 16
+            )
+        )
+    }
+
+    @Test
+    fun rowBelowTheViewportIsEstimatedForwards() {
+        assertEquals(
+            236f,
+            offscreenRowPivotDelta(
+                targetIndex = 9,
+                firstVisibleIndex = 6,
+                columns = 3,
+                rowHeight = 220,
+                mainAxisItemSpacing = 16
+            )
+        )
+    }
+
+    @Test
+    fun unmeasuredGridProducesNoEstimatedScroll() {
+        // Grille pas encore mesurée : ni colonnes ni hauteur exploitables. Une
+        // estimation inventée ferait défiler à l'aveugle.
+        assertEquals(
+            0f,
+            offscreenRowPivotDelta(
+                targetIndex = 9,
+                firstVisibleIndex = 0,
+                columns = 0,
+                rowHeight = 220,
+                mainAxisItemSpacing = 16
+            )
+        )
+        assertEquals(
+            0f,
+            offscreenRowPivotDelta(
+                targetIndex = 9,
+                firstVisibleIndex = 0,
+                columns = 3,
+                rowHeight = 0,
+                mainAxisItemSpacing = 16
+            )
+        )
+    }
+
+    @Test
+    fun estimationHoldsOnASingleColumnGrid() {
+        assertEquals(
+            -(180f + 12f),
+            offscreenRowPivotDelta(
+                targetIndex = 4,
+                firstVisibleIndex = 5,
+                columns = 1,
+                rowHeight = 180,
+                mainAxisItemSpacing = 12
+            )
+        )
+    }
 }

@@ -67,6 +67,7 @@ import com.cstv.app.presentation.components.TvCategorySelectorTrigger
 import com.cstv.app.presentation.components.TvCategoryPickerDialog
 import com.cstv.app.presentation.components.rememberTvInitialFocus
 import com.cstv.app.presentation.components.tvInitialFocusTarget
+import com.cstv.app.presentation.components.tvFocusDownTo
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import com.cstv.app.presentation.vod.CatalogFocusTarget
@@ -205,6 +206,9 @@ private fun TvLayout(
     val isAllSelected = state.selectedCategory?.categoryId == "all"
     var showCategoryPicker by remember { mutableStateOf(false) }
     val categoryTriggerFocusRequester = remember { FocusRequester() }
+    // Cible de descente depuis le déclencheur de catégorie : la première
+    // vignette de la grille, colonne de gauche (B22).
+    val gridEntryFocusRequester = remember { FocusRequester() }
 
     // Voir VodScreen : regroupement mesuré, thread principal.
     val groupedStreams = remember(filteredStreams) {
@@ -278,6 +282,7 @@ private fun TvLayout(
                 .fillMaxWidth()
                 .padding(bottom = 12.dp)
                 .focusRequester(categoryTriggerFocusRequester)
+                .tvFocusDownTo(gridEntryFocusRequester)
         )
         if (showCategoryPicker) {
             val totalCount = state.categoryCounts.values.sum().takeIf { it > 0 }
@@ -438,7 +443,9 @@ private fun TvLayout(
                                 // Rayon 12.dp : StreamTvCard n'a pas été unifiée au
                                 // rayon 14.dp de B18 (hors périmètre de ce ticket-là).
                                 modifier = Modifier.tvPivotCell(true, gridState, index, selectorCornerRadius = 12.dp)
-                                    .tvInitialFocusTarget(initialFocus, index == 0 && initialTarget == CatalogFocusTarget.GRID_FIRST_CELL),
+                                    .tvInitialFocusTarget(initialFocus, index == 0 && initialTarget == CatalogFocusTarget.GRID_FIRST_CELL)
+                                    // Cible de la descente depuis le déclencheur (B22).
+                                    .then(if (index == 0) Modifier.focusRequester(gridEntryFocusRequester) else Modifier),
                                 // Cf. VodScreen.kt (Review F19, Majeur #1) : force la
                                 // propagation de la contrainte min de la cellule à l'enfant.
                                 propagateMinConstraints = true

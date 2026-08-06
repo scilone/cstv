@@ -77,6 +77,7 @@ import com.cstv.app.presentation.components.TvCategorySelectorTrigger
 import com.cstv.app.presentation.components.ActiveFilterChipsRow
 import com.cstv.app.presentation.components.rememberTvInitialFocus
 import com.cstv.app.presentation.components.tvInitialFocusTarget
+import com.cstv.app.presentation.components.tvFocusDownTo
 import com.cstv.app.presentation.search.AdvancedSearchSheet
 import com.cstv.app.domain.model.CatalogFilterMatcher
 import com.cstv.app.presentation.vod.CatalogFocusTarget
@@ -335,6 +336,9 @@ private fun TvLayout(
 
     var showCategoryPicker by remember { mutableStateOf(false) }
     val categoryTriggerFocusRequester = remember { FocusRequester() }
+    // Cible de descente depuis le déclencheur de catégorie : la première
+    // vignette de la grille, colonne de gauche (B22).
+    val gridEntryFocusRequester = remember { FocusRequester() }
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -354,6 +358,7 @@ private fun TvLayout(
                 modifier = Modifier
                     .weight(1f)
                     .focusRequester(categoryTriggerFocusRequester)
+                    .tvFocusDownTo(gridEntryFocusRequester)
             )
             if (isSpecificCategory) {
                 Spacer(modifier = Modifier.width(12.dp))
@@ -536,7 +541,9 @@ private fun TvLayout(
                                     .tvInitialFocusTarget(
                                         if (lastFocusedCategoryId == state.selectedCategory?.categoryId && lastFocusedSeriesId == stream.seriesId) restoredFocus else initialFocus,
                                         (lastFocusedCategoryId == state.selectedCategory?.categoryId && lastFocusedSeriesId == stream.seriesId) || (index == 0 && initialTarget == CatalogFocusTarget.GRID_FIRST_CELL)
-                                    ),
+                                    )
+                                    // Cible de la descente depuis le déclencheur (B22).
+                                    .then(if (index == 0) Modifier.focusRequester(gridEntryFocusRequester) else Modifier),
                                 contentAlignment = Alignment.Center
                             ) {
                                 HomeSeriesShowCard(
