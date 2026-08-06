@@ -80,8 +80,7 @@ fun CategorySectionRow(
     onSeeAll: (() -> Unit)? = null,
     totalCount: Int? = null,
     initialFocusState: TvInitialFocusState? = null,
-    isInitialTarget: Boolean = false,
-    previewState: LiveChannelPreviewState? = null
+    isInitialTarget: Boolean = false
 ) {
     Column(
         modifier = Modifier
@@ -143,12 +142,7 @@ fun CategorySectionRow(
                             epgProgram = epgPrograms[stream.streamId],
                             onLoadEpg = { onLoadEpg(stream.streamId) },
                             onToggleFavorite = { onToggleFavorite(stream) },
-                            onClick = { onStreamSelected(stream) },
-                            previewActive = previewState?.activeStreamId == stream.streamId,
-                            previewPlayer = previewState?.player,
-                            onPreviewFocusChanged = previewState?.let { ps ->
-                                { focused: Boolean -> ps.onFocusChanged(stream, focused) }
-                            }
+                            onClick = { onStreamSelected(stream) }
                         )
                     } else {
                         MobileStreamCard(
@@ -794,10 +788,7 @@ fun StreamTvCard(
     epgProgram: LiveEpgProgram?,
     onLoadEpg: () -> Unit,
     onToggleFavorite: () -> Unit,
-    onClick: () -> Unit,
-    previewActive: Boolean = false,
-    previewPlayer: androidx.media3.exoplayer.ExoPlayer? = null,
-    onPreviewFocusChanged: ((Boolean) -> Unit)? = null
+    onClick: () -> Unit
 ) {
     var isFocused by remember { mutableStateOf(false) }
 
@@ -815,10 +806,7 @@ fun StreamTvCard(
         modifier = Modifier
             .fillMaxWidth()
             .height(LIVE_TV_CARD_HEIGHT)
-            .onFocusChanged {
-                isFocused = it.isFocused
-                onPreviewFocusChanged?.invoke(it.isFocused)
-            }
+            .onFocusChanged { isFocused = it.isFocused }
             .tvFocusHighlight(isFocused, RoundedCornerShape(12.dp))
             .clip(RoundedCornerShape(12.dp))
             // Favori porté par l'appui long (F25) : l'étoile n'est plus une
@@ -841,18 +829,7 @@ fun StreamTvCard(
                     .background(Surface1),
                 contentAlignment = Alignment.Center
             ) {
-                if (previewActive && previewPlayer != null) {
-                    androidx.compose.ui.viewinterop.AndroidView(
-                        factory = { ctx ->
-                            androidx.media3.ui.PlayerView(ctx).apply {
-                                useController = false
-                                player = previewPlayer
-                            }
-                        },
-                        update = { view -> view.player = previewPlayer },
-                        modifier = Modifier.fillMaxSize()
-                    )
-                } else if (!stream.streamIcon.isNullOrBlank()) {
+                if (!stream.streamIcon.isNullOrBlank()) {
                     AsyncImage(
                         model = stream.streamIcon,
                         contentDescription = stream.name,

@@ -55,7 +55,13 @@ fun Modifier.tvLongPressActions(
                     if (!consumeKeyUp) onLongClick()
                     consumeKeyUp = true
                     true
-                } else false
+                } else {
+                    // Nouvelle pression : le KeyUp de la précédente a pu partir
+                    // dans la fenêtre ouverte par l'appui long, laissant le
+                    // drapeau armé — il avalerait alors ce clic-ci.
+                    consumeKeyUp = false
+                    false
+                }
             }
             KeyEventType.KeyUp -> {
                 if (consumeKeyUp) {

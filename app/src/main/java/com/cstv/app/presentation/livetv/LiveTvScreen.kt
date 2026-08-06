@@ -32,8 +32,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -132,9 +130,6 @@ fun LiveTvScreen(
     val getScroll: (String) -> Pair<Int, Int> = { viewModel.getScrollPosition(it) }
     val saveScroll: (String, Int, Int) -> Unit = { k, i, o -> viewModel.saveScrollPosition(k, i, o) }
     val tvFocusSelector = remember { TvFocusSelectorState() }
-    // F25 : identifiants pour l'aperçu vidéo, résolus une fois par entrée sur
-    // l'écran (mêmes identifiants que ceux utilisés pour la lecture normale).
-    val previewCredentials = remember { viewModel.getCredentials() }
 
     Box(
         modifier = modifier
@@ -154,15 +149,12 @@ fun LiveTvScreen(
                 filteredStreams = filteredStreams,
                 pagedStreams = pagedStreams,
                 searchQuery = searchQuery,
-                onSearchQueryChanged = { searchQuery = it },
-                isSpecificCategory = isSpecificCategory,
                 epgPrograms = state.epgPrograms,
                 onLoadEpg = { viewModel.loadEpgForStream(it) },
                 onHistoryRemove = { pendingRemoval = it },
                 getScroll = getScroll,
                 saveScroll = saveScroll,
-                tvFocusSelector = tvFocusSelector,
-                previewCredentials = previewCredentials
+                tvFocusSelector = tvFocusSelector
             )
             TvFocusSelectorOverlay(tvFocusSelector, modifier = Modifier.fillMaxSize())
         } else {
@@ -203,29 +195,16 @@ private fun TvLayout(
     filteredStreams: List<LiveStream>,
     pagedStreams: androidx.paging.compose.LazyPagingItems<LiveStream>,
     searchQuery: String,
-    onSearchQueryChanged: (String) -> Unit,
-    isSpecificCategory: Boolean,
     epgPrograms: Map<Int, LiveEpgProgram>,
     onLoadEpg: (Int) -> Unit,
     onHistoryRemove: (LiveStream) -> Unit,
     getScroll: (String) -> Pair<Int, Int>,
     saveScroll: (String, Int, Int) -> Unit,
-    tvFocusSelector: TvFocusSelectorState,
-    previewCredentials: com.cstv.app.domain.model.Credentials?
+    tvFocusSelector: TvFocusSelectorState
 ) {
     val isAllSelected = state.selectedCategory?.categoryId == "all"
     var showCategoryPicker by remember { mutableStateOf(false) }
     val categoryTriggerFocusRequester = remember { FocusRequester() }
-    // F25 : une seule instance de lecteur d'aperçu pour tout l'écran, quelle
-    // que soit la vue affichée (« Tout » ou catégorie précise, voir F26).
-    val previewState = com.cstv.app.presentation.livetv.components.rememberLiveChannelPreviewState(
-        enabled = !state.catalogStatus.isOffline && previewCredentials != null,
-        credentials = previewCredentials
-    )
-    val onStreamSelectedStoppingPreview: (LiveStream) -> Unit = { stream ->
-        previewState.stop()
-        onStreamSelected(stream)
-    }
 
     // Voir VodScreen : regroupement mesuré, thread principal.
     val groupedStreams = remember(filteredStreams) {
@@ -286,27 +265,20 @@ private fun TvLayout(
             .fillMaxSize()
             .padding(16.dp)
     ) {
-        // Top categories filter row (F24 : sélecteur dropdown, aligné VOD/Séries)
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
+        // Sélecteur de catégorie (F24 : dropdown aligné VOD/Séries), seul sur sa
+        // ligne : le rafraîchissement manuel vit dans les Paramètres, comme sur
+        // mobile depuis la Phase 56.
+        TvCategorySelectorTrigger(
+            label = stringResource(
+                R.string.livetv_category_selector_label,
+                (state.selectedCategory?.categoryName ?: "Tout").uppercase()
+            ),
+            onClick = { showCategoryPicker = true },
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(bottom = 12.dp)
-        ) {
-            TvCategorySelectorTrigger(
-                label = stringResource(
-                    R.string.livetv_category_selector_label,
-                    (state.selectedCategory?.categoryName ?: "Tout").uppercase()
-                ),
-                onClick = { showCategoryPicker = true },
-                modifier = Modifier
-                    .weight(1f)
-                    .focusRequester(categoryTriggerFocusRequester)
-            )
-            IconButton(onClick = onRefresh) {
-                Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.catalog_refresh_button_description), tint = Color.White)
-            }
-        }
+                .focusRequester(categoryTriggerFocusRequester)
+        )
         if (showCategoryPicker) {
             val totalCount = state.categoryCounts.values.sum().takeIf { it > 0 }
             TvCategoryPickerDialog(
@@ -361,7 +333,7 @@ private fun TvLayout(
                     item(key = "recently_watched") {
                         RecentlyWatchedRow(
                             streams = state.recentlyWatched,
-                            onStreamSelected = onStreamSelectedStoppingPreview,
+                            onStreamSelected = onStreamSelected,
                             isTv = true,
                             epgPrograms = epgPrograms,
                             onLoadEpg = onLoadEpg,
@@ -384,7 +356,7 @@ private fun TvLayout(
                             streams = favoriteStreams,
                             favoritesList = favoritesList,
                             onToggleFavorite = onToggleFavorite,
-                            onStreamSelected = onStreamSelectedStoppingPreview,
+                            onStreamSelected = onStreamSelected,
                             isTv = true,
                             epgPrograms = epgPrograms,
                             onLoadEpg = onLoadEpg,
@@ -393,7 +365,6 @@ private fun TvLayout(
                             sectionListState = listState
                             ,initialFocusState = initialFocus
                             ,isInitialTarget = initialTarget == CatalogFocusTarget.FAVORITES
-                            ,previewState = previewState
                         )
                     }
                 }
@@ -407,7 +378,7 @@ private fun TvLayout(
                             streams = catStreams,
                             favoritesList = favoritesList,
                             onToggleFavorite = onToggleFavorite,
-                            onStreamSelected = onStreamSelectedStoppingPreview,
+                            onStreamSelected = onStreamSelected,
                             isTv = true,
                             epgPrograms = epgPrograms,
                             onLoadEpg = onLoadEpg,
@@ -418,7 +389,6 @@ private fun TvLayout(
                             ,totalCount = state.categoryCounts[category.categoryId]
                             ,initialFocusState = initialFocus
                             ,isInitialTarget = initialTarget == CatalogFocusTarget.FIRST_CATEGORY && category.categoryId == firstCategoryId
-                            ,previewState = previewState
                         )
                     }
                 }
@@ -426,7 +396,9 @@ private fun TvLayout(
             }
             }
         } else {
-            // Mode "Catégorie spécifique" : Search & Vertical Grid
+            // Mode "Catégorie spécifique" : grille verticale seule. Pas de champ
+            // de recherche ici, comme sur Films et Séries : la recherche globale
+            // couvre déjà ce besoin et le champ captait le focus à l'arrivée.
             Text(
                 text = state.selectedCategory?.categoryName?.uppercase() ?: "DIRECT",
                 color = Color.White,
@@ -434,25 +406,6 @@ private fun TvLayout(
                 fontSize = 18.sp,
                 modifier = Modifier.padding(bottom = 12.dp)
             )
-
-            if (isSpecificCategory) {
-                OutlinedTextField(
-                    value = searchQuery,
-                    onValueChange = onSearchQueryChanged,
-                    placeholder = { Text(stringResource(R.string.livetv_search_placeholder), color = Color.Gray, fontSize = 13.sp) },
-                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp)) },
-                    singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = MaterialTheme.colorScheme.primary,
-                        unfocusedBorderColor = Color.DarkGray,
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White
-                    ),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 12.dp)
-                )
-            }
 
             if (pagedStreams.itemCount == 0) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -496,10 +449,7 @@ private fun TvLayout(
                                     epgProgram = epgPrograms[stream.streamId],
                                     onLoadEpg = { onLoadEpg(stream.streamId) },
                                     onToggleFavorite = { onToggleFavorite(stream) },
-                                    onClick = { onStreamSelectedStoppingPreview(stream) },
-                                    previewActive = previewState.activeStreamId == stream.streamId,
-                                    previewPlayer = previewState.player,
-                                    onPreviewFocusChanged = { focused -> previewState.onFocusChanged(stream, focused) }
+                                    onClick = { onStreamSelected(stream) }
                                 )
                             }
                         }

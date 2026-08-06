@@ -375,6 +375,23 @@ internal fun isPivotClamped(delta: Float, consumed: Float): Boolean =
     abs(delta) > VERTICAL_PIVOT_TOLERANCE_PX && abs(consumed) <= VERTICAL_PIVOT_TOLERANCE_PX
 
 /**
+ * Butée **connue d'avance** : la liste ne peut pas défiler dans la direction
+ * que réclame le pivot. C'est le cas courant des premières rangées d'un
+ * catalogue, qu'aucun défilement ne peut amener au pivot 50 %.
+ *
+ * [isPivotClamped] ne constate la butée qu'après coup, une fois
+ * `animateScrollBy` terminé : cette animation se déroule alors entièrement
+ * sans rien déplacer, et la couche avant du focus (F23) ne publie qu'à son
+ * terme — d'où un cadre qui reste plusieurs centaines de millisecondes sur la
+ * vignette précédente. Tester la butée avant d'animer supprime ce temps mort.
+ *
+ * Fonction pure, sans dépendance Compose, pour rester testable en JVM.
+ */
+internal fun isPivotBlocked(delta: Float, canScrollForward: Boolean, canScrollBackward: Boolean): Boolean =
+    (delta > VERTICAL_PIVOT_TOLERANCE_PX && !canScrollForward) ||
+        (delta < -VERTICAL_PIVOT_TOLERANCE_PX && !canScrollBackward)
+
+/**
  * @return `true` si la convergence a atteint le pivot (cible stabilisée),
  * `false` si les [VERTICAL_PIVOT_MAX_PASSES] passes se sont épuisées sans
  * jamais trouver l'item ou sans se stabiliser — dans ce cas F23 ne doit rien
@@ -409,6 +426,8 @@ private suspend fun LazyListState.convergeSectionToVerticalPivot(
             if (abs(delta) <= VERTICAL_PIVOT_TOLERANCE_PX) {
                 stablePasses++
                 if (stablePasses >= VERTICAL_PIVOT_STABLE_PASSES) return true
+            } else if (isPivotBlocked(delta, canScrollForward, canScrollBackward)) {
+                return true
             } else {
                 val consumed = if (primaryCorrectionPending) {
                     primaryCorrectionPending = false
@@ -446,6 +465,8 @@ private suspend fun LazyGridState.convergeCellToVerticalPivot(
             if (abs(delta) <= VERTICAL_PIVOT_TOLERANCE_PX) {
                 stablePasses++
                 if (stablePasses >= VERTICAL_PIVOT_STABLE_PASSES) return true
+            } else if (isPivotBlocked(delta, canScrollForward, canScrollBackward)) {
+                return true
             } else {
                 val consumed = if (primaryCorrectionPending) {
                     primaryCorrectionPending = false

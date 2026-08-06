@@ -106,7 +106,6 @@
     <string name="tv_nav_series">Séries</string>
     <string name="tv_nav_search">Recherche</string>
     <string name="tv_nav_settings">Paramètres</string>
-    <string name="livetv_search_placeholder">Rechercher une chaîne...</string>
     <string name="player_loading_stream">Chargement du flux...</string>
     <string name="player_error_title">Erreur de lecture</string>
     <string name="player_retry">Réessayer</string>
@@ -151,7 +150,6 @@
     <string name="tv_category_picker_title">Catégories</string>
     <string name="tv_category_picker_selected_description">Sélectionné</string>
     <string name="catalog_filters_button_description">Filtres avancés</string>
-    <string name="catalog_refresh_button_description">Rafraîchir</string>
     <string name="vod_category_selector_label">FILMS : %1$s</string>
     <string name="series_category_selector_label">SÉRIES : %1$s</string>
     <string name="livetv_category_selector_label">DIRECT : %1$s</string>

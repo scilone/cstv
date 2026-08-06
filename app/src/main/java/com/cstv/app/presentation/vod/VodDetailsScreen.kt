@@ -14,7 +14,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Replay
@@ -159,17 +158,10 @@ fun VodDetailsScreen(
             // recréerait la WebView le jour où un trailer devient disponible,
             // ce qui relancerait sa lecture depuis la phase de chargement.
             if (isTv) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(top = 24.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    IconButton(
-                        onClick = onBack,
-                        modifier = Modifier.background(Color(0x33FFFFFF), shape = RoundedCornerShape(12.dp))
-                    ) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Retour", tint = Color.White)
-                    }
-                }
+                // Pas de bouton retour sur TV : la touche Retour de la
+                // télécommande remplit déjà ce rôle, et le bouton captait le
+                // focus à l'arrivée sur la fiche. Seule sa réserve haute reste.
+                Spacer(modifier = Modifier.height(24.dp))
             } else {
                 com.cstv.app.presentation.components.MediaDetailsHeader(
                     imageUrl = details.coverBig,

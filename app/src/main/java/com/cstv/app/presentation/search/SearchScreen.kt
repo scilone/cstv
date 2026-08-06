@@ -3,8 +3,8 @@ import com.cstv.app.R
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.LocalConfiguration
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.*
@@ -23,7 +23,12 @@ import com.cstv.app.presentation.components.tvPivotCell
 import com.cstv.app.presentation.components.tvPivotSection
 import com.cstv.app.presentation.components.tvPivotHorizontalEndSpacer
 import com.cstv.app.presentation.components.tvPivotVerticalEndSpacer
-import com.cstv.app.presentation.components.tvPivotVerticalStartSpacer
+import com.cstv.app.presentation.components.tvPivotVerticalStartReserve
+import com.cstv.app.presentation.components.TV_PIVOT_VERTICAL_START_RESERVE
+import com.cstv.app.presentation.components.LocalTvFocusSelector
+import com.cstv.app.presentation.components.TvFocusSelectorOverlay
+import com.cstv.app.presentation.components.TvFocusSelectorState
+import com.cstv.app.presentation.components.tvFocusHighlight
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -86,6 +91,17 @@ fun SearchScreen(
 
     // Toute nouvelle saisie recasse la vue développée pour revenir aux rangées.
     LaunchedEffect(state.searchQuery) { expandedType = null }
+
+    // La vue développée se referme sur la touche Retour avant que celle-ci ne
+    // quitte l'écran : sur TV, c'est le seul chemin de retour depuis qu'il n'y
+    // a plus de bouton dédié.
+    BackHandler(enabled = expandedType != null) { expandedType = null }
+
+    // Couche avant du sélecteur pivot fixe (F23), comme sur les catalogues :
+    // sans elle, la recherche globale gardait un cadre peint par chaque
+    // vignette, au comportement différent du reste de l'application.
+    val tvFocusSelector = remember { TvFocusSelectorState() }
+
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -98,14 +114,18 @@ fun SearchScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
             ) {
-                IconButton(
-                    onClick = { if (expandedType != null) expandedType = null else onBack() },
-                    modifier = Modifier.background(Color(0x33FFFFFF), shape = RoundedCornerShape(12.dp))
-                ) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.common_back), tint = Color.White)
-                }
+                // Pas de bouton retour sur TV : la touche Retour de la
+                // télécommande remplit déjà ce rôle.
+                if (!isTv) {
+                    IconButton(
+                        onClick = { if (expandedType != null) expandedType = null else onBack() },
+                        modifier = Modifier.background(Color(0x33FFFFFF), shape = RoundedCornerShape(12.dp))
+                    ) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.common_back), tint = Color.White)
+                    }
 
-                Spacer(modifier = Modifier.width(16.dp))
+                    Spacer(modifier = Modifier.width(16.dp))
+                }
 
                 // Même style que CategorySearchField (CatalogFilterComponents.kt) :
                 // homogène avec le filtrage des catégories TV/Films/Séries.
@@ -209,24 +229,31 @@ fun SearchScreen(
                 }
             } else if (expandedType != null) {
                 // --- Vue développée : un seul type, grille verticale ---
-                SearchExpandedGrid(
-                    type = expandedType!!,
-                    result = state.searchResult,
-                    isTv = isTv,
-                    onPlayLive = onPlayLive,
-                    onSelectMovie = onSelectMovie,
-                    onSelectSeries = onSelectSeries,
-                    modifier = Modifier.weight(1f).fillMaxWidth()
-                )
+                CompositionLocalProvider(LocalTvFocusSelector provides if (isTv) tvFocusSelector else null) {
+                    SearchExpandedGrid(
+                        type = expandedType!!,
+                        result = state.searchResult,
+                        isTv = isTv,
+                        onPlayLive = onPlayLive,
+                        onSelectMovie = onSelectMovie,
+                        onSelectSeries = onSelectSeries,
+                        modifier = Modifier.weight(1f).fillMaxWidth()
+                    )
+                }
             } else {
                 // --- Vue combinée : rangées horizontales par type ---
                 val combinedListState = rememberLazyListState()
+                CompositionLocalProvider(LocalTvFocusSelector provides if (isTv) tvFocusSelector else null) {
                 LazyColumn(
                     state = combinedListState,
                     verticalArrangement = Arrangement.spacedBy(24.dp),
                     modifier = Modifier.weight(1f).fillMaxWidth()
+                        .onFocusChanged { if (!it.hasFocus) tvFocusSelector.clear() }
                 ) {
-                    tvPivotVerticalStartSpacer(isTv)
+                    // Réserve haute réduite (T12), comme sur Live TV, Films et
+                    // Séries : la première rangée reste sous le bandeau au lieu
+                    // de démarrer au milieu de l'écran.
+                    tvPivotVerticalStartReserve(isTv)
                     // 1. Live TV Results Row
                     if (state.searchResult.liveResults.isNotEmpty()) {
                         item(key = "search_live") {
@@ -338,7 +365,12 @@ fun SearchScreen(
                     }
                     tvPivotVerticalEndSpacer(isTv)
                 }
+                }
             }
+        }
+
+        if (isTv) {
+            TvFocusSelectorOverlay(tvFocusSelector, modifier = Modifier.fillMaxSize())
         }
 
         if (state.isFilterSheetOpen) {
@@ -465,15 +497,24 @@ private fun SearchExpandedGrid(
             modifier = Modifier.padding(bottom = 12.dp, start = 4.dp)
         )
         val gridState = rememberLazyGridState()
+        val tvFocusSelector = LocalTvFocusSelector.current
         LazyVerticalGrid(
             state = gridState,
             columns = GridCells.Fixed(columns),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
-            contentPadding = PaddingValues(
-                vertical = if (isTv) LocalConfiguration.current.screenHeightDp.dp / 2 else 0.dp
-            ),
+            // Réserve haute réduite (T12) et réserve basse d'un demi-viewport,
+            // à l'identique des grilles de catégorie Live TV / Films / Séries.
+            contentPadding = if (isTv) {
+                PaddingValues(
+                    top = TV_PIVOT_VERTICAL_START_RESERVE,
+                    bottom = LocalConfiguration.current.screenHeightDp.dp / 2
+                )
+            } else {
+                PaddingValues(0.dp)
+            },
             modifier = Modifier.fillMaxSize()
+                .onFocusChanged { if (!it.hasFocus) tvFocusSelector?.clear() }
         ) {
             when (type) {
                 SearchExpandedType.LIVE -> gridItemsIndexed(result.liveResults) { index, stream ->
@@ -545,11 +586,9 @@ private fun SearchGridCard(
                 if (isLive) Modifier.aspectRatio(16f / 9f) else Modifier.aspectRatio(2f / 3f)
             )
             .onFocusChanged { isFocused = it.isFocused }
-            .border(
-                width = 2.dp,
-                color = if (isFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
-                shape = RoundedCornerShape(12.dp)
-            )
+            // Marquage commun : la vignette ne peint plus son propre anneau
+            // quand la couche avant du sélecteur pivot est active (TV).
+            .tvFocusHighlight(isFocused, RoundedCornerShape(12.dp))
             .clip(RoundedCornerShape(12.dp))
             .clickable { onClick() }
             .background(Surface1),
@@ -593,11 +632,9 @@ private fun SearchCardItem(
                 if (isLive) Modifier.height(80.dp) else Modifier.aspectRatio(2f / 3f)
             )
             .onFocusChanged { isFocused = it.isFocused }
-            .border(
-                width = 2.dp,
-                color = if (isFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
-                shape = RoundedCornerShape(12.dp)
-            )
+            // Marquage commun : la vignette ne peint plus son propre anneau
+            // quand la couche avant du sélecteur pivot est active (TV).
+            .tvFocusHighlight(isFocused, RoundedCornerShape(12.dp))
             .clip(RoundedCornerShape(12.dp))
             .clickable { onClick() }
             .background(Surface1),
