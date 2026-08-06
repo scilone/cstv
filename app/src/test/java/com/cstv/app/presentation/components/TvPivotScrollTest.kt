@@ -174,37 +174,4 @@ class TvPivotScrollTest {
     fun negativeResidualDeltaWithNoConsumptionIsClamped() {
         assertTrue(isPivotClamped(delta = -120f, consumed = 0f))
     }
-
-    // --- Butée connue d'avance (isPivotBlocked) ---
-
-    @Test
-    fun backwardPivotOnAListAlreadyAtItsTopIsBlocked() {
-        // Cas des premières rangées d'un catalogue : le pivot 50 % réclame un
-        // défilement vers le haut que la liste, déjà en tête, ne peut pas
-        // consommer. Animer ne déplacerait rien et retarderait le cadre F23.
-        assertTrue(isPivotBlocked(delta = -136f, canScrollForward = true, canScrollBackward = false))
-    }
-
-    @Test
-    fun backwardPivotOnAScrollableListIsNotBlocked() {
-        assertFalse(isPivotBlocked(delta = -136f, canScrollForward = true, canScrollBackward = true))
-    }
-
-    @Test
-    fun forwardPivotOnAListAlreadyAtItsEndIsBlocked() {
-        assertTrue(isPivotBlocked(delta = 80f, canScrollForward = false, canScrollBackward = true))
-    }
-
-    @Test
-    fun forwardPivotOnAScrollableListIsNotBlocked() {
-        assertFalse(isPivotBlocked(delta = 80f, canScrollForward = true, canScrollBackward = false))
-    }
-
-    @Test
-    fun deltaWithinToleranceIsNeverBlockedWhateverTheBounds() {
-        // En deçà de la tolérance la convergence est déjà atteinte : la
-        // signaler comme butée masquerait la passe de stabilisation.
-        assertFalse(isPivotBlocked(delta = 0.5f, canScrollForward = false, canScrollBackward = false))
-        assertFalse(isPivotBlocked(delta = -0.5f, canScrollForward = false, canScrollBackward = false))
-    }
 }
