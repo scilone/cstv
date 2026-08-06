@@ -1,7 +1,6 @@
 package com.cstv.app.presentation.livetv
 import com.cstv.app.R
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.paging.filter
 import com.cstv.app.presentation.livetv.components.*
@@ -24,6 +23,7 @@ import com.cstv.app.presentation.components.TvFocusSelectorOverlay
 import com.cstv.app.presentation.components.TvFocusSelectorState
 import com.cstv.app.presentation.components.tvPivotVerticalEndSpacer
 import com.cstv.app.presentation.components.TV_PIVOT_VERTICAL_START_RESERVE
+import com.cstv.app.presentation.components.tvPivotGridEndReserve
 import com.cstv.app.presentation.components.tvPivotVerticalStartReserve
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -424,7 +424,7 @@ private fun TvLayout(
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                     contentPadding = PaddingValues(
                         top = TV_PIVOT_VERTICAL_START_RESERVE,
-                        bottom = LocalConfiguration.current.screenHeightDp.dp / 2
+                        bottom = tvPivotGridEndReserve()
                     ),
                     modifier = Modifier.fillMaxSize()
                         .focusGroup()

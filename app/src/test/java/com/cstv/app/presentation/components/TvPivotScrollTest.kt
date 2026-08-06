@@ -174,4 +174,69 @@ class TvPivotScrollTest {
     fun negativeResidualDeltaWithNoConsumptionIsClamped() {
         assertTrue(isPivotClamped(delta = -120f, consumed = 0f))
     }
+
+    // --- Ancre haute des grilles (B22) ---
+
+    @Test
+    fun firstGridRowIsAlreadyOnTheTopAnchor() {
+        // Grille au repos : le premier item est à l'origine du contenu, sous la
+        // réserve haute. Rien à défiler, donc aucun mouvement du cadre F23.
+        assertEquals(
+            0f,
+            topAnchoredPivotDelta(viewportStartOffset = -48, beforeContentPadding = 48, itemOffset = 0)
+        )
+    }
+
+    @Test
+    fun secondGridRowScrollsExactlyItsOwnOffset() {
+        // La deuxième rangée remonte de toute sa distance à l'origine : elle
+        // occupe alors très exactement la place qu'occupait la première.
+        assertEquals(
+            440f,
+            topAnchoredPivotDelta(viewportStartOffset = -48, beforeContentPadding = 48, itemOffset = 440)
+        )
+    }
+
+    @Test
+    fun rowAboveTheAnchorScrollsBackwards() {
+        // Remontée au D-pad : la rangée visée est au-dessus de l'ancre, le
+        // défilement doit être négatif pour la ramener dessus.
+        assertEquals(
+            -440f,
+            topAnchoredPivotDelta(viewportStartOffset = -48, beforeContentPadding = 48, itemOffset = -440)
+        )
+    }
+
+    @Test
+    fun topAnchorFollowsTheLeadingContentPadding() {
+        // La réserve haute déplace l'ancre d'autant : le cadre se cale sous le
+        // bandeau, jamais collé au bord du viewport.
+        assertEquals(
+            0f,
+            topAnchoredPivotDelta(viewportStartOffset = -120, beforeContentPadding = 120, itemOffset = 0)
+        )
+    }
+
+    @Test
+    fun topAnchorHoldsUnderTheContainerRelativeOffsetConvention() {
+        // Convention alternative (offsets comptés depuis le bord du conteneur,
+        // viewportStartOffset nul) : l'ancre vaut alors la réserve haute
+        // elle-même, où se trouve la première rangée. L'expression reste juste.
+        assertEquals(
+            0f,
+            topAnchoredPivotDelta(viewportStartOffset = 0, beforeContentPadding = 48, itemOffset = 48)
+        )
+        assertEquals(
+            440f,
+            topAnchoredPivotDelta(viewportStartOffset = 0, beforeContentPadding = 48, itemOffset = 488)
+        )
+    }
+
+    @Test
+    fun gridWithoutLeadingPaddingAnchorsOnTheViewportEdge() {
+        assertEquals(
+            0f,
+            topAnchoredPivotDelta(viewportStartOffset = 0, beforeContentPadding = 0, itemOffset = 0)
+        )
+    }
 }

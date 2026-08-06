@@ -20,6 +20,7 @@ import com.cstv.app.presentation.components.tvPivotSection
 import com.cstv.app.presentation.components.tvPivotHorizontalEndSpacer
 import com.cstv.app.presentation.components.tvPivotVerticalEndSpacer
 import com.cstv.app.presentation.components.TV_PIVOT_VERTICAL_START_RESERVE
+import com.cstv.app.presentation.components.tvPivotGridEndReserve
 import com.cstv.app.presentation.components.tvPivotVerticalStartReserve
 import com.cstv.app.presentation.components.LocalTvFocusSelector
 import com.cstv.app.presentation.components.TvFocusSelectorOverlay
@@ -56,7 +57,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.platform.LocalConfiguration
 import com.cstv.app.R
 import com.cstv.app.domain.model.EpisodeLabel
 import com.cstv.app.domain.model.FavoriteItem
@@ -534,7 +534,7 @@ private fun TvLayout(
                         start = 12.dp,
                         end = 12.dp,
                         top = TV_PIVOT_VERTICAL_START_RESERVE,
-                        bottom = LocalConfiguration.current.screenHeightDp.dp / 2
+                        bottom = tvPivotGridEndReserve()
                     ),
                     modifier = Modifier.fillMaxSize()
                         .focusGroup()

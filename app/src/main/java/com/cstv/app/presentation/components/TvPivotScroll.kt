@@ -20,6 +20,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.CancellationException
@@ -77,7 +78,7 @@ private val TV_SELECTOR_DEFAULT_RADIUS = 14.dp
  */
 const val TV_PIVOT_HORIZONTAL = 0f
 
-/** Fraction du viewport où la rangée/cellule active reste ancrée verticalement (centre). */
+/** Fraction du viewport où la rangée active d'une liste reste ancrée verticalement (centre). */
 const val TV_PIVOT_VERTICAL = 0.5f
 
 /**
@@ -96,6 +97,37 @@ internal fun pivotScrollOffset(
     if (viewportSize <= 0) return 0
     return -(viewportSize * parentFraction - itemSize * childFraction).roundToInt()
 }
+
+/**
+ * Distance à faire défiler pour ramener la cellule d'index cible sur l'**ancre
+ * haute** d'une grille : l'emplacement qu'occupe la première rangée tant que la
+ * grille n'a pas défilé, soit l'origine du contenu, juste sous le
+ * `contentPadding` de tête (B22).
+ *
+ * Une grille n'utilise pas le pivot 50 % de [TV_PIVOT_VERTICAL] : ce pivot est
+ * hors d'atteinte pour les premières rangées, qu'aucun défilement ne peut
+ * descendre jusqu'au centre du viewport. Le cadre du focus (F23) restait donc
+ * en haut sur ces rangées-là, puis sautait au centre à la première rangée
+ * capable d'y arriver — au passage 1→2 sur les grilles de posters, 2→3 sur
+ * celle des chaînes (cartes plus basses). Ancrer toutes les rangées sur
+ * l'emplacement de la première supprime la cause : chacune converge vers la
+ * même ordonnée, le cadre ne bouge plus verticalement d'un pixel. C'est la
+ * transposition verticale de [TV_PIVOT_HORIZONTAL], qui ancre déjà la vignette
+ * active sur l'emplacement de la première vignette d'une rangée.
+ *
+ * L'ancre est calculée `viewportStartOffset + beforeContentPadding` plutôt
+ * qu'écrite `0` : les deux termes se compensent avec la convention de Compose
+ * (`viewportStartOffset == -beforeContentPadding`, offsets d'items comptés
+ * depuis l'origine du contenu), et l'expression reste juste si la convention
+ * venait à changer.
+ *
+ * Fonction pure, sans dépendance Compose, pour rester testable en JVM.
+ */
+internal fun topAnchoredPivotDelta(
+    viewportStartOffset: Int,
+    beforeContentPadding: Int,
+    itemOffset: Int
+): Float = (itemOffset - (viewportStartOffset + beforeContentPadding)).toFloat()
 
 /**
  * Distance à faire défiler pour aligner le centre du descendant focalisé sur
@@ -229,6 +261,21 @@ fun LazyListScope.tvPivotVerticalStartSpacer(enabled: Boolean) {
 val TV_PIVOT_VERTICAL_START_RESERVE = 24.dp
 
 /**
+ * Réserve basse des grilles TV, à passer en `contentPadding` bas (B22).
+ *
+ * L'ancre haute ([topAnchoredPivotDelta]) ne tient sa promesse — un cadre qui
+ * ne bouge jamais verticalement — que si la **dernière** rangée peut elle aussi
+ * remonter jusqu'à l'ancre. Il lui faut pour cela une hauteur de viewport de
+ * vide sous elle ; un demi-viewport, dimensionné pour l'ancien pivot 50 %,
+ * bloquerait les dernières rangées à mi-écran et y ramènerait le saut. Une
+ * hauteur d'écran entière majore le viewport (amputé des bandeaux système et
+ * d'en-tête) dans tous les cas, et ce vide n'est jamais montré au-delà du
+ * strict nécessaire : rien n'y est focalisable, donc rien ne l'y fait défiler.
+ */
+@Composable
+fun tvPivotGridEndReserve(): Dp = LocalConfiguration.current.screenHeightDp.dp
+
+/**
  * Réserve verticale de début réduite (T12) : la première rangée d'une liste
  * reste proche du bandeau d'en-tête plutôt que centrée au pivot vertical.
  * Conserve la clé `"tv_pivot_vertical_start"` : les positions de défilement
@@ -263,7 +310,11 @@ fun LazyListScope.tvPivotVerticalEndSpacer(enabled: Boolean) {
 }
 
 /**
- * Pivot vertical strict (50 %, centre) sur une cellule d'une [LazyGridState].
+ * Ancre haute (B22) sur une cellule d'une [LazyGridState] : chaque rangée
+ * rejoint l'emplacement de la première, le cadre du focus ne se déplace donc
+ * jamais verticalement dans une grille. Voir [topAnchoredPivotDelta] pour la
+ * raison du choix face au pivot 50 % des listes de rangées.
+ *
  * Le callback de bounds reste actif après le focus initial afin de corriger un
  * éventuel `bringIntoView` tardif de Compose.
  *
@@ -436,12 +487,10 @@ private suspend fun LazyGridState.convergeCellToVerticalPivot(
         val info = layoutInfo
         val itemInfo = info.visibleItemsInfo.firstOrNull { it.index == index }
         if (itemInfo != null) {
-            val delta = focusedChildPivotDelta(
+            val delta = topAnchoredPivotDelta(
                 viewportStartOffset = info.viewportStartOffset,
-                viewportEndOffset = info.viewportEndOffset,
-                sectionOffset = itemInfo.offset.y,
-                focusedOffsetInSection = 0f,
-                focusedSize = itemInfo.size.height
+                beforeContentPadding = info.beforeContentPadding,
+                itemOffset = itemInfo.offset.y
             )
             if (abs(delta) <= VERTICAL_PIVOT_TOLERANCE_PX) {
                 stablePasses++

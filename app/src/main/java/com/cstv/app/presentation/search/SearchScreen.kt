@@ -1,7 +1,6 @@
 package com.cstv.app.presentation.search
 import com.cstv.app.R
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.platform.LocalConfiguration
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
@@ -25,6 +24,7 @@ import com.cstv.app.presentation.components.tvPivotHorizontalEndSpacer
 import com.cstv.app.presentation.components.tvPivotVerticalEndSpacer
 import com.cstv.app.presentation.components.tvPivotVerticalStartReserve
 import com.cstv.app.presentation.components.TV_PIVOT_VERTICAL_START_RESERVE
+import com.cstv.app.presentation.components.tvPivotGridEndReserve
 import com.cstv.app.presentation.components.LocalTvFocusSelector
 import com.cstv.app.presentation.components.TvFocusSelectorOverlay
 import com.cstv.app.presentation.components.TvFocusSelectorState
@@ -503,12 +503,12 @@ private fun SearchExpandedGrid(
             columns = GridCells.Fixed(columns),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
-            // Réserve haute réduite (T12) et réserve basse d'un demi-viewport,
+            // Réserve haute réduite (T12) et réserve basse d'ancre haute (B22),
             // à l'identique des grilles de catégorie Live TV / Films / Séries.
             contentPadding = if (isTv) {
                 PaddingValues(
                     top = TV_PIVOT_VERTICAL_START_RESERVE,
-                    bottom = LocalConfiguration.current.screenHeightDp.dp / 2
+                    bottom = tvPivotGridEndReserve()
                 )
             } else {
                 PaddingValues(0.dp)
