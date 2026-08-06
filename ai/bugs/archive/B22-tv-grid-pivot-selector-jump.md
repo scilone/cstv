@@ -198,17 +198,39 @@ L'échec est silencieux et non consommé (grille absente en mode « Tout », ind
 hors composition après un défilement restauré) : Compose reprend alors sa
 recherche par défaut, aucun appui ne reste sans effet.
 
+## Glissement étendu au mode « Tout » (v1.73.5)
+
+Le verrou de priorité s'applique désormais aussi à `convergeSectionToVerticalPivot`,
+qui pilote les listes de rangées : mode « Tout » des trois catalogues, Accueil,
+Recherche, Favoris. Le symptôme y était encore plus systématique que dans les
+grilles — la rangée active occupant le centre du viewport, ses voisines en
+débordent toujours un peu, et une visibilité **partielle** suffit à déclencher le
+`bringIntoView` implicite. Le déplacement était donc avalé d'un bond sec dans les
+deux sens, alors que les grilles ne le subissaient qu'à la remontée.
+
+La résolution de la rangée par sa clé reste **hors** du verrou : tant qu'elle
+n'est pas posée, c'est le défilement implicite qui la rendra mesurable, et le
+verrou ferait expirer l'attente pour rien. Une fois résolue, la boucle lit
+`visibleItemsInfo` directement, sans réattendre sous verrou.
+
+Aucun changement de mise en page : le pivot des rangées reste à 50 %
+([TV_PIVOT_VERTICAL]), seule la façon d'y aller change. Les titres de section
+n'ont rien demandé de particulier — ils vivent dans la même `Column` que la
+`LazyRow`, sous le même modifier de pivot, donc dans le même item de liste : tout
+défilement les déplace solidairement. Aucun `stickyHeader` nulle part, vérifié.
+
 ## Vérifications automatisées
 
 - `./gradlew testDebugUnitTest lintDebug assembleDebug` : **BUILD SUCCESSFUL**
-  (2026-08-07). Tests ajoutés sur `offscreenRowPivotDelta`.
+  (2026-08-07, puis à nouveau après l'extension au mode « Tout »). Tests ajoutés
+  sur `offscreenRowPivotDelta`.
 
 ---
 
 # 10. Release
 
 Version :
-v1.73.3 (ancre haute), puis v1.73.4 (suites ci-dessus)
+v1.73.3 (ancre haute), v1.73.4 (suites ci-dessus), v1.73.5 (mode « Tout »)
 
 Commit :
 🐛 fix(tv): ancre haute du sélecteur pivot dans les grilles de catégorie (B22)

@@ -4,8 +4,6 @@ import androidx.compose.animation.core.animate
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.MutatePriority
 import androidx.compose.foundation.gestures.ScrollScope
-import androidx.compose.foundation.gestures.animateScrollBy
-import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.onFocusedBoundsChanged
@@ -463,6 +461,22 @@ internal fun isPivotClamped(delta: Float, consumed: Float): Boolean =
     abs(delta) > VERTICAL_PIVOT_TOLERANCE_PX && abs(consumed) <= VERTICAL_PIVOT_TOLERANCE_PX
 
 /**
+ * Convergence d'une rangée de médias (titre de section **et** vignettes, portés
+ * par le même item de liste) vers le pivot vertical.
+ *
+ * Comme pour les grilles (B22), toute la convergence se déroule sous un `scroll`
+ * de priorité [MutatePriority.UserInput], que le défilement implicite de Compose
+ * (`bringIntoView`, priorité [MutatePriority.Default]) ne peut ni devancer ni
+ * préempter. Une rangée voisine n'est ici que **partiellement** visible — la
+ * rangée active occupe le centre du viewport, ses voisines en débordent — ce qui
+ * suffit à déclencher la demande implicite : le déplacement était donc avalé
+ * d'un bond sec dans les deux sens, là où les grilles ne le subissaient qu'à la
+ * remontée. Le verrou rend le glissement identique partout.
+ *
+ * La résolution de la rangée reste **hors** du verrou : tant qu'elle n'est pas
+ * posée, c'est précisément le défilement implicite qui la rendra mesurable, et
+ * le verrou ferait expirer l'attente pour rien.
+ *
  * @return `true` si la convergence a atteint le pivot (cible stabilisée),
  * `false` si les [VERTICAL_PIVOT_MAX_PASSES] passes se sont épuisées sans
  * jamais trouver l'item ou sans se stabiliser — dans ce cas F23 ne doit rien
@@ -474,43 +488,53 @@ private suspend fun LazyListState.convergeSectionToVerticalPivot(
     focusedChild: LayoutCoordinates,
     animatePrimaryCorrection: Boolean
 ): Boolean {
-    var stablePasses = 0
-    var primaryCorrectionPending = animatePrimaryCorrection
-    repeat(VERTICAL_PIVOT_MAX_PASSES) {
-        val itemInfo = resolveSectionInfo(this, key)
-        if (itemInfo != null && section.isAttached && focusedChild.isAttached) {
-            val focusedOffset = try {
-                section.localPositionOf(focusedChild, Offset.Zero).y
-            } catch (e: IllegalArgumentException) {
-                return false
-            } catch (e: IllegalStateException) {
-                return false
-            }
-            val info = layoutInfo
-            val delta = focusedChildPivotDelta(
-                viewportStartOffset = info.viewportStartOffset,
-                viewportEndOffset = info.viewportEndOffset,
-                sectionOffset = itemInfo.offset,
-                focusedOffsetInSection = focusedOffset,
-                focusedSize = focusedChild.size.height
-            )
-            if (abs(delta) <= VERTICAL_PIVOT_TOLERANCE_PX) {
-                stablePasses++
-                if (stablePasses >= VERTICAL_PIVOT_STABLE_PASSES) return true
-            } else {
-                val consumed = if (primaryCorrectionPending) {
-                    primaryCorrectionPending = false
-                    animateScrollBy(delta)
-                } else {
-                    scrollBy(delta)
+    resolveSectionInfo(this, key) ?: return false
+    var stabilised = false
+    scroll(MutatePriority.UserInput) {
+        var stablePasses = 0
+        var primaryCorrectionPending = animatePrimaryCorrection
+        repeat(VERTICAL_PIVOT_MAX_PASSES) {
+            val itemInfo = layoutInfo.visibleItemsInfo.firstOrNull { it.key == key }
+            if (itemInfo != null && section.isAttached && focusedChild.isAttached) {
+                val focusedOffset = try {
+                    section.localPositionOf(focusedChild, Offset.Zero).y
+                } catch (e: IllegalArgumentException) {
+                    return@scroll
+                } catch (e: IllegalStateException) {
+                    return@scroll
                 }
-                if (isPivotClamped(delta, consumed)) return true
-                stablePasses = 0
+                val info = layoutInfo
+                val delta = focusedChildPivotDelta(
+                    viewportStartOffset = info.viewportStartOffset,
+                    viewportEndOffset = info.viewportEndOffset,
+                    sectionOffset = itemInfo.offset,
+                    focusedOffsetInSection = focusedOffset,
+                    focusedSize = focusedChild.size.height
+                )
+                if (abs(delta) <= VERTICAL_PIVOT_TOLERANCE_PX) {
+                    stablePasses++
+                    if (stablePasses >= VERTICAL_PIVOT_STABLE_PASSES) {
+                        stabilised = true
+                        return@scroll
+                    }
+                } else {
+                    val consumed = if (primaryCorrectionPending) {
+                        primaryCorrectionPending = false
+                        animateScrollByInScope(delta)
+                    } else {
+                        scrollBy(delta)
+                    }
+                    if (isPivotClamped(delta, consumed)) {
+                        stabilised = true
+                        return@scroll
+                    }
+                    stablePasses = 0
+                }
             }
+            withFrameNanos { }
         }
-        withFrameNanos { }
     }
-    return false
+    return stabilised
 }
 
 /**
