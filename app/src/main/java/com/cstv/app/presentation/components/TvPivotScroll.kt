@@ -271,19 +271,15 @@ fun Modifier.tvPivotItem(
         if (!targetChanged && coordinates.correctionJob?.isActive == true) {
             return@onFocusedBoundsChanged
         }
+        selector?.beginAxis(focusedCoordinates, TvPivotAxis.HORIZONTAL)
         coordinates.correctionJob?.cancel()
         coordinates.correctionJob = scope.launch {
-            selector?.beginAxis()
-            try {
-                val stabilised = state.convergeItemToStartAnchor(
-                    index = index,
-                    animatePrimaryCorrection = targetChanged
-                )
-                if (stabilised && selector != null && focusedCoordinates.isAttached) {
-                    selector.reportAxisStabilised(focusedCoordinates, selectorCornerRadius)
-                }
-            } finally {
-                selector?.endAxis()
+            val stabilised = state.convergeItemToStartAnchor(
+                index = index,
+                animatePrimaryCorrection = targetChanged
+            )
+            if (stabilised && selector != null && focusedCoordinates.isAttached) {
+                selector.reportAxisStabilised(focusedCoordinates, TvPivotAxis.HORIZONTAL, focusedCoordinates, selectorCornerRadius)
             }
         }
     }
@@ -398,19 +394,17 @@ fun Modifier.tvPivotCell(
         if (!targetChanged && coordinates.correctionJob?.isActive == true) {
             return@onFocusedBoundsChanged
         }
+        // Grille : un seul axe (VERTICAL), pas d'ambiguïté de nommage — aucun
+        // pivot horizontal ne concourt pour cette même cible (B22).
+        selector?.beginAxis(focusedCoordinates, TvPivotAxis.VERTICAL)
         coordinates.correctionJob?.cancel()
         coordinates.correctionJob = scope.launch {
-            selector?.beginAxis()
-            try {
-                val stabilised = state.convergeCellToVerticalPivot(
-                    index = index,
-                    animatePrimaryCorrection = targetChanged
-                )
-                if (stabilised && selector != null && focusedCoordinates.isAttached) {
-                    selector.reportAxisStabilised(focusedCoordinates, selectorCornerRadius)
-                }
-            } finally {
-                selector?.endAxis()
+            val stabilised = state.convergeCellToVerticalPivot(
+                index = index,
+                animatePrimaryCorrection = targetChanged
+            )
+            if (stabilised && selector != null && focusedCoordinates.isAttached) {
+                selector.reportAxisStabilised(focusedCoordinates, TvPivotAxis.VERTICAL, focusedCoordinates, selectorCornerRadius)
             }
         }
     }
@@ -456,19 +450,15 @@ fun Modifier.tvPivotSection(
             if (!targetChanged && coordinates.correctionJob?.isActive == true) {
                 return@onFocusedBoundsChanged
             }
+            selector?.beginAxis(focusedCoordinates, TvPivotAxis.VERTICAL)
             coordinates.correctionJob?.cancel()
             coordinates.correctionJob = scope.launch {
-                selector?.beginAxis()
-                try {
-                    val stabilised = state.convergeSectionToVerticalPivot(
-                        key = key,
-                        animatePrimaryCorrection = targetChanged
-                    )
-                    if (stabilised && selector != null && focusedCoordinates.isAttached) {
-                        selector.reportAxisStabilised(focusedCoordinates, selectorCornerRadius)
-                    }
-                } finally {
-                    selector?.endAxis()
+                val stabilised = state.convergeSectionToVerticalPivot(
+                    key = key,
+                    animatePrimaryCorrection = targetChanged
+                )
+                if (stabilised && selector != null && focusedCoordinates.isAttached) {
+                    selector.reportAxisStabilised(focusedCoordinates, TvPivotAxis.VERTICAL, focusedCoordinates, selectorCornerRadius)
                 }
             }
         }

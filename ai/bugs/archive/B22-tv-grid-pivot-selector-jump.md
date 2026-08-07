@@ -228,6 +228,41 @@ dépendre du `LaunchedEffect` — seul `snapTo` le maintient synchronisé en
 arrière-plan, prêt pour un futur glissement, sans jamais être *lu* pendant la
 période où le rendu doit rester instantané.
 
+## Dérive sous D-pad maintenu, appuis répétés (v1.73.10)
+
+Rapporté : en tenant la flèche gauche/droite enfoncée sur l'Accueil ou une
+catégorie « Tout » (défilement rapide, répétition matérielle de la touche), le
+cadre bouge au lieu de rester figé.
+
+Le comptage introduit en v1.73.7 (`beginAxis`/`endAxis`, un entier partagé
+incrémenté/décrémenté) suppose que chaque paire s'équilibre proprement. Sous
+répétition rapide, chaque nouvelle carte annule la convergence de la
+précédente via `correctionJob?.cancel()` — mais l'annulation d'une coroutine ne
+prend effet qu'à sa **prochaine suspension** (`withFrameNanos`), pas
+immédiatement. Le `finally { endAxis() }` de la carte abandonnée s'exécute donc
+en retard, potentiellement après que la carte suivante a déjà amorcé (voire
+terminé) sa propre convergence : le compteur, partagé sans savoir à QUELLE
+carte chaque décrément appartient, pouvait retomber à zéro pour la mauvaise
+raison et publier une géométrie déjà obsolète.
+
+Remplacé par `PendingAxisTracker`, qui identifie la cible par référence (le
+`LayoutCoordinates` du descendant focalisé, identique pour les deux axes d'une
+même carte) plutôt que de compter à l'aveugle. `begin` pour une cible
+**différente** de la courante efface tout l'état précédent avant d'y ranger
+l'axe qui démarre ; `complete` **rejette silencieusement** tout rapport dont la
+cible ne correspond plus à celle en cours. Une complétion tardive d'une carte
+abandonnée ne peut donc plus corrompre le suivi de la carte réellement visée —
+elle est purement et simplement ignorée. `beginAxis` est aussi appelée
+**avant** `correctionJob?.cancel()`, directement dans le callback
+`onFocusedBoundsChanged` plutôt qu'à l'intérieur de la coroutine lancée : elle
+s'exécute ainsi de façon synchrone avec le changement de focus, sans dépendre
+d'aucun ordonnancement de dispatcher.
+
+Le suivi pur (`PendingAxisTracker`, sans dépendance Compose au-delà de son
+paramètre générique) est extrait de `TvFocusSelectorState` pour rester
+testable en JVM ; le scénario de rafale (complétion tardive d'une cible
+abandonnée) est directement couvert.
+
 ## Vérifications automatisées
 
 - `./gradlew testDebugUnitTest lintDebug assembleDebug` : **BUILD SUCCESSFUL**
@@ -402,7 +437,8 @@ v1.73.3 (ancre haute des grilles), v1.73.4 (remontée animée, descente à gauch
 v1.73.5 (glissement du mode « Tout »), v1.73.6 (ancre haute généralisée),
 v1.73.7 (publication comptée, remontée réparée),
 v1.73.8 (amortissement réduit au seul cas utile, ancrage horizontal verrouillé),
-v1.73.9 (rayon d'angle unifié, abscisse pilotée à la main sans décalage de frame)
+v1.73.9 (rayon d'angle unifié, abscisse pilotée à la main sans décalage de frame),
+v1.73.10 (suivi des axes par identité de cible, immunisé au D-pad maintenu)
 
 Commit :
 🐛 fix(tv): ancre haute du sélecteur pivot dans les grilles de catégorie (B22)

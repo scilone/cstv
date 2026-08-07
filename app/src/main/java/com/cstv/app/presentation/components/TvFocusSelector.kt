@@ -34,6 +34,73 @@ import com.cstv.app.presentation.theme.AccentLavande
 /** Géométrie du sélecteur, en coordonnées de la racine de l'écran (fenêtre). */
 data class TvSelectorTarget(val bounds: Rect, val cornerRadius: Dp)
 
+/** Identifie les deux pivots qui peuvent concourir pour une même vignette de rangée. */
+enum class TvPivotAxis { HORIZONTAL, VERTICAL }
+
+/**
+ * Suit, pour une cible identifiée par référence, l'ensemble des axes encore
+ * attendus avant de considérer sa géométrie stabilisée (B22).
+ *
+ * Une vignette de rangée relève de **deux** pivots simultanés : l'horizontal
+ * (`tvPivotItem`, qui fait glisser la `LazyRow`) et le vertical
+ * (`tvPivotSection`). Ils ne se stabilisent pas au même rythme — le vertical en
+ * deux frames quand la rangée est déjà en place, l'horizontal en toute la durée
+ * du glissement — [complete] n'autorise donc la publication qu'une fois les
+ * deux rapportés pour la **même** cible. Une cellule de grille n'a qu'un axe
+ * ([TvPivotAxis.VERTICAL], seul utilisé par `tvPivotCell`) et se stabilise
+ * donc dès son unique rapport.
+ *
+ * La cible sert de clé ([key], le `LayoutCoordinates` du descendant focalisé —
+ * identique pour les deux axes d'une même carte). C'est ce qui distingue cette
+ * conception d'un simple compteur de pivots « en cours » (première version
+ * B22) : sous répétition D-pad rapide (appui maintenu), chaque nouvelle cible
+ * annule les convergences de la précédente, mais l'annulation d'une coroutine
+ * ne prend effet qu'à sa prochaine suspension — un compteur partagé pouvait
+ * donc se retrouver décrémenté en retard par une cible déjà supplantée,
+ * publiant sa géométrie obsolète au lieu de celle réellement visée. Ici,
+ * [begin] pour une **nouvelle** cible vide l'ensemble attendu et y range
+ * fraîchement les axes attendus ; [complete] rejette silencieusement tout
+ * rapport dont la cible ne correspond plus à [key] — une complétion tardive
+ * d'une cible abandonnée ne peut donc jamais corrompre le suivi de la cible
+ * courante.
+ *
+ * Sans dépendance Compose au-delà de son paramètre générique, pour rester
+ * testable en JVM.
+ */
+internal class PendingAxisTracker {
+    private var key: Any? = null
+    private val pendingAxes = mutableSetOf<TvPivotAxis>()
+
+    /**
+     * Un pivot amorce une convergence pour [target]. Une cible différente de
+     * celle en cours efface tout l'état précédent : elle appartenait à une
+     * carte déjà quittée. Sur cible inchangée (`tvPivotCell`/`tvPivotSection`
+     * restent actifs après le focus initial pour corriger un `bringIntoView`
+     * tardif de Compose), seul [axis] repart en attente — l'autre axe, déjà
+     * rapporté, n'a pas à reconverger.
+     */
+    fun begin(target: Any, axis: TvPivotAxis) {
+        if (key !== target) {
+            key = target
+            pendingAxes.clear()
+        }
+        pendingAxes.add(axis)
+    }
+
+    /**
+     * Un pivot a convergé pour [target].
+     *
+     * @return `true` si [target] est toujours la cible courante et que tous
+     * ses axes attendus ont maintenant rapporté — c'est alors, et alors
+     * seulement, que l'appelant doit publier.
+     */
+    fun complete(target: Any, axis: TvPivotAxis): Boolean {
+        if (key !== target) return false
+        pendingAxes.remove(axis)
+        return pendingAxes.isEmpty()
+    }
+}
+
 /**
  * Couche avant du focus TV (F23). Ne mémorise que des positions
  * **stabilisées** : convergence de pivot terminée pour une carte de
@@ -41,18 +108,8 @@ data class TvSelectorTarget(val bounds: Rect, val cornerRadius: Dp)
  * qui ne défile pas (Hero Card). Deux vignettes successives d'une même
  * rangée convergent vers **exactement** la même position → un cadre qui ne
  * suit que les positions stabilisées ne bouge pas d'un pixel. C'est tout le
- * mécanisme du « sélecteur statique ».
- *
- * Une vignette de rangée relève de **deux** pivots simultanés : l'horizontal
- * (`tvPivotItem`, qui fait glisser la `LazyRow`) et le vertical
- * (`tvPivotSection`). Ils ne se stabilisent pas au même rythme — le vertical en
- * deux frames quand la rangée est déjà en place, l'horizontal en toute la durée
- * du glissement. La publication est donc comptée : chaque pivot s'annonce
- * ([beginAxis]) et se retire ([endAxis]), et la géométrie n'est lue **et** posée
- * qu'au retrait du dernier. Une fenêtre d'attente de quelques frames, telle
- * qu'employée auparavant, ne pouvait pas tenir cette promesse : elle publiait au
- * premier axe stabilisé une position que l'autre axe déplaçait encore, d'où un
- * cadre qui partait puis se corrigeait (B22).
+ * mécanisme du « sélecteur statique ». Voir [PendingAxisTracker] pour la
+ * coordination des deux axes d'une même carte de rangée.
  */
 @Stable
 class TvFocusSelectorState {
@@ -61,40 +118,23 @@ class TvFocusSelectorState {
     var isVisible: Boolean by mutableStateOf(false)
         private set
 
-    private var runningAxes = 0
-    private var settledCoordinates: LayoutCoordinates? = null
-    private var settledRadius: Dp = 0.dp
+    private val axisTracker = PendingAxisTracker()
 
     fun publishStabilised(bounds: Rect, cornerRadius: Dp) {
         target = TvSelectorTarget(bounds, cornerRadius)
         isVisible = true
     }
 
-    /** Un pivot entame une convergence pour la cible focalisée. */
-    fun beginAxis() {
-        runningAxes++
+    /** Un pivot amorce une convergence pour [key] (le descendant réellement focalisé). */
+    fun beginAxis(key: Any, axis: TvPivotAxis) {
+        axisTracker.begin(key, axis)
     }
 
-    /**
-     * Un pivot a convergé. Rien n'est publié ici : la géométrie retenue n'est
-     * lue qu'au retrait du dernier axe, quand plus rien ne bouge.
-     */
-    fun reportAxisStabilised(coordinates: LayoutCoordinates, cornerRadius: Dp) {
-        settledCoordinates = coordinates
-        settledRadius = cornerRadius
-    }
-
-    /**
-     * Un pivot se retire — convergence terminée, abandonnée ou annulée, d'où
-     * l'appel depuis un `finally`. Sans cela un axe annulé laisserait le compte
-     * ouvert et le cadre ne serait plus jamais publié.
-     */
-    fun endAxis() {
-        runningAxes = (runningAxes - 1).coerceAtLeast(0)
-        if (runningAxes > 0) return
-        val coordinates = settledCoordinates?.takeIf { it.isAttached }
-        settledCoordinates = null
-        if (coordinates != null) publishStabilised(coordinates.boundsInRoot(), settledRadius)
+    /** Un pivot a convergé pour [key] ; publie dès que tous les axes attendus l'ont fait. */
+    fun reportAxisStabilised(key: Any, axis: TvPivotAxis, coordinates: LayoutCoordinates, cornerRadius: Dp) {
+        if (!axisTracker.complete(key, axis)) return
+        val safeCoordinates = coordinates.takeIf { it.isAttached } ?: return
+        publishStabilised(safeCoordinates.boundsInRoot(), cornerRadius)
     }
 
     /**
