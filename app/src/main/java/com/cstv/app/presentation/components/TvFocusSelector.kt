@@ -29,6 +29,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.toSize
 import com.cstv.app.presentation.theme.AccentLavande
 
 /** Géométrie du sélecteur, en coordonnées de la racine de l'écran (fenêtre). */
@@ -116,19 +117,16 @@ internal class PendingAxisTracker {
  * mécanisme du « sélecteur statique ». Voir [PendingAxisTracker] pour la
  * coordination des deux axes d'une même carte de rangée.
  *
- * Cible génuinement nouvelle → cadre masqué le temps de la convergence
- * (B22). Deux cartes de formats différents (rangées « Top N », vignette
- * favorite plus large qu'une vignette normale sur les chaînes…) n'ont
- * quasiment jamais la même géométrie ; le cadre restait alors visible à
- * l'**ancienne** position/forme pendant tout le défilement — réel, celui des
- * vignettes que l'utilisateur voit glisser dessous —, se retrouvant
- * visiblement désaccordé du contenu qui défile en dessous (un cadre au format
- * chaîne posé sur des affiches de film qui remontent). [beginAxis] masque donc
- * le cadre dès qu'une cible différente entame sa convergence ; il ne
- * réapparaît, déjà à la bonne géométrie, qu'à la publication. Pour une grille,
- * où rien ne défile entre deux colonnes d'une même rangée, la convergence est
- * quasi instantanée : l'éclipse n'y est jamais perceptible, seul le glissement
- * volontaire de [left][TvFocusSelectorOverlay] l'est.
+ * Le cadre reste **visible en permanence** tant que le focus est dans une
+ * liste : il ne s'efface ni ne se rallume entre deux cartes. Sa **taille**, en
+ * revanche, est adoptée dès l'acquisition du focus ([beginAxis]), sans attendre
+ * la fin du défilement (B22) : une carte est mesurée avant de bouger, sa taille
+ * est donc connue tout de suite, alors que sa position ne le sera qu'une fois la
+ * convergence terminée. Comme toutes les cartes rejoignent la même ancre, le
+ * coin haut-gauche du cadre ne change pas — seule la taille avait à suivre, et
+ * la faire attendre la fin du défilement laissait un cadre au mauvais format
+ * posé sur le contenu qui glissait dessous (cartes « Top N », chaîne favorite
+ * plus large que sa voisine).
  */
 @Stable
 class TvFocusSelectorState {
@@ -144,9 +142,19 @@ class TvFocusSelectorState {
         isVisible = true
     }
 
-    /** Un pivot amorce une convergence pour [key] (le descendant réellement focalisé). */
-    fun beginAxis(key: Any, axis: TvPivotAxis) {
-        if (axisTracker.begin(key, axis)) clear()
+    /**
+     * Un pivot amorce une convergence pour [coordinates] (le descendant
+     * réellement focalisé). Sur une cible neuve, le cadre prend immédiatement sa
+     * taille et son rayon, en gardant son coin haut-gauche : voir la
+     * documentation de la classe.
+     */
+    fun beginAxis(coordinates: LayoutCoordinates, axis: TvPivotAxis, cornerRadius: Dp) {
+        if (!axisTracker.begin(coordinates, axis)) return
+        val current = target ?: return
+        target = TvSelectorTarget(
+            bounds = Rect(current.bounds.topLeft, coordinates.size.toSize()),
+            cornerRadius = cornerRadius
+        )
     }
 
     /** Un pivot a convergé pour [key] ; publie dès que tous les axes attendus l'ont fait. */

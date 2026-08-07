@@ -35,6 +35,16 @@ private const val VERTICAL_PIVOT_MAX_PASSES = 8
 private const val VERTICAL_PIVOT_STABLE_PASSES = 2
 private const val VERTICAL_PIVOT_TOLERANCE_PX = 0.5f
 
+/**
+ * Foulées de rattrapage au maximum pour ramener dans le champ une rangée visée
+ * hors viewport (voir [convergeSectionToVerticalPivot]). Deux suffisent : la
+ * première avance d'une hauteur de rangée estimée, la seconde rattrape l'écart
+ * si les deux rangées n'avaient pas la même hauteur. **Sans borne**, une rangée
+ * lente à se composer en déclenche une par passe et la liste part plusieurs
+ * rangées trop haut d'un coup.
+ */
+private const val OFFSCREEN_CATCH_UP_MAX_STEPS = 2
+
 private class PivotSectionCoordinates(
     var focusedChild: LayoutCoordinates? = null,
     var correctionJob: Job? = null
@@ -257,7 +267,7 @@ fun Modifier.tvPivotItem(
         if (!targetChanged && coordinates.correctionJob?.isActive == true) {
             return@onFocusedBoundsChanged
         }
-        selector?.beginAxis(focusedCoordinates, TvPivotAxis.HORIZONTAL)
+        selector?.beginAxis(focusedCoordinates, TvPivotAxis.HORIZONTAL, selectorCornerRadius)
         coordinates.correctionJob?.cancel()
         coordinates.correctionJob = scope.launch {
             val stabilised = state.convergeItemToStartAnchor(
@@ -382,7 +392,7 @@ fun Modifier.tvPivotCell(
         }
         // Grille : un seul axe (VERTICAL), pas d'ambiguïté de nommage — aucun
         // pivot horizontal ne concourt pour cette même cible (B22).
-        selector?.beginAxis(focusedCoordinates, TvPivotAxis.VERTICAL)
+        selector?.beginAxis(focusedCoordinates, TvPivotAxis.VERTICAL, selectorCornerRadius)
         coordinates.correctionJob?.cancel()
         coordinates.correctionJob = scope.launch {
             val stabilised = state.convergeCellToVerticalPivot(
@@ -436,7 +446,7 @@ fun Modifier.tvPivotSection(
             if (!targetChanged && coordinates.correctionJob?.isActive == true) {
                 return@onFocusedBoundsChanged
             }
-            selector?.beginAxis(focusedCoordinates, TvPivotAxis.VERTICAL)
+            selector?.beginAxis(focusedCoordinates, TvPivotAxis.VERTICAL, selectorCornerRadius)
             coordinates.correctionJob?.cancel()
             coordinates.correctionJob = scope.launch {
                 val stabilised = state.convergeSectionToVerticalPivot(
@@ -492,15 +502,11 @@ internal fun isPivotClamped(delta: Float, consumed: Float): Boolean =
  * cible — juste quand les deux rangées ont la même hauteur, mais faux dès
  * qu'elles diffèrent (rangée « Top N » plus haute que la rangée de
  * recommandations en dessous, vignette de chaîne favorite plus large que sa
- * voisine…), ce qui est le cas courant plutôt que l'exception. Une seule
- * foulée qui rate sa cible épuisait alors les passes restantes sans jamais
- * mesurer la rangée, renvoyant `false` sans publier ; l'appui suivant relançait
- * une convergence dans les mêmes conditions. Le cadre restait donc affiché à
- * l'**ancienne** géométrie pendant tout ce délai, visiblement désaccordé du
- * contenu qui défile dessous. Ré-estimer à chaque passe utilise la hauteur de
- * chaque rangée réellement traversée, de plus en plus précise à mesure qu'on
- * approche la cible, et converge en une seule exécution quelle que soit la
- * distance (dans la limite de [VERTICAL_PIVOT_MAX_PASSES]).
+ * voisine…). Une foulée trop courte laisse la rangée hors champ, une passe de
+ * plus la rattrape avec une mesure fraîche. Le nombre de foulées est **borné**
+ * par [OFFSCREEN_CATCH_UP_MAX_STEPS] : sans cette borne, une rangée qui tarde à
+ * se composer déclenche une foulée à chaque passe et la liste part plusieurs
+ * rangées trop haut d'un coup (régression v1.73.11).
  *
  * @return `true` si la convergence a atteint le pivot (cible stabilisée),
  * `false` si les [VERTICAL_PIVOT_MAX_PASSES] passes se sont épuisées sans
@@ -514,6 +520,7 @@ private suspend fun LazyListState.convergeSectionToVerticalPivot(
     var stabilised = false
     scroll(MutatePriority.UserInput) {
         var stablePasses = 0
+        var catchUpBudget = OFFSCREEN_CATCH_UP_MAX_STEPS
         var primaryCorrectionPending = animatePrimaryCorrection
         repeat(VERTICAL_PIVOT_MAX_PASSES) {
             val info = layoutInfo
@@ -543,10 +550,11 @@ private suspend fun LazyListState.convergeSectionToVerticalPivot(
                     }
                     stablePasses = 0
                 }
-            } else {
+            } else if (catchUpBudget > 0) {
                 // Rangée visée introuvable : elle est au-dessus du viewport.
                 // C'est la remontée, et c'est structurel — la rangée active
                 // occupant l'ancre, tout ce qui la précède est hors champ.
+                catchUpBudget--
                 val step = offscreenSectionStepDelta(
                     firstVisibleItemHeight = info.visibleItemsInfo.firstOrNull()?.size ?: 0,
                     mainAxisItemSpacing = info.mainAxisItemSpacing

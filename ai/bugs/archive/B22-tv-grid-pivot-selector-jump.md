@@ -316,6 +316,40 @@ des [VERTICAL_PIVOT_MAX_PASSES] passes.
 superflue une fois le rattrapage géré directement dans la boucle) est
 supprimée avec la constante et les imports qu'elle seule utilisait.
 
+## Retour à l'énoncé simple, et réparation de deux régressions (v1.73.12)
+
+Retour utilisateur sans ambiguïté, après une v1.73.11 qui ratait la cible :
+« juste tu gardes le sélecteur pivot fixe, et quand il doit changer de taille,
+il faut le faire dès que la vignette est sur le sélecteur, très très
+rapidement ». Deux choses à défaire, une à faire.
+
+### Le masquage était une fausse bonne idée
+
+Masquer le cadre pendant la convergence (v1.73.11) réglait bien le cadre
+« désaccordé », mais au prix d'une disparition/réapparition **à chaque
+déplacement vertical, sur toutes les listes** — un défaut plus visible que
+celui qu'il corrigeait. Supprimé.
+
+### La taille, et elle seule, était en retard
+
+Le bon découpage était sous les yeux depuis le début : une carte est **mesurée
+avant de bouger**, donc sa taille est connue dès l'acquisition du focus, tandis
+que sa position ne l'est qu'en fin de convergence. Et comme toutes les cartes
+rejoignent la même ancre, le coin haut-gauche du cadre ne change pas — seule la
+taille avait à suivre. `beginAxis` l'applique donc immédiatement, en place, sur
+une cible neuve ; la publication de fin de convergence ne fait plus que
+confirmer une géométrie déjà correcte. Le cadre reste visible en permanence et
+fixe, sa taille change instantanément dès que la vignette arrive dessus.
+
+### Régression corrigée : sauts de plusieurs rangées en remontant
+
+La ré-estimation de la foulée de rattrapage à chaque passe (v1.73.11) n'était
+bornée par rien : une rangée lente à se composer en déclenchait une **par
+passe**, jusqu'à huit, et la liste partait plusieurs rangées trop haut d'un
+coup. Le nombre de foulées est désormais plafonné à
+[OFFSCREEN_CATCH_UP_MAX_STEPS] (2) — assez pour rattraper une estimation faussée
+par deux rangées de hauteurs différentes, trop peu pour dériver.
+
 ## Vérifications automatisées
 
 - `./gradlew testDebugUnitTest lintDebug assembleDebug` : **BUILD SUCCESSFUL**
@@ -492,7 +526,8 @@ v1.73.7 (publication comptée, remontée réparée),
 v1.73.8 (amortissement réduit au seul cas utile, ancrage horizontal verrouillé),
 v1.73.9 (rayon d'angle unifié, abscisse pilotée à la main sans décalage de frame),
 v1.73.10 (suivi des axes par identité de cible, immunisé au D-pad maintenu),
-v1.73.11 (cadre masqué pendant la convergence, rattrapage ré-estimé à chaque passe)
+v1.73.11 (cadre masqué pendant la convergence — approche abandonnée),
+v1.73.12 (taille adoptée immédiatement, cadre jamais masqué, rattrapage borné)
 
 Commit :
 🐛 fix(tv): ancre haute du sélecteur pivot dans les grilles de catégorie (B22)

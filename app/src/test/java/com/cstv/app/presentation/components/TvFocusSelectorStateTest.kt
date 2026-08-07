@@ -227,40 +227,24 @@ class TvFocusSelectorStateTest {
         assertTrue(tracker.begin(secondCard, TvPivotAxis.VERTICAL))
     }
 
-    // --- Masquage du cadre pendant la convergence (B22) ---
+    // --- Taille adoptée immédiatement, cadre jamais masqué (B22) ---
     //
-    // `reportAxisStabilised` a besoin d'un vrai `LayoutCoordinates`, hors de
-    // portée d'un test JVM sans Compose UI réel (AGENTS.md). `publishStabilised`
-    // — ce que `reportAxisStabilised` appelle une fois la géométrie lue — sert
-    // donc ici à établir l'état « déjà visible », sans rien perdre de la
-    // logique testée : c'est `beginAxis` (le masquage) qui est en jeu.
+    // `beginAxis` a besoin d'un vrai `LayoutCoordinates`, hors de portée d'un
+    // test JVM sans Compose UI réel (AGENTS.md) : seul le contrat observable
+    // sans lui est vérifié ici — le cadre reste visible d'un bout à l'autre.
+    // Le redimensionnement en place est couvert par `PendingAxisTracker`, qui
+    // décide seul de ce qui est une cible neuve.
 
     @Test
-    fun aGenuinelyNewTargetHidesTheFrameUntilItPublishes() {
-        // Deux formats différents (rangée « Top N », vignette favorite plus
-        // large sur les chaînes…) n'ont presque jamais la même géométrie : le
-        // cadre restait visible à l'ancienne position pendant tout le
-        // défilement, visiblement désaccordé du contenu qui défile dessous.
+    fun publishingKeepsTheFrameVisibleAcrossTargets() {
         val state = TvFocusSelectorState()
-        state.beginAxis(Any(), TvPivotAxis.VERTICAL)
         state.publishStabilised(Rect(0f, 0f, 130f, 195f), 14.dp)
         assertTrue(state.isVisible)
 
-        state.beginAxis(Any(), TvPivotAxis.VERTICAL) // carte différente
-
-        assertFalse(state.isVisible)
-    }
-
-    @Test
-    fun aLateBringIntoViewCorrectionOnTheSameTargetDoesNotFlicker() {
-        val state = TvFocusSelectorState()
-        val card = Any()
-        state.beginAxis(card, TvPivotAxis.VERTICAL)
-        state.publishStabilised(Rect(0f, 0f, 130f, 195f), 14.dp)
-        assertTrue(state.isVisible)
-
-        state.beginAxis(card, TvPivotAxis.VERTICAL) // correction tardive, même carte
+        state.publishStabilised(Rect(0f, 0f, 280f, 92f), 12.dp)
 
         assertTrue(state.isVisible)
+        assertEquals(Rect(0f, 0f, 280f, 92f), state.target?.bounds)
+        assertEquals(12.dp, state.target?.cornerRadius)
     }
 }
