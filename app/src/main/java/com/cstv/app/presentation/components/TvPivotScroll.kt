@@ -157,6 +157,28 @@ internal fun offscreenRowPivotDelta(
     return (rowsAway * (rowHeight + mainAxisItemSpacing)).toFloat()
 }
 
+/**
+ * Foulée de rattrapage d'une **liste de rangées** dont la rangée visée n'est pas
+ * mesurable (B22).
+ *
+ * Une `LazyColumn` n'expose que des clés, pas d'index pour ses items hors champ :
+ * impossible de compter les rangées d'écart comme le fait [offscreenRowPivotDelta]
+ * pour une grille. Mais le cas est à sens unique — la rangée active occupant
+ * l'ancre haute, tout ce qui la précède est hors champ tandis que la réserve de
+ * fin garde visible ce qui la suit : une rangée introuvable est donc au-dessus.
+ * Un pas de la hauteur de la première rangée visible, espacement compris, ramène
+ * la précédente dans le champ, où sa position réelle prend le relais.
+ *
+ * Retourne un delta négatif (vers le haut), ou `0` si la liste n'est pas mesurée.
+ *
+ * Fonction pure, sans dépendance Compose, pour rester testable en JVM.
+ */
+internal fun offscreenSectionStepDelta(
+    firstVisibleItemHeight: Int,
+    mainAxisItemSpacing: Int
+): Float =
+    if (firstVisibleItemHeight <= 0) 0f else -(firstVisibleItemHeight + mainAxisItemSpacing).toFloat()
+
 suspend fun LazyListState.animateScrollToPivot(
     index: Int,
     parentFraction: Float,
@@ -227,9 +249,14 @@ fun Modifier.tvPivotItem(
         }
         coordinates.correctionJob?.cancel()
         coordinates.correctionJob = scope.launch {
-            state.animateScrollToPivot(index, TV_PIVOT_HORIZONTAL, 0f)
-            if (selector != null && focusedCoordinates.isAttached) {
-                selector.reportAxisStabilised(scope, focusedCoordinates, selectorCornerRadius)
+            selector?.beginAxis()
+            try {
+                state.animateScrollToPivot(index, TV_PIVOT_HORIZONTAL, 0f)
+                if (selector != null && focusedCoordinates.isAttached) {
+                    selector.reportAxisStabilised(focusedCoordinates, selectorCornerRadius)
+                }
+            } finally {
+                selector?.endAxis()
             }
         }
     }
@@ -246,18 +273,6 @@ fun LazyListScope.tvPivotHorizontalEndSpacer(enabled: Boolean) {
         Spacer(
             modifier = Modifier
                 .fillParentMaxWidth()
-                .focusProperties { canFocus = false }
-        )
-    }
-}
-
-/** Réserve verticale de début pour les listes TV sans Hero Card. */
-fun LazyListScope.tvPivotVerticalStartSpacer(enabled: Boolean) {
-    if (!enabled) return
-    item(key = "tv_pivot_vertical_start") {
-        Spacer(
-            modifier = Modifier
-                .fillParentMaxHeight(0.5f)
                 .focusProperties { canFocus = false }
         )
     }
@@ -358,12 +373,17 @@ fun Modifier.tvPivotCell(
         }
         coordinates.correctionJob?.cancel()
         coordinates.correctionJob = scope.launch {
-            val stabilised = state.convergeCellToVerticalPivot(
-                index = index,
-                animatePrimaryCorrection = targetChanged
-            )
-            if (stabilised) {
-                selector?.publishFrom(focusedCoordinates, selectorCornerRadius)
+            selector?.beginAxis()
+            try {
+                val stabilised = state.convergeCellToVerticalPivot(
+                    index = index,
+                    animatePrimaryCorrection = targetChanged
+                )
+                if (stabilised && selector != null && focusedCoordinates.isAttached) {
+                    selector.reportAxisStabilised(focusedCoordinates, selectorCornerRadius)
+                }
+            } finally {
+                selector?.endAxis()
             }
         }
     }
@@ -411,12 +431,17 @@ fun Modifier.tvPivotSection(
             }
             coordinates.correctionJob?.cancel()
             coordinates.correctionJob = scope.launch {
-                val stabilised = state.convergeSectionToVerticalPivot(
-                    key = key,
-                    animatePrimaryCorrection = targetChanged
-                )
-                if (stabilised && selector != null && focusedCoordinates.isAttached) {
-                    selector.reportAxisStabilised(scope, focusedCoordinates, selectorCornerRadius)
+                selector?.beginAxis()
+                try {
+                    val stabilised = state.convergeSectionToVerticalPivot(
+                        key = key,
+                        animatePrimaryCorrection = targetChanged
+                    )
+                    if (stabilised && selector != null && focusedCoordinates.isAttached) {
+                        selector.reportAxisStabilised(focusedCoordinates, selectorCornerRadius)
+                    }
+                } finally {
+                    selector?.endAxis()
                 }
             }
         }
@@ -466,8 +491,9 @@ private suspend fun LazyListState.convergeSectionToVerticalPivot(
     key: Any,
     animatePrimaryCorrection: Boolean
 ): Boolean {
-    resolveSectionInfo(this, key) ?: return false
+    val resolvedBeforeScroll = resolveSectionInfo(this, key) != null
     var stabilised = false
+    var catchUpAvailable = !resolvedBeforeScroll
     scroll(MutatePriority.UserInput) {
         var stablePasses = 0
         var primaryCorrectionPending = animatePrimaryCorrection
@@ -498,6 +524,25 @@ private suspend fun LazyListState.convergeSectionToVerticalPivot(
                         return@scroll
                     }
                     stablePasses = 0
+                }
+            } else if (catchUpAvailable) {
+                // Rangée visée introuvable : elle est au-dessus du viewport.
+                // C'est la remontée, et c'est structurel — la rangée active
+                // occupant l'ancre, tout ce qui la précède est hors champ.
+                // Abandonner ici laissait la liste immobile alors que le focus,
+                // lui, était bien parti au-dessus : les appuis suivants le
+                // faisaient monter à l'aveugle et il ne réapparaissait que
+                // plusieurs rangées plus haut (B22). Une foulée, une seule,
+                // ramène la rangée précédente dans le champ ; la convergence
+                // exacte prend ensuite le relais sur sa position mesurée.
+                catchUpAvailable = false
+                val step = offscreenSectionStepDelta(
+                    firstVisibleItemHeight = info.visibleItemsInfo.firstOrNull()?.size ?: 0,
+                    mainAxisItemSpacing = info.mainAxisItemSpacing
+                )
+                if (step != 0f) {
+                    primaryCorrectionPending = false
+                    animateScrollByInScope(step)
                 }
             }
             withFrameNanos { }

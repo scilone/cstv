@@ -10,7 +10,7 @@ import com.cstv.app.presentation.components.tvPivotItem
 import com.cstv.app.presentation.components.tvPivotSection
 import com.cstv.app.presentation.components.tvPivotHorizontalEndSpacer
 import com.cstv.app.presentation.components.tvPivotVerticalEndSpacer
-import com.cstv.app.presentation.components.tvPivotVerticalStartSpacer
+import com.cstv.app.presentation.components.tvPivotVerticalStartReserve
 import com.cstv.app.presentation.components.LocalTvFocusSelector
 import com.cstv.app.presentation.components.TvFocusSelectorOverlay
 import com.cstv.app.presentation.components.TvFocusSelectorState
@@ -367,7 +367,7 @@ fun HomeScreen(
                 // Quand la Hero existe, sa hauteur fournit cette réserve et son
                 // positionnement spécifique reste inchangé.
                 if (isTv && state.trendingList.isEmpty() && !state.awaitingTrending) {
-                    tvPivotVerticalStartSpacer(true)
+                    tvPivotVerticalStartReserve(true)
                 }
 
                 // NOUVEAU: Hero "Reprendre" ou "Tendances" (Phase F1)

@@ -1,6 +1,7 @@
 package com.cstv.app.presentation.components
 
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.border
@@ -15,7 +16,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
-import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.focus.focusProperties
@@ -28,24 +28,9 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.cstv.app.presentation.theme.AccentLavande
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.launch
 
 /** Géométrie du sélecteur, en coordonnées de la racine de l'écran (fenêtre). */
 data class TvSelectorTarget(val bounds: Rect, val cornerRadius: Dp)
-
-/**
- * Nombre de frames attendues après la stabilisation d'un axe avant de publier
- * (Review F23, Majeur R3) : le pivot horizontal (`tvPivotItem`) et le pivot
- * vertical (`tvPivotSection`) se stabilisent chacun de façon indépendante pour
- * une même acquisition de focus D-pad. Publier au premier axe stabilisé
- * affiche une position dont l'autre axe est encore en mouvement, exactement
- * le saut que F23 doit supprimer. On attend donc une courte fenêtre après
- * chaque rapport : si l'autre axe rapporte à son tour dans cet intervalle, une
- * seule publication a lieu, avec la géométrie la plus récente connue.
- */
-private const val AXIS_SETTLE_FRAMES = 2
 
 /**
  * Couche avant du focus TV (F23). Ne mémorise que des positions
@@ -55,6 +40,17 @@ private const val AXIS_SETTLE_FRAMES = 2
  * rangée convergent vers **exactement** la même position → un cadre qui ne
  * suit que les positions stabilisées ne bouge pas d'un pixel. C'est tout le
  * mécanisme du « sélecteur statique ».
+ *
+ * Une vignette de rangée relève de **deux** pivots simultanés : l'horizontal
+ * (`tvPivotItem`, qui fait glisser la `LazyRow`) et le vertical
+ * (`tvPivotSection`). Ils ne se stabilisent pas au même rythme — le vertical en
+ * deux frames quand la rangée est déjà en place, l'horizontal en toute la durée
+ * du glissement. La publication est donc comptée : chaque pivot s'annonce
+ * ([beginAxis]) et se retire ([endAxis]), et la géométrie n'est lue **et** posée
+ * qu'au retrait du dernier. Une fenêtre d'attente de quelques frames, telle
+ * qu'employée auparavant, ne pouvait pas tenir cette promesse : elle publiait au
+ * premier axe stabilisé une position que l'autre axe déplaçait encore, d'où un
+ * cadre qui partait puis se corrigeait (B22).
  */
 @Stable
 class TvFocusSelectorState {
@@ -63,27 +59,40 @@ class TvFocusSelectorState {
     var isVisible: Boolean by mutableStateOf(false)
         private set
 
-    private var settleJob: Job? = null
+    private var runningAxes = 0
+    private var settledCoordinates: LayoutCoordinates? = null
+    private var settledRadius: Dp = 0.dp
 
     fun publishStabilised(bounds: Rect, cornerRadius: Dp) {
         target = TvSelectorTarget(bounds, cornerRadius)
         isVisible = true
     }
 
+    /** Un pivot entame une convergence pour la cible focalisée. */
+    fun beginAxis() {
+        runningAxes++
+    }
+
     /**
-     * Rapporte la stabilisation d'un axe (horizontal ou vertical) pour une
-     * cible. N'importe quel nouveau rapport annule l'attente précédente et en
-     * relance une nouvelle avec sa propre géométrie : la publication effective
-     * porte toujours sur le dernier axe à s'être stabilisé, laissant à l'autre
-     * axe la fenêtre de [AXIS_SETTLE_FRAMES] pour rapporter à son tour avant
-     * qu'une frame ne soit réellement peinte (Review F23, Majeur R3).
+     * Un pivot a convergé. Rien n'est publié ici : la géométrie retenue n'est
+     * lue qu'au retrait du dernier axe, quand plus rien ne bouge.
      */
-    fun reportAxisStabilised(scope: CoroutineScope, coordinates: LayoutCoordinates, cornerRadius: Dp) {
-        settleJob?.cancel()
-        settleJob = scope.launch {
-            repeat(AXIS_SETTLE_FRAMES) { withFrameNanos { } }
-            publishFrom(coordinates, cornerRadius)
-        }
+    fun reportAxisStabilised(coordinates: LayoutCoordinates, cornerRadius: Dp) {
+        settledCoordinates = coordinates
+        settledRadius = cornerRadius
+    }
+
+    /**
+     * Un pivot se retire — convergence terminée, abandonnée ou annulée, d'où
+     * l'appel depuis un `finally`. Sans cela un axe annulé laisserait le compte
+     * ouvert et le cadre ne serait plus jamais publié.
+     */
+    fun endAxis() {
+        runningAxes = (runningAxes - 1).coerceAtLeast(0)
+        if (runningAxes > 0) return
+        val coordinates = settledCoordinates?.takeIf { it.isAttached }
+        settledCoordinates = null
+        if (coordinates != null) publishStabilised(coordinates.boundsInRoot(), settledRadius)
     }
 
     /**
@@ -93,8 +102,6 @@ class TvFocusSelectorState {
      * apparaître en fondu depuis un `Rect.Zero`.
      */
     fun clear() {
-        settleJob?.cancel()
-        settleJob = null
         isVisible = false
     }
 }
@@ -119,9 +126,10 @@ internal fun localBounds(rootBounds: Rect, hostOriginInRoot: Offset): Rect =
 
 /**
  * Overlay de la couche avant : cadre unique dessiné au premier plan de la
- * `Box` racine de l'écran. Position, taille et rayon sont tous appliqués
- * immédiatement : le cadre est un repère fixe sous lequel défilent les
- * vignettes, il ne doit ni glisser ni se redimensionner en animation. Non
+ * `Box` racine de l'écran. Ordonnée, taille et rayon sont appliqués
+ * immédiatement — le cadre est un repère fixe sous lequel défilent les
+ * vignettes ; seule l'abscisse est amortie, pour le passage d'une colonne à
+ * l'autre dans une grille (voir le corps de la fonction). Non
  * focusable et non cliquable : il ne perturbe ni la recherche de focus D-pad,
  * ni l'activation de la carte réellement focalisée.
  *
@@ -155,14 +163,23 @@ fun TvFocusSelectorOverlay(state: TvFocusSelectorState, modifier: Modifier = Mod
 
         val localTargetBounds = localBounds(target.bounds, host.boundsInRoot().topLeft)
         val cornerRadius = target.cornerRadius
-        // Position appliquée telle quelle, sans ressort : le cadre ne doit
-        // jamais se déplacer sous l'œil, ce sont les vignettes qui glissent
-        // dessous. Un pivot correctement ancré publie de toute façon deux fois
-        // la même position — animer ne faisait donc que rendre visible, sous
-        // forme de rattrapage, l'écart des cas où l'ancrage bute (fin de
-        // rangée, format de carte différent), là où un saut net se lit comme
-        // un simple changement de taille.
-        val left = with(density) { localTargetBounds.left.toDp() }
+        // Seule l'abscisse est amortie, et c'est voulu (B22). Les deux axes ne
+        // se déplacent pas pour les mêmes raisons :
+        //
+        // - verticalement, toutes les cibles convergent vers la même ancre, donc
+        //   l'ordonnée publiée ne change jamais ; l'amortir ne servait qu'à
+        //   étaler en glissement les écarts résiduels, ce qui se lisait comme un
+        //   cadre qui flotte alors que ce sont les vignettes qui doivent bouger ;
+        // - horizontalement, une grille ne défile pas : le cadre passe
+        //   réellement d'une colonne à l'autre, et l'amortir donne le glissement
+        //   d'une vignette à la suivante. Dans une rangée, où l'ancrage
+        //   horizontal ramène chaque vignette au même emplacement, l'abscisse ne
+        //   change pas et le ressort reste donc sans effet.
+        val left by animateDpAsState(
+            with(density) { localTargetBounds.left.toDp() },
+            spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow),
+            label = "tvFocusSelectorLeft"
+        )
         val top = with(density) { localTargetBounds.top.toDp() }
         val width = with(density) { localTargetBounds.width.toDp() }
         val height = with(density) { localTargetBounds.height.toDp() }

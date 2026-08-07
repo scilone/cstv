@@ -249,6 +249,36 @@ class TvPivotScrollTest {
         )
     }
 
+    // --- Foulée de rattrapage d'une liste de rangées (B22) ---
+
+    @Test
+    fun offscreenSectionStepGoesUpByOneRowStride() {
+        // Une rangée introuvable est forcément au-dessus : la rangée active
+        // occupe l'ancre haute et la réserve de fin garde visible ce qui suit.
+        assertEquals(
+            -(248f + 16f),
+            offscreenSectionStepDelta(firstVisibleItemHeight = 248, mainAxisItemSpacing = 16)
+        )
+    }
+
+    @Test
+    fun offscreenSectionStepCountsTheSpacingBetweenRows() {
+        assertEquals(
+            -248f,
+            offscreenSectionStepDelta(firstVisibleItemHeight = 248, mainAxisItemSpacing = 0)
+        )
+    }
+
+    @Test
+    fun unmeasuredRowListProducesNoCatchUpStep() {
+        // Liste pas encore mesurée : défiler d'une foulée inventée déplacerait
+        // la liste à l'aveugle, sans rien ramener dans le champ.
+        assertEquals(
+            0f,
+            offscreenSectionStepDelta(firstVisibleItemHeight = 0, mainAxisItemSpacing = 16)
+        )
+    }
+
     @Test
     fun estimationHoldsOnASingleColumnGrid() {
         assertEquals(

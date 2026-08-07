@@ -254,10 +254,68 @@ Portée : le changement touche aussi l'**Accueil**, qui partage ce composant. Sa
 Hero Card défile donc entièrement hors champ dès la première rangée, au lieu de
 rester à moitié visible sous le pivot 50 %. À arbitrer si l'effet déplaît.
 
+## Publication comptée, amortissement horizontal, remontée réparée (v1.73.7)
+
+Trois retours d'usage après la v1.73.6, dont deux avaient la **même** cause.
+
+### Le cadre flottait encore (rangées, gauche-droite et haut-bas)
+
+Une vignette de rangée relève de deux pivots simultanés : l'horizontal
+(`tvPivotItem`, qui fait glisser la `LazyRow`) et le vertical (`tvPivotSection`).
+Ils ne convergent pas au même rythme — le vertical en deux frames quand la
+rangée est déjà en place, l'horizontal sur toute la durée du glissement. La
+fenêtre d'attente de deux frames ([AXIS_SETTLE_FRAMES], supprimée) publiait donc
+au premier axe stabilisé une position que l'autre déplaçait encore : le cadre
+partait, puis se corrigeait. L'amortissement le lissait autrefois en « effet » ;
+une fois celui-ci retiré, le défaut est apparu tel quel.
+
+La publication est désormais **comptée** : chaque pivot s'annonce (`beginAxis`)
+et se retire (`endAxis`, appelé depuis un `finally` pour survivre à une
+annulation), et la géométrie n'est lue **et** posée qu'au retrait du dernier.
+
+### Le glissement du cadre d'une vignette à l'autre, à retrouver en grille
+
+L'amortissement est réintroduit sur la **seule abscisse**. Les deux axes ne
+bougent pas pour les mêmes raisons : verticalement toutes les cibles convergent
+vers la même ancre, donc l'ordonnée publiée ne change jamais et l'amortir ne
+faisait qu'étaler des écarts résiduels ; horizontalement, une grille ne défile
+pas — le cadre passe réellement d'une colonne à l'autre, et l'amortir donne le
+glissement demandé. Dans une rangée, l'ancrage horizontal ramenant chaque
+vignette au même emplacement, l'abscisse ne change pas : le ressort y reste sans
+effet, sans qu'il faille distinguer les deux contextes.
+
+### La remontée sautait plusieurs rangées
+
+Symptôme rapporté : à la remontée seulement, le focus bondissait loin vers le
+haut ; jamais à la descente. `convergeSectionToVerticalPivot` abandonnait
+(`return false`) quand la clé de rangée restait introuvable après le délai de
+résolution. Or c'est le cas **structurel** de la remontée : la rangée active
+occupant l'ancre haute, tout ce qui la précède est hors champ. La liste restait
+donc immobile alors que le focus, lui, était bien parti au-dessus ; les appuis
+suivants le faisaient monter à l'aveugle et il ne réapparaissait que plusieurs
+rangées plus haut. À la descente le cas ne se présente jamais, la réserve de fin
+gardant visible ce qui suit — d'où l'asymétrie observée.
+
+`offscreenSectionStepDelta` donne une foulée de rattrapage — hauteur de la
+première rangée visible, espacement compris — appliquée **une seule fois** par
+convergence, qui ramène la rangée précédente dans le champ ; sa position réelle
+prend ensuite le relais. Une `LazyColumn` n'exposant que des clés et aucun index
+hors champ, on ne peut pas compter les rangées d'écart comme le fait
+`offscreenRowPivotDelta` pour une grille ; le sens unique du cas rend l'heuristique
+sûre.
+
+### Nettoyage
+
+`tvPivotVerticalStartSpacer` (demi-viewport de tête) n'avait de sens que pour le
+pivot 50 % : l'Accueil, son dernier appelant, adopte la réserve réduite des
+catalogues et la fonction disparaît.
+
 ## Vérifications automatisées
 
 - `./gradlew testDebugUnitTest lintDebug assembleDebug` : **BUILD SUCCESSFUL**
-  (2026-08-07, à chaque étape). Tests ajoutés sur `offscreenRowPivotDelta`.
+  (2026-08-07, à chaque étape). Tests ajoutés sur `offscreenRowPivotDelta` puis
+  `offscreenSectionStepDelta`. Les avertissements Kotlin restants sur
+  `HomeScreen` (paramètres de navigation inutilisés) sont préexistants.
 
 ---
 
@@ -265,8 +323,8 @@ rester à moitié visible sous le pivot 50 %. À arbitrer si l'effet déplaît.
 
 Version :
 v1.73.3 (ancre haute des grilles), v1.73.4 (remontée animée, descente à gauche),
-v1.73.5 (glissement du mode « Tout »), v1.73.6 (ancre haute généralisée,
-cadre strictement fixe)
+v1.73.5 (glissement du mode « Tout »), v1.73.6 (ancre haute généralisée),
+v1.73.7 (publication comptée, amortissement horizontal, remontée réparée)
 
 Commit :
 🐛 fix(tv): ancre haute du sélecteur pivot dans les grilles de catégorie (B22)
