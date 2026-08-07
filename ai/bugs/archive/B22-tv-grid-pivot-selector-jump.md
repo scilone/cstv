@@ -190,6 +190,44 @@ horizontal, verrou `MutatePriority.UserInput` compris, et réutilise
 `animateScrollToPivot`, `pivotScrollOffset` et `TV_PIVOT_HORIZONTAL` n'ont plus
 d'appelant et disparaissent avec leurs huit tests.
 
+## Rayon incohérent et décalage d'une frame sur l'abscisse (v1.73.9)
+
+Rapporté comme un « resize » visible sur l'Accueil, entre pratiquement toutes
+les paires de rangées, absent uniquement entre deux rangées aux vignettes de
+taille identique (Films recommandés / Séries). Deux causes distinctes, toutes
+deux propres à l'Accueil (seul écran où plusieurs types de carte cohabitent
+dans la même liste de rangées).
+
+### Rayon d'angle incohérent entre les deux pivots d'une carte
+
+`tvPivotSection` (rangée) et `tvPivotItem` (carte) publient chacun un rayon de
+coin indépendamment ; la lecture finale (`endAxis`) retient celui du **dernier**
+à avoir convergé, sans garantie que les deux concordent. Sur `home_resume`
+(cartes à 12.dp) et `home_livetv` (16.dp), l'appel `tvPivotSection` n'avait pas
+d'override et retombait sur le défaut 14.dp, tandis que `tvPivotItem` passait
+la bonne valeur : selon l'axe qui terminait en dernier, le cadre affichait 12
+ou 14.dp (16 ou 14.dp pour LiveTv) — un changement de rayon visible, lisible
+comme un changement de forme. Corrigé en passant le même rayon explicite aux
+deux appels ; vérifié qu'aucun autre écran n'a cette divergence (VOD, Séries,
+Live TV, Recherche l'avaient déjà).
+
+### Décalage d'une frame sur l'abscisse
+
+`animateDpAsState`, même avec `snap()`, reste porté par un `LaunchedEffect` :
+la valeur qu'il expose reflète encore l'**ancienne** cible pendant la frame où
+`target` change, cet effet ne s'exécutant qu'après le commit de la
+composition. Ordonnée, largeur et hauteur, elles, sont des `val` lues
+directement et changent donc **dans cette même frame** — d'où un cadre à la
+bonne taille mais à l'ancienne abscisse pendant un instant, perceptible surtout
+quand les deux abscisses diffèrent nettement (les vignettes « Top N », décalées
+par leur grand chiffre, en sont un cas net).
+
+L'`Animatable` est désormais piloté à la main : hors glissement de grille,
+l'abscisse est lue **directement** dans `localTargetBounds`, sans jamais
+dépendre du `LaunchedEffect` — seul `snapTo` le maintient synchronisé en
+arrière-plan, prêt pour un futur glissement, sans jamais être *lu* pendant la
+période où le rendu doit rester instantané.
+
 ## Vérifications automatisées
 
 - `./gradlew testDebugUnitTest lintDebug assembleDebug` : **BUILD SUCCESSFUL**
@@ -363,7 +401,8 @@ Version :
 v1.73.3 (ancre haute des grilles), v1.73.4 (remontée animée, descente à gauche),
 v1.73.5 (glissement du mode « Tout »), v1.73.6 (ancre haute généralisée),
 v1.73.7 (publication comptée, remontée réparée),
-v1.73.8 (amortissement réduit au seul cas utile, ancrage horizontal verrouillé)
+v1.73.8 (amortissement réduit au seul cas utile, ancrage horizontal verrouillé),
+v1.73.9 (rayon d'angle unifié, abscisse pilotée à la main sans décalage de frame)
 
 Commit :
 🐛 fix(tv): ancre haute du sélecteur pivot dans les grilles de catégorie (B22)

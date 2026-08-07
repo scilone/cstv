@@ -1,17 +1,17 @@
 package com.cstv.app.presentation.components
 
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.spring
-import androidx.compose.runtime.SideEffect
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -174,25 +174,41 @@ fun TvFocusSelectorOverlay(state: TvFocusSelectorState, modifier: Modifier = Mod
         // en décrivant ce cas plutôt qu'en devinant le contexte : même ordonnée,
         // même taille. Cela exclut le changement de rangée, où l'ordonnée change
         // — et où l'abscisse peut changer aussi, les vignettes « Top N » étant
-        // décalées par leur grand chiffre : le cadre s'y posait sur l'ancienne
-        // abscisse avant de glisser vers la nouvelle. Cela exclut aussi tout
-        // changement de format, dont le bord gauche amorti face à une largeur
-        // appliquée sèchement donnait l'illusion d'un redimensionnement animé.
+        // décalées par leur grand chiffre. Cela exclut aussi tout changement de
+        // format entre deux rangées.
         var previousBounds by remember { mutableStateOf(localTargetBounds) }
         val purelyHorizontal = localTargetBounds.top == previousBounds.top &&
             localTargetBounds.width == previousBounds.width &&
             localTargetBounds.height == previousBounds.height
         SideEffect { previousBounds = localTargetBounds }
 
-        val left by animateDpAsState(
-            with(density) { localTargetBounds.left.toDp() },
+        // `animateDpAsState` — y compris avec `snap()` — reste porté par un
+        // `LaunchedEffect` : la valeur qu'il expose reflète encore l'ancienne
+        // cible pendant la frame où `target` change, puisque cet effet ne
+        // s'exécute qu'après le commit de la composition. Ordonnée, largeur et
+        // hauteur, elles, sont des `val` lus directement et changent donc dans
+        // cette même frame — d'où un cadre à la bonne taille mais à l'ancienne
+        // abscisse pendant un instant, perceptible surtout quand ancienne et
+        // nouvelle abscisse diffèrent nettement (rangées « Top N » notamment).
+        // Piloter l'`Animatable` à la main élimine ce décalage : hors glissement,
+        // l'abscisse est lue directement dans `localTargetBounds`, sans jamais
+        // dépendre de l'effet — seul `snapTo` le maintient synchronisé en
+        // arrière-plan, prêt pour un futur glissement.
+        val leftPx = localTargetBounds.left
+        val leftAnimatable = remember { Animatable(leftPx) }
+        LaunchedEffect(leftPx, purelyHorizontal) {
             if (purelyHorizontal) {
-                spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)
+                leftAnimatable.animateTo(
+                    leftPx,
+                    spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)
+                )
             } else {
-                snap()
-            },
-            label = "tvFocusSelectorLeft"
-        )
+                leftAnimatable.snapTo(leftPx)
+            }
+        }
+        val left = with(density) {
+            (if (purelyHorizontal) leftAnimatable.value else leftPx).toDp()
+        }
         val top = with(density) { localTargetBounds.top.toDp() }
         val width = with(density) { localTargetBounds.width.toDp() }
         val height = with(density) { localTargetBounds.height.toDp() }

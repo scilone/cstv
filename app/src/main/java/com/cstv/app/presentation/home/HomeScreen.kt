@@ -445,7 +445,9 @@ fun HomeScreen(
                             title = stringResource(R.string.home_resume),
                             isTv = isTv,
                             onSeeAll = { expandedSection = HomeExpandedSection.RESUME },
-                            modifier = Modifier.tvPivotSection(isTv, lazyListState, "home_resume")
+                            // Rayon aligné sur HomeResumeWatchingCard (12.dp) : les deux pivots
+                            // d'une même carte doivent s'accorder sur son rayon réel (B22).
+                            modifier = Modifier.tvPivotSection(isTv, lazyListState, "home_resume", selectorCornerRadius = 12.dp)
                         ) {
                             LazyRow(
                                 state = rowState,
@@ -510,7 +512,8 @@ fun HomeScreen(
                             title = stringResource(R.string.home_section_tv),
                             isTv = isTv,
                             onSeeAll = onNavigateToLiveTv,
-                            modifier = Modifier.tvPivotSection(isTv, lazyListState, "home_livetv")
+                            // Rayon aligné sur HomeLiveTvCard (16.dp), même raison que "home_resume".
+                            modifier = Modifier.tvPivotSection(isTv, lazyListState, "home_livetv", selectorCornerRadius = 16.dp)
                         ) {
                             LazyRow(
                                 state = rowState,
