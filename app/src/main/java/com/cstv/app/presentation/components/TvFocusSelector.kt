@@ -78,13 +78,18 @@ internal class PendingAxisTracker {
      * restent actifs après le focus initial pour corriger un `bringIntoView`
      * tardif de Compose), seul [axis] repart en attente — l'autre axe, déjà
      * rapporté, n'a pas à reconverger.
+     *
+     * @return `true` si [target] est une cible réellement nouvelle (appelant :
+     * voir [TvFocusSelectorState.beginAxis]).
      */
-    fun begin(target: Any, axis: TvPivotAxis) {
-        if (key !== target) {
+    fun begin(target: Any, axis: TvPivotAxis): Boolean {
+        val isNewTarget = key !== target
+        if (isNewTarget) {
             key = target
             pendingAxes.clear()
         }
         pendingAxes.add(axis)
+        return isNewTarget
     }
 
     /**
@@ -110,6 +115,20 @@ internal class PendingAxisTracker {
  * suit que les positions stabilisées ne bouge pas d'un pixel. C'est tout le
  * mécanisme du « sélecteur statique ». Voir [PendingAxisTracker] pour la
  * coordination des deux axes d'une même carte de rangée.
+ *
+ * Cible génuinement nouvelle → cadre masqué le temps de la convergence
+ * (B22). Deux cartes de formats différents (rangées « Top N », vignette
+ * favorite plus large qu'une vignette normale sur les chaînes…) n'ont
+ * quasiment jamais la même géométrie ; le cadre restait alors visible à
+ * l'**ancienne** position/forme pendant tout le défilement — réel, celui des
+ * vignettes que l'utilisateur voit glisser dessous —, se retrouvant
+ * visiblement désaccordé du contenu qui défile en dessous (un cadre au format
+ * chaîne posé sur des affiches de film qui remontent). [beginAxis] masque donc
+ * le cadre dès qu'une cible différente entame sa convergence ; il ne
+ * réapparaît, déjà à la bonne géométrie, qu'à la publication. Pour une grille,
+ * où rien ne défile entre deux colonnes d'une même rangée, la convergence est
+ * quasi instantanée : l'éclipse n'y est jamais perceptible, seul le glissement
+ * volontaire de [left][TvFocusSelectorOverlay] l'est.
  */
 @Stable
 class TvFocusSelectorState {
@@ -127,7 +146,7 @@ class TvFocusSelectorState {
 
     /** Un pivot amorce une convergence pour [key] (le descendant réellement focalisé). */
     fun beginAxis(key: Any, axis: TvPivotAxis) {
-        axisTracker.begin(key, axis)
+        if (axisTracker.begin(key, axis)) clear()
     }
 
     /** Un pivot a convergé pour [key] ; publie dès que tous les axes attendus l'ont fait. */

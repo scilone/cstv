@@ -211,4 +211,56 @@ class TvFocusSelectorStateTest {
 
         assertTrue(tracker.complete(card, TvPivotAxis.VERTICAL))
     }
+
+    @Test
+    fun beginReportsWhetherTheTargetIsGenuinelyNew() {
+        // Signal consommé par TvFocusSelectorState.beginAxis pour masquer le
+        // cadre le temps d'une convergence sur une cible différente (B22) —
+        // jamais pour une simple correction tardive sur la carte déjà active.
+        val tracker = PendingAxisTracker()
+        val firstCard = Any()
+        val secondCard = Any()
+
+        assertTrue(tracker.begin(firstCard, TvPivotAxis.HORIZONTAL))
+        assertFalse(tracker.begin(firstCard, TvPivotAxis.VERTICAL))
+        assertFalse(tracker.begin(firstCard, TvPivotAxis.HORIZONTAL)) // relance, même carte
+        assertTrue(tracker.begin(secondCard, TvPivotAxis.VERTICAL))
+    }
+
+    // --- Masquage du cadre pendant la convergence (B22) ---
+    //
+    // `reportAxisStabilised` a besoin d'un vrai `LayoutCoordinates`, hors de
+    // portée d'un test JVM sans Compose UI réel (AGENTS.md). `publishStabilised`
+    // — ce que `reportAxisStabilised` appelle une fois la géométrie lue — sert
+    // donc ici à établir l'état « déjà visible », sans rien perdre de la
+    // logique testée : c'est `beginAxis` (le masquage) qui est en jeu.
+
+    @Test
+    fun aGenuinelyNewTargetHidesTheFrameUntilItPublishes() {
+        // Deux formats différents (rangée « Top N », vignette favorite plus
+        // large sur les chaînes…) n'ont presque jamais la même géométrie : le
+        // cadre restait visible à l'ancienne position pendant tout le
+        // défilement, visiblement désaccordé du contenu qui défile dessous.
+        val state = TvFocusSelectorState()
+        state.beginAxis(Any(), TvPivotAxis.VERTICAL)
+        state.publishStabilised(Rect(0f, 0f, 130f, 195f), 14.dp)
+        assertTrue(state.isVisible)
+
+        state.beginAxis(Any(), TvPivotAxis.VERTICAL) // carte différente
+
+        assertFalse(state.isVisible)
+    }
+
+    @Test
+    fun aLateBringIntoViewCorrectionOnTheSameTargetDoesNotFlicker() {
+        val state = TvFocusSelectorState()
+        val card = Any()
+        state.beginAxis(card, TvPivotAxis.VERTICAL)
+        state.publishStabilised(Rect(0f, 0f, 130f, 195f), 14.dp)
+        assertTrue(state.isVisible)
+
+        state.beginAxis(card, TvPivotAxis.VERTICAL) // correction tardive, même carte
+
+        assertTrue(state.isVisible)
+    }
 }

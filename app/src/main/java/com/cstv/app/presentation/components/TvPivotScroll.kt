@@ -13,7 +13,6 @@ import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.focusProperties
@@ -21,22 +20,9 @@ import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.mapNotNull
-import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.math.abs
-
-/**
- * Délai maximal d'attente d'une clé de section pas encore visible
- * (`tvPivotSection`) avant d'abandonner le défilement pour ce focus. Couvre le
- * cas où la cible reçoit le focus avant que Compose n'ait posé son layout
- * (recherche de focus au-delà du viewport courant, `bringIntoView` implicite
- * pas encore résolu) : cf. Review F19, Majeur #2.
- */
-private const val SECTION_KEY_RESOLUTION_TIMEOUT_MS = 200L
 
 /**
  * Plusieurs passes couvrent le `bringIntoView` implicite de Compose, qui peut
@@ -417,7 +403,7 @@ fun Modifier.tvPivotCell(
  * index à la composition :
  * les sections d'une `LazyColumn` conditionnelle (ex. Accueil) changent
  * d'index quand une section apparaît ou disparaît, la clé stable reste seule
- * fiable. Aucune cible trouvée pour la clé après [SECTION_KEY_RESOLUTION_TIMEOUT_MS] → no-op.
+ * fiable.
  *
  * Publie sa géométrie stabilisée à la couche avant du focus (F23) une fois la
  * convergence verticale terminée, via [TvFocusSelectorState.reportAxisStabilised]
@@ -499,6 +485,23 @@ internal fun isPivotClamped(delta: Float, consumed: Float): Boolean =
  * posée, c'est précisément le défilement implicite qui la rendra mesurable, et
  * le verrou ferait expirer l'attente pour rien.
  *
+ * La foulée de rattrapage ([offscreenSectionStepDelta]) se ré-estime à
+ * **chaque** passe où la rangée reste introuvable, plutôt qu'une seule fois
+ * (limite corrigée en B22) : la première version, à usage unique, lisait la
+ * hauteur de la rangée de **départ** pour estimer la distance jusqu'à la
+ * cible — juste quand les deux rangées ont la même hauteur, mais faux dès
+ * qu'elles diffèrent (rangée « Top N » plus haute que la rangée de
+ * recommandations en dessous, vignette de chaîne favorite plus large que sa
+ * voisine…), ce qui est le cas courant plutôt que l'exception. Une seule
+ * foulée qui rate sa cible épuisait alors les passes restantes sans jamais
+ * mesurer la rangée, renvoyant `false` sans publier ; l'appui suivant relançait
+ * une convergence dans les mêmes conditions. Le cadre restait donc affiché à
+ * l'**ancienne** géométrie pendant tout ce délai, visiblement désaccordé du
+ * contenu qui défile dessous. Ré-estimer à chaque passe utilise la hauteur de
+ * chaque rangée réellement traversée, de plus en plus précise à mesure qu'on
+ * approche la cible, et converge en une seule exécution quelle que soit la
+ * distance (dans la limite de [VERTICAL_PIVOT_MAX_PASSES]).
+ *
  * @return `true` si la convergence a atteint le pivot (cible stabilisée),
  * `false` si les [VERTICAL_PIVOT_MAX_PASSES] passes se sont épuisées sans
  * jamais trouver l'item ou sans se stabiliser — dans ce cas F23 ne doit rien
@@ -508,9 +511,7 @@ private suspend fun LazyListState.convergeSectionToVerticalPivot(
     key: Any,
     animatePrimaryCorrection: Boolean
 ): Boolean {
-    val resolvedBeforeScroll = resolveSectionInfo(this, key) != null
     var stabilised = false
-    var catchUpAvailable = !resolvedBeforeScroll
     scroll(MutatePriority.UserInput) {
         var stablePasses = 0
         var primaryCorrectionPending = animatePrimaryCorrection
@@ -542,25 +543,23 @@ private suspend fun LazyListState.convergeSectionToVerticalPivot(
                     }
                     stablePasses = 0
                 }
-            } else if (catchUpAvailable) {
+            } else {
                 // Rangée visée introuvable : elle est au-dessus du viewport.
                 // C'est la remontée, et c'est structurel — la rangée active
                 // occupant l'ancre, tout ce qui la précède est hors champ.
-                // Abandonner ici laissait la liste immobile alors que le focus,
-                // lui, était bien parti au-dessus : les appuis suivants le
-                // faisaient monter à l'aveugle et il ne réapparaissait que
-                // plusieurs rangées plus haut (B22). Une foulée, une seule,
-                // ramène la rangée précédente dans le champ ; la convergence
-                // exacte prend ensuite le relais sur sa position mesurée.
-                catchUpAvailable = false
                 val step = offscreenSectionStepDelta(
                     firstVisibleItemHeight = info.visibleItemsInfo.firstOrNull()?.size ?: 0,
                     mainAxisItemSpacing = info.mainAxisItemSpacing
                 )
                 if (step != 0f) {
-                    primaryCorrectionPending = false
-                    animateScrollByInScope(step)
+                    if (primaryCorrectionPending) {
+                        primaryCorrectionPending = false
+                        animateScrollByInScope(step)
+                    } else {
+                        scrollBy(step)
+                    }
                 }
+                stablePasses = 0
             }
             withFrameNanos { }
         }
@@ -660,22 +659,3 @@ private suspend fun ScrollScope.animateScrollByInScope(delta: Float): Float {
     return consumed
 }
 
-/**
- * Résout l'item de la rangée portant [key] dans [state]. La cible reçoit
- * parfois le focus avant que Compose n'ait posé le layout qui la rend visible
- * (recherche de focus au-delà du viewport, `bringIntoView` implicite pas
- * encore résolu) : `visibleItemsInfo` peut alors ne pas encore la contenir au
- * moment exact de l'appel (Review F19, Majeur #2). On retente donc sur les
- * layouts suivants avant d'abandonner.
- */
-private suspend fun resolveSectionInfo(
-    state: LazyListState,
-    key: Any
-): androidx.compose.foundation.lazy.LazyListItemInfo? {
-    state.layoutInfo.visibleItemsInfo.firstOrNull { it.key == key }?.let { return it }
-    return withTimeoutOrNull(SECTION_KEY_RESOLUTION_TIMEOUT_MS) {
-        snapshotFlow { state.layoutInfo.visibleItemsInfo }
-            .mapNotNull { visibleItems -> visibleItems.firstOrNull { it.key == key } }
-            .first()
-    }
-}

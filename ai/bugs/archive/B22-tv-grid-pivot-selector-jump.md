@@ -263,6 +263,59 @@ paramètre générique) est extrait de `TvFocusSelectorState` pour rester
 testable en JVM ; le scénario de rafale (complétion tardive d'une cible
 abandonnée) est directement couvert.
 
+## Cadre masqué pendant la convergence, rattrapage ré-estimé à chaque passe (v1.73.11)
+
+Quatre captures d'écran ont permis de confirmer visuellement ce qui n'était
+jusque-là que soupçonné : un cadre qui glisse d'une position à l'autre en
+laissant une trace, puis un cadre au format d'une vignette film posé sur des
+chaînes en remontant. Deux causes, toutes deux liées à des rangées voisines de
+**formats différents** (Top 10 / recommandations, TV en direct / Films, chaîne
+favorite plus large qu'une chaîne normale — l'étoile de favori est un élément
+décoratif ajouté *dans* la carte, pas un overlay, donc une carte favorite est
+réellement plus large).
+
+### Le cadre restait visible, mais désaccordé, pendant tout le défilement
+
+Le défilement d'une rangée à l'autre (`convergeSectionToVerticalPivot`) prend
+un temps réel — jusqu'à la durée du ressort primaire — pendant lequel rien
+n'est publié : conception voulue, pour ne jamais montrer une position
+transitoire. Mais le cadre **précédent** restait affiché, immobile, à ses
+anciennes coordonnées **absolues** pendant tout ce temps, alors que le contenu
+défilait dessous. Sur deux rangées de formats proches, l'effet passe inaperçu ;
+sur des formats nettement différents, le cadre se retrouve visiblement plaqué
+sur du contenu qui n'est plus le sien — exactement ce que les captures
+montrent.
+
+`TvFocusSelectorState.beginAxis` masque désormais le cadre (`clear()`) dès
+qu'une cible **réellement nouvelle** entame sa convergence, et non plus
+seulement à la sortie complète d'une liste. Il ne réapparaît, déjà à la bonne
+géométrie, qu'à la publication. Pour une grille — où rien ne défile entre deux
+colonnes d'une même rangée, la convergence y est quasi instantanée — cette
+éclipse n'est jamais perceptible ; seul le glissement volontaire de l'abscisse
+y reste visible, inchangé.
+
+### Le rattrapage d'une rangée hors écran ne s'estimait qu'une fois
+
+`offscreenSectionStepDelta` (la foulée de rattrapage introduite en v1.73.7)
+n'était appelée qu'**une seule fois** par convergence, avec la hauteur de la
+rangée de **départ** — juste quand les deux rangées voisines ont la même
+hauteur, faux dès qu'elles diffèrent, ce qui est le cas courant plutôt que
+l'exception. Une foulée qui ratait sa cible épuisait alors les passes
+restantes sans jamais mesurer la rangée visée, renvoyant `false` sans publier ;
+l'appui suivant relançait une convergence dans les mêmes conditions,
+retardant d'autant la publication (et donc prolongeant la fenêtre où le cadre
+précédent reste affiché, désaccordé — voir ci-dessus).
+
+La foulée se ré-estime désormais à **chaque** passe où la rangée reste
+introuvable, avec la hauteur de la rangée réellement mesurée à cet instant —
+de plus en plus précise à mesure qu'on approche la cible. Une seule exécution
+de convergence suffit désormais quelle que soit la distance, dans la limite
+des [VERTICAL_PIVOT_MAX_PASSES] passes.
+
+`resolveSectionInfo` (résolution par `snapshotFlow`/`withTimeoutOrNull`,
+superflue une fois le rattrapage géré directement dans la boucle) est
+supprimée avec la constante et les imports qu'elle seule utilisait.
+
 ## Vérifications automatisées
 
 - `./gradlew testDebugUnitTest lintDebug assembleDebug` : **BUILD SUCCESSFUL**
@@ -438,7 +491,8 @@ v1.73.5 (glissement du mode « Tout »), v1.73.6 (ancre haute généralisée),
 v1.73.7 (publication comptée, remontée réparée),
 v1.73.8 (amortissement réduit au seul cas utile, ancrage horizontal verrouillé),
 v1.73.9 (rayon d'angle unifié, abscisse pilotée à la main sans décalage de frame),
-v1.73.10 (suivi des axes par identité de cible, immunisé au D-pad maintenu)
+v1.73.10 (suivi des axes par identité de cible, immunisé au D-pad maintenu),
+v1.73.11 (cadre masqué pendant la convergence, rattrapage ré-estimé à chaque passe)
 
 Commit :
 🐛 fix(tv): ancre haute du sélecteur pivot dans les grilles de catégorie (B22)
