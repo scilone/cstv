@@ -1,7 +1,6 @@
 package com.cstv.app.presentation.components
 
 import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.border
@@ -120,9 +119,9 @@ internal fun localBounds(rootBounds: Rect, hostOriginInRoot: Offset): Rect =
 
 /**
  * Overlay de la couche avant : cadre unique dessiné au premier plan de la
- * `Box` racine de l'écran. Sa position reste amortie, mais sa taille et son
- * rayon sont appliqués immédiatement : le passage entre deux formats de
- * vignette ne doit pas produire une animation de redimensionnement. Non
+ * `Box` racine de l'écran. Position, taille et rayon sont tous appliqués
+ * immédiatement : le cadre est un repère fixe sous lequel défilent les
+ * vignettes, il ne doit ni glisser ni se redimensionner en animation. Non
  * focusable et non cliquable : il ne perturbe ni la recherche de focus D-pad,
  * ni l'activation de la carte réellement focalisée.
  *
@@ -147,10 +146,6 @@ fun TvFocusSelectorOverlay(state: TvFocusSelectorState, modifier: Modifier = Mod
             dampingRatio = Spring.DampingRatioNoBouncy,
             stiffness = Spring.StiffnessMediumLow
         )
-        val positionSpringSpec = spring<Dp>(
-            dampingRatio = Spring.DampingRatioNoBouncy,
-            stiffness = Spring.StiffnessMediumLow
-        )
         val alpha by animateFloatAsState(
             targetValue = if (state.isVisible) 1f else 0f,
             animationSpec = floatSpringSpec,
@@ -160,16 +155,15 @@ fun TvFocusSelectorOverlay(state: TvFocusSelectorState, modifier: Modifier = Mod
 
         val localTargetBounds = localBounds(target.bounds, host.boundsInRoot().topLeft)
         val cornerRadius = target.cornerRadius
-        val left by animateDpAsState(
-            with(density) { localTargetBounds.left.toDp() },
-            positionSpringSpec,
-            label = "tvFocusSelectorLeft"
-        )
-        val top by animateDpAsState(
-            with(density) { localTargetBounds.top.toDp() },
-            positionSpringSpec,
-            label = "tvFocusSelectorTop"
-        )
+        // Position appliquée telle quelle, sans ressort : le cadre ne doit
+        // jamais se déplacer sous l'œil, ce sont les vignettes qui glissent
+        // dessous. Un pivot correctement ancré publie de toute façon deux fois
+        // la même position — animer ne faisait donc que rendre visible, sous
+        // forme de rattrapage, l'écart des cas où l'ancrage bute (fin de
+        // rangée, format de carte différent), là où un saut net se lit comme
+        // un simple changement de taille.
+        val left = with(density) { localTargetBounds.left.toDp() }
+        val top = with(density) { localTargetBounds.top.toDp() }
         val width = with(density) { localTargetBounds.width.toDp() }
         val height = with(density) { localTargetBounds.height.toDp() }
 

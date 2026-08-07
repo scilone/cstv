@@ -61,8 +61,8 @@ déplacement au D-pad sans à-coup visuel.
 - L'ancre verticale d'une grille est l'emplacement qu'occupe sa première rangée au
   repos, soit l'origine du contenu, sous la réserve haute (T12).
 - Le déplacement horizontal dans une rangée ne provoque aucun défilement vertical.
-- Le mode « Tout » (rangées horizontales empilées) conserve son pivot 50 % : ce
-  ticket ne change que les grilles.
+- Le mode « Tout » (rangées horizontales empilées) partage la même ancre depuis
+  la v1.73.6, appliquée au bloc titre + vignettes (voir § 9).
 
 ### Critères d'acceptation
 
@@ -96,7 +96,9 @@ déplacement au D-pad sans à-coup visuel.
 - Nouvelle réserve basse `tvPivotGridEndReserve()` (une hauteur d'écran, au lieu d'un
   demi-viewport) : sans elle, les dernières rangées ne peuvent pas remonter jusqu'à
   l'ancre et le saut réapparaîtrait en fin de grille.
-- `tvPivotSection`, `tvPivotItem` et `TV_PIVOT_VERTICAL` sont inchangés.
+- `tvPivotItem` (ancrage horizontal) est inchangé. `tvPivotSection` a d'abord été
+  laissé au pivot 50 %, puis aligné sur l'ancre haute en v1.73.6 ; `TV_PIVOT_VERTICAL`
+  a alors disparu, n'ayant plus d'usage.
 
 ## Composants impactés
 
@@ -219,18 +221,52 @@ n'ont rien demandé de particulier — ils vivent dans la même `Column` que la
 `LazyRow`, sous le même modifier de pivot, donc dans le même item de liste : tout
 défilement les déplace solidairement. Aucun `stickyHeader` nulle part, vérifié.
 
+## Ancre haute généralisée et cadre strictement fixe (v1.73.6)
+
+Deux demandes convergentes : plus **aucun** effet sur le cadre lui-même, quel que
+soit le sens du déplacement, et l'ancre haute pour les rangées comme pour les
+grilles.
+
+- `TvFocusSelectorOverlay` n'amortit plus sa position : `left`/`top` sont
+  appliqués tels quels, comme l'étaient déjà la taille et le rayon. Un pivot
+  correctement ancré publie de toute façon deux fois la même position ; le
+  ressort ne faisait que rendre visible, sous forme de rattrapage, l'écart des
+  cas où l'ancrage bute. Le fondu d'apparition/disparition est conservé : il ne
+  joue qu'à l'entrée et à la sortie des listes, jamais pendant un déplacement.
+- `convergeSectionToVerticalPivot` passe du pivot 50 % à [topAnchoredPivotDelta],
+  la même fonction que les grilles. L'ancrage porte sur l'**item de liste
+  entier**, titre de section compris : vérifié sur les six écrans concernés, le
+  titre vit toujours dans le bloc porteur du modifier de pivot
+  (`CategorySectionRow`, `HomeSectionRow`, `SearchSectionHeader`,
+  `RecentlyWatchedRow`, section des Favoris), donc il monte avec sa rangée et
+  reste lisible. Ancrer la vignette elle-même l'aurait poussé hors de l'écran.
+  Chaque écran n'employant qu'un seul composant de section, la hauteur de bandeau
+  y est constante et la vignette retombe toujours à la même ordonnée — les
+  hauteurs diffèrent d'un écran à l'autre (18 sp sur l'Accueil, 14 sp ailleurs),
+  ce qui est sans effet puisqu'on ne navigue pas d'un écran à l'autre au D-pad.
+- `tvPivotVerticalEndSpacer` passe d'un demi-viewport à un viewport entier, pour
+  la même raison que la réserve des grilles : sans quoi la dernière rangée ne
+  peut pas rejoindre l'ancre.
+- Code mort supprimé : `focusedChildPivotDelta`, `TV_PIVOT_VERTICAL`, le suivi
+  des coordonnées de section devenu inutile, et les cinq tests correspondants.
+
+Portée : le changement touche aussi l'**Accueil**, qui partage ce composant. Sa
+Hero Card défile donc entièrement hors champ dès la première rangée, au lieu de
+rester à moitié visible sous le pivot 50 %. À arbitrer si l'effet déplaît.
+
 ## Vérifications automatisées
 
 - `./gradlew testDebugUnitTest lintDebug assembleDebug` : **BUILD SUCCESSFUL**
-  (2026-08-07, puis à nouveau après l'extension au mode « Tout »). Tests ajoutés
-  sur `offscreenRowPivotDelta`.
+  (2026-08-07, à chaque étape). Tests ajoutés sur `offscreenRowPivotDelta`.
 
 ---
 
 # 10. Release
 
 Version :
-v1.73.3 (ancre haute), v1.73.4 (suites ci-dessus), v1.73.5 (mode « Tout »)
+v1.73.3 (ancre haute des grilles), v1.73.4 (remontée animée, descente à gauche),
+v1.73.5 (glissement du mode « Tout »), v1.73.6 (ancre haute généralisée,
+cadre strictement fixe)
 
 Commit :
 🐛 fix(tv): ancre haute du sélecteur pivot dans les grilles de catégorie (B22)
