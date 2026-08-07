@@ -152,6 +152,44 @@ rangées de bord, un pivot exprimé comme un emplacement fixe le peut toujours.
 
 # 8. Review
 
+## Amortissement réduit au seul cas utile, ancrage horizontal verrouillé (v1.73.8)
+
+Trois retours, deux causes.
+
+### Le cadre s'amortissait dans des cas où il ne devait pas
+
+La règle « on amortit l'abscisse » était trop large. Deux situations la prenaient
+en défaut :
+
+- **changement de rangée** vers une section « Top N », dont les vignettes sont
+  décalées par leur grand chiffre : l'abscisse change alors elle aussi, et le
+  cadre se posait à l'ancienne avant de glisser vers la nouvelle ;
+- **changement de format** de vignette : un bord gauche amorti face à une largeur
+  appliquée sèchement se lit comme un redimensionnement animé.
+
+L'amortissement est désormais conditionné à ce qu'il sert réellement : même
+ordonnée, même taille — c'est-à-dire le passage d'une colonne à la suivante dans
+une grille, seul cas où le cadre change de place sans que rien ne défile. Tout le
+reste est instantané. La condition décrit ce cas plutôt que de deviner le
+contexte, donc elle ne dépend d'aucune hypothèse sur l'écran affiché.
+
+### Le « petit effet » à gauche dans les rangées
+
+Exact pendant horizontal du saut de remontée corrigé en v1.73.7.
+`animateScrollToItem` s'exécutait à la priorité `Default`, la même que le
+`bringIntoView` implicite : aller **à gauche** vise une vignette hors champ —
+l'active occupant l'ancre, tout ce qui la précède est sorti par la gauche — et
+Compose annulait notre animation. L'axe horizontal ne rapportait alors aucune
+géométrie stabilisée, le cadre était publié sur celle, transitoire, de l'axe
+vertical, puis corrigé. Aller à droite visait au contraire une vignette visible,
+d'où l'asymétrie.
+
+`convergeItemToStartAnchor` transpose la convergence verticale sur l'axe
+horizontal, verrou `MutatePriority.UserInput` compris, et réutilise
+`offscreenRowPivotDelta` avec une seule colonne pour la vignette hors champ.
+`animateScrollToPivot`, `pivotScrollOffset` et `TV_PIVOT_HORIZONTAL` n'ont plus
+d'appelant et disparaissent avec leurs huit tests.
+
 ## Vérifications automatisées
 
 - `./gradlew testDebugUnitTest lintDebug assembleDebug` : **BUILD SUCCESSFUL**
@@ -324,7 +362,8 @@ catalogues et la fonction disparaît.
 Version :
 v1.73.3 (ancre haute des grilles), v1.73.4 (remontée animée, descente à gauche),
 v1.73.5 (glissement du mode « Tout »), v1.73.6 (ancre haute généralisée),
-v1.73.7 (publication comptée, amortissement horizontal, remontée réparée)
+v1.73.7 (publication comptée, remontée réparée),
+v1.73.8 (amortissement réduit au seul cas utile, ancrage horizontal verrouillé)
 
 Commit :
 🐛 fix(tv): ancre haute du sélecteur pivot dans les grilles de catégorie (B22)

@@ -3,7 +3,9 @@ package com.cstv.app.presentation.components
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.spring
+import androidx.compose.runtime.SideEffect
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.offset
@@ -128,8 +130,8 @@ internal fun localBounds(rootBounds: Rect, hostOriginInRoot: Offset): Rect =
  * Overlay de la couche avant : cadre unique dessiné au premier plan de la
  * `Box` racine de l'écran. Ordonnée, taille et rayon sont appliqués
  * immédiatement — le cadre est un repère fixe sous lequel défilent les
- * vignettes ; seule l'abscisse est amortie, pour le passage d'une colonne à
- * l'autre dans une grille (voir le corps de la fonction). Non
+ * vignettes ; seul le passage d'une colonne à l'autre dans une grille est
+ * amorti (voir le corps de la fonction). Non
  * focusable et non cliquable : il ne perturbe ni la recherche de focus D-pad,
  * ni l'activation de la carte réellement focalisée.
  *
@@ -163,21 +165,32 @@ fun TvFocusSelectorOverlay(state: TvFocusSelectorState, modifier: Modifier = Mod
 
         val localTargetBounds = localBounds(target.bounds, host.boundsInRoot().topLeft)
         val cornerRadius = target.cornerRadius
-        // Seule l'abscisse est amortie, et c'est voulu (B22). Les deux axes ne
-        // se déplacent pas pour les mêmes raisons :
+        // Un seul déplacement est amorti : celui d'une colonne à la suivante
+        // dans une grille — le cadre y change réellement de place, puisque rien
+        // ne défile, et le glissement est alors la seule chose qui bouge à
+        // l'écran (B22).
         //
-        // - verticalement, toutes les cibles convergent vers la même ancre, donc
-        //   l'ordonnée publiée ne change jamais ; l'amortir ne servait qu'à
-        //   étaler en glissement les écarts résiduels, ce qui se lisait comme un
-        //   cadre qui flotte alors que ce sont les vignettes qui doivent bouger ;
-        // - horizontalement, une grille ne défile pas : le cadre passe
-        //   réellement d'une colonne à l'autre, et l'amortir donne le glissement
-        //   d'une vignette à la suivante. Dans une rangée, où l'ancrage
-        //   horizontal ramène chaque vignette au même emplacement, l'abscisse ne
-        //   change pas et le ressort reste donc sans effet.
+        // Tout le reste est instantané, et la condition ci-dessous le garantit
+        // en décrivant ce cas plutôt qu'en devinant le contexte : même ordonnée,
+        // même taille. Cela exclut le changement de rangée, où l'ordonnée change
+        // — et où l'abscisse peut changer aussi, les vignettes « Top N » étant
+        // décalées par leur grand chiffre : le cadre s'y posait sur l'ancienne
+        // abscisse avant de glisser vers la nouvelle. Cela exclut aussi tout
+        // changement de format, dont le bord gauche amorti face à une largeur
+        // appliquée sèchement donnait l'illusion d'un redimensionnement animé.
+        var previousBounds by remember { mutableStateOf(localTargetBounds) }
+        val purelyHorizontal = localTargetBounds.top == previousBounds.top &&
+            localTargetBounds.width == previousBounds.width &&
+            localTargetBounds.height == previousBounds.height
+        SideEffect { previousBounds = localTargetBounds }
+
         val left by animateDpAsState(
             with(density) { localTargetBounds.left.toDp() },
-            spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow),
+            if (purelyHorizontal) {
+                spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)
+            } else {
+                snap()
+            },
             label = "tvFocusSelectorLeft"
         )
         val top = with(density) { localTargetBounds.top.toDp() }

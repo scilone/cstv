@@ -28,7 +28,6 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.math.abs
-import kotlin.math.roundToInt
 
 /**
  * Délai maximal d'attente d'une clé de section pas encore visible
@@ -72,30 +71,6 @@ private class PivotItemCoordinates(
 private val TV_SELECTOR_DEFAULT_RADIUS = 14.dp
 
 /**
- * La carte active reste ancrée sur l'emplacement initial de la première
- * vignette de la rangée. Le `contentPadding` propre à chaque rangée reste donc
- * respecté, sans décalage entre les index 0 et 1.
- */
-const val TV_PIVOT_HORIZONTAL = 0f
-
-/**
- * Calcule le `scrollOffset` (négatif dans le cas courant) à passer à
- * `animateScrollToItem` pour que l'élément d'index cible s'arrête au pivot
- * `parentFraction` du viewport, son propre point `childFraction` aligné dessus.
- *
- * Fonction pure, sans dépendance Compose, pour rester testable en JVM.
- */
-internal fun pivotScrollOffset(
-    viewportSize: Int,
-    itemSize: Int,
-    parentFraction: Float,
-    childFraction: Float
-): Int {
-    if (viewportSize <= 0) return 0
-    return -(viewportSize * parentFraction - itemSize * childFraction).roundToInt()
-}
-
-/**
  * Distance à faire défiler pour ramener la cellule d'index cible sur l'**ancre
  * haute** d'une grille : l'emplacement qu'occupe la première rangée tant que la
  * grille n'a pas défilé, soit l'origine du contenu, juste sous le
@@ -108,9 +83,9 @@ internal fun pivotScrollOffset(
  * capable d'y arriver — au passage 1→2 sur les grilles de posters, 2→3 sur
  * celle des chaînes (cartes plus basses). Ancrer toutes les rangées sur
  * l'emplacement de la première supprime la cause : chacune converge vers la
- * même ordonnée, le cadre ne bouge plus verticalement d'un pixel. C'est la
- * transposition verticale de [TV_PIVOT_HORIZONTAL], qui ancre déjà la vignette
- * active sur l'emplacement de la première vignette d'une rangée.
+ * même ordonnée, le cadre ne bouge plus verticalement d'un pixel. La même
+ * ancre sert sur l'axe horizontal d'une rangée, où chaque vignette rejoint
+ * l'emplacement de la première (voir `convergeItemToStartAnchor`).
  *
  * L'ancre est calculée `viewportStartOffset + beforeContentPadding` plutôt
  * qu'écrite `0` : les deux termes se compensent avec la convention de Compose
@@ -179,29 +154,78 @@ internal fun offscreenSectionStepDelta(
 ): Float =
     if (firstVisibleItemHeight <= 0) 0f else -(firstVisibleItemHeight + mainAxisItemSpacing).toFloat()
 
-suspend fun LazyListState.animateScrollToPivot(
+/**
+ * Convergence d'une vignette vers l'ancre de **début de rangée**, l'emplacement
+ * qu'occupe la première vignette tant que la rangée n'a pas défilé.
+ *
+ * Transposition exacte de [convergeCellToVerticalPivot] sur l'axe horizontal,
+ * verrou compris (B22). L'ancien `animateScrollToItem` s'exécutait à la priorité
+ * `Default`, la même que le `bringIntoView` implicite de Compose : partir **à
+ * gauche** — vers une vignette hors champ, puisque l'active occupe l'ancre et
+ * que tout ce qui la précède est donc sorti par la gauche — faisait annuler
+ * notre animation par celle de Compose. L'axe horizontal ne rapportait alors
+ * aucune géométrie stabilisée et le cadre était publié sur celle, transitoire,
+ * de l'axe vertical, puis corrigé : le « petit effet » qui ne se produisait qu'à
+ * gauche. Aller à droite visait au contraire une vignette visible, sans demande
+ * implicite ni annulation.
+ *
+ * @return voir [convergeSectionToVerticalPivot].
+ */
+private suspend fun LazyListState.convergeItemToStartAnchor(
     index: Int,
-    parentFraction: Float,
-    childFraction: Float
-) {
+    animatePrimaryCorrection: Boolean
+): Boolean {
     // Condition d'index explicite (Review F19, Mineur #1) : la liste a pu être
     // rechargée/filtrée entre la résolution de l'index et cet appel.
-    if (index < 0 || index >= layoutInfo.totalItemsCount) return
-    val info = layoutInfo
-    val viewportSize = info.viewportEndOffset - info.viewportStartOffset
-    val itemSize = info.visibleItemsInfo.firstOrNull { it.index == index }?.size ?: 0
-    val offset = pivotScrollOffset(viewportSize, itemSize, parentFraction, childFraction)
-    try {
-        animateScrollToItem(index, offset)
-    } catch (e: CancellationException) {
-        // Annulation structurée (écran quitté, `rememberCoroutineScope` annulé) :
-        // ne jamais l'avaler.
-        throw e
-    } catch (e: Exception) {
-        // Défaut transitoire imprévu par la condition d'index ci-dessus
-        // (course avec une recomposition concurrente) : le prochain appui
-        // D-pad redéclenche le pivot, aucune action corrective nécessaire ici.
+    if (index < 0 || index >= layoutInfo.totalItemsCount) return false
+    var stabilised = false
+    scroll(MutatePriority.UserInput) {
+        var stablePasses = 0
+        var primaryCorrectionPending = animatePrimaryCorrection
+        repeat(VERTICAL_PIVOT_MAX_PASSES) {
+            val info = layoutInfo
+            val itemInfo = info.visibleItemsInfo.firstOrNull { it.index == index }
+            val delta = if (itemInfo != null) {
+                topAnchoredPivotDelta(
+                    viewportStartOffset = info.viewportStartOffset,
+                    beforeContentPadding = info.beforeContentPadding,
+                    itemOffset = itemInfo.offset
+                )
+            } else {
+                // Vignette hors champ : une rangée est une grille à une colonne.
+                offscreenRowPivotDelta(
+                    targetIndex = index,
+                    firstVisibleIndex = info.visibleItemsInfo.firstOrNull()?.index ?: 0,
+                    columns = 1,
+                    rowHeight = info.visibleItemsInfo.firstOrNull()?.size ?: 0,
+                    mainAxisItemSpacing = info.mainAxisItemSpacing
+                )
+            }
+            if (abs(delta) <= VERTICAL_PIVOT_TOLERANCE_PX) {
+                if (itemInfo != null) {
+                    stablePasses++
+                    if (stablePasses >= VERTICAL_PIVOT_STABLE_PASSES) {
+                        stabilised = true
+                        return@scroll
+                    }
+                }
+            } else {
+                val consumed = if (primaryCorrectionPending) {
+                    primaryCorrectionPending = false
+                    animateScrollByInScope(delta)
+                } else {
+                    scrollBy(delta)
+                }
+                if (itemInfo != null && isPivotClamped(delta, consumed)) {
+                    stabilised = true
+                    return@scroll
+                }
+                stablePasses = 0
+            }
+            withFrameNanos { }
+        }
     }
+    return stabilised
 }
 
 /**
@@ -251,8 +275,11 @@ fun Modifier.tvPivotItem(
         coordinates.correctionJob = scope.launch {
             selector?.beginAxis()
             try {
-                state.animateScrollToPivot(index, TV_PIVOT_HORIZONTAL, 0f)
-                if (selector != null && focusedCoordinates.isAttached) {
+                val stabilised = state.convergeItemToStartAnchor(
+                    index = index,
+                    animatePrimaryCorrection = targetChanged
+                )
+                if (stabilised && selector != null && focusedCoordinates.isAttached) {
                     selector.reportAxisStabilised(focusedCoordinates, selectorCornerRadius)
                 }
             } finally {
