@@ -526,11 +526,80 @@ c'est assumé : ils sont sans commune mesure avec la régression. Reprendre le
 sujet suppose d'abord de comprendre **pourquoi** l'ancre n'aboutit pas sur
 l'Accueil — donc de l'instrumenter — avant de retoucher quoi que ce soit.
 
+## Le trou de l'Accueil, nommé : trois défauts, trois causes (v1.73.20)
+
+La v1.73.19 laissait une question ouverte — « pourquoi l'ancre déterministe
+n'aboutit-elle pas sur l'Accueil ? » — et deux symptômes précis rapportés :
+descente depuis la Hero en deux temps sur l'Accueil ; en catégorie « Tout »,
+cadre qui monte légèrement puis redescend quand les vignettes s'arrêtent, et
+saut vers la gauche à la seule remontée. Trois causes distinctes, toutes
+lisibles dans le code.
+
+### `LocalTvPivotViewport` n'était jamais fourni sur l'Accueil
+
+C'est la réponse à la question laissée ouverte. `HomeScreen` construisait bien
+son `TvPivotViewportState` et posait `Modifier.tvPivotViewport` sur sa
+`LazyColumn`, mais son `CompositionLocalProvider` ne fournissait que
+`LocalTvFocusSelector` : depuis les items de la liste, `LocalTvPivotViewport`
+valait `null`, `anchoredTopFor` renvoyait `null`, **aucune ordonnée n'était
+jamais prédite**. Le cadre retombait donc sur le seul chemin restant — attendre
+la fin de la convergence — d'où la séquence observée : la taille de la nouvelle
+vignette adoptée immédiatement (`beginAxis`), le coin haut-gauche resté sur la
+Hero pendant tout le défilement, puis la descente sèche à la publication
+mesurée. La remontée vers la Hero paraissait fluide pour la raison inverse :
+la Hero publie sa géométrie dès qu'elle est mesurée, sans convergence.
+
+C'était le « trou » que la v1.73.18 avait révélé en retirant la publication
+mesurée. La `SearchScreen` avait exactement le même oubli, et sa grille
+« Voir tout » n'avait ni `tvPivotViewport` ni fournisseur.
+
+### `tvPivotSection` posé derrière un `padding` mesurait le mauvais repère
+
+L'ancre haute vaut `hautConteneur + réserve + décalage de la vignette **dans son
+item de liste**`, tandis que la convergence amène l'**item** sur l'ancre. Les
+deux ne parlent du même repère que si le nœud observé est l'item entier. Or
+`CategorySectionRow` (Films, Séries) et les rangées de Live TV appliquaient
+`.tvPivotSection(...)` **après** `.padding(vertical = 4.dp)` : le décalage était
+mesuré depuis le contenu rembourré, amputé de 4.dp, et l'ancre prédite se
+trouvait 4.dp trop haut. Le cadre montait donc de ces 4.dp à chaque déplacement
+— y compris purement horizontal, `tvPivotSection` se déclenchant à chaque
+changement de vignette focalisée — puis redescendait quand la publication
+mesurée reprenait la main, en fin de défilement.
+
+Les grilles, elles, n'ont jamais montré ce défaut : `tvPivotCell` y est déjà en
+tête de chaîne. La Recherche et les Favoris non plus : leurs sections n'ont pas
+de rembourrage. Le contrat est désormais écrit dans la KDoc de `tvPivotSection`
+et vérifié par un test d'accord entre `anchoredRootTop` et les deux fonctions de
+défilement (`topAnchoredPivotDelta`, `focusedChildPivotDelta`).
+
+### `boundsInRoot()` clippe — et la remontée vise justement le hors-champ
+
+`tvPivotItem` prédisait l'abscisse d'arrivée depuis
+`focusedCoordinates.boundsInRoot().left`. Cette lecture est **clippée par les
+parents** : une vignette composée hors du viewport y renvoie un rectangle vide,
+d'abscisse 0. Or c'est le cas structurel de la remontée — la rangée visée est
+au-dessus du champ. Le cadre était donc prédit tout à gauche de l'écran, puis
+remis en place par la publication mesurée. À la descente, la réserve de fin
+garde la rangée visible, donc non clippée : d'où un défaut strictement
+unidirectionnel. `positionInRoot()` ne clippe pas et donne la position réelle
+d'un nœud posé hors champ ; les origines de conteneur passent au même appel.
+
+### Instrumentation conservée
+
+Un ancrage qui n'aboutit pas est **muet** : il se contente de rendre le cadre en
+retard. `logMissingAnchor` trace désormais chaque échec avec sa raison
+(fournisseur absent, conteneur non mesuré, coordonnées détachées) sous le tag
+`TvPivot`. Un oubli du même genre sur un futur écran se verra dans le logcat au
+lieu d'attendre d'être ressenti.
+
 ## Vérifications automatisées
 
 - `./gradlew testDebugUnitTest lintDebug assembleDebug` : **BUILD SUCCESSFUL**
   (2026-08-06). Les seuls avertissements Kotlin restants sont préexistants
   (`title`, `onSearchQueryChanged` inutilisés).
+- `./gradlew testDebugUnitTest lintDebug assembleDebug` : **BUILD SUCCESSFUL**
+  (2026-08-08, v1.73.20). Deux tests ajoutés, qui fixent l'accord entre l'ancre
+  prédite et le défilement réellement demandé, en ancre haute et à mi-viewport.
 
 ---
 
@@ -709,7 +778,8 @@ v1.73.14 (cause racine : position d'arrivée prédite, le cadre n'attend plus le
 v1.73.15 (prédiction étendue à la remontée, prédiction verticale réservée à l'entrée dans une rangée),
 v1.73.16 (refonte : ancre verticale calculée depuis le conteneur, plus depuis la vignette),
 v1.73.17 (Accueil : bord haut de la vignette à mi-hauteur, cadre fixe partout),
-v1.73.18 (fin des publications mesurées — **reverté**), v1.73.19 (retour au contenu de la v1.73.17)
+v1.73.18 (fin des publications mesurées — **reverté**), v1.73.19 (retour au contenu de la v1.73.17),
+v1.73.20 (le trou de l'Accueil nommé : `LocalTvPivotViewport` jamais fourni, `tvPivotSection` derrière un `padding`, `boundsInRoot` clippée)
 
 Commit :
 🐛 fix(tv): ancre haute du sélecteur pivot dans les grilles de catégorie (B22)

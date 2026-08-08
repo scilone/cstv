@@ -389,4 +389,99 @@ class TvPivotScrollTest {
             )
         )
     }
+
+    // --- Accord entre l'ancre prédite et le défilement réellement demandé (B22) ---
+    //
+    // Le cadre est posé par [anchoredRootTop] dès l'appui, la liste est amenée
+    // par [topAnchoredPivotDelta] / [focusedChildPivotDelta]. Ces deux calculs
+    // sont indépendants : rien dans le code ne les force à viser le même
+    // endroit, et tout écart entre eux se voit à l'écran sous la forme d'un
+    // cadre qui se recale quand les vignettes s'arrêtent de bouger. Les deux
+    // tests ci-dessous fixent leur accord.
+    //
+    // Convention Compose reprise ici : l'offset 0 d'un item se situe à
+    // `viewportRootTop + beforeContentPadding`, et `viewportStartOffset` vaut
+    // `-beforeContentPadding`.
+
+    private fun rootTopOfFocusedChild(
+        viewportRootTop: Float,
+        beforeContentPadding: Int,
+        itemOffset: Int,
+        focusedOffsetInItem: Float
+    ): Float = viewportRootTop + beforeContentPadding + itemOffset + focusedOffsetInItem
+
+    @Test
+    fun topAnchorMatchesWhereTheScrollActuallyLandsTheThumbnail() {
+        val viewportRootTop = 100f
+        val beforeContentPadding = 24
+        val itemOffset = 730
+        // Décalage de la vignette **dans l'item de liste entier** : rembourrage
+        // de la section compris. C'est le point que le placement de
+        // `tvPivotSection` en tête de chaîne garantit — mesuré derrière un
+        // `padding`, ce décalage est amputé d'autant et l'ancre remonte.
+        val focusedOffsetInItem = 4f + 42f
+
+        val delta = topAnchoredPivotDelta(
+            viewportStartOffset = -beforeContentPadding,
+            beforeContentPadding = beforeContentPadding,
+            itemOffset = itemOffset
+        )
+        val landedTop = rootTopOfFocusedChild(
+            viewportRootTop = viewportRootTop,
+            beforeContentPadding = beforeContentPadding,
+            itemOffset = (itemOffset - delta).toInt(),
+            focusedOffsetInItem = focusedOffsetInItem
+        )
+
+        assertEquals(
+            landedTop,
+            anchoredRootTop(
+                viewportRootTop = viewportRootTop,
+                viewportHeight = 1080,
+                beforeContentPadding = beforeContentPadding,
+                focusedOffsetInItem = focusedOffsetInItem,
+                focusedHeight = 300,
+                anchor = TvPivotAnchor.Top
+            )
+        )
+    }
+
+    @Test
+    fun midViewportAnchorMatchesWhereTheScrollActuallyLandsTheThumbnail() {
+        val viewportRootTop = 100f
+        val beforeContentPadding = 24
+        // Le viewport de `layoutInfo` couvre exactement le conteneur :
+        // `viewportEndOffset - viewportStartOffset == hauteur du conteneur`.
+        val viewportHeight = 1080
+        val viewportStartOffset = -beforeContentPadding
+        val viewportEndOffset = viewportHeight + viewportStartOffset
+        val itemOffset = 730
+        val focusedOffsetInItem = 8f + 42f
+
+        val delta = focusedChildPivotDelta(
+            viewportStartOffset = viewportStartOffset,
+            viewportEndOffset = viewportEndOffset,
+            sectionOffset = itemOffset,
+            focusedOffsetInSection = focusedOffsetInItem,
+            focusedSize = 300
+        )
+        val landedTop = rootTopOfFocusedChild(
+            viewportRootTop = viewportRootTop,
+            beforeContentPadding = beforeContentPadding,
+            itemOffset = (itemOffset - delta).toInt(),
+            focusedOffsetInItem = focusedOffsetInItem
+        )
+
+        assertEquals(
+            landedTop,
+            anchoredRootTop(
+                viewportRootTop = viewportRootTop,
+                viewportHeight = viewportHeight,
+                beforeContentPadding = beforeContentPadding,
+                focusedOffsetInItem = focusedOffsetInItem,
+                focusedHeight = 300,
+                anchor = TvPivotAnchor.MidViewport
+            )
+        )
+    }
 }

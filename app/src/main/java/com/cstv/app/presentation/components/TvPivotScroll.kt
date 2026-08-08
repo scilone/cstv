@@ -20,11 +20,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.layout.LayoutCoordinates
-import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.cstv.app.di.IptvLog
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlin.math.abs
@@ -231,28 +232,64 @@ internal fun anchoredRootTop(
     TvPivotAnchor.MidViewport -> viewportRootTop + viewportHeight * TV_PIVOT_VERTICAL_FRACTION
 }
 
+private const val TV_PIVOT_LOG_TAG = "TvPivot"
+
+/**
+ * Trace un ancrage déterministe qui n'aboutit pas, et renvoie le `null` attendu
+ * par l'appelant (B22).
+ *
+ * Sans cette trace, un ancrage muet est **invisible** : le cadre retombe
+ * silencieusement sur la publication mesurée de fin de convergence et n'affiche
+ * son défaut que sous forme d'un retard perceptible. C'est exactement ce qui est
+ * resté caché sur l'Accueil jusqu'à ce que la v1.73.18 retire ce filet et révèle
+ * le trou — [LocalTvPivotViewport] n'y était jamais fourni. Une régression du
+ * même genre (nouvel écran qui oublie le `CompositionLocalProvider`, conteneur
+ * pas encore mesuré) se voit désormais dans le logcat.
+ */
+private fun logMissingAnchor(source: Any, reason: String): Float? {
+    IptvLog.w(TV_PIVOT_LOG_TAG, "ancre verticale indisponible ($source) : $reason")
+    return null
+}
+
 /**
  * Ordonnée d'arrivée du cadre pour une rangée, ou `null` si le conteneur n'est
  * pas encore mesuré. Voir [anchoredRootTop] : rien ici ne dépend de la position
  * courante de la vignette.
+ *
+ * [item] doit être le nœud de l'**item de liste entier** : le décalage de la
+ * vignette est mesuré depuis lui, et l'ancre le suppose posé à l'origine du
+ * contenu. Poser `tvPivotSection` derrière un `padding` dans la chaîne de
+ * modificateurs le fait mesurer depuis le contenu **rembourré**, l'ancre est
+ * alors trop haute de ce rembourrage — voir la KDoc de [tvPivotSection].
+ *
+ * `positionInRoot` et non `boundsInRoot` : cette dernière **clippe** par les
+ * parents, elle renverrait donc une origine fausse pour un conteneur
+ * partiellement masqué.
  */
 private fun LazyListState.anchoredTopFor(
     viewport: TvPivotViewportState?,
     item: LayoutCoordinates,
     focusedChild: LayoutCoordinates,
-    anchor: TvPivotAnchor
+    anchor: TvPivotAnchor,
+    source: Any
 ): Float? {
-    val viewportCoordinates = viewport?.coordinates?.takeIf { it.isAttached } ?: return null
-    if (!item.isAttached || !focusedChild.isAttached) return null
+    val viewportCoordinates = viewport?.coordinates?.takeIf { it.isAttached }
+        ?: return logMissingAnchor(
+            source,
+            if (viewport == null) "LocalTvPivotViewport non fourni" else "conteneur non mesuré"
+        )
+    if (!item.isAttached || !focusedChild.isAttached) {
+        return logMissingAnchor(source, "coordonnées détachées")
+    }
     val offsetInItem = try {
         item.localPositionOf(focusedChild, Offset.Zero).y
     } catch (e: IllegalArgumentException) {
-        return null
+        return logMissingAnchor(source, "repère commun introuvable")
     } catch (e: IllegalStateException) {
-        return null
+        return logMissingAnchor(source, "repère commun introuvable")
     }
     return anchoredRootTop(
-        viewportRootTop = viewportCoordinates.boundsInRoot().top,
+        viewportRootTop = viewportCoordinates.positionInRoot().y,
         viewportHeight = viewportCoordinates.size.height,
         beforeContentPadding = layoutInfo.beforeContentPadding,
         focusedOffsetInItem = offsetInItem,
@@ -265,19 +302,26 @@ private fun LazyListState.anchoredTopFor(
 private fun LazyGridState.anchoredTopFor(
     viewport: TvPivotViewportState?,
     cell: LayoutCoordinates,
-    focusedChild: LayoutCoordinates
+    focusedChild: LayoutCoordinates,
+    source: Any
 ): Float? {
-    val viewportCoordinates = viewport?.coordinates?.takeIf { it.isAttached } ?: return null
-    if (!cell.isAttached || !focusedChild.isAttached) return null
+    val viewportCoordinates = viewport?.coordinates?.takeIf { it.isAttached }
+        ?: return logMissingAnchor(
+            source,
+            if (viewport == null) "LocalTvPivotViewport non fourni" else "conteneur non mesuré"
+        )
+    if (!cell.isAttached || !focusedChild.isAttached) {
+        return logMissingAnchor(source, "coordonnées détachées")
+    }
     val offsetInCell = try {
         cell.localPositionOf(focusedChild, Offset.Zero).y
     } catch (e: IllegalArgumentException) {
-        return null
+        return logMissingAnchor(source, "repère commun introuvable")
     } catch (e: IllegalStateException) {
-        return null
+        return logMissingAnchor(source, "repère commun introuvable")
     }
     return anchoredRootTop(
-        viewportRootTop = viewportCoordinates.boundsInRoot().top,
+        viewportRootTop = viewportCoordinates.positionInRoot().y,
         viewportHeight = viewportCoordinates.size.height,
         beforeContentPadding = layoutInfo.beforeContentPadding,
         focusedOffsetInItem = offsetInCell,
@@ -464,12 +508,27 @@ fun Modifier.tvPivotItem(
         }
         selector?.beginAxis(focusedCoordinates, TvPivotAxis.HORIZONTAL, selectorCornerRadius)
         // Position d'arrivée posée tout de suite, sans attendre le défilement.
+        //
+        // `positionInRoot` et non `boundsInRoot` : cette dernière **clippe** par
+        // les parents. Une vignette composée hors du viewport — cas structurel de
+        // la remontée, la rangée visée étant au-dessus du champ — y renvoie donc
+        // un rectangle vide, d'abscisse 0. Le cadre était prédit tout à gauche de
+        // l'écran, puis remis en place par la publication mesurée : le saut
+        // « vers la gauche puis retour » qui ne se produisait qu'en remontant,
+        // jamais en descendant (la réserve de fin garde la rangée visible, donc
+        // non clippée). `positionInRoot` ne clippe pas et donne la position réelle
+        // d'un nœud posé hors champ (B22).
+        //
+        // `delta` nul (vignette absente de `visibleItemsInfo`, cas du déplacement
+        // vers la gauche à l'intérieur d'une rangée) n'est pas un défaut : toutes
+        // les vignettes d'une rangée rejoignent la même ancre horizontale, donc
+        // l'abscisse en place est déjà la bonne et il n'y a rien à prédire.
         state.startAnchorDelta(index)?.let { delta ->
             if (focusedCoordinates.isAttached) {
                 selector?.predictAxis(
                     key = focusedCoordinates,
                     axis = TvPivotAxis.HORIZONTAL,
-                    anchoredOffset = focusedCoordinates.boundsInRoot().left - delta,
+                    anchoredOffset = focusedCoordinates.positionInRoot().x - delta,
                     cornerRadius = selectorCornerRadius
                 )
             }
@@ -624,9 +683,10 @@ fun Modifier.tvPivotCell(
         // pivot horizontal ne concourt pour cette même cible (B22).
         selector?.beginAxis(focusedCoordinates, TvPivotAxis.VERTICAL, selectorCornerRadius)
         // Ancre déterministe, voir tvPivotSection.
-        coordinates.cell?.let { cell ->
-            state.anchoredTopFor(viewport, cell, focusedCoordinates)?.let { top ->
-                selector?.predictAxis(
+        val cell = coordinates.cell
+        if (selector != null && cell != null) {
+            state.anchoredTopFor(viewport, cell, focusedCoordinates, index)?.let { top ->
+                selector.predictAxis(
                     key = focusedCoordinates,
                     axis = TvPivotAxis.VERTICAL,
                     anchoredOffset = top,
@@ -664,6 +724,24 @@ fun Modifier.tvPivotCell(
  * Publie sa géométrie stabilisée à la couche avant du focus (F23) une fois la
  * convergence verticale terminée, via [TvFocusSelectorState.reportAxisStabilised]
  * (coordination avec l'axe horizontal de `tvPivotItem` — Review F23, Majeur R3).
+ *
+ * **À appliquer en tête de la chaîne de modificateurs de l'item de liste**, comme
+ * le fait déjà `tvPivotCell` sur une cellule de grille (B22). Le modifier mesure
+ * le décalage de la vignette *dans son item* pour en déduire l'ordonnée d'arrivée
+ * du cadre, tandis que la convergence, elle, amène l'**item de liste** sur
+ * l'ancre : les deux ne parlent du même repère que si le nœud observé est bien
+ * l'item entier. Placé derrière un `padding`, il mesure depuis le contenu
+ * rembourré et prédit une ordonnée trop haute de ce rembourrage — le cadre
+ * montait alors de quelques pixels à chaque déplacement (y compris purement
+ * horizontal) et redescendait à la fin du défilement, quand la publication
+ * mesurée reprenait la main. Écrire :
+ *
+ * ```
+ * Modifier
+ *     .tvPivotSection(isTv, listState, categoryId)
+ *     .fillMaxWidth()
+ *     .padding(vertical = 4.dp)
+ * ```
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -705,17 +783,19 @@ fun Modifier.tvPivotSection(
             }
             val section = coordinates.section
             if (section == null) return@onFocusedBoundsChanged
-            selector?.beginAxis(focusedCoordinates, TvPivotAxis.VERTICAL, selectorCornerRadius)
-            // Ancre déterministe : ne consulte jamais où la vignette se trouve à
-            // cet instant, seulement des grandeurs que le défilement ne change
-            // pas (B22).
-            state.anchoredTopFor(viewport, section, focusedCoordinates, anchor)?.let { top ->
-                selector?.predictAxis(
-                    key = focusedCoordinates,
-                    axis = TvPivotAxis.VERTICAL,
-                    anchoredOffset = top,
-                    cornerRadius = selectorCornerRadius
-                )
+            if (selector != null) {
+                selector.beginAxis(focusedCoordinates, TvPivotAxis.VERTICAL, selectorCornerRadius)
+                // Ancre déterministe : ne consulte jamais où la vignette se trouve à
+                // cet instant, seulement des grandeurs que le défilement ne change
+                // pas (B22).
+                state.anchoredTopFor(viewport, section, focusedCoordinates, anchor, key)?.let { top ->
+                    selector.predictAxis(
+                        key = focusedCoordinates,
+                        axis = TvPivotAxis.VERTICAL,
+                        anchoredOffset = top,
+                        cornerRadius = selectorCornerRadius
+                    )
+                }
             }
             coordinates.correctionJob?.cancel()
             coordinates.correctionJob = scope.launch {

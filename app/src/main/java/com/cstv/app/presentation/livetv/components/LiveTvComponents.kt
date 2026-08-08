@@ -83,10 +83,13 @@ fun CategorySectionRow(
     isInitialTarget: Boolean = false
 ) {
     Column(
+        // `tvPivotSection` en tête de chaîne : il doit observer l'item de liste
+        // entier, rembourrage compris, faute de quoi l'ancre du cadre est trop
+        // haute de ce rembourrage (B22, voir sa KDoc).
         modifier = Modifier
+            .tvPivotSection(isTv, sectionListState, categoryId, selectorCornerRadius = 12.dp)
             .fillMaxWidth()
             .padding(vertical = 4.dp)
-            .tvPivotSection(isTv, sectionListState, categoryId, selectorCornerRadius = 12.dp)
     ) {
         // Phase 56 : titre de catégorie grisé (texte secondaire) + lien "Voir tout".
         Row(
@@ -397,10 +400,13 @@ fun RecentlyWatchedRow(
     isInitialTarget: Boolean = false
 ) {
     Column(
+        // `tvPivotSection` en tête de chaîne : il doit observer l'item de liste
+        // entier, rembourrage compris, faute de quoi l'ancre du cadre est trop
+        // haute de ce rembourrage (B22, voir sa KDoc).
         modifier = Modifier
+            .tvPivotSection(isTv, sectionListState, "recently_watched", selectorCornerRadius = 12.dp)
             .fillMaxWidth()
             .padding(vertical = 4.dp)
-            .tvPivotSection(isTv, sectionListState, "recently_watched", selectorCornerRadius = 12.dp)
     ) {
         Text(
             text = "RÉCEMMENT REGARDÉES",

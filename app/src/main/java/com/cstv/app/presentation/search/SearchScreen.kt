@@ -247,7 +247,13 @@ fun SearchScreen(
             } else {
                 // --- Vue combinée : rangées horizontales par type ---
                 val combinedListState = rememberLazyListState()
-                CompositionLocalProvider(LocalTvFocusSelector provides if (isTv) tvFocusSelector else null) {
+                // Voir HomeScreen : sans `LocalTvPivotViewport`, aucune ancre
+                // déterministe n'est calculable et le cadre attend la fin du
+                // défilement (B22).
+                CompositionLocalProvider(
+                    LocalTvFocusSelector provides if (isTv) tvFocusSelector else null,
+                    LocalTvPivotViewport provides pivotViewport
+                ) {
                 LazyColumn(
                     state = combinedListState,
                     verticalArrangement = Arrangement.spacedBy(24.dp),
@@ -503,6 +509,10 @@ private fun SearchExpandedGrid(
         )
         val gridState = rememberLazyGridState()
         val tvFocusSelector = LocalTvFocusSelector.current
+        // Conteneur de l'ancre déterministe, comme sur les grilles de catégorie
+        // des catalogues : sans lui, `tvPivotCell` ne prédit rien (B22).
+        val pivotViewport = rememberTvPivotViewport()
+        CompositionLocalProvider(LocalTvPivotViewport provides pivotViewport) {
         LazyVerticalGrid(
             state = gridState,
             columns = GridCells.Fixed(columns),
@@ -519,6 +529,7 @@ private fun SearchExpandedGrid(
                 PaddingValues(0.dp)
             },
             modifier = Modifier.fillMaxSize()
+                .tvPivotViewport(pivotViewport)
                 .onFocusChanged { if (!it.hasFocus) tvFocusSelector?.clear() }
         ) {
             when (type) {
@@ -570,6 +581,7 @@ private fun SearchExpandedGrid(
                     }
                 }
             }
+        }
         }
     }
 }

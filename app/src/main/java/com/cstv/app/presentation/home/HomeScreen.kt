@@ -238,7 +238,14 @@ fun HomeScreen(
                     modifier = Modifier.fillMaxSize()
                 )
             } ?: run {
-                CompositionLocalProvider(LocalTvFocusSelector provides if (isTv) tvFocusSelector else null) {
+                // `LocalTvPivotViewport` est indispensable au calcul de l'ancre
+                // déterministe : sans lui, `tvPivotSection` ne prédit rien et le
+                // cadre attend la fin du défilement pour se replacer — c'était le
+                // trou de l'Accueil, masqué par la publication mesurée (B22).
+                CompositionLocalProvider(
+                    LocalTvFocusSelector provides if (isTv) tvFocusSelector else null,
+                    LocalTvPivotViewport provides pivotViewport
+                ) {
                 LazyColumn(
                 state = lazyListState,
                 // Sur TV, la marge haute est portée par la fenêtre de défilement
