@@ -3,7 +3,7 @@
 ## Informations générales
 
 Status:
-VALIDATED
+RELEASED
 
 Created:
 2026-08-09
@@ -435,3 +435,23 @@ Reste à valider par le PO sur appareil : fidélité visuelle à la maquette et
 fluidité de la remontée. Deux points de la review restent explicitement de son
 ressort — la douceur du fondu de l'affiche (départ à 0.2f sur 45 % de largeur)
 et la lisibilité du titre sur le trailer plein écran (scrim 0.62).
+
+---
+
+# 11. Release
+
+| | |
+| --- | --- |
+| Version | **v1.75.0** (`versionCode` 17500) |
+| Tag | `v1.75.0` |
+| Commit | `d706d3d` — ✨ feat(tv): fiche film — présentation cinéma pleine page et titres associés qui remontent (F28, v1.75.0) |
+| Date | 2026-08-09 |
+| Release GitHub | https://github.com/scilone/cstv/releases/tag/v1.75.0 |
+
+Documentation mise à jour : `docs/changelog.md` (entrée v1.75.0),
+`docs/features.md` (§ 4 VOD), `docs/user-guide.md` (§ 5 VOD & Séries),
+`docs/architecture.md` (séparation des fiches Mobile / TV).
+
+Livré en attente du retour du PO sur appareil : fidélité visuelle à la maquette
+(`docs/design-reference/refonte-fiche-film.jpeg`) et fluidité de la remontée de
+la rangée « Titres associés ».
