@@ -16,8 +16,18 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.grid.itemsIndexed as gridItemsIndexed
+import androidx.compose.foundation.lazy.grid.LazyGridState
+import com.cstv.app.presentation.components.TvCatalogGrid
+import com.cstv.app.presentation.components.TvSeeAllCard
+import com.cstv.app.presentation.components.TvPivotViewportState
+import com.cstv.app.presentation.home.components.HomeSeriesShowCard
+import com.cstv.app.presentation.home.components.HomeVodMovieCard
+import com.cstv.app.presentation.livetv.components.StreamTvCard
 import androidx.compose.foundation.lazy.items
+import com.cstv.app.presentation.components.rememberTvInitialFocus
+import com.cstv.app.presentation.components.tvInitialFocusTarget
 import com.cstv.app.presentation.components.tvPivotItem
+import com.cstv.app.presentation.components.TvChannelGrid
 import com.cstv.app.presentation.components.tvPivotCell
 import com.cstv.app.presentation.components.tvPivotSection
 import com.cstv.app.presentation.components.tvPivotHorizontalEndSpacer
@@ -68,6 +78,14 @@ import com.cstv.app.presentation.theme.Surface3
 // Type de média dont on affiche la liste complète (grille verticale) après
 // un clic sur "Voir tout". null = vue combinée (rangées horizontales).
 private enum class SearchExpandedType { LIVE, VOD, SERIES }
+
+/**
+ * Plafond d'une rangée de résultats. Au-delà, la rangée se termine par une carte
+ * « Voir tout » qui ouvre la grille complète — même dispositif que les rangées
+ * de catalogue (`CategorySectionRow`). Parcourir des centaines de vignettes au
+ * D-pad n'a pas de sens ; la grille, elle, se parcourt en deux dimensions.
+ */
+private const val SEARCH_ROW_MAX_ITEMS = 30
 
 @Composable
 fun SearchScreen(
@@ -238,6 +256,16 @@ fun SearchScreen(
                         type = expandedType!!,
                         result = state.searchResult,
                         isTv = isTv,
+                        favorites = state.favorites,
+                        onToggleFavorite = { stream ->
+                            viewModel.toggleFavorite(
+                                id = stream.streamId,
+                                type = "live",
+                                name = stream.name,
+                                cover = stream.streamIcon,
+                                categoryId = stream.categoryId.orEmpty()
+                            )
+                        },
                         onPlayLive = onPlayLive,
                         onSelectMovie = onSelectMovie,
                         onSelectSeries = onSelectSeries,
@@ -285,14 +313,25 @@ fun SearchScreen(
                                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                                     modifier = Modifier.fillMaxWidth().focusGroup()
                                 ) {
-                                    itemsIndexed(state.searchResult.liveResults) { index, stream ->
-                                        Box(modifier = Modifier.tvPivotItem(isTv, rowState, index)) {
+                                    itemsIndexed(state.searchResult.liveResults.take(SEARCH_ROW_MAX_ITEMS)) { index, stream ->
+                                        Box(modifier = Modifier.tvPivotItem(isTv, rowState, index, selectorCornerRadius = 12.dp)) {
                                             SearchCardItem(
                                                 name = stream.name,
                                                 cover = stream.streamIcon,
                                                 isLive = true,
                                                 onClick = { onPlayLive(stream) }
                                             )
+                                        }
+                                    }
+                                    if (state.searchResult.liveResults.size > SEARCH_ROW_MAX_ITEMS) {
+                                        item(key = "search_live_see_all") {
+                                            Box(modifier = Modifier.tvPivotItem(isTv, rowState, SEARCH_ROW_MAX_ITEMS, selectorCornerRadius = 12.dp)) {
+                                                TvSeeAllCard(
+                                                    onClick = { expandedType = SearchExpandedType.LIVE },
+                                                    modifier = Modifier.width(120.dp).height(80.dp),
+                                                    cornerRadius = 12.dp
+                                                )
+                                            }
                                         }
                                     }
                                     tvPivotHorizontalEndSpacer(isTv)
@@ -321,8 +360,8 @@ fun SearchScreen(
                                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                                     modifier = Modifier.fillMaxWidth().focusGroup()
                                 ) {
-                                    itemsIndexed(state.searchResult.vodResults) { index, stream ->
-                                        Box(modifier = Modifier.tvPivotItem(isTv, rowState, index)) {
+                                    itemsIndexed(state.searchResult.vodResults.take(SEARCH_ROW_MAX_ITEMS)) { index, stream ->
+                                        Box(modifier = Modifier.tvPivotItem(isTv, rowState, index, selectorCornerRadius = 12.dp)) {
                                             SearchCardItem(
                                                 name = stream.name,
                                                 cover = stream.streamIcon,
@@ -330,6 +369,17 @@ fun SearchScreen(
                                                 rating = stream.rating,
                                                 onClick = { onSelectMovie(stream) }
                                             )
+                                        }
+                                    }
+                                    if (state.searchResult.vodResults.size > SEARCH_ROW_MAX_ITEMS) {
+                                        item(key = "search_vod_see_all") {
+                                            Box(modifier = Modifier.tvPivotItem(isTv, rowState, SEARCH_ROW_MAX_ITEMS, selectorCornerRadius = 12.dp)) {
+                                                TvSeeAllCard(
+                                                    onClick = { expandedType = SearchExpandedType.VOD },
+                                                    modifier = Modifier.width(110.dp).aspectRatio(2f / 3f),
+                                                    cornerRadius = 12.dp
+                                                )
+                                            }
                                         }
                                     }
                                     tvPivotHorizontalEndSpacer(isTv)
@@ -358,8 +408,8 @@ fun SearchScreen(
                                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                                     modifier = Modifier.fillMaxWidth().focusGroup()
                                 ) {
-                                    itemsIndexed(state.searchResult.seriesResults) { index, stream ->
-                                        Box(modifier = Modifier.tvPivotItem(isTv, rowState, index)) {
+                                    itemsIndexed(state.searchResult.seriesResults.take(SEARCH_ROW_MAX_ITEMS)) { index, stream ->
+                                        Box(modifier = Modifier.tvPivotItem(isTv, rowState, index, selectorCornerRadius = 12.dp)) {
                                             SearchCardItem(
                                                 name = stream.name,
                                                 cover = stream.cover,
@@ -367,6 +417,17 @@ fun SearchScreen(
                                                 rating = stream.rating,
                                                 onClick = { onSelectSeries(stream) }
                                             )
+                                        }
+                                    }
+                                    if (state.searchResult.seriesResults.size > SEARCH_ROW_MAX_ITEMS) {
+                                        item(key = "search_series_see_all") {
+                                            Box(modifier = Modifier.tvPivotItem(isTv, rowState, SEARCH_ROW_MAX_ITEMS, selectorCornerRadius = 12.dp)) {
+                                                TvSeeAllCard(
+                                                    onClick = { expandedType = SearchExpandedType.SERIES },
+                                                    modifier = Modifier.width(110.dp).aspectRatio(2f / 3f),
+                                                    cornerRadius = 12.dp
+                                                )
+                                            }
                                         }
                                     }
                                     tvPivotHorizontalEndSpacer(isTv)
@@ -464,23 +525,18 @@ private fun SearchExpandedGrid(
     type: SearchExpandedType,
     result: com.cstv.app.domain.model.SearchResult,
     isTv: Boolean,
+    favorites: List<com.cstv.app.domain.model.FavoriteItem>,
+    onToggleFavorite: (LiveStream) -> Unit,
     onPlayLive: (LiveStream) -> Unit,
     onSelectMovie: (VodStream) -> Unit,
     onSelectSeries: (SeriesStream) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val title = when (type) {
-        SearchExpandedType.LIVE -> stringResource(R.string.search_channels)
-        SearchExpandedType.VOD -> stringResource(R.string.search_movies)
-        SearchExpandedType.SERIES -> stringResource(R.string.search_series)
-    }
     val count = when (type) {
         SearchExpandedType.LIVE -> result.liveResults.size
         SearchExpandedType.VOD -> result.vodResults.size
         SearchExpandedType.SERIES -> result.seriesResults.size
     }
-    // Chaînes = vignette paysage -> 2 colonnes ; posters -> 3 colonnes.
-    val columns = if (type == SearchExpandedType.LIVE) 2 else 3
 
     Column(modifier = modifier) {
         Text(
@@ -496,75 +552,193 @@ private fun SearchExpandedGrid(
         // des catalogues : sans lui, `tvPivotCell` ne prédit rien (B22).
         val pivotViewport = rememberTvPivotViewport()
         CompositionLocalProvider(LocalTvPivotViewport provides pivotViewport) {
-        LazyVerticalGrid(
-            state = gridState,
-            columns = GridCells.Fixed(columns),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            // Réserve haute réduite (T12) et réserve basse d'ancre haute (B22),
-            // à l'identique des grilles de catégorie Live TV / Films / Séries.
-            contentPadding = if (isTv) {
-                PaddingValues(
-                    top = TV_PIVOT_VERTICAL_START_RESERVE,
-                    bottom = tvPivotGridEndReserve()
+            if (isTv) {
+                SearchExpandedGridTv(
+                    type = type,
+                    result = result,
+                    gridState = gridState,
+                    pivotViewport = pivotViewport,
+                    favorites = favorites,
+                    onToggleFavorite = onToggleFavorite,
+                    onPlayLive = onPlayLive,
+                    onSelectMovie = onSelectMovie,
+                    onSelectSeries = onSelectSeries,
+                    onFocusLost = { tvFocusSelector?.clear() }
                 )
             } else {
-                PaddingValues(0.dp)
-            },
-            modifier = Modifier.fillMaxSize()
-                .tvPivotViewport(pivotViewport)
-                .onFocusChanged { if (!it.hasFocus) tvFocusSelector?.clear() }
+                SearchExpandedGridMobile(
+                    type = type,
+                    result = result,
+                    gridState = gridState,
+                    onPlayLive = onPlayLive,
+                    onSelectMovie = onSelectMovie,
+                    onSelectSeries = onSelectSeries
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Vue « Voir tout » sur TV : rigoureusement le rendu d'une catégorie filtrée.
+ *
+ * Films et séries passent par [TvCatalogGrid] et par les cartes d'affiche des
+ * catalogues ([HomeVodMovieCard], [HomeSeriesShowCard]) — même largeur de
+ * cellule, mêmes écarts, mêmes réserves, donc six affiches par ligne sur un
+ * écran 1080p. Les chaînes reprennent la géométrie de la grille Live TV (trois
+ * colonnes, cartes paysage) et sa carte [StreamTvCard].
+ *
+ * Seule différence assumée avec la catégorie Live TV : la recherche n'a pas de
+ * source EPG, la ligne de programme en cours reste donc vide (`epgProgram` nul,
+ * pas de rafraîchissement demandé).
+ */
+@Composable
+private fun SearchExpandedGridTv(
+    type: SearchExpandedType,
+    result: com.cstv.app.domain.model.SearchResult,
+    gridState: LazyGridState,
+    pivotViewport: TvPivotViewportState,
+    favorites: List<com.cstv.app.domain.model.FavoriteItem>,
+    onToggleFavorite: (LiveStream) -> Unit,
+    onPlayLive: (LiveStream) -> Unit,
+    onSelectMovie: (VodStream) -> Unit,
+    onSelectSeries: (SeriesStream) -> Unit,
+    onFocusLost: () -> Unit
+) {
+    // La carte « Voir tout » qui ouvre cette vue disparaît avec les rangées :
+    // sans cible explicite, le focus n'a plus de nœud où aller et la
+    // télécommande reste sans effet. Même dispositif que les catalogues.
+    val initialFocus = rememberTvInitialFocus(
+        isTv = true,
+        ready = when (type) {
+            SearchExpandedType.LIVE -> result.liveResults.isNotEmpty()
+            SearchExpandedType.VOD -> result.vodResults.isNotEmpty()
+            SearchExpandedType.SERIES -> result.seriesResults.isNotEmpty()
+        },
+        targetKey = type
+    )
+    if (type == SearchExpandedType.LIVE) {
+        TvChannelGrid(
+            state = gridState,
+            pivotViewport = pivotViewport,
+            onFocusLost = onFocusLost
         ) {
-            when (type) {
-                SearchExpandedType.LIVE -> gridItemsIndexed(result.liveResults) { index, stream ->
-                    Box(
-                        modifier = Modifier.tvPivotCell(isTv, gridState, index),
-                        // Cf. VodScreen.kt (Review F19, Majeur #1) : force la
-                        // propagation de la contrainte min de la cellule à l'enfant.
-                        propagateMinConstraints = true
-                    ) {
-                        SearchGridCard(
-                            name = stream.name,
-                            cover = stream.streamIcon,
-                            isLive = true,
-                            onClick = { onPlayLive(stream) }
-                        )
-                    }
-                }
-                SearchExpandedType.VOD -> gridItemsIndexed(result.vodResults) { index, stream ->
-                    Box(
-                        modifier = Modifier.tvPivotCell(isTv, gridState, index),
-                        // Cf. VodScreen.kt (Review F19, Majeur #1) : force la
-                        // propagation de la contrainte min de la cellule à l'enfant.
-                        propagateMinConstraints = true
-                    ) {
-                        SearchGridCard(
-                            name = stream.name,
-                            cover = stream.streamIcon,
-                            isLive = false,
-                            rating = stream.rating,
-                            onClick = { onSelectMovie(stream) }
-                        )
-                    }
-                }
-                SearchExpandedType.SERIES -> gridItemsIndexed(result.seriesResults) { index, stream ->
-                    Box(
-                        modifier = Modifier.tvPivotCell(isTv, gridState, index),
-                        // Cf. VodScreen.kt (Review F19, Majeur #1) : force la
-                        // propagation de la contrainte min de la cellule à l'enfant.
-                        propagateMinConstraints = true
-                    ) {
-                        SearchGridCard(
-                            name = stream.name,
-                            cover = stream.cover,
-                            isLive = false,
-                            rating = stream.rating,
-                            onClick = { onSelectSeries(stream) }
-                        )
-                    }
+            gridItemsIndexed(result.liveResults) { index, stream ->
+                Box(
+                    // Rayon 12.dp : StreamTvCard n'a pas été unifiée au rayon
+                    // 14.dp de B18, comme dans la catégorie Live TV.
+                    modifier = Modifier.tvPivotCell(true, gridState, index, selectorCornerRadius = 12.dp)
+                        .tvInitialFocusTarget(initialFocus, index == 0),
+                    // Cf. VodScreen.kt (Review F19, Majeur #1) : force la
+                    // propagation de la contrainte min de la cellule à l'enfant.
+                    propagateMinConstraints = true
+                ) {
+                    StreamTvCard(
+                        stream = stream,
+                        isFavorite = favorites.any { it.id == stream.streamId && it.type == "live" },
+                        epgProgram = null,
+                        onLoadEpg = null,
+                        onToggleFavorite = { onToggleFavorite(stream) },
+                        onClick = { onPlayLive(stream) }
+                    )
                 }
             }
         }
+        return
+    }
+
+    TvCatalogGrid(
+        state = gridState,
+        pivotViewport = pivotViewport,
+        onFocusLost = onFocusLost
+    ) {
+        when (type) {
+            SearchExpandedType.VOD -> gridItemsIndexed(result.vodResults) { index, stream ->
+                Box(
+                    modifier = Modifier.tvPivotCell(true, gridState, index)
+                        .tvInitialFocusTarget(initialFocus, index == 0),
+                    contentAlignment = Alignment.Center
+                ) {
+                    HomeVodMovieCard(
+                        stream = stream,
+                        onClick = { onSelectMovie(stream) },
+                        isTv = true,
+                        fillCell = false
+                    )
+                }
+            }
+            SearchExpandedType.SERIES -> gridItemsIndexed(result.seriesResults) { index, stream ->
+                Box(
+                    modifier = Modifier.tvPivotCell(true, gridState, index)
+                        .tvInitialFocusTarget(initialFocus, index == 0),
+                    contentAlignment = Alignment.Center
+                ) {
+                    HomeSeriesShowCard(
+                        stream = stream,
+                        onClick = { onSelectSeries(stream) },
+                        isTv = true,
+                        fillCell = false
+                    )
+                }
+            }
+            SearchExpandedType.LIVE -> Unit // traité au-dessus
+        }
+    }
+}
+
+/** Vue « Voir tout » sur mobile : grille tactile, inchangée. */
+@Composable
+private fun SearchExpandedGridMobile(
+    type: SearchExpandedType,
+    result: com.cstv.app.domain.model.SearchResult,
+    gridState: LazyGridState,
+    onPlayLive: (LiveStream) -> Unit,
+    onSelectMovie: (VodStream) -> Unit,
+    onSelectSeries: (SeriesStream) -> Unit
+) {
+    // Chaînes = vignette paysage -> 2 colonnes ; posters -> 3 colonnes.
+    val columns = if (type == SearchExpandedType.LIVE) 2 else 3
+    LazyVerticalGrid(
+        state = gridState,
+        columns = GridCells.Fixed(columns),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        contentPadding = PaddingValues(0.dp),
+        modifier = Modifier.fillMaxSize()
+    ) {
+        when (type) {
+            SearchExpandedType.LIVE -> gridItemsIndexed(result.liveResults) { _, stream ->
+                Box(propagateMinConstraints = true) {
+                    SearchGridCard(
+                        name = stream.name,
+                        cover = stream.streamIcon,
+                        isLive = true,
+                        onClick = { onPlayLive(stream) }
+                    )
+                }
+            }
+            SearchExpandedType.VOD -> gridItemsIndexed(result.vodResults) { _, stream ->
+                Box(propagateMinConstraints = true) {
+                    SearchGridCard(
+                        name = stream.name,
+                        cover = stream.streamIcon,
+                        isLive = false,
+                        rating = stream.rating,
+                        onClick = { onSelectMovie(stream) }
+                    )
+                }
+            }
+            SearchExpandedType.SERIES -> gridItemsIndexed(result.seriesResults) { _, stream ->
+                Box(propagateMinConstraints = true) {
+                    SearchGridCard(
+                        name = stream.name,
+                        cover = stream.cover,
+                        isLive = false,
+                        rating = stream.rating,
+                        onClick = { onSelectSeries(stream) }
+                    )
+                }
+            }
         }
     }
 }

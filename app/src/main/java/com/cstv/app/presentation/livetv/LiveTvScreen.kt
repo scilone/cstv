@@ -17,6 +17,7 @@ import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import com.cstv.app.presentation.components.CatalogUnavailableState
+import com.cstv.app.presentation.components.TvChannelGrid
 import com.cstv.app.presentation.components.tvPivotCell
 import com.cstv.app.presentation.components.LocalTvFocusSelector
 import com.cstv.app.presentation.components.LocalTvPivotViewport
@@ -427,19 +428,12 @@ private fun TvLayout(
             } else {
                 val gridState = rememberForeverLazyGridState("livetv_tv_cat_" + (state.selectedCategory?.categoryId ?: "0"), getScroll, saveScroll)
                 CompositionLocalProvider(LocalTvFocusSelector provides tvFocusSelector, LocalTvPivotViewport provides pivotViewport) {
-                LazyVerticalGrid(
+                // Mise en page partagée avec la vue « Voir tout » de la
+                // recherche : un seul composant, donc un seul rendu.
+                TvChannelGrid(
                     state = gridState,
-                    columns = GridCells.Fixed(3),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
-                    contentPadding = PaddingValues(
-                        top = TV_PIVOT_VERTICAL_START_RESERVE,
-                        bottom = tvPivotGridEndReserve()
-                    ),
-                    modifier = Modifier.fillMaxSize()
-                        .focusGroup()
-                        .tvPivotViewport(pivotViewport)
-                    .onFocusChanged { if (!it.hasFocus) tvFocusSelector.clear() }
+                    pivotViewport = pivotViewport,
+                    onFocusLost = { tvFocusSelector.clear() }
                 ) {
                     items(pagedStreams.itemCount) { index ->
                         val stream = pagedStreams[index]

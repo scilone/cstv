@@ -10,6 +10,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
+import com.cstv.app.presentation.components.TvSeeAllCard
 import com.cstv.app.presentation.components.tvPivotItem
 import com.cstv.app.presentation.components.tvPivotSection
 import com.cstv.app.presentation.components.tvPivotHorizontalEndSpacer
@@ -162,7 +163,11 @@ fun CategorySectionRow(
             if (showSeeAllCard) {
                 item(key = "see_all_card") {
                     Box(modifier = Modifier.tvPivotItem(isTv, rowState, CATEGORY_ROW_MAX_ITEMS, selectorCornerRadius = 12.dp)) {
-                        SeeAllCard(isTv = isTv, onClick = { onSeeAll?.invoke() })
+                        TvSeeAllCard(
+                            onClick = { onSeeAll?.invoke() },
+                            modifier = if (isTv) Modifier.fillMaxWidth().height(LIVE_TV_CARD_HEIGHT) else Modifier.width(150.dp).height(180.dp),
+                            cornerRadius = 12.dp
+                        )
                     }
                 }
             }
@@ -187,59 +192,6 @@ private const val CATEGORY_ROW_MAX_ITEMS = 100
  * horaire verticalement, notamment avec un `fontScale` d'accessibilité > 1.
  */
 internal val LIVE_TV_CARD_HEIGHT = 92.dp
-
-/**
- * Voir `VodScreen.SeeAllCard`. Les dimensions suivent la carte voisine plutôt
- * que celles des affiches de films : une chaîne est une tuile large et basse en
- * TV (voir [StreamTvCard]), une vignette 150×180 en mobile (voir
- * [MobileStreamCard]).
- */
-@Composable
-private fun SeeAllCard(
-    isTv: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    var isFocused by remember { mutableStateOf(false) }
-    val shape = RoundedCornerShape(12.dp)
-
-    Box(
-        modifier = modifier
-            .then(if (isTv) Modifier.fillMaxWidth().height(LIVE_TV_CARD_HEIGHT) else Modifier.width(150.dp).height(180.dp))
-            .onFocusChanged { isFocused = it.isFocused }
-            .tvFocusHighlight(isFocused, shape)
-            .clip(shape)
-            .background(Surface3)
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = androidx.compose.material.ripple.rememberRipple(bounded = true),
-                onClick = onClick
-            ),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-            modifier = Modifier.padding(12.dp)
-        ) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                contentDescription = null,
-                tint = AccentLavande,
-                modifier = Modifier.size(32.dp)
-            )
-            Spacer(modifier = Modifier.height(12.dp))
-            Text(
-                text = stringResource(R.string.home_see_all).uppercase(),
-                color = Color.White,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold,
-                fontFamily = HankenGrotesk,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
-            )
-        }
-    }
-}
 
 @Composable
 fun MobileStreamCard(
@@ -792,15 +744,21 @@ fun StreamTvCard(
     stream: LiveStream,
     isFavorite: Boolean,
     epgProgram: LiveEpgProgram?,
-    onLoadEpg: () -> Unit,
+    /**
+     * Rafraîchissement du programme en cours, ou `null` quand l'écran hôte n'a
+     * pas de source EPG (la recherche globale) : la carte n'entretient alors
+     * aucun ticker, plutôt que d'en faire tourner un qui n'appelle rien.
+     */
+    onLoadEpg: (() -> Unit)?,
     onToggleFavorite: () -> Unit,
     onClick: () -> Unit
 ) {
     var isFocused by remember { mutableStateOf(false) }
 
-    LaunchedEffect(stream.streamId) {
+    LaunchedEffect(stream.streamId, onLoadEpg != null) {
+        val loadEpg = onLoadEpg ?: return@LaunchedEffect
         while (true) {
-            onLoadEpg()
+            loadEpg()
             delay(60000)
         }
     }

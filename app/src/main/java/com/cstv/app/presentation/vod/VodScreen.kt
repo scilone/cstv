@@ -14,6 +14,8 @@ import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import com.cstv.app.presentation.components.CatalogUnavailableState
+import com.cstv.app.presentation.components.TvCatalogGrid
+import com.cstv.app.presentation.components.TvSeeAllCard
 import com.cstv.app.presentation.components.tvPivotItem
 import com.cstv.app.presentation.components.tvPivotCell
 import com.cstv.app.presentation.components.tvPivotSection
@@ -525,31 +527,12 @@ private fun TvLayout(
             } else {
                 val gridState = rememberForeverLazyGridState("vod_tv_cat_" + (state.selectedCategory?.categoryId ?: "0"), getScroll, saveScroll)
                 CompositionLocalProvider(LocalTvFocusSelector provides tvFocusSelector, LocalTvPivotViewport provides pivotViewport) {
-                BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-                    // `Adaptive` répartit le reliquat de largeur dans les cellules :
-                    // des affiches fixes semblent alors plus espacées qu'en rangée.
-                    // La largeur calculée garde des cellules de 130 dp exactes et
-                    // le même écart visible de 12 dp que le mode « Tout ».
-                    val horizontalPadding = 24.dp
-                    val cardWidth = 130.dp
-                    val gridGap = 12.dp
-                    val availableWidth = (maxWidth - horizontalPadding).coerceAtLeast(cardWidth)
-                    val columns = ((availableWidth + gridGap) / (cardWidth + gridGap)).roundToInt().coerceAtLeast(1)
-                LazyVerticalGrid(
+                // Mise en page partagée avec les Séries et la vue « Voir tout »
+                // de la recherche : un seul composant, donc un seul rendu.
+                TvCatalogGrid(
                     state = gridState,
-                    columns = GridCells.Fixed(columns),
-                    horizontalArrangement = Arrangement.spacedBy(gridGap),
-                    verticalArrangement = Arrangement.spacedBy(gridGap),
-                    contentPadding = PaddingValues(
-                        start = 12.dp,
-                        end = 12.dp,
-                        top = TV_PIVOT_VERTICAL_START_RESERVE,
-                        bottom = tvPivotGridEndReserve()
-                    ),
-                    modifier = Modifier.fillMaxSize()
-                        .focusGroup()
-                        .tvPivotViewport(pivotViewport)
-                    .onFocusChanged { if (!it.hasFocus) tvFocusSelector.clear() }
+                    pivotViewport = pivotViewport,
+                    onFocusLost = { tvFocusSelector.clear() }
                 ) {
                     items(pagedStreams.itemCount) { index ->
                         val stream = pagedStreams[index]
@@ -574,7 +557,6 @@ private fun TvLayout(
                             }
                         }
                     }
-                }
                 }
                 }
             }
@@ -931,61 +913,14 @@ private fun CategorySectionRow(
             if (showSeeAllCard) {
                 item(key = "see_all_card") {
                     Box(modifier = Modifier.tvPivotItem(isTv, rowState, CATEGORY_ROW_MAX_ITEMS)) {
-                        SeeAllCard(
-                            onClick = { onSeeAll?.invoke() }
+                        TvSeeAllCard(
+                            onClick = { onSeeAll?.invoke() },
+                            modifier = Modifier.width(130.dp).height(195.dp)
                         )
                     }
                 }
             }
             tvPivotHorizontalEndSpacer(isTv)
-        }
-    }
-}
-
-@Composable
-private fun SeeAllCard(
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    var isFocused by remember { mutableStateOf(false) }
-
-    val shape = RoundedCornerShape(14.dp)
-
-    Box(
-        modifier = modifier
-            .width(130.dp)
-            .height(195.dp)
-            .onFocusChanged { isFocused = it.isFocused }
-            .tvFocusHighlight(isFocused, shape)
-            .clip(shape)
-            .background(Surface3)
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = androidx.compose.material.ripple.rememberRipple(bounded = true),
-                onClick = onClick
-            ),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-            modifier = Modifier.padding(12.dp)
-        ) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                contentDescription = null,
-                tint = AccentLavande,
-                modifier = Modifier.size(32.dp)
-            )
-            Spacer(modifier = Modifier.height(12.dp))
-            Text(
-                text = "VOIR TOUT",
-                color = Color.White,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold,
-                fontFamily = HankenGrotesk,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
-            )
         }
     }
 }
