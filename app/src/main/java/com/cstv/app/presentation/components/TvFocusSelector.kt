@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -32,8 +31,24 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.toSize
 import com.cstv.app.presentation.theme.AccentLavande
 
-/** Géométrie du sélecteur, en coordonnées de la racine de l'écran (fenêtre). */
-data class TvSelectorTarget(val bounds: Rect, val cornerRadius: Dp)
+/**
+ * Géométrie du sélecteur, en coordonnées de la racine de l'écran (fenêtre).
+ *
+ * [glideHorizontally] n'est vrai que pour une cellule de **grille** : là, rien
+ * ne défile entre deux colonnes, c'est le cadre qui change réellement de place
+ * et son glissement est l'unique mouvement à l'écran. Partout ailleurs le cadre
+ * est un repère fixe et toute correction d'abscisse doit être instantanée.
+ * Déduire ce cas de la seule géométrie (« même ordonnée, même taille ») ne
+ * suffisait pas : deux rangées voisines s'ancrent au même endroit avec des
+ * cartes de même format et ne diffèrent que par l'abscisse — les vignettes
+ * « Top N » sont décalées par leur grand chiffre —, ce que la comparaison
+ * prenait pour un déplacement de grille (B22).
+ */
+data class TvSelectorTarget(
+    val bounds: Rect,
+    val cornerRadius: Dp,
+    val glideHorizontally: Boolean = false
+)
 
 /** Identifie les deux pivots qui peuvent concourir pour une même vignette de rangée. */
 enum class TvPivotAxis { HORIZONTAL, VERTICAL }
@@ -137,8 +152,8 @@ class TvFocusSelectorState {
 
     private val axisTracker = PendingAxisTracker()
 
-    fun publishStabilised(bounds: Rect, cornerRadius: Dp) {
-        target = TvSelectorTarget(bounds, cornerRadius)
+    fun publishStabilised(bounds: Rect, cornerRadius: Dp, glideHorizontally: Boolean = false) {
+        target = TvSelectorTarget(bounds, cornerRadius, glideHorizontally)
         isVisible = true
     }
 
@@ -147,21 +162,37 @@ class TvFocusSelectorState {
      * réellement focalisé). Sur une cible neuve, le cadre prend immédiatement sa
      * taille et son rayon, en gardant son coin haut-gauche : voir la
      * documentation de la classe.
+     *
+     * Amorcer, c'est aussi **prendre la main** sur le cadre : toute publication
+     * ultérieure portant sur une autre cible est refusée jusqu'à ce que
+     * celle-ci amorce à son tour. Sans cela, une cible qui republie à chaque
+     * mesure — la Hero Card le fait, sa position n'étant jamais figée par une
+     * convergence — écrasait la géométrie de la carte qui venait de prendre le
+     * focus, à chacune des mesures provoquées par le défilement : le grand cadre
+     * de la Hero « restait » alors visiblement le temps que la liste défile
+     * (B22).
      */
     fun beginAxis(coordinates: LayoutCoordinates, axis: TvPivotAxis, cornerRadius: Dp) {
         if (!axisTracker.begin(coordinates, axis)) return
         val current = target ?: return
         target = TvSelectorTarget(
             bounds = Rect(current.bounds.topLeft, coordinates.size.toSize()),
-            cornerRadius = cornerRadius
+            cornerRadius = cornerRadius,
+            glideHorizontally = false
         )
     }
 
     /** Un pivot a convergé pour [key] ; publie dès que tous les axes attendus l'ont fait. */
-    fun reportAxisStabilised(key: Any, axis: TvPivotAxis, coordinates: LayoutCoordinates, cornerRadius: Dp) {
+    fun reportAxisStabilised(
+        key: Any,
+        axis: TvPivotAxis,
+        coordinates: LayoutCoordinates,
+        cornerRadius: Dp,
+        glideHorizontally: Boolean = false
+    ) {
         if (!axisTracker.complete(key, axis)) return
         val safeCoordinates = coordinates.takeIf { it.isAttached } ?: return
-        publishStabilised(safeCoordinates.boundsInRoot(), cornerRadius)
+        publishStabilised(safeCoordinates.boundsInRoot(), cornerRadius, glideHorizontally)
     }
 
     /**
@@ -233,38 +264,26 @@ fun TvFocusSelectorOverlay(state: TvFocusSelectorState, modifier: Modifier = Mod
         val localTargetBounds = localBounds(target.bounds, host.boundsInRoot().topLeft)
         val cornerRadius = target.cornerRadius
         // Un seul déplacement est amorti : celui d'une colonne à la suivante
-        // dans une grille — le cadre y change réellement de place, puisque rien
-        // ne défile, et le glissement est alors la seule chose qui bouge à
-        // l'écran (B22).
+        // dans une grille, que la cible déclare elle-même
+        // ([TvSelectorTarget.glideHorizontally]) — la géométrie seule ne permet
+        // pas de le reconnaître (B22).
         //
-        // Tout le reste est instantané, et la condition ci-dessous le garantit
-        // en décrivant ce cas plutôt qu'en devinant le contexte : même ordonnée,
-        // même taille. Cela exclut le changement de rangée, où l'ordonnée change
-        // — et où l'abscisse peut changer aussi, les vignettes « Top N » étant
-        // décalées par leur grand chiffre. Cela exclut aussi tout changement de
-        // format entre deux rangées.
-        var previousBounds by remember { mutableStateOf(localTargetBounds) }
-        val purelyHorizontal = localTargetBounds.top == previousBounds.top &&
-            localTargetBounds.width == previousBounds.width &&
-            localTargetBounds.height == previousBounds.height
-        SideEffect { previousBounds = localTargetBounds }
-
         // `animateDpAsState` — y compris avec `snap()` — reste porté par un
         // `LaunchedEffect` : la valeur qu'il expose reflète encore l'ancienne
         // cible pendant la frame où `target` change, puisque cet effet ne
         // s'exécute qu'après le commit de la composition. Ordonnée, largeur et
         // hauteur, elles, sont des `val` lus directement et changent donc dans
         // cette même frame — d'où un cadre à la bonne taille mais à l'ancienne
-        // abscisse pendant un instant, perceptible surtout quand ancienne et
-        // nouvelle abscisse diffèrent nettement (rangées « Top N » notamment).
-        // Piloter l'`Animatable` à la main élimine ce décalage : hors glissement,
-        // l'abscisse est lue directement dans `localTargetBounds`, sans jamais
-        // dépendre de l'effet — seul `snapTo` le maintient synchronisé en
-        // arrière-plan, prêt pour un futur glissement.
+        // abscisse pendant un instant. Piloter l'`Animatable` à la main élimine
+        // ce décalage : hors glissement, l'abscisse est lue directement dans
+        // `localTargetBounds`, sans jamais dépendre de l'effet — seul `snapTo`
+        // le maintient synchronisé en arrière-plan, prêt pour un futur
+        // glissement.
+        val glide = target.glideHorizontally
         val leftPx = localTargetBounds.left
         val leftAnimatable = remember { Animatable(leftPx) }
-        LaunchedEffect(leftPx, purelyHorizontal) {
-            if (purelyHorizontal) {
+        LaunchedEffect(leftPx, glide) {
+            if (glide) {
                 leftAnimatable.animateTo(
                     leftPx,
                     spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)
@@ -274,7 +293,7 @@ fun TvFocusSelectorOverlay(state: TvFocusSelectorState, modifier: Modifier = Mod
             }
         }
         val left = with(density) {
-            (if (purelyHorizontal) leftAnimatable.value else leftPx).toDp()
+            (if (glide) leftAnimatable.value else leftPx).toDp()
         }
         val top = with(density) { localTargetBounds.top.toDp() }
         val width = with(density) { localTargetBounds.width.toDp() }
@@ -292,12 +311,19 @@ fun TvFocusSelectorOverlay(state: TvFocusSelectorState, modifier: Modifier = Mod
 }
 
 /**
- * Publie la géométrie d'une cible directement, sans passer par
- * [TvFocusSelectorState.reportAxisStabilised] : réservé aux cibles à axe
- * unique (grille — `tvPivotCell` — et Hero Card), qui n'ont pas d'autre axe à
- * attendre.
+ * Publie la géométrie d'une cible dont la position est **déjà définitive**,
+ * sans convergence à attendre : la Hero Card, qui ne défile pas sous le cadre.
+ *
+ * Passe malgré tout par [TvFocusSelectorState.beginAxis] pour prendre la main
+ * sur le cadre, puis par [TvFocusSelectorState.reportAxisStabilised] pour
+ * publier. Cette cible republie à **chaque mesure** tant qu'elle a le focus ;
+ * sans cette prise de main, ses republications continuaient d'écraser la
+ * géométrie d'une carte qui venait de prendre le focus — le défilement qui
+ * l'emporte hors de l'écran en provoque une par frame — et le grand cadre de la
+ * Hero « restait » visiblement le temps que la liste défile (B22).
  */
 fun TvFocusSelectorState.publishFrom(coordinates: LayoutCoordinates?, cornerRadius: Dp) {
     val safeCoordinates = coordinates?.takeIf { it.isAttached } ?: return
-    publishStabilised(safeCoordinates.boundsInRoot(), cornerRadius)
+    beginAxis(safeCoordinates, TvPivotAxis.VERTICAL, cornerRadius)
+    reportAxisStabilised(safeCoordinates, TvPivotAxis.VERTICAL, safeCoordinates, cornerRadius)
 }

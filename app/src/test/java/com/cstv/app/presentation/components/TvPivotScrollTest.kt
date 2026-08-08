@@ -191,6 +191,76 @@ class TvPivotScrollTest {
         )
     }
 
+    // --- Pivot centré, restauré pour l'Accueil (B22) ---
+
+    @Test
+    fun centeredPivotAlignsTheFocusedThumbnailNotTheRow() {
+        // Le bandeau de titre au-dessus des vignettes ne doit pas décaler la
+        // carte : c'est sa position réelle dans la section qui compte.
+        assertEquals(
+            42f,
+            focusedChildPivotDelta(
+                viewportStartOffset = 0,
+                viewportEndOffset = 1080,
+                sectionOffset = 390,
+                focusedOffsetInSection = 42f,
+                focusedSize = 300
+            )
+        )
+    }
+
+    @Test
+    fun centeredPivotNeedsNoScrollWhenAlreadyCentred() {
+        assertEquals(
+            0f,
+            focusedChildPivotDelta(
+                viewportStartOffset = -24,
+                viewportEndOffset = 1056,
+                sectionOffset = 324,
+                focusedOffsetInSection = 42f,
+                focusedSize = 300
+            )
+        )
+    }
+
+    @Test
+    fun centeredPivotMovesContentInBothDirections() {
+        assertEquals(
+            120f,
+            focusedChildPivotDelta(
+                viewportStartOffset = 0,
+                viewportEndOffset = 720,
+                sectionOffset = 380,
+                focusedOffsetInSection = 0f,
+                focusedSize = 200
+            )
+        )
+        assertEquals(
+            -120f,
+            focusedChildPivotDelta(
+                viewportStartOffset = 0,
+                viewportEndOffset = 720,
+                sectionOffset = 140,
+                focusedOffsetInSection = 0f,
+                focusedSize = 200
+            )
+        )
+    }
+
+    @Test
+    fun centeredPivotWithUnmeasuredViewportNeedsNoScroll() {
+        assertEquals(
+            0f,
+            focusedChildPivotDelta(
+                viewportStartOffset = 0,
+                viewportEndOffset = 0,
+                sectionOffset = 100,
+                focusedOffsetInSection = 20f,
+                focusedSize = 200
+            )
+        )
+    }
+
     // --- Foulée de rattrapage d'une liste de rangées (B22) ---
 
     @Test

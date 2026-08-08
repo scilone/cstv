@@ -16,7 +16,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -46,6 +48,8 @@ private const val VERTICAL_PIVOT_TOLERANCE_PX = 0.5f
 private const val OFFSCREEN_CATCH_UP_MAX_STEPS = 2
 
 private class PivotSectionCoordinates(
+    /** Utilisé par [TvPivotAnchor.Centered] seul, qui aligne le descendant focalisé. */
+    var section: LayoutCoordinates? = null,
     var focusedChild: LayoutCoordinates? = null,
     var correctionJob: Job? = null
 )
@@ -149,6 +153,58 @@ internal fun offscreenSectionStepDelta(
     mainAxisItemSpacing: Int
 ): Float =
     if (firstVisibleItemHeight <= 0) 0f else -(firstVisibleItemHeight + mainAxisItemSpacing).toFloat()
+
+/** Où une rangée vient se poser verticalement dans son viewport. */
+enum class TvPivotAnchor {
+    /**
+     * Emplacement de la première rangée, sous la réserve de tête. Le cadre du
+     * focus ne bouge alors jamais d'une rangée à l'autre — à condition que les
+     * cartes aient la même taille, faute de quoi seul son format change.
+     */
+    Top,
+
+    /**
+     * Centre du viewport, aligné sur le **descendant focalisé** et non sur la
+     * rangée : le bandeau de titre au-dessus des vignettes ne décale donc pas
+     * la carte. Comportement d'origine du mode « Tout », conservé pour
+     * l'Accueil (B22) — c'est le seul écran dont les rangées mêlent des formats
+     * très différents (Hero Card, chaînes basses, affiches hautes, cartes
+     * « Top N » décalées), et l'ancre haute y accumulait les à-coups : Hero qui
+     * quitte l'écran d'un bloc, remontée qui dépasse puis se recale. Un pivot
+     * au centre laisse toujours les rangées voisines partiellement visibles,
+     * ce qui supprime la cause de ces deux défauts.
+     */
+    Centered
+}
+
+/** Fraction du viewport où la rangée active se cale en [TvPivotAnchor.Centered]. */
+private const val TV_PIVOT_VERTICAL_FRACTION = 0.5f
+
+/**
+ * Distance à faire défiler pour aligner le centre du descendant focalisé sur le
+ * pivot vertical du viewport ([TvPivotAnchor.Centered]).
+ *
+ * Le calcul part de la position réellement mesurée du focus **dans** son item
+ * de section : le titre placé au-dessus d'une rangée ne décale donc pas sa
+ * vignette.
+ *
+ * Fonction pure, sans dépendance Compose, pour rester testable en JVM.
+ */
+internal fun focusedChildPivotDelta(
+    viewportStartOffset: Int,
+    viewportEndOffset: Int,
+    sectionOffset: Int,
+    focusedOffsetInSection: Float,
+    focusedSize: Int,
+    parentFraction: Float = TV_PIVOT_VERTICAL_FRACTION,
+    childFraction: Float = 0.5f
+): Float {
+    val viewportSize = viewportEndOffset - viewportStartOffset
+    if (viewportSize <= 0) return 0f
+    val pivot = viewportStartOffset + viewportSize * parentFraction
+    val focusedAnchor = sectionOffset + focusedOffsetInSection + focusedSize * childFraction
+    return focusedAnchor - pivot
+}
 
 /**
  * Convergence d'une vignette vers l'ancre de **début de rangée**, l'emplacement
@@ -301,6 +357,25 @@ fun LazyListScope.tvPivotHorizontalEndSpacer(enabled: Boolean) {
 val TV_PIVOT_VERTICAL_START_RESERVE = 24.dp
 
 /**
+ * Réserve verticale de début d'un demi-viewport, indispensable au pivot
+ * [TvPivotAnchor.Centered] : sans elle, les premières rangées ne peuvent pas
+ * descendre jusqu'au centre et le cadre du focus y sauterait à la première qui y
+ * parvient. Conserve la clé `"tv_pivot_vertical_start"` de son homologue réduite
+ * ([tvPivotVerticalStartReserve]) : les positions de défilement persistées
+ * référencent un index d'item, que retirer ou renommer cet item décalerait.
+ */
+fun LazyListScope.tvPivotVerticalStartSpacer(enabled: Boolean) {
+    if (!enabled) return
+    item(key = "tv_pivot_vertical_start") {
+        Spacer(
+            modifier = Modifier
+                .fillParentMaxHeight(0.5f)
+                .focusProperties { canFocus = false }
+        )
+    }
+}
+
+/**
  * Réserve basse des grilles TV, à passer en `contentPadding` bas (B22).
  *
  * L'ancre haute ([topAnchoredPivotDelta]) ne tient sa promesse — un cadre qui
@@ -400,7 +475,12 @@ fun Modifier.tvPivotCell(
                 animatePrimaryCorrection = targetChanged
             )
             if (stabilised && selector != null && focusedCoordinates.isAttached) {
-                selector.reportAxisStabilised(focusedCoordinates, TvPivotAxis.VERTICAL, focusedCoordinates, selectorCornerRadius)
+                selector.reportAxisStabilised(
+                    focusedCoordinates, TvPivotAxis.VERTICAL, focusedCoordinates, selectorCornerRadius,
+                    // Grille : seul endroit où le cadre change réellement de
+                    // place sans que rien ne défile (B22).
+                    glideHorizontally = true
+                )
             }
         }
     }
@@ -425,13 +505,23 @@ fun Modifier.tvPivotSection(
     enabled: Boolean,
     state: LazyListState,
     key: Any,
-    selectorCornerRadius: Dp = TV_SELECTOR_DEFAULT_RADIUS
+    selectorCornerRadius: Dp = TV_SELECTOR_DEFAULT_RADIUS,
+    anchor: TvPivotAnchor = TvPivotAnchor.Top
 ): Modifier {
     if (!enabled) return this
     val scope = rememberCoroutineScope()
     val selector = LocalTvFocusSelector.current
     val coordinates = remember { PivotSectionCoordinates() }
     return this
+        // Les coordonnées de la section ne servent qu'à [TvPivotAnchor.Centered],
+        // qui aligne le descendant focalisé et non la rangée entière.
+        .then(
+            if (anchor == TvPivotAnchor.Centered) {
+                Modifier.onGloballyPositioned { coordinates.section = it }
+            } else {
+                Modifier
+            }
+        )
         .onFocusedBoundsChanged { focusedCoordinates ->
             if (focusedCoordinates == null) {
                 coordinates.focusedChild = null
@@ -446,12 +536,17 @@ fun Modifier.tvPivotSection(
             if (!targetChanged && coordinates.correctionJob?.isActive == true) {
                 return@onFocusedBoundsChanged
             }
+            val section = coordinates.section
+            if (anchor == TvPivotAnchor.Centered && section == null) return@onFocusedBoundsChanged
             selector?.beginAxis(focusedCoordinates, TvPivotAxis.VERTICAL, selectorCornerRadius)
             coordinates.correctionJob?.cancel()
             coordinates.correctionJob = scope.launch {
                 val stabilised = state.convergeSectionToVerticalPivot(
                     key = key,
-                    animatePrimaryCorrection = targetChanged
+                    animatePrimaryCorrection = targetChanged,
+                    anchor = anchor,
+                    section = section,
+                    focusedChild = focusedCoordinates
                 )
                 if (stabilised && selector != null && focusedCoordinates.isAttached) {
                     selector.reportAxisStabilised(focusedCoordinates, TvPivotAxis.VERTICAL, focusedCoordinates, selectorCornerRadius)
@@ -471,17 +566,15 @@ internal fun isPivotClamped(delta: Float, consumed: Float): Boolean =
     abs(delta) > VERTICAL_PIVOT_TOLERANCE_PX && abs(consumed) <= VERTICAL_PIVOT_TOLERANCE_PX
 
 /**
- * Convergence d'une rangée de médias vers l'**ancre haute**, comme les cellules
- * de grille (B22) : la rangée active vient occuper l'emplacement de la première,
- * elle n'est plus centrée à 50 %. Le cadre du focus ne se déplace donc plus
- * verticalement, ni ici ni dans les grilles — un seul et même repère fixe sur
- * tous les écrans TV.
+ * Convergence d'une rangée de médias vers son ancre verticale, [TvPivotAnchor.Top]
+ * par défaut, [TvPivotAnchor.Centered] sur l'Accueil.
  *
- * L'ancrage porte sur l'**item de liste entier**, titre de section compris : les
- * deux vivent dans la même `Column`, sous ce modifier, et arrivent donc
- * ensemble. Ancrer la vignette elle-même aurait poussé son titre hors de l'écran.
- * Les bandeaux de titre étant de hauteur identique d'une section à l'autre, la
- * vignette retombe toujours à la même ordonnée.
+ * En [TvPivotAnchor.Top] l'ancrage porte sur l'**item de liste entier**, titre de
+ * section compris : les deux vivent dans la même `Column`, sous ce modifier, et
+ * arrivent donc ensemble. Ancrer la vignette elle-même aurait poussé son titre
+ * hors de l'écran. En [TvPivotAnchor.Centered] c'est au contraire la **vignette**
+ * qui s'aligne, sur le centre du viewport : le titre a de la place au-dessus
+ * d'elle sans qu'il faille en tenir compte.
  *
  * Comme pour les grilles, toute la convergence se déroule sous un `scroll`
  * de priorité [MutatePriority.UserInput], que le défilement implicite de Compose
@@ -515,7 +608,10 @@ internal fun isPivotClamped(delta: Float, consumed: Float): Boolean =
  */
 private suspend fun LazyListState.convergeSectionToVerticalPivot(
     key: Any,
-    animatePrimaryCorrection: Boolean
+    animatePrimaryCorrection: Boolean,
+    anchor: TvPivotAnchor,
+    section: LayoutCoordinates?,
+    focusedChild: LayoutCoordinates
 ): Boolean {
     var stabilised = false
     scroll(MutatePriority.UserInput) {
@@ -526,11 +622,31 @@ private suspend fun LazyListState.convergeSectionToVerticalPivot(
             val info = layoutInfo
             val itemInfo = info.visibleItemsInfo.firstOrNull { it.key == key }
             if (itemInfo != null) {
-                val delta = topAnchoredPivotDelta(
-                    viewportStartOffset = info.viewportStartOffset,
-                    beforeContentPadding = info.beforeContentPadding,
-                    itemOffset = itemInfo.offset
-                )
+                val delta = if (anchor == TvPivotAnchor.Centered) {
+                    if (section == null || !section.isAttached || !focusedChild.isAttached) {
+                        return@scroll
+                    }
+                    val focusedOffset = try {
+                        section.localPositionOf(focusedChild, Offset.Zero).y
+                    } catch (e: IllegalArgumentException) {
+                        return@scroll
+                    } catch (e: IllegalStateException) {
+                        return@scroll
+                    }
+                    focusedChildPivotDelta(
+                        viewportStartOffset = info.viewportStartOffset,
+                        viewportEndOffset = info.viewportEndOffset,
+                        sectionOffset = itemInfo.offset,
+                        focusedOffsetInSection = focusedOffset,
+                        focusedSize = focusedChild.size.height
+                    )
+                } else {
+                    topAnchoredPivotDelta(
+                        viewportStartOffset = info.viewportStartOffset,
+                        beforeContentPadding = info.beforeContentPadding,
+                        itemOffset = itemInfo.offset
+                    )
+                }
                 if (abs(delta) <= VERTICAL_PIVOT_TOLERANCE_PX) {
                     stablePasses++
                     if (stablePasses >= VERTICAL_PIVOT_STABLE_PASSES) {

@@ -350,6 +350,49 @@ coup. Le nombre de foulées est désormais plafonné à
 [OFFSCREEN_CATCH_UP_MAX_STEPS] (2) — assez pour rattraper une estimation faussée
 par deux rangées de hauteurs différentes, trop peu pour dériver.
 
+## Glissement réservé aux grilles, Hero propriétaire, pivot centré rendu à l'Accueil (v1.73.13)
+
+### Le cadre glissait entre deux rangées de même format
+
+La condition d'amortissement (« même ordonnée, même taille ⇒ déplacement de
+grille ») était une **déduction**, et elle était fausse : avec l'ancre haute,
+deux rangées voisines s'ancrent au même endroit, avec des cartes de même
+format, et ne diffèrent que par l'abscisse — les vignettes « Top N » sont
+décalées par leur grand chiffre. Passer de Films à Top Films remplissait donc
+la condition et déclenchait un glissement là où le cadre devait se recaler
+instantanément. La cible **déclare** désormais elle-même le cas
+([TvSelectorTarget.glideHorizontally]), et seul `tvPivotCell` (grille) le
+demande.
+
+### Le grand cadre de la Hero « restait » en descendant
+
+La Hero Card ne converge pas — sa position est définitive dès qu'elle est
+mesurée — et republie donc sa géométrie à **chaque** mesure tant qu'elle a le
+focus. Or le défilement qui l'emporte hors de l'écran en provoque une par
+frame : ses republications écrasaient la géométrie de la carte qui venait de
+prendre le focus, pendant toute la durée du défilement. `beginAxis` vaut
+désormais **prise de main** sur le cadre, et `publishFrom` (le chemin de la
+Hero) passe par elle : dès qu'une rangée amorce, les republications de la Hero
+sont refusées.
+
+### Pivot centré rendu à l'Accueil
+
+À la demande de l'utilisateur, et le diagnostic lui donne raison : l'Accueil est
+le seul écran dont les rangées mêlent des formats très différents (Hero,
+chaînes basses, affiches hautes, cartes « Top N » décalées), et l'ancre haute y
+accumulait les à-coups — Hero qui quitte l'écran d'un bloc, remontée vers une
+rangée plus basse qui dépasse puis se recale. Un pivot au centre laisse toujours
+les rangées voisines partiellement visibles, ce qui supprime la **cause** de ces
+deux défauts plutôt que d'en traiter les symptômes : plus de rangée hors champ à
+rattraper à l'estime, donc plus de dépassement.
+
+`tvPivotSection` prend un paramètre [TvPivotAnchor] ([TvPivotAnchor.Top] par
+défaut, [TvPivotAnchor.Centered] sur l'Accueil seul) ; `focusedChildPivotDelta`
+et `tvPivotVerticalStartSpacer` (réserve de tête d'un demi-viewport, sans
+laquelle les premières rangées ne peuvent pas atteindre le centre) sont
+restaurées pour ce mode. Les catalogues, la recherche et les favoris gardent
+l'ancre haute.
+
 ## Vérifications automatisées
 
 - `./gradlew testDebugUnitTest lintDebug assembleDebug` : **BUILD SUCCESSFUL**
@@ -527,7 +570,8 @@ v1.73.8 (amortissement réduit au seul cas utile, ancrage horizontal verrouillé
 v1.73.9 (rayon d'angle unifié, abscisse pilotée à la main sans décalage de frame),
 v1.73.10 (suivi des axes par identité de cible, immunisé au D-pad maintenu),
 v1.73.11 (cadre masqué pendant la convergence — approche abandonnée),
-v1.73.12 (taille adoptée immédiatement, cadre jamais masqué, rattrapage borné)
+v1.73.12 (taille adoptée immédiatement, cadre jamais masqué, rattrapage borné),
+v1.73.13 (glissement réservé aux grilles, Hero propriétaire, pivot centré rendu à l'Accueil)
 
 Commit :
 🐛 fix(tv): ancre haute du sélecteur pivot dans les grilles de catégorie (B22)

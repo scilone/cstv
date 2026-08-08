@@ -10,7 +10,8 @@ import com.cstv.app.presentation.components.tvPivotItem
 import com.cstv.app.presentation.components.tvPivotSection
 import com.cstv.app.presentation.components.tvPivotHorizontalEndSpacer
 import com.cstv.app.presentation.components.tvPivotVerticalEndSpacer
-import com.cstv.app.presentation.components.tvPivotVerticalStartReserve
+import com.cstv.app.presentation.components.tvPivotVerticalStartSpacer
+import com.cstv.app.presentation.components.TvPivotAnchor
 import com.cstv.app.presentation.components.LocalTvFocusSelector
 import com.cstv.app.presentation.components.TvFocusSelectorOverlay
 import com.cstv.app.presentation.components.TvFocusSelectorState
@@ -367,7 +368,7 @@ fun HomeScreen(
                 // Quand la Hero existe, sa hauteur fournit cette réserve et son
                 // positionnement spécifique reste inchangé.
                 if (isTv && state.trendingList.isEmpty() && !state.awaitingTrending) {
-                    tvPivotVerticalStartReserve(true)
+                    tvPivotVerticalStartSpacer(true)
                 }
 
                 // NOUVEAU: Hero "Reprendre" ou "Tendances" (Phase F1)
@@ -447,7 +448,7 @@ fun HomeScreen(
                             onSeeAll = { expandedSection = HomeExpandedSection.RESUME },
                             // Rayon aligné sur HomeResumeWatchingCard (12.dp) : les deux pivots
                             // d'une même carte doivent s'accorder sur son rayon réel (B22).
-                            modifier = Modifier.tvPivotSection(isTv, lazyListState, "home_resume", selectorCornerRadius = 12.dp)
+                            modifier = Modifier.tvPivotSection(isTv, lazyListState, "home_resume", selectorCornerRadius = 12.dp, anchor = TvPivotAnchor.Centered)
                         ) {
                             LazyRow(
                                 state = rowState,
@@ -482,7 +483,7 @@ fun HomeScreen(
                             title = stringResource(R.string.home_favorites),
                             isTv = isTv,
                             onSeeAll = { expandedSection = HomeExpandedSection.FAVORITES },
-                            modifier = Modifier.tvPivotSection(isTv, lazyListState, "home_favorites")
+                            modifier = Modifier.tvPivotSection(isTv, lazyListState, "home_favorites", anchor = TvPivotAnchor.Centered)
                         ) {
                             LazyRow(
                                 state = rowState,
@@ -513,7 +514,7 @@ fun HomeScreen(
                             isTv = isTv,
                             onSeeAll = onNavigateToLiveTv,
                             // Rayon aligné sur HomeLiveTvCard (16.dp), même raison que "home_resume".
-                            modifier = Modifier.tvPivotSection(isTv, lazyListState, "home_livetv", selectorCornerRadius = 16.dp)
+                            modifier = Modifier.tvPivotSection(isTv, lazyListState, "home_livetv", selectorCornerRadius = 16.dp, anchor = TvPivotAnchor.Centered)
                         ) {
                             LazyRow(
                                 state = rowState,
@@ -547,7 +548,7 @@ fun HomeScreen(
                             title = stringResource(R.string.home_section_vod),
                             isTv = isTv,
                             onSeeAll = onSeeAllVod,
-                            modifier = Modifier.tvPivotSection(isTv, lazyListState, "home_vod")
+                            modifier = Modifier.tvPivotSection(isTv, lazyListState, "home_vod", anchor = TvPivotAnchor.Centered)
                         ) {
                             LazyRow(
                                 state = rowState,
@@ -580,7 +581,7 @@ fun HomeScreen(
                             // dans sa rangée : pas de "Voir tout", comme pour
                             // "Top 10 Séries".
                             onSeeAll = null,
-                            modifier = Modifier.tvPivotSection(isTv, lazyListState, "home_top_movies")
+                            modifier = Modifier.tvPivotSection(isTv, lazyListState, "home_top_movies", anchor = TvPivotAnchor.Centered)
                         ) {
                             LazyRow(
                                 state = rowState,
@@ -611,7 +612,7 @@ fun HomeScreen(
                             title = stringResource(R.string.home_recommended_movies),
                             isTv = isTv,
                             onSeeAll = { expandedSection = HomeExpandedSection.RECOMMENDED_MOVIES },
-                            modifier = Modifier.tvPivotSection(isTv, lazyListState, "home_reco_movies")
+                            modifier = Modifier.tvPivotSection(isTv, lazyListState, "home_reco_movies", anchor = TvPivotAnchor.Centered)
                         ) {
                             LazyRow(
                                 state = rowState,
@@ -641,7 +642,7 @@ fun HomeScreen(
                             title = stringResource(R.string.home_section_series),
                             isTv = isTv,
                             onSeeAll = onSeeAllSeries,
-                            modifier = Modifier.tvPivotSection(isTv, lazyListState, "home_series")
+                            modifier = Modifier.tvPivotSection(isTv, lazyListState, "home_series", anchor = TvPivotAnchor.Centered)
                         ) {
                             LazyRow(
                                 state = rowState,
@@ -671,7 +672,7 @@ fun HomeScreen(
                             title = stringResource(R.string.home_top_series),
                             isTv = isTv,
                             onSeeAll = null,
-                            modifier = Modifier.tvPivotSection(isTv, lazyListState, "home_top_series")
+                            modifier = Modifier.tvPivotSection(isTv, lazyListState, "home_top_series", anchor = TvPivotAnchor.Centered)
                         ) {
                             LazyRow(
                                 state = rowState,
@@ -702,7 +703,7 @@ fun HomeScreen(
                             title = stringResource(R.string.home_recommended_series),
                             isTv = isTv,
                             onSeeAll = { expandedSection = HomeExpandedSection.RECOMMENDED_SERIES },
-                            modifier = Modifier.tvPivotSection(isTv, lazyListState, "home_reco_series")
+                            modifier = Modifier.tvPivotSection(isTv, lazyListState, "home_reco_series", anchor = TvPivotAnchor.Centered)
                         ) {
                             LazyRow(
                                 state = rowState,
@@ -733,7 +734,7 @@ fun HomeScreen(
                             title = stringResource(R.string.home_section_downloads),
                             isTv = isTv,
                             onSeeAll = onNavigateToDownloads,
-                            modifier = Modifier.tvPivotSection(isTv, lazyListState, "home_downloads")
+                            modifier = Modifier.tvPivotSection(isTv, lazyListState, "home_downloads", anchor = TvPivotAnchor.Centered)
                         ) {
                             LazyRow(
                                 state = rowState,
