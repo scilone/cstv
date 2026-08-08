@@ -437,30 +437,13 @@ private fun SearchSectionHeader(
             fontWeight = FontWeight.Medium,
             color = Color.Gray
         )
-        Spacer(modifier = Modifier.weight(1f))
-        // "Voir tout" : même traitement que la Home (HomeScreen.kt, HomeSectionRow).
-        if (isTv) {
-            // TV : bouton focusable au D-pad (contraste WCAG AA dans les deux états).
-            var isFocused by remember { mutableStateOf(false) }
-            Button(
-                onClick = onSeeAll,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = if (isFocused) AccentLavande else Surface3,
-                    contentColor = if (isFocused) Color.Black else Color.White
-                ),
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                modifier = Modifier
-                    .height(28.dp)
-                    .onFocusChanged { isFocused = it.isFocused }
-            ) {
-                Text(
-                    text = stringResource(R.string.home_see_all),
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-        } else {
-            // Mobile : lien texte discret en accent, façon maquette.
+        // « Voir tout » : mobile seulement, même traitement que la Home
+        // (HomeScreen.kt, HomeSectionRow) et que les rangées de catalogue
+        // (CategorySectionRow). Sur TV ces liens sont focusables et précèdent
+        // les vignettes : ils captaient le focus à l'arrivée sur l'écran, et la
+        // rangée se parcourt de toute façon entièrement au D-pad.
+        if (!isTv) {
+            Spacer(modifier = Modifier.weight(1f))
             Text(
                 text = stringResource(R.string.home_see_all),
                 fontSize = 12.5.sp,
