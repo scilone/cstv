@@ -26,6 +26,9 @@ import com.cstv.app.presentation.components.tvPivotVerticalStartReserve
 import com.cstv.app.presentation.components.TV_PIVOT_VERTICAL_START_RESERVE
 import com.cstv.app.presentation.components.tvPivotGridEndReserve
 import com.cstv.app.presentation.components.LocalTvFocusSelector
+import com.cstv.app.presentation.components.LocalTvPivotViewport
+import com.cstv.app.presentation.components.rememberTvPivotViewport
+import com.cstv.app.presentation.components.tvPivotViewport
 import com.cstv.app.presentation.components.TvFocusSelectorOverlay
 import com.cstv.app.presentation.components.TvFocusSelectorState
 import com.cstv.app.presentation.components.tvFocusHighlight
@@ -101,6 +104,7 @@ fun SearchScreen(
     // sans elle, la recherche globale gardait un cadre peint par chaque
     // vignette, au comportement différent du reste de l'application.
     val tvFocusSelector = remember { TvFocusSelectorState() }
+    val pivotViewport = rememberTvPivotViewport()
 
     Box(
         modifier = modifier
@@ -248,7 +252,8 @@ fun SearchScreen(
                     state = combinedListState,
                     verticalArrangement = Arrangement.spacedBy(24.dp),
                     modifier = Modifier.weight(1f).fillMaxWidth()
-                        .onFocusChanged { if (!it.hasFocus) tvFocusSelector.clear() }
+                        .tvPivotViewport(pivotViewport)
+                    .onFocusChanged { if (!it.hasFocus) tvFocusSelector.clear() }
                 ) {
                     // Réserve haute réduite (T12), comme sur Live TV, Films et
                     // Séries : la première rangée reste sous le bandeau au lieu

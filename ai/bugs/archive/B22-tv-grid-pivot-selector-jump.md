@@ -454,6 +454,35 @@ l'ordonnée est **déjà** la bonne : la prédiction verticale est désormais r�
 à l'entrée dans une rangée, ce qui supprime à la fois le calcul inutile et son
 risque.
 
+## Refonte : l'ancre ne se calcule plus depuis la vignette (v1.73.16)
+
+Après deux correctifs successifs qui n'ont pas tenu, le constat s'impose : la
+**source** de la géométrie était mauvaise. Toutes les implémentations
+précédentes plaçaient le cadre à partir de la vignette — sa position mesurée
+après convergence, puis une prédiction fondée sur cette même position. Or une
+vignette bouge, se compose hors champ en réserve de recherche de focus, et n'est
+mesurable qu'aux instants où Compose décide de la poser. Chaque correctif
+fermait un chemin, un autre s'ouvrait : latence à la remontée, téléportation
+d'une rangée en défilant à gauche.
+
+Le conteneur, lui, ne bouge pas. Combiné à des mesures **relatives** que le
+défilement ne change pas davantage — décalage de la vignette dans son item,
+hauteur de la vignette — il donne la position d'arrivée sans jamais consulter où
+la vignette se trouve à cet instant :
+
+- ancre haute : `hautConteneur + réserveDeTête + décalageDansItem` ;
+- ancre centrée : `hautConteneur + hauteurViewport/2 − hauteurVignette/2`.
+
+`TvPivotViewportState` (publié par `Modifier.tvPivotViewport` sur chaque
+`LazyColumn`/`LazyVerticalGrid`, exposé par `LocalTvPivotViewport`) porte la
+géométrie du conteneur ; `anchoredRootTop` — pure, donc testée en JVM — fait le
+calcul. `tvPivotSection` et `tvPivotCell` s'y ancrent ; les prédictions fondées
+sur la vignette (`sectionAnchorDelta`, `topAnchorDelta`) disparaissent.
+
+L'axe **horizontal** reste sur son ancrage d'origine : aucun défaut n'y est
+signalé, et son ancre — l'emplacement de la première vignette d'une rangée — est
+déjà stable.
+
 ## Vérifications automatisées
 
 - `./gradlew testDebugUnitTest lintDebug assembleDebug` : **BUILD SUCCESSFUL**
@@ -634,7 +663,8 @@ v1.73.11 (cadre masqué pendant la convergence — approche abandonnée),
 v1.73.12 (taille adoptée immédiatement, cadre jamais masqué, rattrapage borné),
 v1.73.13 (glissement réservé aux grilles, Hero propriétaire, pivot centré rendu à l'Accueil),
 v1.73.14 (cause racine : position d'arrivée prédite, le cadre n'attend plus le défilement),
-v1.73.15 (prédiction étendue à la remontée, prédiction verticale réservée à l'entrée dans une rangée)
+v1.73.15 (prédiction étendue à la remontée, prédiction verticale réservée à l'entrée dans une rangée),
+v1.73.16 (refonte : ancre verticale calculée depuis le conteneur, plus depuis la vignette)
 
 Commit :
 🐛 fix(tv): ancre haute du sélecteur pivot dans les grilles de catégorie (B22)

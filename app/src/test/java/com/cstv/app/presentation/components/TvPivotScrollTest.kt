@@ -191,6 +191,72 @@ class TvPivotScrollTest {
         )
     }
 
+    // --- Ancre déterministe, calculée depuis le conteneur (B22) ---
+
+    @Test
+    fun topAnchorPlacesTheThumbnailUnderTheLeadingReserve() {
+        // Rien ici ne dépend de la position courante de la vignette : conteneur,
+        // réserve de tête, et décalage de la vignette dans son item (le bandeau
+        // de titre au-dessus d'elle) — toutes stables pendant le défilement.
+        assertEquals(
+            100f + 24f + 42f,
+            anchoredRootTop(
+                viewportRootTop = 100f,
+                viewportHeight = 1080,
+                beforeContentPadding = 24,
+                focusedOffsetInItem = 42f,
+                focusedHeight = 300,
+                anchor = TvPivotAnchor.Top
+            )
+        )
+    }
+
+    @Test
+    fun topAnchorIgnoresTheThumbnailHeight() {
+        // Deux vignettes de hauteurs différentes se posent au même endroit :
+        // c'est très exactement la promesse du cadre fixe.
+        val short = anchoredRootTop(100f, 1080, 24, 0f, 92, TvPivotAnchor.Top)
+        val tall = anchoredRootTop(100f, 1080, 24, 0f, 300, TvPivotAnchor.Top)
+        assertEquals(short, tall)
+    }
+
+    @Test
+    fun centeredAnchorPutsTheThumbnailCentreOnTheViewportCentre() {
+        // Centre du conteneur = 100 + 1080/2 = 640 ; une vignette de 300 y a
+        // donc son bord haut à 640 − 150.
+        assertEquals(
+            490f,
+            anchoredRootTop(
+                viewportRootTop = 100f,
+                viewportHeight = 1080,
+                beforeContentPadding = 24,
+                focusedOffsetInItem = 42f,
+                focusedHeight = 300,
+                anchor = TvPivotAnchor.Centered
+            )
+        )
+    }
+
+    @Test
+    fun centeredAnchorFollowsTheThumbnailHeight() {
+        // Contrepartie assumée du pivot centré : le centre est fixe, donc le
+        // bord haut varie avec la hauteur de la vignette — la plus haute
+        // commence d'autant plus haut, soit la moitié de l'écart de hauteur.
+        val short = anchoredRootTop(100f, 1080, 24, 0f, 92, TvPivotAnchor.Centered)
+        val tall = anchoredRootTop(100f, 1080, 24, 0f, 300, TvPivotAnchor.Centered)
+        assertEquals(-(300f - 92f) / 2f, tall - short)
+    }
+
+    @Test
+    fun anchorFollowsTheContainerWhenTheScreenMovesIt() {
+        // Rail de navigation, insets : le conteneur peut être décalé dans la
+        // fenêtre, l'ancre suit sans autre calcul.
+        assertEquals(
+            60f + 24f,
+            anchoredRootTop(60f, 720, 24, 0f, 200, TvPivotAnchor.Top)
+        )
+    }
+
     // --- Pivot centré, restauré pour l'Accueil (B22) ---
 
     @Test

@@ -23,6 +23,9 @@ import com.cstv.app.presentation.components.TV_PIVOT_VERTICAL_START_RESERVE
 import com.cstv.app.presentation.components.tvPivotGridEndReserve
 import com.cstv.app.presentation.components.tvPivotVerticalStartReserve
 import com.cstv.app.presentation.components.LocalTvFocusSelector
+import com.cstv.app.presentation.components.LocalTvPivotViewport
+import com.cstv.app.presentation.components.rememberTvPivotViewport
+import com.cstv.app.presentation.components.tvPivotViewport
 import com.cstv.app.presentation.components.TvFocusSelectorOverlay
 import com.cstv.app.presentation.components.TvFocusSelectorState
 import androidx.compose.foundation.lazy.LazyListState
@@ -349,6 +352,7 @@ private fun TvLayout(
     // Cible de descente depuis le déclencheur de catégorie : la première
     // vignette de la grille, colonne de gauche (B22).
     val gridEntryFocusRequester = remember { FocusRequester() }
+    val pivotViewport = rememberTvPivotViewport()
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -421,11 +425,12 @@ private fun TvLayout(
         } else if (isAllSelected) {
             // Mode "Tout" : vertical categories list of horizontal rows
             val listState = rememberForeverLazyListState("vod_tv_all_vertical", getScroll, saveScroll)
-            CompositionLocalProvider(LocalTvFocusSelector provides tvFocusSelector) {
+            CompositionLocalProvider(LocalTvFocusSelector provides tvFocusSelector, LocalTvPivotViewport provides pivotViewport) {
             LazyColumn(
                 state = listState,
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 modifier = Modifier.fillMaxSize()
+                    .tvPivotViewport(pivotViewport)
                     .onFocusChanged { if (!it.hasFocus) tvFocusSelector.clear() }
             ) {
                 tvPivotVerticalStartReserve(true)
@@ -519,7 +524,7 @@ private fun TvLayout(
                 }
             } else {
                 val gridState = rememberForeverLazyGridState("vod_tv_cat_" + (state.selectedCategory?.categoryId ?: "0"), getScroll, saveScroll)
-                CompositionLocalProvider(LocalTvFocusSelector provides tvFocusSelector) {
+                CompositionLocalProvider(LocalTvFocusSelector provides tvFocusSelector, LocalTvPivotViewport provides pivotViewport) {
                 BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
                     // `Adaptive` répartit le reliquat de largeur dans les cellules :
                     // des affiches fixes semblent alors plus espacées qu'en rangée.
@@ -543,7 +548,8 @@ private fun TvLayout(
                     ),
                     modifier = Modifier.fillMaxSize()
                         .focusGroup()
-                        .onFocusChanged { if (!it.hasFocus) tvFocusSelector.clear() }
+                        .tvPivotViewport(pivotViewport)
+                    .onFocusChanged { if (!it.hasFocus) tvFocusSelector.clear() }
                 ) {
                     items(pagedStreams.itemCount) { index ->
                         val stream = pagedStreams[index]

@@ -11,7 +11,9 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
@@ -49,13 +51,14 @@ private const val VERTICAL_PIVOT_TOLERANCE_PX = 0.5f
 private const val OFFSCREEN_CATCH_UP_MAX_STEPS = 2
 
 private class PivotSectionCoordinates(
-    /** Utilisé par [TvPivotAnchor.Centered] seul, qui aligne le descendant focalisé. */
+    /** Repère du décalage de la vignette dans sa rangée (mesure relative, stable). */
     var section: LayoutCoordinates? = null,
     var focusedChild: LayoutCoordinates? = null,
     var correctionJob: Job? = null
 )
 
 private class PivotCellCoordinates(
+    var cell: LayoutCoordinates? = null,
     var focusedChild: LayoutCoordinates? = null,
     var correctionJob: Job? = null
 )
@@ -174,47 +177,112 @@ private fun LazyListState.startAnchorDelta(index: Int): Float? {
     )
 }
 
-/** Voir [startAnchorDelta] : même rôle pour une cellule de grille (axe vertical). */
-private fun LazyGridState.topAnchorDelta(index: Int): Float? {
-    val info = layoutInfo
-    val itemInfo = info.visibleItemsInfo.firstOrNull { it.index == index } ?: return null
-    return topAnchoredPivotDelta(
-        viewportStartOffset = info.viewportStartOffset,
-        beforeContentPadding = info.beforeContentPadding,
-        itemOffset = itemInfo.offset.y
-    )
+/**
+ * Géométrie du conteneur défilant (la `LazyColumn` ou la `LazyVerticalGrid`
+ * elle-même), publiée par [tvPivotViewport] et lue par les pivots.
+ *
+ * C'est la pièce qui rend l'ancre **déterministe** (B22). Toutes les tentatives
+ * précédentes calculaient la place du cadre à partir de la vignette : sa
+ * position mesurée après convergence, puis une prédiction fondée sur cette même
+ * position. Or une vignette bouge, se compose hors champ, et n'est mesurable
+ * qu'à des instants dictés par Compose — d'où une succession de défauts de
+ * synchronisation qu'aucun correctif ponctuel n'épuisait.
+ *
+ * Le conteneur, lui, ne bouge pas. Combiné à des mesures **relatives** —
+ * décalage de la vignette dans son item, taille de la vignette — que le
+ * défilement ne change pas davantage, il donne la position d'arrivée sans jamais
+ * consulter où la vignette se trouve à cet instant.
+ */
+@Stable
+class TvPivotViewportState {
+    var coordinates: LayoutCoordinates? = null
+        internal set
 }
 
-/** Voir [startAnchorDelta] : même rôle pour une rangée, dans l'un ou l'autre mode d'ancrage. */
-private fun LazyListState.sectionAnchorDelta(
-    key: Any,
-    anchor: TvPivotAnchor,
-    section: LayoutCoordinates?,
-    focusedChild: LayoutCoordinates
+@Composable
+fun rememberTvPivotViewport(): TvPivotViewportState = remember { TvPivotViewportState() }
+
+/** À poser sur le conteneur défilant lui-même (`LazyColumn`, `LazyVerticalGrid`). */
+fun Modifier.tvPivotViewport(state: TvPivotViewportState): Modifier =
+    onGloballyPositioned { state.coordinates = it }
+
+/** Conteneur vertical englobant, fourni aux pivots qui s'y ancrent. */
+val LocalTvPivotViewport = staticCompositionLocalOf<TvPivotViewportState?> { null }
+
+/**
+ * Ordonnée, en coordonnées racine, à laquelle la vignette focalisée s'arrêtera.
+ *
+ * Ne dépend que de grandeurs stables : position racine du conteneur, réserve de
+ * tête, hauteur du viewport, et — mesurés relativement à l'item qui les porte,
+ * donc insensibles au défilement — le décalage de la vignette dans son item et
+ * sa hauteur. Aucune position absolue de vignette n'intervient.
+ *
+ * Fonction pure, sans dépendance Compose, pour rester testable en JVM.
+ */
+internal fun anchoredRootTop(
+    viewportRootTop: Float,
+    viewportHeight: Int,
+    beforeContentPadding: Int,
+    focusedOffsetInItem: Float,
+    focusedHeight: Int,
+    anchor: TvPivotAnchor
+): Float = when (anchor) {
+    TvPivotAnchor.Top -> viewportRootTop + beforeContentPadding + focusedOffsetInItem
+    TvPivotAnchor.Centered -> viewportRootTop + viewportHeight / 2f - focusedHeight / 2f
+}
+
+/**
+ * Ordonnée d'arrivée du cadre pour une rangée, ou `null` si le conteneur n'est
+ * pas encore mesuré. Voir [anchoredRootTop] : rien ici ne dépend de la position
+ * courante de la vignette.
+ */
+private fun LazyListState.anchoredTopFor(
+    viewport: TvPivotViewportState?,
+    item: LayoutCoordinates,
+    focusedChild: LayoutCoordinates,
+    anchor: TvPivotAnchor
 ): Float? {
-    val info = layoutInfo
-    val itemInfo = info.visibleItemsInfo.firstOrNull { it.key == key } ?: return null
-    if (anchor != TvPivotAnchor.Centered) {
-        return topAnchoredPivotDelta(
-            viewportStartOffset = info.viewportStartOffset,
-            beforeContentPadding = info.beforeContentPadding,
-            itemOffset = itemInfo.offset
-        )
-    }
-    if (section == null || !section.isAttached || !focusedChild.isAttached) return null
-    val focusedOffset = try {
-        section.localPositionOf(focusedChild, Offset.Zero).y
+    val viewportCoordinates = viewport?.coordinates?.takeIf { it.isAttached } ?: return null
+    if (!item.isAttached || !focusedChild.isAttached) return null
+    val offsetInItem = try {
+        item.localPositionOf(focusedChild, Offset.Zero).y
     } catch (e: IllegalArgumentException) {
         return null
     } catch (e: IllegalStateException) {
         return null
     }
-    return focusedChildPivotDelta(
-        viewportStartOffset = info.viewportStartOffset,
-        viewportEndOffset = info.viewportEndOffset,
-        sectionOffset = itemInfo.offset,
-        focusedOffsetInSection = focusedOffset,
-        focusedSize = focusedChild.size.height
+    return anchoredRootTop(
+        viewportRootTop = viewportCoordinates.boundsInRoot().top,
+        viewportHeight = viewportCoordinates.size.height,
+        beforeContentPadding = layoutInfo.beforeContentPadding,
+        focusedOffsetInItem = offsetInItem,
+        focusedHeight = focusedChild.size.height,
+        anchor = anchor
+    )
+}
+
+/** Voir [anchoredTopFor] : même rôle pour une cellule de grille, toujours en ancre haute. */
+private fun LazyGridState.anchoredTopFor(
+    viewport: TvPivotViewportState?,
+    cell: LayoutCoordinates,
+    focusedChild: LayoutCoordinates
+): Float? {
+    val viewportCoordinates = viewport?.coordinates?.takeIf { it.isAttached } ?: return null
+    if (!cell.isAttached || !focusedChild.isAttached) return null
+    val offsetInCell = try {
+        cell.localPositionOf(focusedChild, Offset.Zero).y
+    } catch (e: IllegalArgumentException) {
+        return null
+    } catch (e: IllegalStateException) {
+        return null
+    }
+    return anchoredRootTop(
+        viewportRootTop = viewportCoordinates.boundsInRoot().top,
+        viewportHeight = viewportCoordinates.size.height,
+        beforeContentPadding = layoutInfo.beforeContentPadding,
+        focusedOffsetInItem = offsetInCell,
+        focusedHeight = focusedChild.size.height,
+        anchor = TvPivotAnchor.Top
     )
 }
 
@@ -527,8 +595,13 @@ fun Modifier.tvPivotCell(
     if (!enabled) return this
     val scope = rememberCoroutineScope()
     val selector = LocalTvFocusSelector.current
+    val viewport = LocalTvPivotViewport.current
     val coordinates = remember { PivotCellCoordinates() }
-    return this.onFocusedBoundsChanged { focusedCoordinates ->
+    return this
+        // Repère du décalage de la vignette dans sa cellule : mesure relative,
+        // que le défilement ne change pas.
+        .onGloballyPositioned { coordinates.cell = it }
+        .onFocusedBoundsChanged { focusedCoordinates ->
         if (focusedCoordinates == null) {
             coordinates.focusedChild = null
             coordinates.correctionJob?.cancel()
@@ -543,13 +616,13 @@ fun Modifier.tvPivotCell(
         // Grille : un seul axe (VERTICAL), pas d'ambiguïté de nommage — aucun
         // pivot horizontal ne concourt pour cette même cible (B22).
         selector?.beginAxis(focusedCoordinates, TvPivotAxis.VERTICAL, selectorCornerRadius)
-        // Position d'arrivée posée tout de suite, sans attendre le défilement.
-        state.topAnchorDelta(index)?.let { delta ->
-            if (focusedCoordinates.isAttached) {
+        // Ancre déterministe, voir tvPivotSection.
+        coordinates.cell?.let { cell ->
+            state.anchoredTopFor(viewport, cell, focusedCoordinates)?.let { top ->
                 selector?.predictAxis(
                     key = focusedCoordinates,
                     axis = TvPivotAxis.VERTICAL,
-                    anchoredOffset = focusedCoordinates.boundsInRoot().top - delta,
+                    anchoredOffset = top,
                     cornerRadius = selectorCornerRadius
                 )
             }
@@ -597,17 +670,12 @@ fun Modifier.tvPivotSection(
     if (!enabled) return this
     val scope = rememberCoroutineScope()
     val selector = LocalTvFocusSelector.current
+    val viewport = LocalTvPivotViewport.current
     val coordinates = remember { PivotSectionCoordinates() }
     return this
-        // Les coordonnées de la section ne servent qu'à [TvPivotAnchor.Centered],
-        // qui aligne le descendant focalisé et non la rangée entière.
-        .then(
-            if (anchor == TvPivotAnchor.Centered) {
-                Modifier.onGloballyPositioned { coordinates.section = it }
-            } else {
-                Modifier
-            }
-        )
+        // La section sert de repère au décalage de la vignette en son sein :
+        // mesure relative, que le défilement ne change pas.
+        .onGloballyPositioned { coordinates.section = it }
         .onFocusedBoundsChanged { focusedCoordinates ->
             if (focusedCoordinates == null) {
                 coordinates.focusedChild = null
@@ -621,7 +689,6 @@ fun Modifier.tvPivotSection(
             // une vignette que Compose vient de composer hors champ, pas encore
             // posée à sa place — d'où un cadre qui se téléportait furtivement
             // d'une rangée vers le haut à chaque cran vers la gauche (B22).
-            val cameFromSameSection = coordinates.focusedChild != null
             val targetChanged = coordinates.focusedChild !== focusedCoordinates
             coordinates.focusedChild = focusedCoordinates
             // Tant que la convergence courante est active, ses passes suivantes
@@ -630,28 +697,18 @@ fun Modifier.tvPivotSection(
                 return@onFocusedBoundsChanged
             }
             val section = coordinates.section
-            if (anchor == TvPivotAnchor.Centered && section == null) return@onFocusedBoundsChanged
+            if (section == null) return@onFocusedBoundsChanged
             selector?.beginAxis(focusedCoordinates, TvPivotAxis.VERTICAL, selectorCornerRadius)
-            // Position d'arrivée posée tout de suite, sans attendre le défilement.
-            if (!cameFromSameSection && focusedCoordinates.isAttached) {
-                val predictedTop = state.sectionAnchorDelta(key, anchor, section, focusedCoordinates)
-                    ?.let { focusedCoordinates.boundsInRoot().top - it }
-                // Rangée pas encore mesurable — c'est la remontée, elle est hors
-                // champ. En ancre haute toutes les cartes se posent au même
-                // endroit, le cadre y est donc déjà ; centré, en revanche, son
-                // ordonnée dépend de la hauteur de la carte, et le centre du
-                // viewport — qu'occupe le cadre courant — suffit à la déduire
-                // sans rien mesurer.
-                    ?: selector?.target?.takeIf { anchor == TvPivotAnchor.Centered }
-                        ?.let { it.bounds.center.y - focusedCoordinates.size.height / 2f }
-                if (predictedTop != null) {
-                    selector?.predictAxis(
-                        key = focusedCoordinates,
-                        axis = TvPivotAxis.VERTICAL,
-                        anchoredOffset = predictedTop,
-                        cornerRadius = selectorCornerRadius
-                    )
-                }
+            // Ancre déterministe : ne consulte jamais où la vignette se trouve à
+            // cet instant, seulement des grandeurs que le défilement ne change
+            // pas (B22).
+            state.anchoredTopFor(viewport, section, focusedCoordinates, anchor)?.let { top ->
+                selector?.predictAxis(
+                    key = focusedCoordinates,
+                    axis = TvPivotAxis.VERTICAL,
+                    anchoredOffset = top,
+                    cornerRadius = selectorCornerRadius
+                )
             }
             coordinates.correctionJob?.cancel()
             coordinates.correctionJob = scope.launch {

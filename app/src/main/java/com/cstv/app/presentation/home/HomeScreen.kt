@@ -13,6 +13,9 @@ import com.cstv.app.presentation.components.tvPivotVerticalEndSpacer
 import com.cstv.app.presentation.components.tvPivotVerticalStartSpacer
 import com.cstv.app.presentation.components.TvPivotAnchor
 import com.cstv.app.presentation.components.LocalTvFocusSelector
+import com.cstv.app.presentation.components.LocalTvPivotViewport
+import com.cstv.app.presentation.components.rememberTvPivotViewport
+import com.cstv.app.presentation.components.tvPivotViewport
 import com.cstv.app.presentation.components.TvFocusSelectorOverlay
 import com.cstv.app.presentation.components.TvFocusSelectorState
 import com.cstv.app.presentation.components.rememberTvInitialFocus
@@ -207,6 +210,7 @@ fun HomeScreen(
     // fourni uniquement aux conteneurs de listes de médias TV, jamais au
     // mobile ni au bandeau de navigation.
     val tvFocusSelector = remember { TvFocusSelectorState() }
+    val pivotViewport = rememberTvPivotViewport()
 
     Box(
         modifier = modifier
@@ -249,7 +253,8 @@ fun HomeScreen(
                 // l'air — d'où une asymétrie visible.
                 modifier = Modifier.fillMaxSize().then(
                     if (isTv) Modifier.padding(top = 24.dp, bottom = 24.dp) else Modifier
-                ).onFocusChanged { if (!it.hasFocus) tvFocusSelector.clear() },
+                ).tvPivotViewport(pivotViewport)
+                    .onFocusChanged { if (!it.hasFocus) tvFocusSelector.clear() },
                 contentPadding = if (isTv) {
                     PaddingValues(start = 16.dp, end = 16.dp, bottom = 16.dp)
                 } else {
