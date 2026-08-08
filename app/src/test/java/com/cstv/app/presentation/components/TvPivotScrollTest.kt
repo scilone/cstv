@@ -221,30 +221,38 @@ class TvPivotScrollTest {
     }
 
     @Test
-    fun centeredAnchorPutsTheThumbnailCentreOnTheViewportCentre() {
-        // Centre du conteneur = 100 + 1080/2 = 640 ; une vignette de 300 y a
-        // donc son bord haut à 640 − 150.
+    fun midViewportAnchorPutsTheThumbnailTopAtHalfHeight() {
+        // Bord haut de la vignette à mi-conteneur : 100 + 1080/2.
         assertEquals(
-            490f,
+            640f,
             anchoredRootTop(
                 viewportRootTop = 100f,
                 viewportHeight = 1080,
                 beforeContentPadding = 24,
                 focusedOffsetInItem = 42f,
                 focusedHeight = 300,
-                anchor = TvPivotAnchor.Centered
+                anchor = TvPivotAnchor.MidViewport
             )
         )
     }
 
     @Test
-    fun centeredAnchorFollowsTheThumbnailHeight() {
-        // Contrepartie assumée du pivot centré : le centre est fixe, donc le
-        // bord haut varie avec la hauteur de la vignette — la plus haute
-        // commence d'autant plus haut, soit la moitié de l'écart de hauteur.
-        val short = anchoredRootTop(100f, 1080, 24, 0f, 92, TvPivotAnchor.Centered)
-        val tall = anchoredRootTop(100f, 1080, 24, 0f, 300, TvPivotAnchor.Centered)
-        assertEquals(-(300f - 92f) / 2f, tall - short)
+    fun midViewportAnchorIgnoresTheThumbnailHeight() {
+        // Le point corrigé : centrer la vignette faisait dépendre le haut du
+        // cadre de la hauteur de la carte, et le cadre bougeait donc à chaque
+        // changement de format de rangée. Ancrer le bord haut l'immobilise.
+        val short = anchoredRootTop(100f, 1080, 24, 0f, 92, TvPivotAnchor.MidViewport)
+        val tall = anchoredRootTop(100f, 1080, 24, 0f, 300, TvPivotAnchor.MidViewport)
+        assertEquals(short, tall)
+    }
+
+    @Test
+    fun midViewportAnchorIgnoresTheTitleBandHeight() {
+        // Et pas davantage du bandeau de titre au-dessus de la vignette : c'est
+        // la vignette qui s'aligne, la rangée se place autour.
+        val plain = anchoredRootTop(100f, 1080, 24, 0f, 300, TvPivotAnchor.MidViewport)
+        val titled = anchoredRootTop(100f, 1080, 24, 42f, 300, TvPivotAnchor.MidViewport)
+        assertEquals(plain, titled)
     }
 
     @Test
@@ -257,14 +265,15 @@ class TvPivotScrollTest {
         )
     }
 
-    // --- Pivot centré, restauré pour l'Accueil (B22) ---
+    // --- Pivot à mi-hauteur de l'Accueil : bord haut visé (B22) ---
 
     @Test
-    fun centeredPivotAlignsTheFocusedThumbnailNotTheRow() {
+    fun midViewportPivotAlignsTheFocusedThumbnailNotTheRow() {
         // Le bandeau de titre au-dessus des vignettes ne doit pas décaler la
-        // carte : c'est sa position réelle dans la section qui compte.
+        // carte : c'est sa position réelle dans la section qui compte. Bord haut
+        // visé : 390 + 42 − 540.
         assertEquals(
-            42f,
+            -108f,
             focusedChildPivotDelta(
                 viewportStartOffset = 0,
                 viewportEndOffset = 1080,
@@ -276,13 +285,23 @@ class TvPivotScrollTest {
     }
 
     @Test
-    fun centeredPivotNeedsNoScrollWhenAlreadyCentred() {
+    fun midViewportPivotTargetsTheThumbnailTopNotItsCentre() {
+        // Deux vignettes de hauteurs différentes, même position : même
+        // défilement demandé. C'est ce qui immobilise le cadre.
+        val short = focusedChildPivotDelta(0, 1080, 600, 0f, 92)
+        val tall = focusedChildPivotDelta(0, 1080, 600, 0f, 300)
+        assertEquals(short, tall)
+    }
+
+    @Test
+    fun midViewportPivotNeedsNoScrollWhenAlreadyInPlace() {
+        // Pivot = −24 + 1080/2 = 516 ; bord haut de la vignette = 474 + 42.
         assertEquals(
             0f,
             focusedChildPivotDelta(
                 viewportStartOffset = -24,
                 viewportEndOffset = 1056,
-                sectionOffset = 324,
+                sectionOffset = 474,
                 focusedOffsetInSection = 42f,
                 focusedSize = 300
             )
@@ -290,9 +309,9 @@ class TvPivotScrollTest {
     }
 
     @Test
-    fun centeredPivotMovesContentInBothDirections() {
+    fun midViewportPivotMovesContentInBothDirections() {
         assertEquals(
-            120f,
+            20f,
             focusedChildPivotDelta(
                 viewportStartOffset = 0,
                 viewportEndOffset = 720,
@@ -302,7 +321,7 @@ class TvPivotScrollTest {
             )
         )
         assertEquals(
-            -120f,
+            -220f,
             focusedChildPivotDelta(
                 viewportStartOffset = 0,
                 viewportEndOffset = 720,
@@ -314,7 +333,7 @@ class TvPivotScrollTest {
     }
 
     @Test
-    fun centeredPivotWithUnmeasuredViewportNeedsNoScroll() {
+    fun midViewportPivotWithUnmeasuredViewportNeedsNoScroll() {
         assertEquals(
             0f,
             focusedChildPivotDelta(

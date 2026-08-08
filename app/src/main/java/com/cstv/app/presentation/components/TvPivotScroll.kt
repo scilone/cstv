@@ -228,7 +228,7 @@ internal fun anchoredRootTop(
     anchor: TvPivotAnchor
 ): Float = when (anchor) {
     TvPivotAnchor.Top -> viewportRootTop + beforeContentPadding + focusedOffsetInItem
-    TvPivotAnchor.Centered -> viewportRootTop + viewportHeight / 2f - focusedHeight / 2f
+    TvPivotAnchor.MidViewport -> viewportRootTop + viewportHeight * TV_PIVOT_VERTICAL_FRACTION
 }
 
 /**
@@ -296,25 +296,32 @@ enum class TvPivotAnchor {
     Top,
 
     /**
-     * Centre du viewport, aligné sur le **descendant focalisé** et non sur la
-     * rangée : le bandeau de titre au-dessus des vignettes ne décale donc pas
-     * la carte. Comportement d'origine du mode « Tout », conservé pour
-     * l'Accueil (B22) — c'est le seul écran dont les rangées mêlent des formats
-     * très différents (Hero Card, chaînes basses, affiches hautes, cartes
-     * « Top N » décalées), et l'ancre haute y accumulait les à-coups : Hero qui
-     * quitte l'écran d'un bloc, remontée qui dépasse puis se recale. Un pivot
-     * au centre laisse toujours les rangées voisines partiellement visibles,
-     * ce qui supprime la cause de ces deux défauts.
+     * Mi-hauteur du viewport, sur l'Accueil (B22). Comme [Top], c'est le **bord
+     * haut** de la vignette qui s'y pose, jamais son centre : centrer la
+     * vignette y ferait dépendre le haut du cadre de la hauteur de la carte, et
+     * le cadre bougerait donc à chaque changement de format de rangée — Hero
+     * vers « Continuer à regarder », entrée et sortie de « TV en direct ».
+     * Ancrer le bord haut supprime la variable ; le cadre est aussi rigoureusement
+     * fixe qu'en [Top].
+     *
+     * Reste distinct de [Top] par la **hauteur** de l'ancre : à mi-écran, les
+     * rangées voisines restent partiellement visibles de part et d'autre, ce dont
+     * l'Accueil a besoin — c'est le seul écran dont les rangées mêlent des
+     * formats très différents, et l'ancre haute y accumulait les à-coups.
      */
-    Centered
+    MidViewport
 }
 
-/** Fraction du viewport où la rangée active se cale en [TvPivotAnchor.Centered]. */
+/** Hauteur du viewport à laquelle se pose le bord haut de la vignette en [TvPivotAnchor.MidViewport]. */
 private const val TV_PIVOT_VERTICAL_FRACTION = 0.5f
 
 /**
- * Distance à faire défiler pour aligner le centre du descendant focalisé sur le
- * pivot vertical du viewport ([TvPivotAnchor.Centered]).
+ * Distance à faire défiler pour poser le **bord haut** du descendant focalisé
+ * sur le pivot vertical du viewport ([TvPivotAnchor.MidViewport]).
+ *
+ * `childFraction` vaut 0 : c'est le bord haut qui s'aligne, pas le centre — la
+ * même promesse que [anchoredRootTop], sans quoi défilement et cadre viseraient
+ * deux endroits différents.
  *
  * Le calcul part de la position réellement mesurée du focus **dans** son item
  * de section : le titre placé au-dessus d'une rangée ne décale donc pas sa
@@ -329,7 +336,7 @@ internal fun focusedChildPivotDelta(
     focusedOffsetInSection: Float,
     focusedSize: Int,
     parentFraction: Float = TV_PIVOT_VERTICAL_FRACTION,
-    childFraction: Float = 0.5f
+    childFraction: Float = 0f
 ): Float {
     val viewportSize = viewportEndOffset - viewportStartOffset
     if (viewportSize <= 0) return 0f
@@ -501,7 +508,7 @@ val TV_PIVOT_VERTICAL_START_RESERVE = 24.dp
 
 /**
  * Réserve verticale de début d'un demi-viewport, indispensable au pivot
- * [TvPivotAnchor.Centered] : sans elle, les premières rangées ne peuvent pas
+ * [TvPivotAnchor.MidViewport] : sans elle, les premières rangées ne peuvent pas
  * descendre jusqu'au centre et le cadre du focus y sauterait à la première qui y
  * parvient. Conserve la clé `"tv_pivot_vertical_start"` de son homologue réduite
  * ([tvPivotVerticalStartReserve]) : les positions de défilement persistées
@@ -738,12 +745,12 @@ internal fun isPivotClamped(delta: Float, consumed: Float): Boolean =
 
 /**
  * Convergence d'une rangée de médias vers son ancre verticale, [TvPivotAnchor.Top]
- * par défaut, [TvPivotAnchor.Centered] sur l'Accueil.
+ * par défaut, [TvPivotAnchor.MidViewport] sur l'Accueil.
  *
  * En [TvPivotAnchor.Top] l'ancrage porte sur l'**item de liste entier**, titre de
  * section compris : les deux vivent dans la même `Column`, sous ce modifier, et
  * arrivent donc ensemble. Ancrer la vignette elle-même aurait poussé son titre
- * hors de l'écran. En [TvPivotAnchor.Centered] c'est au contraire la **vignette**
+ * hors de l'écran. En [TvPivotAnchor.MidViewport] c'est au contraire la **vignette**
  * qui s'aligne, sur le centre du viewport : le titre a de la place au-dessus
  * d'elle sans qu'il faille en tenir compte.
  *
@@ -793,7 +800,7 @@ private suspend fun LazyListState.convergeSectionToVerticalPivot(
             val info = layoutInfo
             val itemInfo = info.visibleItemsInfo.firstOrNull { it.key == key }
             if (itemInfo != null) {
-                val delta = if (anchor == TvPivotAnchor.Centered) {
+                val delta = if (anchor == TvPivotAnchor.MidViewport) {
                     if (section == null || !section.isAttached || !focusedChild.isAttached) {
                         return@scroll
                     }

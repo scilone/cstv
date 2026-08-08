@@ -483,6 +483,28 @@ L'axe **horizontal** reste sur son ancrage d'origine : aucun défaut n'y est
 signalé, et son ancre — l'emplacement de la première vignette d'une rangée — est
 déjà stable.
 
+## Accueil : le bord haut de la vignette à mi-hauteur (v1.73.17)
+
+Défaut résiduel signalé, et correctement diagnostiqué par l'utilisateur : le
+cadre bouge en descendant de la Hero vers « Continuer à regarder », ainsi qu'en
+entrant et en sortant de « TV en direct ». Point commun, un changement de format
+de rangée.
+
+C'était la limite annoncée du pivot centré : centrer la vignette fixe son
+**centre**, donc son bord haut vaut `centre − hauteur/2` et se déplace dès que la
+hauteur change. Sur l'Accueil, seul écran mêlant Hero, chaînes basses et affiches
+hautes, cela se voit à chaque transition de format.
+
+`TvPivotAnchor.MidViewport` (ex-`Centered`) pose désormais le **bord haut** de la
+vignette à mi-hauteur, comme [TvPivotAnchor.Top] le pose sous la réserve de tête.
+Les deux modes ne diffèrent plus que par la hauteur de l'ancre — l'Accueil garde
+ses rangées voisines visibles de part et d'autre —, et le cadre y est aussi
+rigoureusement fixe qu'ailleurs.
+
+Le défilement suit la même cible : `focusedChildPivotDelta` prend
+`childFraction = 0` (bord haut) au lieu de `0.5` (centre). Sans cela le cadre et
+la vignette viseraient deux endroits distants d'une demi-hauteur de carte.
+
 ## Vérifications automatisées
 
 - `./gradlew testDebugUnitTest lintDebug assembleDebug` : **BUILD SUCCESSFUL**
@@ -664,7 +686,8 @@ v1.73.12 (taille adoptée immédiatement, cadre jamais masqué, rattrapage born�
 v1.73.13 (glissement réservé aux grilles, Hero propriétaire, pivot centré rendu à l'Accueil),
 v1.73.14 (cause racine : position d'arrivée prédite, le cadre n'attend plus le défilement),
 v1.73.15 (prédiction étendue à la remontée, prédiction verticale réservée à l'entrée dans une rangée),
-v1.73.16 (refonte : ancre verticale calculée depuis le conteneur, plus depuis la vignette)
+v1.73.16 (refonte : ancre verticale calculée depuis le conteneur, plus depuis la vignette),
+v1.73.17 (Accueil : bord haut de la vignette à mi-hauteur, cadre fixe partout)
 
 Commit :
 🐛 fix(tv): ancre haute du sélecteur pivot dans les grilles de catégorie (B22)
