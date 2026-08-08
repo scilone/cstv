@@ -505,34 +505,26 @@ Le défilement suit la même cible : `focusedChildPivotDelta` prend
 `childFraction = 0` (bord haut) au lieu de `0.5` (centre). Sans cela le cadre et
 la vignette viseraient deux endroits distants d'une demi-hauteur de carte.
 
-## La publication mesurée de fin de convergence, dernier vestige (v1.73.18)
+## Revert de la v1.73.18 (v1.73.19)
 
-Trois derniers symptômes, tous « furtifs » : en catégorie « Tout », le cadre
-monte puis retombe en allant à droite ou à gauche, retombe en fin de course en
-descendant, et part brièvement vers la gauche en remontant. Une position fausse
-brève suivie d'un recalage : la signature d'une géométrie posée **après coup**.
+Supprimer la publication mesurée de fin de convergence a **cassé** le
+positionnement, bien au-delà des trois défauts furtifs qu'elle visait : sur
+l'Accueil le cadre restait bloqué en haut, décalé d'une rangée à chaque
+déplacement, forme comprise ; en catégorie « Tout », décalage vertical et
+glissement entre deux vignettes vers la gauche.
 
-C'était le vestige de l'ancienne conception. Depuis la refonte, l'ancre
-déterministe pose la bonne géométrie dès l'appui — mais la publication de fin de
-convergence, conservée « en filet », continuait d'écraser cette ancre par la
-position **mesurée** de la vignette. Filet devenu piège : la mesure arrive après,
-et le moindre écart (convergence arrêtée en butée, rangée pas encore stabilisée)
-se voyait comme un saut.
+L'enseignement est clair et vaut d'être écrit : cette publication mesurée n'était
+pas un simple filet redondant, elle **portait** une partie du positionnement.
+L'ancre déterministe ne s'applique donc pas dans tous les cas — au moins sur
+l'Accueil, quelque chose l'empêche d'aboutir (`anchoredTopFor` renvoyant `null`,
+coordonnées de conteneur absentes, ou `CompositionLocal` non vu depuis les items
+de la liste), et la mesure de fin le masquait. Retirer le filet a révélé le trou
+plutôt que de le créer.
 
-Les trois pivots ne publient donc plus rien en fin de convergence : ils ne font
-que défiler. La géométrie vient de l'ancre, et d'elle seule. Une mesure ne
-subsiste qu'à deux endroits, tous deux légitimes :
-
-- l'**amorçage**, quand aucune géométrie n'est connue — l'ancre corrige dans la
-  foulée ;
-- l'**abscisse d'une cellule de grille**, qu'aucun défilement latéral ne peut
-  déplacer : elle est définitive dès l'acquisition, et c'est là qu'elle est
-  désormais posée plutôt qu'en fin de convergence.
-
-`anchoredRootTop` perd son paramètre de hauteur de vignette, qui n'a plus
-d'usage : la promesse « la hauteur n'entre pas dans le calcul » devient une
-garantie de compilation, et les deux tests qui la vérifiaient — devenus
-tautologiques — sont retirés.
+Retour au contenu de la v1.73.17. Les trois défauts furtifs reviennent avec, et
+c'est assumé : ils sont sans commune mesure avec la régression. Reprendre le
+sujet suppose d'abord de comprendre **pourquoi** l'ancre n'aboutit pas sur
+l'Accueil — donc de l'instrumenter — avant de retoucher quoi que ce soit.
 
 ## Vérifications automatisées
 
@@ -717,7 +709,7 @@ v1.73.14 (cause racine : position d'arrivée prédite, le cadre n'attend plus le
 v1.73.15 (prédiction étendue à la remontée, prédiction verticale réservée à l'entrée dans une rangée),
 v1.73.16 (refonte : ancre verticale calculée depuis le conteneur, plus depuis la vignette),
 v1.73.17 (Accueil : bord haut de la vignette à mi-hauteur, cadre fixe partout),
-v1.73.18 (fin des publications mesurées : l'ancre déterministe fait seule foi)
+v1.73.18 (fin des publications mesurées — **reverté**), v1.73.19 (retour au contenu de la v1.73.17)
 
 Commit :
 🐛 fix(tv): ancre haute du sélecteur pivot dans les grilles de catégorie (B22)

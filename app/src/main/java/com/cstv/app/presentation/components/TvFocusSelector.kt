@@ -177,14 +177,7 @@ class TvFocusSelectorState {
      */
     fun beginAxis(coordinates: LayoutCoordinates, axis: TvPivotAxis, cornerRadius: Dp) {
         if (!axisTracker.begin(coordinates, axis)) return
-        val current = target
-        if (current == null) {
-            // Amorçage, et lui seul : aucune géométrie connue, la mesure de la
-            // carte sert de point de départ. L'ancre déterministe la corrige
-            // dans la foulée, et plus aucune mesure n'intervient ensuite.
-            if (coordinates.isAttached) publishStabilised(coordinates.boundsInRoot(), cornerRadius)
-            return
-        }
+        val current = target ?: return
         target = TvSelectorTarget(
             bounds = Rect(current.bounds.topLeft, coordinates.size.toSize()),
             cornerRadius = cornerRadius,
@@ -208,13 +201,7 @@ class TvFocusSelectorState {
      * peut pas prédire (rangée pas encore mesurable) laisse simplement la
      * composante en place, et la publication de fin de convergence corrigera.
      */
-    fun predictAxis(
-        key: Any,
-        axis: TvPivotAxis,
-        anchoredOffset: Float,
-        cornerRadius: Dp,
-        glideHorizontally: Boolean = false
-    ) {
+    fun predictAxis(key: Any, axis: TvPivotAxis, anchoredOffset: Float, cornerRadius: Dp) {
         if (!axisTracker.owns(key)) return
         val current = target ?: return
         val topLeft = when (axis) {
@@ -224,7 +211,7 @@ class TvFocusSelectorState {
         target = TvSelectorTarget(
             bounds = Rect(topLeft, current.bounds.size),
             cornerRadius = cornerRadius,
-            glideHorizontally = glideHorizontally
+            glideHorizontally = false
         )
         isVisible = true
     }
