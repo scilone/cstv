@@ -592,6 +592,53 @@ retard. `logMissingAnchor` trace désormais chaque échec avec sa raison
 `TvPivot`. Un oubli du même genre sur un futur écran se verra dans le logcat au
 lieu d'attendre d'être ressenti.
 
+## La remontée n'estime plus, et anime toujours (v1.73.21)
+
+Dernier défaut signalé, et son asymétrie est le diagnostic : en catégorie
+« Tout », descendre puis se déplacer latéralement, puis remonter — la liste
+remonte **d'un coup sec**, sans animation. Descendre après un déplacement
+latéral reste fluide, et monter/descendre sans jamais aller à droite ou à
+gauche aussi. Deux fragilités, toutes deux propres à la remontée, toutes deux
+supprimées.
+
+### La remontée estimait sa distance, la descente la mesurait
+
+La rangée visée par une remontée est hors champ — c'est structurel, la rangée
+active occupant l'ancre. `visibleItemsInfo` ne la contient donc pas, et la
+convergence se rabattait sur une **foulée estimée** : la hauteur de la rangée
+qu'on quitte, faute de mieux. C'est cette foulée, et elle seule, qui recevait
+l'animation ; tout reliquat partait ensuite en défilement sec. La descente, qui
+vise une rangée visible, animait au contraire la distance réelle d'un seul
+tenant — d'où deux comportements pour un même geste.
+
+L'estimation n'a plus lieu d'être depuis que l'ancre est déterministe :
+`positionInRoot` ne clippe pas, la vignette focalisée rapporte donc sa position
+réelle même posée hors champ, et la distance jusqu'à l'ancre est exacte. Les
+deux sens partagent désormais un seul défilement animé, sur la bonne distance.
+L'estimation ne subsiste qu'en repli pour une liste sans conteneur de pivot
+déclaré — il n'en reste plus : les Favoris, dernier écran concerné, en
+déclarent un.
+
+### L'animation était conditionnée à un « la cible a changé » fragile
+
+`animatePrimaryCorrection` valait « la vignette focalisée n'est pas celle que
+cette rangée avait déjà ». La cible était pourtant enregistrée **avant** le
+garde-fou qui abandonne une notification arrivée trop tôt (section pas encore
+positionnée — le cas d'une rangée fraîchement composée, ce qu'est justement une
+rangée qu'on rejoint par le haut). La notification suivante portait alors la même
+cible, se croyait redondante, et exécutait tout le déplacement en `scrollBy` :
+d'un coup sec, exactement le symptôme.
+
+La première correction réelle de chaque convergence est désormais animée sans
+condition. Une convergence déjà en cours absorbe les notifications répétées, et
+une convergence rejouée sur une cible immobile ne demande aucun défilement : la
+condition ne protégeait rien qui ne le soit déjà autrement.
+
+Le budget de défilements à l'aveugle ([OFFSCREEN_CATCH_UP_MAX_STEPS]) est
+conservé et n'est décompté que lorsqu'on défile réellement : c'est lui qui
+empêche une mesure pas encore rafraîchie de faire rejouer la même distance à
+chaque passe (régression v1.73.11).
+
 ## Vérifications automatisées
 
 - `./gradlew testDebugUnitTest lintDebug assembleDebug` : **BUILD SUCCESSFUL**
@@ -600,6 +647,8 @@ lieu d'attendre d'être ressenti.
 - `./gradlew testDebugUnitTest lintDebug assembleDebug` : **BUILD SUCCESSFUL**
   (2026-08-08, v1.73.20). Deux tests ajoutés, qui fixent l'accord entre l'ancre
   prédite et le défilement réellement demandé, en ancre haute et à mi-viewport.
+- `./gradlew testDebugUnitTest lintDebug assembleDebug` : **BUILD SUCCESSFUL**
+  (2026-08-08, v1.73.21).
 
 ---
 
@@ -779,7 +828,8 @@ v1.73.15 (prédiction étendue à la remontée, prédiction verticale réservée
 v1.73.16 (refonte : ancre verticale calculée depuis le conteneur, plus depuis la vignette),
 v1.73.17 (Accueil : bord haut de la vignette à mi-hauteur, cadre fixe partout),
 v1.73.18 (fin des publications mesurées — **reverté**), v1.73.19 (retour au contenu de la v1.73.17),
-v1.73.20 (le trou de l'Accueil nommé : `LocalTvPivotViewport` jamais fourni, `tvPivotSection` derrière un `padding`, `boundsInRoot` clippée)
+v1.73.20 (le trou de l'Accueil nommé : `LocalTvPivotViewport` jamais fourni, `tvPivotSection` derrière un `padding`, `boundsInRoot` clippée),
+v1.73.21 (remontée : distance exacte au lieu d'une foulée estimée, première correction animée sans condition)
 
 Commit :
 🐛 fix(tv): ancre haute du sélecteur pivot dans les grilles de catégorie (B22)

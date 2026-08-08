@@ -783,12 +783,15 @@ fun Modifier.tvPivotSection(
             }
             val section = coordinates.section
             if (section == null) return@onFocusedBoundsChanged
+            // Ancre déterministe : ne consulte jamais où la vignette se trouve à
+            // cet instant, seulement des grandeurs que le défilement ne change
+            // pas (B22). Elle sert deux fois — poser le cadre, et donner à la
+            // convergence sa distance exacte, y compris quand la rangée est hors
+            // champ.
+            val anchoredTop = state.anchoredTopFor(viewport, section, focusedCoordinates, anchor, key)
             if (selector != null) {
                 selector.beginAxis(focusedCoordinates, TvPivotAxis.VERTICAL, selectorCornerRadius)
-                // Ancre déterministe : ne consulte jamais où la vignette se trouve à
-                // cet instant, seulement des grandeurs que le défilement ne change
-                // pas (B22).
-                state.anchoredTopFor(viewport, section, focusedCoordinates, anchor, key)?.let { top ->
+                anchoredTop?.let { top ->
                     selector.predictAxis(
                         key = focusedCoordinates,
                         axis = TvPivotAxis.VERTICAL,
@@ -801,10 +804,10 @@ fun Modifier.tvPivotSection(
             coordinates.correctionJob = scope.launch {
                 val stabilised = state.convergeSectionToVerticalPivot(
                     key = key,
-                    animatePrimaryCorrection = targetChanged,
                     anchor = anchor,
                     section = section,
-                    focusedChild = focusedCoordinates
+                    focusedChild = focusedCoordinates,
+                    anchoredTop = anchoredTop
                 )
                 if (stabilised && selector != null && focusedCoordinates.isAttached) {
                     selector.reportAxisStabilised(focusedCoordinates, TvPivotAxis.VERTICAL, focusedCoordinates, selectorCornerRadius)
@@ -846,18 +849,30 @@ internal fun isPivotClamped(delta: Float, consumed: Float): Boolean =
  * posée, c'est précisément le défilement implicite qui la rendra mesurable, et
  * le verrou ferait expirer l'attente pour rien.
  *
- * La foulée de rattrapage ([offscreenSectionStepDelta]) se ré-estime à
- * **chaque** passe où la rangée reste introuvable, plutôt qu'une seule fois
- * (limite corrigée en B22) : la première version, à usage unique, lisait la
- * hauteur de la rangée de **départ** pour estimer la distance jusqu'à la
- * cible — juste quand les deux rangées ont la même hauteur, mais faux dès
- * qu'elles diffèrent (rangée « Top N » plus haute que la rangée de
- * recommandations en dessous, vignette de chaîne favorite plus large que sa
- * voisine…). Une foulée trop courte laisse la rangée hors champ, une passe de
- * plus la rattrape avec une mesure fraîche. Le nombre de foulées est **borné**
- * par [OFFSCREEN_CATCH_UP_MAX_STEPS] : sans cette borne, une rangée qui tarde à
- * se composer déclenche une foulée à chaque passe et la liste part plusieurs
- * rangées trop haut d'un coup (régression v1.73.11).
+ * **La remontée n'estime plus rien** ([anchoredTop] non nul) : la rangée visée
+ * est hors champ, mais `positionInRoot` ne clippe pas — la vignette focalisée y
+ * rapporte sa position réelle, et la distance jusqu'à l'ancre est donc exacte,
+ * comme si la rangée était visible. Les deux sens partagent ainsi une seule
+ * animation, sur la bonne distance.
+ *
+ * L'estimation ([offscreenSectionStepDelta]) ne sert plus que de repli, pour une
+ * liste sans conteneur de pivot déclaré. Elle mesurait la foulée sur la hauteur
+ * de la rangée de **départ**, faute de mieux : juste quand les deux rangées ont
+ * la même hauteur, faux sinon, et le reliquat partait alors en défilement sec
+ * une fois l'animation consommée. Le nombre de foulées reste borné par
+ * [OFFSCREEN_CATCH_UP_MAX_STEPS] : sans cette borne, une rangée qui tarde à se
+ * composer en déclenche une par passe et la liste part plusieurs rangées trop
+ * haut d'un coup (régression v1.73.11).
+ *
+ * La **première correction réelle** de chaque convergence est animée, sans
+ * condition. Elle l'était auparavant sur le seul critère « la cible a changé »,
+ * ce qui la perdait dès qu'une première notification de focus était consommée
+ * sans lancer de convergence (section pas encore positionnée) : la notification
+ * suivante portait la même cible, n'animait plus rien, et tout le déplacement
+ * partait d'un coup sec. Une convergence déjà en cours absorbe de toute façon
+ * les notifications répétées (`correctionJob.isActive`), et une convergence
+ * rejouée sur une cible immobile ne demande aucun défilement : l'animation
+ * inconditionnelle ne coûte donc rien là où l'ancienne condition tenait.
  *
  * @return `true` si la convergence a atteint le pivot (cible stabilisée),
  * `false` si les [VERTICAL_PIVOT_MAX_PASSES] passes se sont épuisées sans
@@ -866,16 +881,16 @@ internal fun isPivotClamped(delta: Float, consumed: Float): Boolean =
  */
 private suspend fun LazyListState.convergeSectionToVerticalPivot(
     key: Any,
-    animatePrimaryCorrection: Boolean,
     anchor: TvPivotAnchor,
     section: LayoutCoordinates?,
-    focusedChild: LayoutCoordinates
+    focusedChild: LayoutCoordinates,
+    anchoredTop: Float?
 ): Boolean {
     var stabilised = false
     scroll(MutatePriority.UserInput) {
         var stablePasses = 0
         var catchUpBudget = OFFSCREEN_CATCH_UP_MAX_STEPS
-        var primaryCorrectionPending = animatePrimaryCorrection
+        var primaryCorrectionPending = true
         repeat(VERTICAL_PIVOT_MAX_PASSES) {
             val info = layoutInfo
             val itemInfo = info.visibleItemsInfo.firstOrNull { it.key == key }
@@ -928,17 +943,33 @@ private suspend fun LazyListState.convergeSectionToVerticalPivot(
                 // Rangée visée introuvable : elle est au-dessus du viewport.
                 // C'est la remontée, et c'est structurel — la rangée active
                 // occupant l'ancre, tout ce qui la précède est hors champ.
-                catchUpBudget--
-                val step = offscreenSectionStepDelta(
-                    firstVisibleItemHeight = info.visibleItemsInfo.firstOrNull()?.size ?: 0,
-                    mainAxisItemSpacing = info.mainAxisItemSpacing
-                )
-                if (step != 0f) {
+                //
+                // Rien à estimer pour autant quand l'ancre est connue :
+                // `positionInRoot` ne clippe pas et donne la position réelle
+                // d'une vignette posée hors champ. La distance est donc exacte,
+                // la remontée s'anime d'un seul tenant comme la descente, et
+                // aucun reliquat ne part en défilement sec (B22). L'estimation
+                // n'est plus qu'un repli pour une liste sans conteneur déclaré.
+                val delta = if (anchoredTop != null && focusedChild.isAttached) {
+                    focusedChild.positionInRoot().y - anchoredTop
+                } else {
+                    offscreenSectionStepDelta(
+                        firstVisibleItemHeight = info.visibleItemsInfo.firstOrNull()?.size ?: 0,
+                        mainAxisItemSpacing = info.mainAxisItemSpacing
+                    )
+                }
+                // Budget consommé seulement quand on défile réellement : deux
+                // défilements à l'aveugle au plus. Sans cette borne, une mesure
+                // pas encore rafraîchie fait rejouer la même distance à chaque
+                // passe et la liste part plusieurs rangées trop haut d'un coup
+                // (régression v1.73.11).
+                if (abs(delta) > VERTICAL_PIVOT_TOLERANCE_PX) {
+                    catchUpBudget--
                     if (primaryCorrectionPending) {
                         primaryCorrectionPending = false
-                        animateScrollByInScope(step)
+                        animateScrollByInScope(delta)
                     } else {
-                        scrollBy(step)
+                        scrollBy(delta)
                     }
                 }
                 stablePasses = 0

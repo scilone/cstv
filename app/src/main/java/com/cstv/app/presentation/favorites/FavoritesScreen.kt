@@ -18,6 +18,9 @@ import com.cstv.app.presentation.components.tvPivotSection
 import com.cstv.app.presentation.components.tvPivotHorizontalEndSpacer
 import com.cstv.app.presentation.components.tvPivotVerticalEndSpacer
 import com.cstv.app.presentation.components.tvPivotVerticalStartReserve
+import com.cstv.app.presentation.components.LocalTvPivotViewport
+import com.cstv.app.presentation.components.rememberTvPivotViewport
+import com.cstv.app.presentation.components.tvPivotViewport
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -104,10 +107,16 @@ fun FavoritesScreen(
                 }
             } else {
                 val listState = rememberLazyListState()
+                // Conteneur du pivot : il donne aux rangées leur distance exacte
+                // jusqu'à l'ancre, dans les deux sens, plutôt qu'une foulée
+                // estimée sur la hauteur de la rangée de départ (B22).
+                val pivotViewport = rememberTvPivotViewport()
+                CompositionLocalProvider(LocalTvPivotViewport provides pivotViewport) {
                 LazyColumn(
                     state = listState,
                     verticalArrangement = Arrangement.spacedBy(24.dp),
                     modifier = Modifier.fillMaxSize()
+                        .tvPivotViewport(pivotViewport)
                 ) {
                     tvPivotVerticalStartReserve(isTv)
                     // 1. Live TV Favorites row
@@ -152,6 +161,7 @@ fun FavoritesScreen(
                         }
                     }
                     tvPivotVerticalEndSpacer(isTv)
+                }
                 }
             }
         }
