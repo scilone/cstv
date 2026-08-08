@@ -26,3 +26,6 @@ Thumbs.db
 *.pepk
 # Mots de passe de signature — voir keystore.properties.example
 keystore.properties
+
+# Artefacts FUSE (fichier supprimé encore ouvert par un process)
+.fuse_hidden*
