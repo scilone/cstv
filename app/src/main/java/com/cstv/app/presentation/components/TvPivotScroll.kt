@@ -224,7 +224,6 @@ internal fun anchoredRootTop(
     viewportHeight: Int,
     beforeContentPadding: Int,
     focusedOffsetInItem: Float,
-    focusedHeight: Int,
     anchor: TvPivotAnchor
 ): Float = when (anchor) {
     TvPivotAnchor.Top -> viewportRootTop + beforeContentPadding + focusedOffsetInItem
@@ -256,7 +255,6 @@ private fun LazyListState.anchoredTopFor(
         viewportHeight = viewportCoordinates.size.height,
         beforeContentPadding = layoutInfo.beforeContentPadding,
         focusedOffsetInItem = offsetInItem,
-        focusedHeight = focusedChild.size.height,
         anchor = anchor
     )
 }
@@ -281,7 +279,6 @@ private fun LazyGridState.anchoredTopFor(
         viewportHeight = viewportCoordinates.size.height,
         beforeContentPadding = layoutInfo.beforeContentPadding,
         focusedOffsetInItem = offsetInCell,
-        focusedHeight = focusedChild.size.height,
         anchor = TvPivotAnchor.Top
     )
 }
@@ -476,13 +473,12 @@ fun Modifier.tvPivotItem(
         }
         coordinates.correctionJob?.cancel()
         coordinates.correctionJob = scope.launch {
-            val stabilised = state.convergeItemToStartAnchor(
+            // Le défilement seul : la géométrie du cadre est déjà posée, la
+            // republier depuis la mesure de fin la ferait sauter (B22).
+            state.convergeItemToStartAnchor(
                 index = index,
                 animatePrimaryCorrection = targetChanged
             )
-            if (stabilised && selector != null && focusedCoordinates.isAttached) {
-                selector.reportAxisStabilised(focusedCoordinates, TvPivotAxis.HORIZONTAL, focusedCoordinates, selectorCornerRadius)
-            }
         }
     }
 }
@@ -623,6 +619,18 @@ fun Modifier.tvPivotCell(
         // Grille : un seul axe (VERTICAL), pas d'ambiguïté de nommage — aucun
         // pivot horizontal ne concourt pour cette même cible (B22).
         selector?.beginAxis(focusedCoordinates, TvPivotAxis.VERTICAL, selectorCornerRadius)
+        // Abscisse : une grille ne défile pas latéralement, la mesure prise à
+        // l'acquisition est donc déjà définitive — et c'est le seul endroit où
+        // le cadre change réellement de colonne, d'où le glissement (B22).
+        if (focusedCoordinates.isAttached) {
+            selector?.predictAxis(
+                key = focusedCoordinates,
+                axis = TvPivotAxis.HORIZONTAL,
+                anchoredOffset = focusedCoordinates.boundsInRoot().left,
+                cornerRadius = selectorCornerRadius,
+                glideHorizontally = true
+            )
+        }
         // Ancre déterministe, voir tvPivotSection.
         coordinates.cell?.let { cell ->
             state.anchoredTopFor(viewport, cell, focusedCoordinates)?.let { top ->
@@ -636,18 +644,10 @@ fun Modifier.tvPivotCell(
         }
         coordinates.correctionJob?.cancel()
         coordinates.correctionJob = scope.launch {
-            val stabilised = state.convergeCellToVerticalPivot(
+            state.convergeCellToVerticalPivot(
                 index = index,
                 animatePrimaryCorrection = targetChanged
             )
-            if (stabilised && selector != null && focusedCoordinates.isAttached) {
-                selector.reportAxisStabilised(
-                    focusedCoordinates, TvPivotAxis.VERTICAL, focusedCoordinates, selectorCornerRadius,
-                    // Grille : seul endroit où le cadre change réellement de
-                    // place sans que rien ne défile (B22).
-                    glideHorizontally = true
-                )
-            }
         }
     }
 }
@@ -719,16 +719,13 @@ fun Modifier.tvPivotSection(
             }
             coordinates.correctionJob?.cancel()
             coordinates.correctionJob = scope.launch {
-                val stabilised = state.convergeSectionToVerticalPivot(
+                state.convergeSectionToVerticalPivot(
                     key = key,
                     animatePrimaryCorrection = targetChanged,
                     anchor = anchor,
                     section = section,
                     focusedChild = focusedCoordinates
                 )
-                if (stabilised && selector != null && focusedCoordinates.isAttached) {
-                    selector.reportAxisStabilised(focusedCoordinates, TvPivotAxis.VERTICAL, focusedCoordinates, selectorCornerRadius)
-                }
             }
         }
 }

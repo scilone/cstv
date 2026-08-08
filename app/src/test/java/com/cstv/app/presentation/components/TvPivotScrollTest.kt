@@ -205,20 +205,14 @@ class TvPivotScrollTest {
                 viewportHeight = 1080,
                 beforeContentPadding = 24,
                 focusedOffsetInItem = 42f,
-                focusedHeight = 300,
                 anchor = TvPivotAnchor.Top
             )
         )
     }
 
-    @Test
-    fun topAnchorIgnoresTheThumbnailHeight() {
-        // Deux vignettes de hauteurs différentes se posent au même endroit :
-        // c'est très exactement la promesse du cadre fixe.
-        val short = anchoredRootTop(100f, 1080, 24, 0f, 92, TvPivotAnchor.Top)
-        val tall = anchoredRootTop(100f, 1080, 24, 0f, 300, TvPivotAnchor.Top)
-        assertEquals(short, tall)
-    }
+    // La promesse « la hauteur de la vignette n'entre pas dans le calcul » n'est
+    // plus testée : elle est portée par la signature d'[anchoredRootTop], qui
+    // ne prend pas de hauteur. Une garantie de compilation vaut mieux qu'un test.
 
     @Test
     fun midViewportAnchorPutsTheThumbnailTopAtHalfHeight() {
@@ -230,28 +224,17 @@ class TvPivotScrollTest {
                 viewportHeight = 1080,
                 beforeContentPadding = 24,
                 focusedOffsetInItem = 42f,
-                focusedHeight = 300,
                 anchor = TvPivotAnchor.MidViewport
             )
         )
     }
 
     @Test
-    fun midViewportAnchorIgnoresTheThumbnailHeight() {
-        // Le point corrigé : centrer la vignette faisait dépendre le haut du
-        // cadre de la hauteur de la carte, et le cadre bougeait donc à chaque
-        // changement de format de rangée. Ancrer le bord haut l'immobilise.
-        val short = anchoredRootTop(100f, 1080, 24, 0f, 92, TvPivotAnchor.MidViewport)
-        val tall = anchoredRootTop(100f, 1080, 24, 0f, 300, TvPivotAnchor.MidViewport)
-        assertEquals(short, tall)
-    }
-
-    @Test
     fun midViewportAnchorIgnoresTheTitleBandHeight() {
         // Et pas davantage du bandeau de titre au-dessus de la vignette : c'est
         // la vignette qui s'aligne, la rangée se place autour.
-        val plain = anchoredRootTop(100f, 1080, 24, 0f, 300, TvPivotAnchor.MidViewport)
-        val titled = anchoredRootTop(100f, 1080, 24, 42f, 300, TvPivotAnchor.MidViewport)
+        val plain = anchoredRootTop(100f, 1080, 24, 0f, TvPivotAnchor.MidViewport)
+        val titled = anchoredRootTop(100f, 1080, 24, 42f, TvPivotAnchor.MidViewport)
         assertEquals(plain, titled)
     }
 
@@ -261,7 +244,7 @@ class TvPivotScrollTest {
         // fenêtre, l'ancre suit sans autre calcul.
         assertEquals(
             60f + 24f,
-            anchoredRootTop(60f, 720, 24, 0f, 200, TvPivotAnchor.Top)
+            anchoredRootTop(60f, 720, 24, 0f, TvPivotAnchor.Top)
         )
     }
 
