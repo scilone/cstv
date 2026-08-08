@@ -135,6 +135,12 @@
     <string name="settings_subtitle_color_mobile">Couleur du texte</string>
     <string name="settings_subtitle_background_mobile">Fond</string>
     <string name="vod_details_resume_playback">REPRENDRE LA LECTURE</string>
+    <string name="vod_details_play_movie">LIRE LE FILM</string>
+    <string name="vod_details_replay_movie">RELIRE DEPUIS LE DÉBUT</string>
+    <string name="vod_details_add_favorite">Ajouter aux favoris</string>
+    <string name="vod_details_remove_favorite">Dans mes favoris</string>
+    <string name="details_credits_director">Réalisateur</string>
+    <string name="details_credits_cast">Acteurs</string>
     <string name="media_rating_like">J\'aime</string>
     <string name="media_rating_dislike">Je n\'aime pas</string>
     <string name="media_rating_selected_description">%1$s, sélectionné</string>

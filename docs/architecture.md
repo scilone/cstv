@@ -132,6 +132,10 @@ Responsable de l'interface utilisateur. Elle utilise **Jetpack Compose** pour l'
     - `VodDetailsScreen` : Masque le bouton d'action de téléchargement global (`DownloadActionButton`).
     - `SeriesDetailsScreen` : Masque les contrôles de téléchargement individuel d'épisode (`EpisodeDownloadControl`).
   * Aucun impact sur les bases de données ou les fichiers téléchargés (qui restent préservés et actifs lors d'un basculement sur Mobile).
+* **Séparation des fiches film Mobile / TV (F28)** :
+  * `VodDetailsScreen` se réduit à un aiguillage : un `Box` racine porte l'hôte de snackbar commun aux deux plateformes, puis délègue soit à `VodDetailsTvLayout` (nouveau fichier `presentation/vod/VodDetailsTvLayout.kt`, toute la fiche TV), soit au chemin mobile défilant resté en place. `ClickableCreditsRow` et `CreditNameChip` sont passés en `internal` pour être partagés par les deux.
+  * La fiche TV n'est pas défilante : elle tient en une page, et le bloc « Titres associés » posé sous le bloc principal dépasse volontairement de l'écran. La remontée au focus s'obtient par `graphicsLayer { translationY }` sur la colonne entière, jamais par un conteneur défilant : la distance vient d'une fonction pure (`tvDetailsRelatedShiftPx`, testée en JVM) alimentée par des hauteurs mesurées via `onSizeChanged`, ce qui évite tout `bringIntoView` implicite à combattre (leçon de B22) et garantit une position de repos exactement nulle. La colonne décalable est mesurée en `wrapContentHeight(unbounded = true)`, sans quoi le `Column` plafonnerait la rangée à la hauteur du débord.
+  * Aucun impact `data`/`domain` : la refonte est strictement `presentation`.
 * **Système de navigation unifié (F18)** :
   * L'application utilise désormais un seul système de navigation via `AppNavGraph` (navigation-compose, `presentation/navigation/NavGraph.kt`) partagé entre Mobile et TV.
   * L'ancien double système (navigation manuelle par enum `AppScreen` et boucle `when` dans `MainActivity.kt`) est obsolète et a été entièrement supprimé.
