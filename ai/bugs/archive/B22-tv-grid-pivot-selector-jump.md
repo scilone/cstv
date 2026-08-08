@@ -393,6 +393,36 @@ laquelle les premières rangées ne peuvent pas atteindre le centre) sont
 restaurées pour ce mode. Les catalogues, la recherche et les favoris gardent
 l'ancre haute.
 
+## Cause racine : le cadre attendait la fin du défilement (v1.73.14)
+
+Formulation de l'utilisateur, après plusieurs correctifs qui n'avaient traité
+que des symptômes : « il attend que toutes les vignettes finissent de bouger
+pour se replacer ». C'est exactement ce que faisait l'implémentation, et c'est
+une **erreur de conception présente depuis le début de B22**, pas un réglage.
+
+La géométrie publiée était systématiquement dérivée de
+`focusedCoordinates.boundsInRoot()` **après** convergence : mesurer la carte une
+fois qu'elle a fini de bouger. Le cadre héritait donc de toute la durée du
+défilement — plusieurs centaines de millisecondes — pendant laquelle il restait
+à sa géométrie précédente. Tous les défauts signalés au fil des versions en
+découlent : gros cadre de la Hero qui « reste », cadre au format chaîne posé sur
+des affiches, reliquat de redimensionnement, réajustement visible en fin de
+course.
+
+Or la position d'arrivée n'a jamais eu besoin d'être mesurée : elle vaut
+**position actuelle − défilement qu'on s'apprête à faire**, et ce défilement est
+déjà calculé avant de commencer — il servait seulement à scroller.
+`TvFocusSelectorState.predictAxis` le consomme désormais aussi pour poser le
+cadre immédiatement, chaque axe posant sa composante
+(`startAnchorDelta`/`topAnchorDelta`/`sectionAnchorDelta`, qui partagent leurs
+formules avec les boucles de convergence). Le cadre est à sa place d'arrivée dès
+la frame de l'appui, et ne bouge plus ensuite.
+
+La publication de fin de convergence est conservée en **filet** : quand la
+prédiction est juste — le cas courant — elle ne change rien ; quand l'item
+n'était pas mesurable au moment de l'appui, rien n'est prédit et elle reste la
+seule source.
+
 ## Vérifications automatisées
 
 - `./gradlew testDebugUnitTest lintDebug assembleDebug` : **BUILD SUCCESSFUL**
@@ -571,7 +601,8 @@ v1.73.9 (rayon d'angle unifié, abscisse pilotée à la main sans décalage de f
 v1.73.10 (suivi des axes par identité de cible, immunisé au D-pad maintenu),
 v1.73.11 (cadre masqué pendant la convergence — approche abandonnée),
 v1.73.12 (taille adoptée immédiatement, cadre jamais masqué, rattrapage borné),
-v1.73.13 (glissement réservé aux grilles, Hero propriétaire, pivot centré rendu à l'Accueil)
+v1.73.13 (glissement réservé aux grilles, Hero propriétaire, pivot centré rendu à l'Accueil),
+v1.73.14 (cause racine : position d'arrivée prédite, le cadre n'attend plus le défilement)
 
 Commit :
 🐛 fix(tv): ancre haute du sélecteur pivot dans les grilles de catégorie (B22)

@@ -120,6 +120,9 @@ internal class PendingAxisTracker {
         pendingAxes.remove(axis)
         return pendingAxes.isEmpty()
     }
+
+    /** Vrai tant que [target] est la cible en cours — elle seule peut poser sa géométrie. */
+    fun owns(target: Any): Boolean = key === target
 }
 
 /**
@@ -182,7 +185,42 @@ class TvFocusSelectorState {
         )
     }
 
-    /** Un pivot a convergé pour [key] ; publie dès que tous les axes attendus l'ont fait. */
+    /**
+     * Pose **tout de suite** le cadre là où la carte s'arrêtera sur cet axe,
+     * sans attendre que le défilement l'y amène (B22).
+     *
+     * C'est le correctif de fond : la position d'arrivée n'a jamais eu besoin
+     * d'être mesurée après coup. Elle vaut « position actuelle moins le
+     * défilement qu'on s'apprête à faire », et ce défilement est calculé avant
+     * de commencer. Publier seulement à la fin de la convergence — ce que faisait
+     * l'implémentation initiale — imposait au cadre d'attendre que **toutes les
+     * vignettes aient fini de bouger** pour se replacer : de loin le défaut le
+     * plus visible, et la cause commune de tous les « reliquats » signalés.
+     *
+     * Chaque axe pose sa composante ; l'autre garde la sienne. Un axe qui ne
+     * peut pas prédire (rangée pas encore mesurable) laisse simplement la
+     * composante en place, et la publication de fin de convergence corrigera.
+     */
+    fun predictAxis(key: Any, axis: TvPivotAxis, anchoredOffset: Float, cornerRadius: Dp) {
+        if (!axisTracker.owns(key)) return
+        val current = target ?: return
+        val topLeft = when (axis) {
+            TvPivotAxis.HORIZONTAL -> Offset(anchoredOffset, current.bounds.top)
+            TvPivotAxis.VERTICAL -> Offset(current.bounds.left, anchoredOffset)
+        }
+        target = TvSelectorTarget(
+            bounds = Rect(topLeft, current.bounds.size),
+            cornerRadius = cornerRadius,
+            glideHorizontally = false
+        )
+        isVisible = true
+    }
+
+    /**
+     * Un pivot a convergé pour [key] ; publie dès que tous les axes attendus
+     * l'ont fait. Filet de sécurité derrière [predictAxis] : quand la prédiction
+     * était juste — le cas courant — cette publication ne change rien.
+     */
     fun reportAxisStabilised(
         key: Any,
         axis: TvPivotAxis,

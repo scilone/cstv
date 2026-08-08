@@ -18,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.Dp
@@ -153,6 +154,69 @@ internal fun offscreenSectionStepDelta(
     mainAxisItemSpacing: Int
 ): Float =
     if (firstVisibleItemHeight <= 0) 0f else -(firstVisibleItemHeight + mainAxisItemSpacing).toFloat()
+
+/**
+ * Défilement qu'il reste à faire pour amener l'item [index] sur l'ancre de début
+ * (axe horizontal d'une rangée, axe vertical d'une grille).
+ *
+ * Sert à **prédire** la position d'arrivée du cadre du focus avant tout
+ * défilement (B22) : position d'arrivée = position actuelle − ce delta. Retourne
+ * `null` quand l'item n'est pas mesurable, auquel cas rien n'est prédit et la
+ * publication de fin de convergence fait foi.
+ */
+private fun LazyListState.startAnchorDelta(index: Int): Float? {
+    val info = layoutInfo
+    val itemInfo = info.visibleItemsInfo.firstOrNull { it.index == index } ?: return null
+    return topAnchoredPivotDelta(
+        viewportStartOffset = info.viewportStartOffset,
+        beforeContentPadding = info.beforeContentPadding,
+        itemOffset = itemInfo.offset
+    )
+}
+
+/** Voir [startAnchorDelta] : même rôle pour une cellule de grille (axe vertical). */
+private fun LazyGridState.topAnchorDelta(index: Int): Float? {
+    val info = layoutInfo
+    val itemInfo = info.visibleItemsInfo.firstOrNull { it.index == index } ?: return null
+    return topAnchoredPivotDelta(
+        viewportStartOffset = info.viewportStartOffset,
+        beforeContentPadding = info.beforeContentPadding,
+        itemOffset = itemInfo.offset.y
+    )
+}
+
+/** Voir [startAnchorDelta] : même rôle pour une rangée, dans l'un ou l'autre mode d'ancrage. */
+private fun LazyListState.sectionAnchorDelta(
+    key: Any,
+    anchor: TvPivotAnchor,
+    section: LayoutCoordinates?,
+    focusedChild: LayoutCoordinates
+): Float? {
+    val info = layoutInfo
+    val itemInfo = info.visibleItemsInfo.firstOrNull { it.key == key } ?: return null
+    if (anchor != TvPivotAnchor.Centered) {
+        return topAnchoredPivotDelta(
+            viewportStartOffset = info.viewportStartOffset,
+            beforeContentPadding = info.beforeContentPadding,
+            itemOffset = itemInfo.offset
+        )
+    }
+    if (section == null || !section.isAttached || !focusedChild.isAttached) return null
+    val focusedOffset = try {
+        section.localPositionOf(focusedChild, Offset.Zero).y
+    } catch (e: IllegalArgumentException) {
+        return null
+    } catch (e: IllegalStateException) {
+        return null
+    }
+    return focusedChildPivotDelta(
+        viewportStartOffset = info.viewportStartOffset,
+        viewportEndOffset = info.viewportEndOffset,
+        sectionOffset = itemInfo.offset,
+        focusedOffsetInSection = focusedOffset,
+        focusedSize = focusedChild.size.height
+    )
+}
 
 /** Où une rangée vient se poser verticalement dans son viewport. */
 enum class TvPivotAnchor {
@@ -324,6 +388,17 @@ fun Modifier.tvPivotItem(
             return@onFocusedBoundsChanged
         }
         selector?.beginAxis(focusedCoordinates, TvPivotAxis.HORIZONTAL, selectorCornerRadius)
+        // Position d'arrivée posée tout de suite, sans attendre le défilement.
+        state.startAnchorDelta(index)?.let { delta ->
+            if (focusedCoordinates.isAttached) {
+                selector?.predictAxis(
+                    key = focusedCoordinates,
+                    axis = TvPivotAxis.HORIZONTAL,
+                    anchoredOffset = focusedCoordinates.boundsInRoot().left - delta,
+                    cornerRadius = selectorCornerRadius
+                )
+            }
+        }
         coordinates.correctionJob?.cancel()
         coordinates.correctionJob = scope.launch {
             val stabilised = state.convergeItemToStartAnchor(
@@ -468,6 +543,17 @@ fun Modifier.tvPivotCell(
         // Grille : un seul axe (VERTICAL), pas d'ambiguïté de nommage — aucun
         // pivot horizontal ne concourt pour cette même cible (B22).
         selector?.beginAxis(focusedCoordinates, TvPivotAxis.VERTICAL, selectorCornerRadius)
+        // Position d'arrivée posée tout de suite, sans attendre le défilement.
+        state.topAnchorDelta(index)?.let { delta ->
+            if (focusedCoordinates.isAttached) {
+                selector?.predictAxis(
+                    key = focusedCoordinates,
+                    axis = TvPivotAxis.VERTICAL,
+                    anchoredOffset = focusedCoordinates.boundsInRoot().top - delta,
+                    cornerRadius = selectorCornerRadius
+                )
+            }
+        }
         coordinates.correctionJob?.cancel()
         coordinates.correctionJob = scope.launch {
             val stabilised = state.convergeCellToVerticalPivot(
@@ -539,6 +625,17 @@ fun Modifier.tvPivotSection(
             val section = coordinates.section
             if (anchor == TvPivotAnchor.Centered && section == null) return@onFocusedBoundsChanged
             selector?.beginAxis(focusedCoordinates, TvPivotAxis.VERTICAL, selectorCornerRadius)
+            // Position d'arrivée posée tout de suite, sans attendre le défilement.
+            state.sectionAnchorDelta(key, anchor, section, focusedCoordinates)?.let { delta ->
+                if (focusedCoordinates.isAttached) {
+                    selector?.predictAxis(
+                        key = focusedCoordinates,
+                        axis = TvPivotAxis.VERTICAL,
+                        anchoredOffset = focusedCoordinates.boundsInRoot().top - delta,
+                        cornerRadius = selectorCornerRadius
+                    )
+                }
+            }
             coordinates.correctionJob?.cancel()
             coordinates.correctionJob = scope.launch {
                 val stabilised = state.convergeSectionToVerticalPivot(
