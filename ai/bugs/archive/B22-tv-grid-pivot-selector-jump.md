@@ -423,6 +423,37 @@ prédiction est juste — le cas courant — elle ne change rien ; quand l'item
 n'était pas mesurable au moment de l'appui, rien n'est prédit et elle reste la
 seule source.
 
+## Les deux angles morts de la prédiction (v1.73.15)
+
+La prédiction de la v1.73.14 tenait sur les déplacements où la cible était déjà
+mesurable — c'est-à-dire la descente. Ses deux trous se sont vus immédiatement.
+
+### Remontée : le cadre restait bas puis rattrapait
+
+La rangée visée est hors champ à la remontée : `sectionAnchorDelta` ne peut rien
+mesurer, aucune prédiction n'était posée, et le cadre retombait sur l'ancien
+chemin — attendre la fin de la convergence.
+
+En ancre haute il n'y avait en réalité rien à prédire : toutes les cartes se
+posent au même endroit, le cadre y est **déjà**. C'est le pivot centré de
+l'Accueil qui manquait, son ordonnée dépendant de la hauteur de la carte. Elle se
+déduit pourtant sans rien mesurer : le cadre courant occupe le centre du
+viewport, la nouvelle ordonnée vaut donc `centre − hauteur/2` de la nouvelle
+carte.
+
+### Vers la gauche : le cadre se téléportait furtivement d'une rangée
+
+`tvPivotSection` se déclenche à **chaque** changement de vignette focalisée, y
+compris purement horizontal. Il re-prédisait donc une ordonnée à chaque cran, en
+la mesurant sur une vignette que Compose venait de composer hors champ (réserve
+de recherche de focus) et pas encore posée à sa place définitive — d'où un cadre
+qui sautait d'une rangée vers le haut avant de revenir.
+
+Or si le focus venait déjà de cette rangée, le déplacement est horizontal et
+l'ordonnée est **déjà** la bonne : la prédiction verticale est désormais réservée
+à l'entrée dans une rangée, ce qui supprime à la fois le calcul inutile et son
+risque.
+
 ## Vérifications automatisées
 
 - `./gradlew testDebugUnitTest lintDebug assembleDebug` : **BUILD SUCCESSFUL**
@@ -602,7 +633,8 @@ v1.73.10 (suivi des axes par identité de cible, immunisé au D-pad maintenu),
 v1.73.11 (cadre masqué pendant la convergence — approche abandonnée),
 v1.73.12 (taille adoptée immédiatement, cadre jamais masqué, rattrapage borné),
 v1.73.13 (glissement réservé aux grilles, Hero propriétaire, pivot centré rendu à l'Accueil),
-v1.73.14 (cause racine : position d'arrivée prédite, le cadre n'attend plus le défilement)
+v1.73.14 (cause racine : position d'arrivée prédite, le cadre n'attend plus le défilement),
+v1.73.15 (prédiction étendue à la remontée, prédiction verticale réservée à l'entrée dans une rangée)
 
 Commit :
 🐛 fix(tv): ancre haute du sélecteur pivot dans les grilles de catégorie (B22)

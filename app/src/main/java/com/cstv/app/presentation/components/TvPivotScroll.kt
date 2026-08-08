@@ -615,6 +615,13 @@ fun Modifier.tvPivotSection(
                 coordinates.correctionJob = null
                 return@onFocusedBoundsChanged
             }
+            // Le focus venait-il déjà de cette rangée ? Alors le déplacement est
+            // **horizontal** et l'ordonnée du cadre est déjà la bonne : la
+            // re-prédire n'apporterait rien et exposerait à une mesure prise sur
+            // une vignette que Compose vient de composer hors champ, pas encore
+            // posée à sa place — d'où un cadre qui se téléportait furtivement
+            // d'une rangée vers le haut à chaque cran vers la gauche (B22).
+            val cameFromSameSection = coordinates.focusedChild != null
             val targetChanged = coordinates.focusedChild !== focusedCoordinates
             coordinates.focusedChild = focusedCoordinates
             // Tant que la convergence courante est active, ses passes suivantes
@@ -626,12 +633,22 @@ fun Modifier.tvPivotSection(
             if (anchor == TvPivotAnchor.Centered && section == null) return@onFocusedBoundsChanged
             selector?.beginAxis(focusedCoordinates, TvPivotAxis.VERTICAL, selectorCornerRadius)
             // Position d'arrivée posée tout de suite, sans attendre le défilement.
-            state.sectionAnchorDelta(key, anchor, section, focusedCoordinates)?.let { delta ->
-                if (focusedCoordinates.isAttached) {
+            if (!cameFromSameSection && focusedCoordinates.isAttached) {
+                val predictedTop = state.sectionAnchorDelta(key, anchor, section, focusedCoordinates)
+                    ?.let { focusedCoordinates.boundsInRoot().top - it }
+                // Rangée pas encore mesurable — c'est la remontée, elle est hors
+                // champ. En ancre haute toutes les cartes se posent au même
+                // endroit, le cadre y est donc déjà ; centré, en revanche, son
+                // ordonnée dépend de la hauteur de la carte, et le centre du
+                // viewport — qu'occupe le cadre courant — suffit à la déduire
+                // sans rien mesurer.
+                    ?: selector?.target?.takeIf { anchor == TvPivotAnchor.Centered }
+                        ?.let { it.bounds.center.y - focusedCoordinates.size.height / 2f }
+                if (predictedTop != null) {
                     selector?.predictAxis(
                         key = focusedCoordinates,
                         axis = TvPivotAxis.VERTICAL,
-                        anchoredOffset = focusedCoordinates.boundsInRoot().top - delta,
+                        anchoredOffset = predictedTop,
                         cornerRadius = selectorCornerRadius
                     )
                 }
