@@ -2,11 +2,16 @@ package com.cstv.app.presentation.vod
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.onFocusedBoundsChanged
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.ThumbDown
@@ -18,12 +23,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -32,15 +40,21 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.toSize
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import coil.compose.AsyncImage
 import com.cstv.app.R
 import com.cstv.app.domain.model.MediaRatingValue
 import com.cstv.app.domain.model.TrailerMedia
 import com.cstv.app.domain.model.VodDetails
 import com.cstv.app.domain.model.VodStream
+import com.cstv.app.presentation.components.LocalTvFocusSelector
 import com.cstv.app.presentation.components.MediaDetailsTrailerBackdrop
 import com.cstv.app.presentation.components.RelatedTitlesRow
 import com.cstv.app.presentation.components.TrailerPreviewUiState
+import com.cstv.app.presentation.components.TvFocusSelectorOverlay
+import com.cstv.app.presentation.components.TvFocusSelectorState
 import com.cstv.app.presentation.components.formatReleaseYear
 import com.cstv.app.presentation.components.rememberTvInitialFocus
 import com.cstv.app.presentation.components.tvInitialFocusTarget
@@ -62,6 +76,12 @@ private val TV_DETAILS_RELATED_PEEK = 110.dp
 /** Marge conservée sous la rangée une fois celle-ci entièrement remontée. */
 private val TV_DETAILS_BOTTOM_RESERVE = 24.dp
 
+/** Retrait latéral de la rangée « Titres associés », qui touchait les bords. */
+private val TV_DETAILS_RELATED_SIDE_MARGIN = 48.dp
+
+/** Rayon du cadre de focus, aligné sur celui des vignettes de la rangée. */
+private val TV_DETAILS_SELECTOR_RADIUS = 12.dp
+
 /** Filets et séparateurs : une variante d'opacité de [TextSecondary], jamais une couleur neuve. */
 private val TvDetailsDividerColor = TextSecondary.copy(alpha = 0.35f)
 
@@ -79,6 +99,7 @@ fun tvDetailsRelatedShiftPx(
     return (mainBlockHeight + relatedRowHeight + bottomReserve - screenHeight).coerceAtLeast(0f)
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun VodDetailsTvLayout(
     details: VodDetails,
@@ -111,56 +132,62 @@ fun VodDetailsTvLayout(
         val bottomReservePx = with(density) { TV_DETAILS_BOTTOM_RESERVE.toPx() }
         val screenHeightPx = with(density) { screenHeightDp.toPx() }
 
-        // 1. Trailer full screen backdrop OR left-side big poster with fade
-        if (trailerPlaying) {
-            MediaDetailsTrailerBackdrop(
-                media = trailerMedia,
-                state = trailerState,
-                posterUrl = details.coverBig,
-                onPlaybackFailed = onTrailerFailed,
-                muted = trailerMuted,
-                scrimAlpha = 0.62f,
-                modifier = Modifier.fillMaxSize()
-            )
-        } else {
-            Box(
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .fillMaxWidth(0.45f)
-            ) {
-                if (!details.coverBig.isNullOrBlank()) {
-                    AsyncImage(
-                        model = details.coverBig,
-                        contentDescription = details.name,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
+        // 1. Panneau gauche : affiche plein bord, ou trailer à sa place.
+        //
+        // Le trailer occupe l'emplacement de l'affiche et non plus le fond de
+        // toute la page : la maquette réserve la moitié gauche à l'image, et un
+        // fond plein écran passait la colonne de texte par-dessus la vidéo.
+        Box(
+            modifier = Modifier
+                .fillMaxHeight()
+                .fillMaxWidth(0.45f)
+        ) {
+            when {
+                trailerPlaying -> MediaDetailsTrailerBackdrop(
+                    media = trailerMedia,
+                    state = trailerState,
+                    posterUrl = details.coverBig,
+                    onPlaybackFailed = onTrailerFailed,
+                    muted = trailerMuted,
+                    modifier = Modifier.fillMaxSize()
+                )
+
+                !details.coverBig.isNullOrBlank() -> AsyncImage(
+                    model = details.coverBig,
+                    contentDescription = details.name,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+
+                else -> Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Surface3),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Warning,
+                        contentDescription = null,
+                        tint = TextSecondary,
+                        modifier = Modifier.size(54.dp)
                     )
-                    // Seamless horizontal fade from transparent (left) to Surface1 (right)
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(
-                                brush = Brush.horizontalGradient(
-                                    0.2f to Color.Transparent,
-                                    1.0f to Surface1
-                                )
-                            )
-                    )
-                } else {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(Surface3),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Warning,
-                            contentDescription = null,
-                            tint = TextSecondary,
-                            modifier = Modifier.size(54.dp)
-                        )
-                    }
                 }
+            }
+
+            // Fondu horizontal vers Surface1, posé aussi bien sur l'affiche que
+            // sur le trailer pour que la jonction avec la colonne de droite
+            // reste la même dans les deux cas.
+            if (trailerPlaying || !details.coverBig.isNullOrBlank()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            brush = Brush.horizontalGradient(
+                                0.2f to Color.Transparent,
+                                1.0f to Surface1
+                            )
+                        )
+                )
             }
         }
 
@@ -175,6 +202,7 @@ fun VodDetailsTvLayout(
         var mainBlockHeightPx by remember { mutableFloatStateOf(0f) }
         var relatedRowHeightPx by remember { mutableFloatStateOf(0f) }
         var isRelatedFocused by remember { mutableStateOf(false) }
+        var showFullPlot by remember(details.streamId) { mutableStateOf(false) }
 
         // Animate the vertical shift when focus moves to related titles
         val targetShift = if (isRelatedFocused) {
@@ -194,6 +222,28 @@ fun VodDetailsTvLayout(
             label = "detailsShift"
         )
 
+        // Couche avant du focus (F23) pour la rangée de titres associés : le
+        // cadre reste fixe sur l'emplacement de la première vignette et c'est
+        // la rangée qui défile dessous, comme partout ailleurs sur TV.
+        val focusSelector = remember { TvFocusSelectorState() }
+        var focusedRelatedChild by remember { mutableStateOf<LayoutCoordinates?>(null) }
+
+        // Le cadre est dessiné à une position *publiée*, alors que la remontée
+        // translate la colonne entière : sans republication, il resterait à sa
+        // place d'avant la remontée. On le repose donc à chaque valeur de
+        // l'animation, à partir de `positionInRoot()` et de la taille — jamais
+        // de `boundsInRoot()`, qui clippe par les parents et rendrait un
+        // rectangle vide pour une vignette encore hors champ (B22).
+        LaunchedEffect(focusSelector) {
+            snapshotFlow { animatedShift }.collect {
+                val coordinates = focusedRelatedChild?.takeIf { c -> c.isAttached } ?: return@collect
+                focusSelector.publishStabilised(
+                    bounds = Rect(coordinates.positionInRoot(), coordinates.size.toSize()),
+                    cornerRadius = TV_DETAILS_SELECTOR_RADIUS
+                )
+            }
+        }
+
         // Main shiftable content.
         //
         // `wrapContentHeight(unbounded = true)` est indispensable : un `Column`
@@ -201,6 +251,7 @@ fun VodDetailsTvLayout(
         // maximale. Le bloc principal occupant `écran - PEEK`, la rangée
         // « Titres associés » se voyait plafonnée à PEEK (110 dp) — vignettes
         // clippées, et hauteur mesurée fausse donc remontée quasi nulle.
+        CompositionLocalProvider(LocalTvFocusSelector provides focusSelector) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -292,17 +343,27 @@ fun VodDetailsTvLayout(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    // Plot/Synopsis
+                    // Synopsis : pondéré, donc mesuré avec la place qui reste
+                    // une fois les crédits, les actions et les boutons posés.
+                    // Un texte long ne peut plus les chasser hors de l'écran.
+                    var plotOverflows by remember(details.streamId) { mutableStateOf(false) }
                     Text(
                         text = details.plot,
-                        maxLines = 6,
                         overflow = TextOverflow.Ellipsis,
                         color = TextSecondary,
                         fontSize = 13.5.sp,
                         lineHeight = 19.sp,
                         fontFamily = HankenGrotesk,
-                        modifier = Modifier.padding(bottom = 8.dp)
+                        onTextLayout = { plotOverflows = it.hasVisualOverflow },
+                        modifier = Modifier
+                            .weight(1f, fill = false)
+                            .padding(bottom = 8.dp)
                     )
+
+                    if (plotOverflows) {
+                        PlotMoreButton(onClick = { showFullPlot = true })
+                        Spacer(modifier = Modifier.height(4.dp))
+                    }
 
                     HorizontalDivider(
                         color = TvDetailsDividerColor,
@@ -367,15 +428,19 @@ fun VodDetailsTvLayout(
 
                     Spacer(modifier = Modifier.height(20.dp))
 
-                    // Playback options with high quality pill-shaped TV buttons (no icons)
+                    // Boutons de lecture, au dessin de la fiche mobile et sur
+                    // toute la largeur de la colonne. Comme sur mobile, une
+                    // position de reprise fait apparaître le doublon
+                    // « relire depuis le début » en action secondaire.
                     Column(
                         verticalArrangement = Arrangement.spacedBy(10.dp),
-                        modifier = Modifier.width(360.dp)
+                        modifier = Modifier.fillMaxWidth()
                     ) {
                         if (hasHistory) {
                             PlayButton(
                                 text = stringResource(R.string.vod_details_resume_playback),
                                 onClick = { onResumePlayback(details.resumePositionMs) },
+                                primary = true,
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .tvInitialFocusTarget(focusState)
@@ -383,12 +448,14 @@ fun VodDetailsTvLayout(
                             PlayButton(
                                 text = stringResource(R.string.vod_details_replay_movie),
                                 onClick = onPlayFromBeginning,
+                                primary = false,
                                 modifier = Modifier.fillMaxWidth()
                             )
                         } else {
                             PlayButton(
                                 text = stringResource(R.string.vod_details_play_movie),
                                 onClick = onPlayFromBeginning,
+                                primary = true,
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .tvInitialFocusTarget(focusState)
@@ -403,18 +470,34 @@ fun VodDetailsTvLayout(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .padding(horizontal = TV_DETAILS_RELATED_SIDE_MARGIN)
                         .onSizeChanged { relatedRowHeightPx = it.height.toFloat() }
                         .onFocusChanged { isRelatedFocused = it.hasFocus }
+                        .onFocusedBoundsChanged { focusedRelatedChild = it }
                 ) {
                     RelatedTitlesRow(
                         title = stringResource(R.string.details_related_titles),
                         items = relatedStreams,
                         poster = { it.streamIcon },
                         label = { it.name },
-                        onClick = onSelectRelated
+                        onClick = onSelectRelated,
+                        tvPivotEnabled = true
                     )
                 }
             }
+        }
+        }
+
+        // Cadre de focus fixe, au premier plan de la racine : il doit survoler
+        // la colonne décalable sans être déplacé avec elle.
+        TvFocusSelectorOverlay(focusSelector, modifier = Modifier.fillMaxSize())
+
+        if (showFullPlot) {
+            TvPlotDialog(
+                title = details.name,
+                plot = details.plot,
+                onDismiss = { showFullPlot = false }
+            )
         }
     }
 }
@@ -487,7 +570,9 @@ private fun DetailActionButton(
 }
 
 /**
- * Bouton de lecture : pilule pleine largeur, sans icône.
+ * Bouton de lecture, au dessin de la fiche mobile : rayon 8 dp, texte blanc,
+ * fond `AccentLavande` pour l'action principale et `Surface3` pour la
+ * secondaire. Le focus TV s'ajoute par-dessus, en liseré `AccentLavandeHover`.
  *
  * Volontairement construit sur `Box` + `clickable` plutôt que sur
  * `androidx.tv.material3.Button` : ce dernier compose sa propre `Surface`, qui
@@ -500,32 +585,124 @@ private fun DetailActionButton(
 private fun PlayButton(
     text: String,
     onClick: () -> Unit,
+    primary: Boolean,
     modifier: Modifier = Modifier
 ) {
     var isFocused by remember { mutableStateOf(false) }
+    val shape = RoundedCornerShape(8.dp)
+    val container = when {
+        primary && isFocused -> AccentLavandeHover
+        primary -> AccentLavande
+        else -> Surface3
+    }
     Box(
         modifier = modifier
-            .height(42.dp)
-            .clip(RoundedCornerShape(24.dp))
+            .height(44.dp)
+            .clip(shape)
             .onFocusChanged { isFocused = it.isFocused }
-            .background(
-                color = if (isFocused) AccentLavande else Surface3,
-                shape = RoundedCornerShape(24.dp)
-            )
+            .background(color = container, shape = shape)
             .border(
                 width = 2.dp,
                 color = if (isFocused) AccentLavandeHover else Color.Transparent,
-                shape = RoundedCornerShape(24.dp)
+                shape = shape
             )
             .clickable { onClick() },
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = text,
-            color = if (isFocused) Surface1 else TextPrimary,
+            color = TextPrimary,
             fontWeight = FontWeight.Bold,
-            fontSize = 14.sp,
+            fontSize = 13.sp,
             fontFamily = HankenGrotesk
         )
+    }
+}
+
+/** Ouvre le synopsis intégral ; n'apparaît que si le texte est tronqué. */
+@Composable
+private fun PlotMoreButton(onClick: () -> Unit) {
+    var isFocused by remember { mutableStateOf(false) }
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(6.dp))
+            .onFocusChanged { isFocused = it.isFocused }
+            .background(if (isFocused) AccentLavande.copy(alpha = 0.15f) else Color.Transparent)
+            .border(
+                width = 1.5.dp,
+                color = if (isFocused) AccentLavande else Color.Transparent,
+                shape = RoundedCornerShape(6.dp)
+            )
+            .clickable { onClick() }
+            .padding(horizontal = 10.dp, vertical = 4.dp)
+    ) {
+        Text(
+            text = stringResource(R.string.details_plot_see_more),
+            color = if (isFocused) AccentLavande else TextPrimary,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 12.sp,
+            fontFamily = HankenGrotesk
+        )
+    }
+}
+
+/**
+ * Synopsis intégral dans une fenêtre par-dessus la fiche.
+ *
+ * Un dépliement en place aurait déplacé crédits, actions et boutons sous le
+ * focus de l'utilisateur — le défaut que F28 évitait en refusant tout
+ * « voir plus ». La fenêtre lève l'objection : rien ne bouge derrière, et la
+ * touche Retour la referme.
+ */
+@Composable
+private fun TvPlotDialog(
+    title: String,
+    plot: String,
+    onDismiss: () -> Unit
+) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        val scrollState = rememberScrollState()
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Surface1.copy(alpha = 0.94f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth(0.7f)
+                    .fillMaxHeight(0.8f)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Surface3)
+                    .padding(32.dp)
+            ) {
+                Text(
+                    text = title.uppercase(),
+                    color = TextPrimary,
+                    fontSize = 22.sp,
+                    fontFamily = BricolageGrotesque,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = plot,
+                    color = TextSecondary,
+                    fontSize = 14.sp,
+                    lineHeight = 21.sp,
+                    fontFamily = HankenGrotesk,
+                    modifier = Modifier
+                        .weight(1f)
+                        .verticalScroll(scrollState)
+                        // Focalisable pour que le D-pad puisse faire défiler un
+                        // synopsis plus long que la fenêtre.
+                        .focusable()
+                )
+            }
+        }
     }
 }

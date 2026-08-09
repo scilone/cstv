@@ -139,6 +139,7 @@
     <string name="vod_details_replay_movie">RELIRE DEPUIS LE DÉBUT</string>
     <string name="vod_details_add_favorite">Ajouter aux favoris</string>
     <string name="vod_details_remove_favorite">Dans mes favoris</string>
+    <string name="details_plot_see_more">VOIR PLUS</string>
     <string name="details_credits_director">Réalisateur</string>
     <string name="details_credits_cast">Acteurs</string>
     <string name="media_rating_like">J\'aime</string>

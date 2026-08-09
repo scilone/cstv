@@ -6,7 +6,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
@@ -31,6 +32,12 @@ import com.cstv.app.presentation.theme.Surface3
  * Rangée horizontale « Titres associés » réutilisée par les écrans de détails
  * VOD et Séries. Chaque item est un poster cliquable (2:3), focusable au D-pad.
  * Ne s'affiche pas si [items] est vide (le caller ne l'appelle alors pas).
+ *
+ * [tvPivotEnabled] câble le dispositif TV commun au reste de l'application
+ * (F19/F23/B22) : le cadre de focus reste fixe sur l'emplacement de la première
+ * vignette et c'est la rangée qui défile dessous. Le paramètre est opt-in pour
+ * que le chemin mobile et la fiche série gardent leur anneau de focus par
+ * vignette tant qu'ils n'ont pas été convertis.
  */
 @Composable
 fun <T> RelatedTitlesRow(
@@ -39,7 +46,8 @@ fun <T> RelatedTitlesRow(
     poster: (T) -> String?,
     label: (T) -> String,
     onClick: (T) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    tvPivotEnabled: Boolean = false
 ) {
     Column(modifier = modifier.fillMaxWidth()) {
         Text(
@@ -49,17 +57,31 @@ fun <T> RelatedTitlesRow(
             color = Color.White,
             modifier = Modifier.padding(bottom = 12.dp, start = 4.dp)
         )
+        val rowState = rememberLazyListState()
         LazyRow(
+            state = rowState,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             modifier = Modifier.fillMaxWidth().focusGroup()
         ) {
-            items(items) { item ->
-                RelatedTitleCard(
-                    cover = poster(item),
-                    name = label(item),
-                    onClick = { onClick(item) }
-                )
+            itemsIndexed(items) { index, item ->
+                Box(
+                    modifier = Modifier.tvPivotItem(
+                        enabled = tvPivotEnabled,
+                        state = rowState,
+                        index = index,
+                        selectorCornerRadius = 12.dp
+                    )
+                ) {
+                    RelatedTitleCard(
+                        cover = poster(item),
+                        name = label(item),
+                        onClick = { onClick(item) }
+                    )
+                }
             }
+            // Sans cette réserve, la dernière vignette ne peut pas rejoindre
+            // l'ancre de début et le cadre y sauterait.
+            tvPivotHorizontalEndSpacer(tvPivotEnabled)
         }
     }
 }
