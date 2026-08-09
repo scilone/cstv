@@ -411,9 +411,17 @@ fun VodDetailsTvLayout(
                     Spacer(modifier = Modifier.height(16.dp))
 
                     // Integrated Actions Row: Favorite / Like / Dislike
+                    //
+                    // Les trois actions se partagent la largeur à parts égales
+                    // (`weight`) au lieu de se serrer à gauche sur environ trois
+                    // quarts du bloc : la rangée s'aligne ainsi sur les boutons
+                    // de lecture et le synopsis, qui l'occupent en entier. Le
+                    // cadre de focus couvre du coup tout le tiers, ce qui le
+                    // rend nettement plus lisible de loin.
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        modifier = Modifier.fillMaxWidth()
                     ) {
                         DetailActionButton(
                             icon = Icons.Default.Star,
@@ -424,7 +432,8 @@ fun VodDetailsTvLayout(
                             },
                             tint = if (isFavorite) FavoriteGold else TextPrimary,
                             selected = isFavorite,
-                            onClick = onToggleFavorite
+                            onClick = onToggleFavorite,
+                            modifier = Modifier.weight(1f)
                         )
 
                         ActionSeparator()
@@ -435,7 +444,8 @@ fun VodDetailsTvLayout(
                             tint = if (mediaRating == MediaRatingValue.LIKE) RatingLike else TextPrimary,
                             selected = mediaRating == MediaRatingValue.LIKE,
                             enabled = !isRatingSaving,
-                            onClick = onLike
+                            onClick = onLike,
+                            modifier = Modifier.weight(1f)
                         )
 
                         ActionSeparator()
@@ -446,7 +456,8 @@ fun VodDetailsTvLayout(
                             tint = if (mediaRating == MediaRatingValue.DISLIKE) RatingDislike else TextPrimary,
                             selected = mediaRating == MediaRatingValue.DISLIKE,
                             enabled = !isRatingSaving,
-                            onClick = onDislike
+                            onClick = onDislike,
+                            modifier = Modifier.weight(1f)
                         )
                     }
 
@@ -569,6 +580,7 @@ private fun DetailActionButton(
     tint: Color,
     selected: Boolean,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
     enabled: Boolean = true
 ) {
     var isFocused by remember { mutableStateOf(false) }
@@ -577,7 +589,7 @@ private fun DetailActionButton(
         text
     )
     Box(
-        modifier = Modifier
+        modifier = modifier
             .clip(RoundedCornerShape(24.dp))
             .onFocusChanged { isFocused = it.isFocused }
             .background(if (isFocused) AccentLavande.copy(alpha = 0.15f) else Color.Transparent)
@@ -592,7 +604,8 @@ private fun DetailActionButton(
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center
+            horizontalArrangement = Arrangement.Center,
+            modifier = Modifier.fillMaxWidth()
         ) {
             Icon(
                 imageVector = icon,
@@ -606,7 +619,12 @@ private fun DetailActionButton(
                 color = if (isFocused) AccentLavande else TextPrimary,
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 12.5.sp,
-                fontFamily = HankenGrotesk
+                fontFamily = HankenGrotesk,
+                // Le libellé n'a plus la largeur qu'il réclame mais un tiers de
+                // la rangée : sans borne, « Ajouter aux favoris » passerait à la
+                // ligne et déformerait la hauteur d'une seule des trois actions.
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
         }
     }

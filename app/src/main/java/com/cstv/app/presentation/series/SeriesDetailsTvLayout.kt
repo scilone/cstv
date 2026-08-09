@@ -736,12 +736,20 @@ private fun TvSeriesHeroPanel(
             TvSeriesCredits(stringResource(R.string.details_credits_director), details.director, active, onSearchQueryTriggered)
             TvSeriesCredits(stringResource(R.string.details_credits_cast), details.actors, active, onSearchQueryTriggered)
             Spacer(Modifier.height(12.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                TvSeriesAction(Icons.Default.Star, stringResource(if (isFavorite) R.string.vod_details_remove_favorite else R.string.vod_details_add_favorite), if (isFavorite) FavoriteGold else TextPrimary, isFavorite, active, onToggleFavorite)
+            // Les trois actions se partagent la largeur à parts égales au lieu
+            // de se serrer à gauche : la rangée s'aligne sur le bouton de
+            // lecture et le synopsis, qui occupent toute la colonne, et le
+            // cadre de focus couvre un tiers entier.
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                TvSeriesAction(Icons.Default.Star, stringResource(if (isFavorite) R.string.vod_details_remove_favorite else R.string.vod_details_add_favorite), if (isFavorite) FavoriteGold else TextPrimary, isFavorite, active, onToggleFavorite, Modifier.weight(1f))
                 TvSeriesActionDivider()
-                TvSeriesAction(Icons.Default.ThumbUp, stringResource(R.string.media_rating_like), if (mediaRating == MediaRatingValue.LIKE) RatingLike else TextPrimary, mediaRating == MediaRatingValue.LIKE, active && !isRatingSaving, onLike)
+                TvSeriesAction(Icons.Default.ThumbUp, stringResource(R.string.media_rating_like), if (mediaRating == MediaRatingValue.LIKE) RatingLike else TextPrimary, mediaRating == MediaRatingValue.LIKE, active && !isRatingSaving, onLike, Modifier.weight(1f))
                 TvSeriesActionDivider()
-                TvSeriesAction(Icons.Default.ThumbDown, stringResource(R.string.media_rating_dislike), if (mediaRating == MediaRatingValue.DISLIKE) RatingDislike else TextPrimary, mediaRating == MediaRatingValue.DISLIKE, active && !isRatingSaving, onDislike)
+                TvSeriesAction(Icons.Default.ThumbDown, stringResource(R.string.media_rating_dislike), if (mediaRating == MediaRatingValue.DISLIKE) RatingDislike else TextPrimary, mediaRating == MediaRatingValue.DISLIKE, active && !isRatingSaving, onDislike, Modifier.weight(1f))
             }
             Spacer(Modifier.height(18.dp))
             val episode = playbackTarget.episode
@@ -824,11 +832,12 @@ private fun TvSeriesAction(
     tint: Color,
     selected: Boolean,
     active: Boolean,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     var focused by remember { mutableStateOf(false) }
     Box(
-        modifier = Modifier
+        modifier = modifier
             .clip(RoundedCornerShape(20.dp))
             .focusProperties { canFocus = active }
             .onFocusChanged { focused = it.isFocused }
@@ -837,10 +846,14 @@ private fun TvSeriesAction(
             .clickable(enabled = active) { onClick() }
             .padding(horizontal = 11.dp, vertical = 6.dp)
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center,
+            modifier = Modifier.fillMaxWidth()
+        ) {
             Icon(icon, null, tint = tint, modifier = Modifier.size(16.dp))
             Spacer(Modifier.width(5.dp))
-            Text(text, color = if (selected) tint else TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            Text(text, color = if (selected) tint else TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }
