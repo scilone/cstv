@@ -1,5 +1,10 @@
 # Journal des Modifications (Changelog) - CSTV IPTV
 
+## [v1.76.6] - 2026-08-09
+### 💄 Barre de navigation TV repliée resserrée à la largeur de l'avatar
+* La barre latérale repliée passe de 68 à 60 dp : la largeur de l'avatar de profil (42 dp, plus 3 dp de réserve de chaque côté pour son anneau de focus) et 6 dp de marge latérale. C'est le plancher réel — descendre plus bas demanderait de rapetisser l'avatar lui-même. La marge de la barre reste à 10 dp une fois dépliée.
+* Les icônes de destination sont centrées quand la barre est repliée : à 48 dp de largeur utile, leur retrait latéral de 10 dp les poussait contre le bord gauche au lieu de les aligner sous l'avatar.
+
 ## [v1.76.5] - 2026-08-09
 ### 🐛 Fiche film TV : la descente depuis « reprendre la lecture » sautait « relire depuis le début »
 * Sur un film déjà commencé, descendre depuis « REPRENDRE LA LECTURE » ouvrait le bloc « Titres associés » au lieu de passer sur « RELIRE DEPUIS LE DÉBUT » — la remontée, elle, revenait correctement sur ce dernier. La descente explicite vers la première affiche (`tvFocusDownTo`, introduite en v1.76.1 pour empêcher le focus d'atterrir au milieu de la rangée) était posée sur la **colonne** des boutons : elle interceptait donc la touche bas quel que soit le bouton focalisé. Elle est désormais portée par le dernier bouton de la colonne, le seul sous lequel il n'y a plus rien.

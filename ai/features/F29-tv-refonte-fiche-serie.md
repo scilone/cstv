@@ -3,7 +3,7 @@
 ## Informations générales
 
 Status:
-SPECIFICATION
+ARCHITECTURE
 
 Created:
 2026-08-05
@@ -111,9 +111,10 @@ aux titres associés sans perdre le contexte ni le focus de la télécommande.
 4. Une vignette d'épisode manquante est remplacée par un visuel neutre. La
    pochette générale de la série ne doit pas être réutilisée comme vignette.
 5. À la sélection d'une autre saison, la liste est remplacée par les épisodes
-   de cette saison et le focus descend automatiquement sur son premier épisode.
-   Si cette saison ne contient aucun épisode, le focus reste sur sa gélule et
-   l'état vide non interactif est affiché à la place de la liste.
+   de cette saison mais le focus reste sur sa gélule. L'appui Bas suivant place
+   le focus sur son premier épisode. Si cette saison ne contient aucun épisode,
+   le focus reste sur sa gélule et l'état vide non interactif est affiché à la
+   place de la liste.
 6. OK sur un épisode lance cet épisode selon le comportement de lecture
    existant. La saison sélectionnée et l'épisode ciblé restent cohérents avec
    les informations affichées dans la liste.
@@ -158,8 +159,9 @@ aux titres associés sans perdre le contexte ni le focus de la télécommande.
   reprise est possible ; il ne contient aucune icône.
 - [ ] D-pad Bas depuis ce bouton affiche la vue Épisodes et focalise la saison
   courante.
-- [ ] Une saison sélectionnée amène le focus sur son premier épisode ; une
-  saison vide conserve le focus sur sa gélule et rend un état vide.
+- [ ] Gauche/Droite sélectionne une saison sans quitter les gélules ; Bas place
+  ensuite le focus sur son premier épisode. Une saison vide conserve le focus
+  sur sa gélule et rend un état vide.
 - [ ] Chaque épisode conserve ses données disponibles et utilise un visuel
   neutre si sa vignette est absente.
 - [ ] D-pad Bas depuis le dernier épisode rend entièrement visible et focalise
@@ -171,27 +173,297 @@ aux titres associés sans perdre le contexte ni le focus de la télécommande.
 
 ---
 
-# 5. Hypothèses à examiner à l'étape 3
-
-- **H1** : Le changement d'écran ou la transition "cran complet" vers les saisons/épisodes peut être gérée au sein du même composable `SeriesDetailsTvLayout` à l'aide d'un état d'affichage (ex: `enum class TvSeriesScreenState { Hero, Episodes }`) ou par une translation verticale complète (`translationY` animée de la hauteur de l'écran).
-- **H2** : Les modèles de données existants (`SeriesDetails`, `SeriesEpisode`) contiennent déjà toutes les métadonnées requises pour les épisodes (vignettes, résumés, positions de reprise `resumePositionMs` et durées `durationMs`).
-- **H3** : L'utilisation de `rememberTvInitialFocus` permettra d'affecter le focus initial sur le bouton de lecture principal lors de l'arrivée sur l'écran Hero, et de cibler la saison/le premier épisode lors de la transition vers l'écran Épisodes.
-
----
-
-# 6. Décisions fonctionnelles actées
+# 5. Décisions fonctionnelles actées
 
 1. Depuis la vue Épisodes, Retour ferme la fiche et revient à l'écran précédent.
 2. La barre de reprise sous `REPRENDRE SXXEXX` est fine, lavande, sur une piste
    sombre, selon le langage visuel des épisodes de la maquette.
 3. Une vignette d'épisode absente est représentée par un visuel neutre, jamais
    par la pochette de série.
-4. Un changement de saison place automatiquement le focus sur l'épisode 1 de
-   la saison nouvellement sélectionnée lorsqu'il existe.
+4. Gauche/Droite sur les gélules change la saison affichée tout en gardant le
+   focus dans la rangée de saisons. Bas entre ensuite sur le premier épisode de
+   la saison courante. Il n'existe aucun autre moyen de changer de saison.
+5. Dans la liste, Bas parcourt les épisodes un par un ; le focus courant est
+   rendu par un état de survol visible. OK lance l'épisode focalisé.
+6. Lorsque le dernier épisode est focalisé, un aperçu des titres associés est
+   visible. Bas ouvre complètement cette rangée avec le même comportement que
+   sur la fiche film.
 
 ---
 
-# 6. Plan de développement (Ébauche)
+# 6. Spécification technique
+
+## Périmètre architectural
+
+La refonte reste entièrement dans la couche `presentation`. Les données déjà
+chargées dans `SeriesDetails`, `SeriesEpisode`, `SeriesState` et
+`relatedSeries` suffisent : aucun changement `data`, `domain`, Room, Retrofit,
+ViewModel ou navigation n'est nécessaire.
+
+Le chemin mobile reste dans `SeriesDetailsScreen.kt` et conserve sa composition
+et ses interactions actuelles. Le chemin TV est extrait dans un composable
+dédié afin que la navigation D-pad, les mesures et les animations ne puissent
+pas affecter la fiche mobile.
+
+## Fichiers concernés
+
+- `presentation/series/SeriesDetailsScreen.kt` : conserve l'orchestration
+  commune, le `SnackbarHost`, le démarrage du trailer et le layout mobile ; la
+  branche TV délègue au nouveau layout.
+- `presentation/series/SeriesDetailsTvLayout.kt` — **nouveau** : Hero, panneau
+  saisons/épisodes, titres associés, état de navigation TV, focus et animations.
+- `presentation/components/RelatedTitlesRow.kt` : réutilisé avec son mode TV
+  existant (`tvPivotEnabled`, `firstItemFocusRequester`, `LazyListState`) ;
+  aucune modification n'est attendue si son contrat actuel suffit.
+- `res/values/strings.xml` : libellés TV encore écrits en dur, notamment
+  `LIRE LA SÉRIE`, `REPRENDRE SXXEXX`, saisons, épisodes et états vides.
+- `test/.../presentation/series/SeriesDetailsTvLayoutTest.kt` — **nouveau** :
+  tests JVM des transitions et calculs purs extractibles.
+
+## État d'affichage
+
+Le layout possède un état éphémère, réinitialisé pour chaque `seriesId` :
+
+```kotlin
+internal enum class TvSeriesDetailsSection {
+    HERO,
+    EPISODES,
+    RELATED
+}
+```
+
+`RELATED` n'est pas un troisième écran métier : c'est la position remontée du
+panneau Épisodes lorsque sa rangée finale prend le focus. Cet état local ne va
+pas dans `SeriesViewModel`, car il ne représente ni une donnée métier ni un état
+à restaurer après avoir quitté la fiche.
+
+Le contenu est composé verticalement sans défilement racine :
+
+1. un panneau Hero de la hauteur exacte de l'écran ;
+2. un panneau Épisodes placé immédiatement dessous ;
+3. la rangée des titres associés placée sous le bloc principal du panneau
+   Épisodes, dans une colonne mesurée avec
+   `wrapContentHeight(unbounded = true)` afin de ne pas reproduire l'écrasement
+   corrigé sur F28.
+
+Une translation `graphicsLayer.translationY`, animée sur 300 ms, applique :
+
+- `0` en `HERO` ;
+- `-hauteurÉcran` en `EPISODES` ;
+- `-(hauteurÉcran + remontéeAssociés)` en `RELATED`.
+
+La remontée complémentaire reprend la formule de la fiche film, avec les
+hauteurs réellement mesurées :
+
+```text
+remontéeAssociés = max(
+    0,
+    hauteurBlocEpisodes + hauteurRangée + réserveBasse - hauteurÉcran
+)
+```
+
+L'aperçu de la rangée reste masqué tant que le dernier épisode n'est pas
+focalisé. Il devient visible lorsque ce dernier reçoit le focus, puis reste
+visible pendant l'état `RELATED`. Sans titre associé, la rangée n'est pas
+composée et la remontée vaut toujours zéro.
+
+## Vue Hero
+
+- Le panneau gauche reprend la composition cinéma de la fiche film : affiche
+  ou trailer dans le même emplacement, visuel neutre en absence d'image, puis
+  fondu horizontal vers `Surface1`.
+- La colonne droite utilise uniquement les tokens existants : `Surface1/2/3`,
+  `AccentLavande`, `AccentLavandeHover`, `TextPrimary`, `TextSecondary`,
+  `FavoriteGold`, `RatingLike` et `RatingDislike`.
+- Le synopsis est borné par l'espace disponible afin qu'il ne chasse jamais
+  les crédits, actions ou bouton de lecture hors écran. Un éventuel texte
+  intégral réutilise le motif `Dialog` de la fiche film.
+- Le bouton principal reste textuel, sans icône. La cible de lecture est
+  calculée avec les règles existantes : épisode incomplet le plus récemment
+  consulté, sinon premier épisode disponible par ordre saison/épisode.
+- La progression Hero n'est rendue que si `resumePositionMs > 0` et
+  `durationMs > 0`; sa fraction est bornée à `[0f, 1f]`. Une durée inconnue ne
+  produit pas une barre trompeuse.
+
+## Saisons et épisodes
+
+La rangée des gélules est fixe en haut du panneau. La liste d'épisodes occupe
+l'espace restant dans une `LazyColumn`, afin qu'une saison longue ne compose
+que ses éléments visibles.
+
+- Les saisons sont ordonnées par `seasonNumber`. Si un panel fournit des
+  épisodes sans entrée correspondante dans `details.seasons`, les clés de
+  `details.episodes` complètent défensivement la liste des gélules.
+- Gauche/Droite déplace le focus entre les gélules. La gélule focalisée devient
+  la saison sélectionnée et remplace la liste, mais le focus reste sur cette
+  gélule.
+- Chaque changement de saison ramène le `LazyListState` des épisodes au début.
+  Bas depuis la gélule demande explicitement le focus du premier épisode trié
+  par `episodeNum`.
+- Une saison vide conserve le focus sur sa gélule : Bas est alors un
+  non-événement et l'état vide reste non interactif.
+- Si la série ne fournit aucune saison, l'entrée dans le panneau cible un
+  conteneur d'état vide focalisable uniquement pour conserver une navigation
+  D-pad déterministe ; Haut permet de revenir au Hero.
+- Les cartes d'épisode sont identifiées par `episode.id`, affichent un état de
+  focus lavande visible, et ne montrent une progression que lorsque position et
+  durée sont exploitables. La vignette neutre utilise `Surface3` et
+  `TextSecondary`, jamais `details.cover`.
+
+## Contrat de focus D-pad
+
+Des `FocusRequester` dédiés sont mémorisés par `seriesId` pour le bouton Hero,
+les gélules, le premier et le dernier épisode courants, l'état vide et la
+première vignette associée.
+
+- Ouverture : `rememberTvInitialFocus` cible uniquement le bouton de lecture.
+- Bas depuis le bouton : passage à `EPISODES`, puis focus sur la saison courante
+  après composition du panneau.
+- Gauche/Droite dans les gélules : changement de saison, sans descente.
+- Bas depuis une gélule : premier épisode ; Haut : retour au bouton Hero avec
+  le panneau en `HERO`.
+- Bas dans la liste : épisode suivant. Haut depuis le premier épisode revient à
+  la gélule de la saison courante. Bas depuis le dernier épisode, si des titres
+  associés existent : passage à `RELATED`, remontée et focus explicite sur la
+  première vignette.
+- Haut depuis la rangée associée : retour à `EPISODES`, position de repos et
+  focus sur le dernier épisode. Gauche/Droite et OK gardent le contrat de
+  `RelatedTitlesRow`.
+- Retour n'est jamais intercepté par cet état interne : `AppNavGraph` dépile la
+  fiche depuis les trois positions.
+
+Les événements directionnels gérés explicitement ne sont consommés que si la
+cible existe et que `requestFocus()` réussit. Les contrôles du panneau hors
+écran sont exclus de la recherche de focus pendant la transition.
+
+La rangée associée active le sélecteur fixe TV déjà employé sur la fiche film.
+Pendant la remontée, sa géométrie est republiée depuis `positionInRoot()` et la
+taille de la vignette à chaque valeur de l'animation ; `boundsInRoot()` reste
+exclu car il clippe les éléments encore partiellement hors champ.
+
+## Données, réseau et dépendances
+
+Les hypothèses de l'étape 2 sont confirmées :
+
+- `SeriesDetails` fournit l'affiche, les métadonnées, les saisons et la carte
+  d'épisodes ;
+- `SeriesEpisode` fournit numéro, titre, résumé, durée textuelle,
+  `movieImage`, `resumePositionMs`, `durationMs`, `lastAccessedAt` et
+  `seasonNum` ;
+- `SeriesViewModel` charge déjà les titres associés en parallèle du détail et
+  les expose dans `SeriesState`.
+
+Le passage Hero → Épisodes, le changement de saison et la remontée des titres
+associés ne déclenchent donc aucun appel réseau, accès Room ou nouvel effet de
+ViewModel. Aucune dépendance Gradle, migration Room ni règle ProGuard n'est
+requise.
+
+## Contraintes de performance
+
+- Une seule saison est rendue à la fois ; ses épisodes utilisent une
+  `LazyColumn` avec clés stables.
+- Les listes triées, la cible de reprise et les `FocusRequester` sont mémorisés
+  avec les identifiants de série/saison pertinents, sans recalcul à chaque frame.
+- Les animations ne modifient que la couche graphique ; aucune mesure réseau ou
+  reconstruction de WebView ne doit dépendre de la position affichée.
+- Les hauteurs ne sont publiées que par `onSizeChanged`; la formule de remontée
+  est pure et ne crée pas de boucle mesure → état → nouvelle mesure.
+
+## Risques techniques et parades
+
+- **Focus d'un panneau hors écran** : désactiver ses cibles jusqu'à ce que son
+  état soit actif et utiliser des demandes de focus explicites aux frontières.
+- **Saut implicite de `LazyColumn`** : intercepter les transitions premier/
+  dernier élément et piloter la cible plutôt que dépendre du candidat
+  géométrique choisi par Compose.
+- **Rangée associée comprimée** : mesurer la colonne externe sans borne de
+  hauteur, conformément à la correction F28.
+- **Sélecteur décalé pendant l'animation** : republier les coordonnées pendant
+  toute la translation, comme sur F30.
+- **Saison vide ou données Xtream incohérentes** : dériver défensivement les
+  saisons depuis les métadonnées et les clés d'épisodes, puis garder un chemin
+  de focus valide même sans épisode.
+- **Régression mobile** : ne déplacer dans le nouveau fichier que le chemin TV
+  et ses helpers ; le `MobileLayout` et ses contrôles de téléchargement restent
+  inchangés.
+
+## Validation automatisable prévue
+
+Les tests JVM couvriront les règles pures qui portent le risque :
+
+- cible de lecture initiale ou de reprise et fraction de progression bornée ;
+- résolution de la saison courante et tri des épisodes ;
+- transitions Hero → saisons → premier épisode ;
+- changement de saison sans descente automatique ;
+- dernier épisode → titres associés et trajet inverse ;
+- absence de transition en saison vide ou sans titre associé ;
+- calcul de la remontée, y compris rangée absente et hauteur insuffisante.
+
+Le rendu Compose, les contraintes réelles et la géométrie D-pad ne sont pas
+testables par la suite JVM actuelle ; ils ne constituent donc pas des critères
+de validation finale manuelle ou sur appareil, conformément à `AGENTS.md`.
+
+---
+
+# 7. Architecture
+
+```text
+AppNavGraph
+  └─ SeriesDetailsScreen
+       ├─ mobile → MobileLayout existant
+       └─ TV → SeriesDetailsTvLayout
+                ├─ HeroPanel
+                │    ├─ affiche / trailer + fondu
+                │    ├─ métadonnées / crédits / actions
+                │    └─ action de lecture + progression
+                └─ EpisodesPanel
+                     ├─ SeasonPillsRow
+                     ├─ EpisodeLazyColumn
+                     └─ RelatedTitlesRow (optionnel, position remontée)
+```
+
+Flux de données :
+
+```text
+SeriesViewModel.state
+  → SeriesDetailsScreen
+  → SeriesDetailsTvLayout
+      → état UI local (section, saison, focus, mesures)
+      → callbacks existants
+          ├─ onEpisodeSelected
+          ├─ onToggleFavorite / onLike / onDislike
+          ├─ onSearchQueryTriggered
+          └─ onSelectRelated
+```
+
+Responsabilités :
+
+- `SeriesViewModel` continue de charger et conserver les données métier ; il ne
+  connaît ni panneau, ni gélule, ni position de focus.
+- `SeriesDetailsScreen` reste la frontière mobile/TV et le point de branchement
+  des callbacks existants.
+- `SeriesDetailsTvLayout` possède exclusivement la composition et la machine de
+  navigation visuelle TV.
+- `RelatedTitlesRow`, `TvInitialFocus` et `TvFocusSelector` conservent leurs
+  responsabilités génériques et sont réutilisés sans duplication.
+
+Décisions techniques :
+
+1. Un layout TV séparé est préféré à l'extension du fichier actuel de plus de
+   900 lignes : il isole le risque et garantit le non-impact mobile.
+2. Une translation mesurée est préférée à un `verticalScroll` racine ou à
+   `bringIntoView`, dont les déplacements implicites sont incompatibles avec
+   les crans Hero/Épisodes et Épisodes/Associés.
+3. La saison et la section sont des états de présentation locaux, pas des états
+   de ViewModel.
+4. Les routes de focus aux frontières sont explicites ; la recherche
+   géométrique de Compose reste utilisée seulement entre épisodes ordinaires.
+5. Les contrats existants de lecture, notation, favoris, recherche de crédits,
+   trailer et titres associés sont réutilisés, sans nouvelle source de données.
+
+---
+
+# 8. Plan de développement (Ébauche)
 
 *(À détailler lors de l'Étape 4)*
 1. Création de `presentation/series/SeriesDetailsTvLayout.kt`.

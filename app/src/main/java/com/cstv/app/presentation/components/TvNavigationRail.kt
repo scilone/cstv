@@ -59,7 +59,19 @@ import com.cstv.app.presentation.theme.AccentLavandeHover
 import com.cstv.app.presentation.theme.Surface1
 import com.cstv.app.presentation.theme.Surface3
 
-const val TV_RAIL_COLLAPSED_WIDTH_DP = 68
+/**
+ * Largeur de la barre repliée : l'avatar de profil et rien de plus.
+ *
+ * L'avatar mesure 42 dp, plus 3 dp de réserve pour son anneau de focus de
+ * chaque côté — 48 dp incompressibles — auxquels s'ajoutent les 6 dp de marge
+ * latérale de la barre. C'est le plancher réel : descendre plus bas
+ * demanderait de rapetisser l'avatar lui-même.
+ */
+const val TV_RAIL_COLLAPSED_WIDTH_DP = 60
+
+/** Marge latérale de la barre, resserrée une fois repliée. */
+private val TV_RAIL_COLLAPSED_PADDING = 6.dp
+private val TV_RAIL_EXPANDED_PADDING = 10.dp
 
 /** Hauteur constante de l'en-tête profil, plié comme déplié. */
 private val TV_RAIL_HEADER_HEIGHT = 56.dp
@@ -105,7 +117,10 @@ fun TvNavigationRail(
                     false
                 }
             }
-            .padding(vertical = 18.dp, horizontal = 10.dp),
+            .padding(
+                vertical = 18.dp,
+                horizontal = if (expanded) TV_RAIL_EXPANDED_PADDING else TV_RAIL_COLLAPSED_PADDING
+            ),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         // En-tête profil : avatar à gauche, informations de session à sa droite.
@@ -207,6 +222,10 @@ private fun TvRailDestinationRow(
     }
     Row(
         verticalAlignment = Alignment.CenterVertically,
+        // Repliée, la barre n'offre que la largeur de l'avatar : un retrait
+        // latéral y pousserait l'icône contre le bord gauche au lieu de
+        // l'aligner sous l'avatar. Elle est donc centrée, sans retrait.
+        horizontalArrangement = if (expanded) Arrangement.Start else Arrangement.Center,
         modifier = Modifier
             .fillMaxWidth()
             .height(44.dp)
@@ -215,7 +234,7 @@ private fun TvRailDestinationRow(
             .onFocusChanged { focused = it.isFocused }
             .then(focusRequester?.let { Modifier.focusRequester(it) } ?: Modifier)
             .clickable { onClick() }
-            .padding(horizontal = 10.dp)
+            .padding(horizontal = if (expanded) 10.dp else 0.dp)
     ) {
         Icon(
             destination.icon.imageVector(),
