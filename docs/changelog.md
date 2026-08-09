@@ -1,5 +1,9 @@
 # Journal des Modifications (Changelog) - CSTV IPTV
 
+## [v1.76.5] - 2026-08-09
+### 🐛 Fiche film TV : la descente depuis « reprendre la lecture » sautait « relire depuis le début »
+* Sur un film déjà commencé, descendre depuis « REPRENDRE LA LECTURE » ouvrait le bloc « Titres associés » au lieu de passer sur « RELIRE DEPUIS LE DÉBUT » — la remontée, elle, revenait correctement sur ce dernier. La descente explicite vers la première affiche (`tvFocusDownTo`, introduite en v1.76.1 pour empêcher le focus d'atterrir au milieu de la rangée) était posée sur la **colonne** des boutons : elle interceptait donc la touche bas quel que soit le bouton focalisé. Elle est désormais portée par le dernier bouton de la colonne, le seul sous lequel il n'y a plus rien.
+
 ## [v1.76.4] - 2026-08-09
 ### ⚡ Premier catalogue ouvert : le moteur de recommandation affamait la navigation
 * **Cause identifiée** : le rapport de diagnostic v1.76.3 est sans ambiguïté. L'ouverture de la base prend 20 ms — ce n'était donc ni elle ni le journal SQLite. En revanche, pendant les seize secondes où le moteur de recommandation tourne au lancement, **tout** ralentit dans les mêmes proportions : les catégories du premier catalogue ouvert mettent 13,0 s à s'afficher (contre 75 ms une fois le calcul fini), et `syncIfStale`, qui ne fait que lire trois lignes, passe de 9 ms à 8,0 s. Ce n'est pas une requête lente, c'est une famine de temps processeur.

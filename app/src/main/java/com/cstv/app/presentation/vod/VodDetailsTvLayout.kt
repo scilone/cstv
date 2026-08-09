@@ -454,11 +454,14 @@ fun VodDetailsTvLayout(
                     // toute la largeur de la colonne. Comme sur mobile, une
                     // position de reprise fait apparaître le doublon
                     // « relire depuis le début » en action secondaire.
+                    // La descente explicite vers les titres associés est portée
+                    // par le **dernier** bouton, jamais par la colonne : posée
+                    // sur celle-ci, elle interceptait la descente depuis
+                    // « reprendre la lecture » et sautait par-dessus « relire
+                    // depuis le début ».
                     Column(
                         verticalArrangement = Arrangement.spacedBy(10.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .tvFocusDownTo(firstRelatedFocus)
+                        modifier = Modifier.fillMaxWidth()
                     ) {
                         if (hasHistory) {
                             PlayButton(
@@ -473,7 +476,9 @@ fun VodDetailsTvLayout(
                                 text = stringResource(R.string.vod_details_replay_movie),
                                 onClick = onPlayFromBeginning,
                                 primary = false,
-                                modifier = Modifier.fillMaxWidth()
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .tvFocusDownTo(firstRelatedFocus)
                             )
                         } else {
                             PlayButton(
@@ -483,6 +488,7 @@ fun VodDetailsTvLayout(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .tvInitialFocusTarget(focusState)
+                                    .tvFocusDownTo(firstRelatedFocus)
                             )
                         }
                     }
