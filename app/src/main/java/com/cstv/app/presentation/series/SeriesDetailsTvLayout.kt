@@ -171,6 +171,33 @@ internal fun tvSeriesSeasonNumbers(details: SeriesDetails): List<Int> =
 internal fun tvSeriesEpisodesForSeason(details: SeriesDetails, seasonNumber: Int): List<SeriesEpisode> =
     details.episodes[seasonNumber].orEmpty().sortedBy { it.episodeNum }
 
+/**
+ * Saison présélectionnée à l'ouverture de la fiche : celle de l'épisode
+ * consulté le plus récemment, la saison 1 à défaut.
+ *
+ * Retenir systématiquement la première saison renvoyait au début d'une série
+ * dont l'utilisateur suit la dernière saison — le panneau s'ouvrait sur des
+ * épisodes déjà vus et il fallait retraverser toutes les saisons.
+ *
+ * Le repère est `lastAccessedAt`, pas la position de reprise : un épisode
+ * terminé la remet à zéro (voir [SeriesEpisode.watched]) mais reste bien le
+ * dernier consulté — c'est même le cas le plus courant, celui de la série
+ * suivie épisode par épisode.
+ *
+ * Une saison inconnue de [tvSeriesSeasonNumbers] (position héritée d'un
+ * catalogue depuis remanié) est ignorée plutôt que sélectionnée à vide.
+ *
+ * Fonction pure, sans dépendance Compose, pour rester testable en JVM.
+ */
+internal fun tvSeriesInitialSeason(details: SeriesDetails): Int? {
+    val seasons = tvSeriesSeasonNumbers(details)
+    val lastAccessed = details.episodes.values.asSequence()
+        .flatten()
+        .filter { it.lastAccessedAt > 0L }
+        .maxByOrNull { it.lastAccessedAt }
+    return lastAccessed?.seasonNum?.takeIf { it in seasons } ?: seasons.firstOrNull()
+}
+
 internal fun tvSeriesPlaybackTarget(details: SeriesDetails): TvSeriesPlaybackTarget {
     val episodes = details.episodes.values.flatten()
     val resume = episodes
@@ -300,7 +327,7 @@ fun SeriesDetailsTvLayout(
 ) {
     val seasons = remember(details.seasons, details.episodes) { tvSeriesSeasonNumbers(details) }
     var selectedSeason by remember(details.seriesId, seasons) {
-        mutableStateOf(seasons.firstOrNull())
+        mutableStateOf(tvSeriesInitialSeason(details))
     }
     val selectedEpisodes = remember(details, selectedSeason) {
         selectedSeason?.let { tvSeriesEpisodesForSeason(details, it) }.orEmpty()
@@ -311,7 +338,6 @@ fun SeriesDetailsTvLayout(
     val playbackTarget = remember(details) { tvSeriesPlaybackTarget(details) }
     val initialFocus = rememberTvInitialFocus(isTv = true, ready = true, targetKey = details.seriesId)
     var section by remember(details.seriesId) { mutableStateOf(TvSeriesDetailsSection.HERO) }
-    var lastEpisodeFocused by remember(details.seriesId, selectedSeason) { mutableStateOf(false) }
     var returnToLastEpisode by remember(details.seriesId, selectedSeason) { mutableStateOf(false) }
 
     val seasonRequesters = remember(details.seriesId) { mutableStateMapOf<Int, FocusRequester>() }
@@ -322,6 +348,7 @@ fun SeriesDetailsTvLayout(
     val firstEpisodeFocus = remember(details.seriesId, selectedSeason) { FocusRequester() }
     val lastEpisodeFocus = remember(details.seriesId, selectedSeason) { FocusRequester() }
     val firstRelatedFocus = remember(details.seriesId) { FocusRequester() }
+    val seasonRowState = remember(details.seriesId) { LazyListState() }
     val relatedRowState = remember(details.seriesId) { LazyListState() }
     var relatedFocused by remember(details.seriesId) { mutableStateOf(false) }
 
@@ -340,6 +367,15 @@ fun SeriesDetailsTvLayout(
                     TvSeriesEpisodesFocusTarget.LAST_EPISODE -> lastEpisodeFocus
                     TvSeriesEpisodesFocusTarget.EMPTY_SERIES -> emptyEpisodesFocus
                     TvSeriesEpisodesFocusTarget.FIRST_EPISODE -> firstEpisodeFocus
+                }
+                // La saison présélectionnée n'est plus forcément la première
+                // (voir tvSeriesInitialSeason) : sur une série à nombreuses
+                // saisons, sa pastille peut être hors de la fenêtre de
+                // composition de la `LazyRow`, et son `FocusRequester` sans
+                // nœud auquel s'adresser. La ramener dans le champ la compose.
+                if (focusTarget == TvSeriesEpisodesFocusTarget.SEASON_PILL) {
+                    val index = seasons.indexOf(selectedSeason)
+                    if (index > 0) seasonRowState.scrollToItem(index)
                 }
                 runCatching { requester.requestFocus() }
             }
@@ -378,7 +414,11 @@ fun SeriesDetailsTvLayout(
             trailerPlaying = trailerPlaying,
             trailerState = trailerState,
             onTrailerFailed = onTrailerFailed,
-            trailerMuted = trailerMuted
+            // Hors du hero, le trailer est masqué par le voile ci-dessous : le
+            // laisser sonner sur les saisons/épisodes n'a plus de sens. Le
+            // choix de l'utilisateur ([trailerMuted]) est seulement forcé, pas
+            // écrasé — la remontée sur le hero le restitue tel quel.
+            trailerMuted = trailerMuted || section != TvSeriesDetailsSection.HERO
         )
 
         // Le visuel (ou le trailer) du hero occupe toute la hauteur de l'écran,
@@ -471,11 +511,9 @@ fun SeriesDetailsTvLayout(
                     lastEpisodeFocus = lastEpisodeFocus,
                     emptyEpisodesFocus = emptyEpisodesFocus,
                     seasonFocus = { number -> seasonRequesters.getOrPut(number) { FocusRequester() } },
+                    seasonRowState = seasonRowState,
                     onSeasonFocused = { number ->
-                        if (number != selectedSeason) {
-                            selectedSeason = number
-                            lastEpisodeFocused = false
-                        }
+                        if (number != selectedSeason) selectedSeason = number
                     },
                     onEpisodeClick = onEpisodeClick,
                     onBackToHero = {
@@ -485,7 +523,6 @@ fun SeriesDetailsTvLayout(
                             relatedSeries.isNotEmpty()
                         )
                     },
-                    onLastEpisodeFocused = { lastEpisodeFocused = it },
                     onOpenRelated = {
                         val nextSection = tvSeriesSectionAfter(
                             section,
@@ -502,8 +539,12 @@ fun SeriesDetailsTvLayout(
                         .background(Surface1)
                 )
 
+                // L'amorce de la rangée est visible en permanence : la faire
+                // apparaître à l'atteinte du dernier épisode surgissait dans un
+                // vide qui n'annonçait rien. Seule son **ouverture** — le
+                // défilement qui l'amène à l'écran — reste conditionnée à une
+                // descente depuis le dernier épisode.
                 if (relatedSeries.isNotEmpty()) {
-                    val relatedVisible = lastEpisodeFocused || section == TvSeriesDetailsSection.RELATED
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -526,7 +567,6 @@ fun SeriesDetailsTvLayout(
                                     true
                                 } else false
                             }
-                            .graphicsLayer { alpha = if (relatedVisible) 1f else 0f }
                     ) {
                         RelatedTitlesRow(
                             title = stringResource(R.string.details_related_titles),
@@ -779,7 +819,11 @@ private fun TvSeriesPlayButton(
             },
         contentAlignment = Alignment.Center
     ) {
-        Text(text, color = TextPrimary, fontFamily = HankenGrotesk, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Default.PlayArrow, contentDescription = null, tint = TextPrimary, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.width(8.dp))
+            Text(text, color = TextPrimary, fontFamily = HankenGrotesk, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+        }
     }
 }
 
@@ -794,10 +838,10 @@ private fun TvSeriesEpisodesPanel(
     lastEpisodeFocus: FocusRequester,
     emptyEpisodesFocus: FocusRequester,
     seasonFocus: (Int) -> FocusRequester,
+    seasonRowState: LazyListState,
     onSeasonFocused: (Int) -> Unit,
     onEpisodeClick: (SeriesEpisode) -> Unit,
     onBackToHero: () -> Unit,
-    onLastEpisodeFocused: (Boolean) -> Unit,
     onOpenRelated: () -> Boolean,
     modifier: Modifier = Modifier
 ) {
@@ -825,7 +869,7 @@ private fun TvSeriesEpisodesPanel(
                     .padding(horizontal = 12.dp, vertical = 10.dp)
             )
         } else {
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+            LazyRow(state = seasonRowState, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                 items(seasons, key = { it }) { seasonNumber ->
                     val selected = seasonNumber == selectedSeason
                     var focused by remember { mutableStateOf(false) }
@@ -879,7 +923,6 @@ private fun TvSeriesEpisodesPanel(
                         modifier = Modifier
                             .then(if (index == 0) Modifier.focusRequester(firstEpisodeFocus) else Modifier)
                             .then(if (index == selectedEpisodes.lastIndex) Modifier.focusRequester(lastEpisodeFocus) else Modifier)
-                            .onFocusChanged { if (index == selectedEpisodes.lastIndex) onLastEpisodeFocused(it.isFocused) }
                             .onKeyEvent { event ->
                                 when {
                                     event.type != KeyEventType.KeyDown -> false

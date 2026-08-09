@@ -14,6 +14,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.ThumbDown
 import androidx.compose.material.icons.filled.ThumbUp
@@ -466,6 +468,7 @@ fun VodDetailsTvLayout(
                         if (hasHistory) {
                             PlayButton(
                                 text = stringResource(R.string.vod_details_resume_playback),
+                                icon = Icons.Default.PlayArrow,
                                 onClick = { onResumePlayback(details.resumePositionMs) },
                                 primary = true,
                                 modifier = Modifier
@@ -474,6 +477,7 @@ fun VodDetailsTvLayout(
                             )
                             PlayButton(
                                 text = stringResource(R.string.vod_details_replay_movie),
+                                icon = Icons.Default.Replay,
                                 onClick = onPlayFromBeginning,
                                 primary = false,
                                 modifier = Modifier
@@ -483,6 +487,7 @@ fun VodDetailsTvLayout(
                         } else {
                             PlayButton(
                                 text = stringResource(R.string.vod_details_play_movie),
+                                icon = Icons.Default.PlayArrow,
                                 onClick = onPlayFromBeginning,
                                 primary = true,
                                 modifier = Modifier
@@ -622,6 +627,7 @@ private fun DetailActionButton(
 @Composable
 private fun PlayButton(
     text: String,
+    icon: ImageVector,
     onClick: () -> Unit,
     primary: Boolean,
     modifier: Modifier = Modifier
@@ -647,13 +653,22 @@ private fun PlayButton(
             .clickable { onClick() },
         contentAlignment = Alignment.Center
     ) {
-        Text(
-            text = text,
-            color = TextPrimary,
-            fontWeight = FontWeight.Bold,
-            fontSize = 13.sp,
-            fontFamily = HankenGrotesk
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = TextPrimary,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = text,
+                color = TextPrimary,
+                fontWeight = FontWeight.Bold,
+                fontSize = 13.sp,
+                fontFamily = HankenGrotesk
+            )
+        }
     }
 }
 

@@ -64,6 +64,62 @@ class SeriesDetailsTvLayoutTest {
     }
 
     @Test
+    fun `the preselected season follows the most recently accessed episode`() {
+        val details = details(
+            seasons = listOf(season(1), season(2), season(3)),
+            episodes = mapOf(
+                1 to listOf(episode(11, 1, 1, accessedAt = 100L)),
+                3 to listOf(episode(31, 3, 1, accessedAt = 300L))
+            )
+        )
+
+        assertEquals(3, tvSeriesInitialSeason(details))
+    }
+
+    @Test
+    fun `a finished episode still decides the preselected season`() {
+        // Position remise à zéro en fin de lecture : c'est `lastAccessedAt`,
+        // et lui seul, qui désigne la dernière saison suivie.
+        val details = details(
+            seasons = listOf(season(1), season(2)),
+            episodes = mapOf(
+                1 to listOf(episode(11, 1, 1, accessedAt = 100L)),
+                2 to listOf(episode(21, 2, 1, accessedAt = 200L, watched = true))
+            )
+        )
+
+        assertEquals(2, tvSeriesInitialSeason(details))
+    }
+
+    @Test
+    fun `the first season is preselected without any viewing history`() {
+        val details = details(
+            seasons = listOf(season(2), season(1)),
+            episodes = mapOf(1 to listOf(episode(11, 1, 1)), 2 to listOf(episode(21, 2, 1)))
+        )
+
+        assertEquals(1, tvSeriesInitialSeason(details))
+        assertNull(tvSeriesInitialSeason(details()))
+    }
+
+    @Test
+    fun `a viewing history on a season the catalogue no longer lists falls back to the first one`() {
+        val details = details(
+            seasons = listOf(season(1)),
+            episodes = mapOf(1 to listOf(episode(11, 1, 1, accessedAt = 100L)))
+        )
+        val stale = details.copy(
+            episodes = details.episodes + (9 to listOf(episode(91, 9, 1, accessedAt = 900L)))
+        )
+
+        // La saison 9 est bien exposée par `tvSeriesSeasonNumbers` dès qu'elle
+        // porte des épisodes ; c'est l'absence totale de saison qui doit se
+        // replier, pas une saison connue par ses seuls épisodes.
+        assertEquals(9, tvSeriesInitialSeason(stale))
+        assertEquals(1, tvSeriesInitialSeason(details))
+    }
+
+    @Test
     fun `a watched episode shows a full timeline even without a resume position`() {
         val watched = episode(1, 1, 1, watched = true)
 
