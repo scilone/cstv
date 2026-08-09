@@ -12,7 +12,15 @@ data class SeriesEpisode(
     val durationMs: Long = 0L,
     val movieImage: String? = null,
     val lastAccessedAt: Long = 0L,
-    val seasonNum: Int = 1
+    val seasonNum: Int = 1,
+    /**
+     * Épisode regardé jusqu'au bout. Le lecteur remet la position à zéro en fin
+     * de lecture (`SeriesPlayerScreen.onTrackerDispose`) au lieu de supprimer la
+     * ligne : une position à zéro **existante** distingue donc « déjà vu » de
+     * « jamais lancé », qui n'a aucune ligne du tout. Aucune colonne Room
+     * supplémentaire n'est nécessaire.
+     */
+    val watched: Boolean = false
 ) {
     /**
      * Build play URL for Series Episode:

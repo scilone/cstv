@@ -64,6 +64,37 @@ class SeriesDetailsTvLayoutTest {
     }
 
     @Test
+    fun `a watched episode shows a full timeline even without a resume position`() {
+        val watched = episode(1, 1, 1, watched = true)
+
+        assertEquals(1f, tvSeriesEpisodeProgress(watched), 0.001f)
+        assertNull(tvSeriesRemainingDuration(watched))
+        assertEquals(TvSeriesEpisodeStatus.WATCHED, tvSeriesEpisodeStatus(watched))
+    }
+
+    @Test
+    fun `episode status reports time only and never mixes duration with watch state`() {
+        assertEquals(
+            TvSeriesEpisodeStatus.REMAINING,
+            tvSeriesEpisodeStatus(episode(1, 1, 1, resume = 10_000L, duration = 60_000L))
+        )
+        assertEquals(
+            TvSeriesEpisodeStatus.DURATION,
+            tvSeriesEpisodeStatus(episode(1, 1, 1))
+        )
+        // "00:00" est la valeur de repli des DTO Xtream : absence de durée, pas
+        // une durée nulle — et surtout pas un état de visionnage.
+        assertEquals(
+            TvSeriesEpisodeStatus.NONE,
+            tvSeriesEpisodeStatus(episode(1, 1, 1, durationLabel = "00:00"))
+        )
+        assertEquals(
+            TvSeriesEpisodeStatus.NONE,
+            tvSeriesEpisodeStatus(episode(1, 1, 1, durationLabel = ""))
+        )
+    }
+
+    @Test
     fun `empty details has no playable target`() {
         val target = tvSeriesPlaybackTarget(details())
 
@@ -186,18 +217,21 @@ class SeriesDetailsTvLayoutTest {
         number: Int,
         resume: Long = 0L,
         duration: Long = 0L,
-        accessedAt: Long = 0L
+        accessedAt: Long = 0L,
+        watched: Boolean = false,
+        durationLabel: String = "42 min"
     ) = SeriesEpisode(
         id = id,
         episodeNum = number,
         title = "Episode $number",
         containerExtension = "mp4",
         plot = "",
-        duration = "42 min",
+        duration = durationLabel,
         releaseDate = "",
         resumePositionMs = resume,
         durationMs = duration,
         lastAccessedAt = accessedAt,
-        seasonNum = season
+        seasonNum = season,
+        watched = watched
     )
 }

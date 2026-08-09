@@ -25,6 +25,19 @@ import kotlinx.coroutines.*
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/**
+ * Un épisode « vu » se reconnaît à une ligne de position **présente** mais
+ * remise à zéro : c'est ce que fait le lecteur quand la lecture atteint la fin
+ * (`SeriesPlayerScreen.onTrackerDispose` → `SeriesViewModel.clearPosition`, qui
+ * réécrit `positionMs = 0` plutôt que de supprimer la ligne). Un épisode jamais
+ * lancé n'a, lui, aucune ligne.
+ *
+ * Fonction pure, sans dépendance Room au-delà du type d'entité, pour rester
+ * testable en JVM.
+ */
+internal fun isEpisodeWatched(savedPosition: com.cstv.app.data.local.entity.PlaybackPositionEntity?): Boolean =
+    savedPosition != null && savedPosition.positionMs <= 0L
+
 @Singleton
 class SeriesRepositoryImpl @Inject constructor(
     private val apiService: XtreamApiService,
@@ -454,7 +467,8 @@ class SeriesRepositoryImpl @Inject constructor(
                         durationMs = savedPosition?.durationMs ?: 0L,
                         movieImage = e.movieImage,
                         lastAccessedAt = savedPosition?.lastAccessedAt ?: 0L,
-                        seasonNum = e.seasonNum
+                        seasonNum = e.seasonNum,
+                        watched = isEpisodeWatched(savedPosition)
                     )
                 }
             }
@@ -560,7 +574,8 @@ class SeriesRepositoryImpl @Inject constructor(
                         durationMs = savedPosition?.durationMs ?: 0L,
                         movieImage = movieImage,
                         lastAccessedAt = savedPosition?.lastAccessedAt ?: 0L,
-                        seasonNum = seasonNum
+                        seasonNum = seasonNum,
+                        watched = isEpisodeWatched(savedPosition)
                     )
                 } else null
             }

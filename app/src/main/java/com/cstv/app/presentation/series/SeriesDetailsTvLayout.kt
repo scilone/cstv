@@ -49,6 +49,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -109,11 +110,39 @@ import com.cstv.app.presentation.theme.TextPrimary
 import com.cstv.app.presentation.theme.TextSecondary
 import kotlin.math.max
 
-private val TV_SERIES_RELATED_PEEK = 96.dp
+/**
+ * Amorce des « titres associés » laissée visible sous le panneau des épisodes.
+ *
+ * Volontairement réduite : cette réserve est vide tant que le focus n'a pas
+ * atteint le dernier épisode, et une amorce d'une hauteur de vignette creusait
+ * un vide franc au bas de l'écran dès les premiers épisodes. Le peu qui reste
+ * suffit à signaler qu'il y a quelque chose en dessous, et la hauteur récupérée
+ * va aux épisodes — voir [TV_SERIES_EPISODE_THUMB_HEIGHT].
+ */
+private val TV_SERIES_RELATED_PEEK = 40.dp
 private val TV_SERIES_BOTTOM_RESERVE = 24.dp
 private val TV_SERIES_DIVIDER = TextSecondary.copy(alpha = 0.35f)
 private val TV_SERIES_SELECTOR_RADIUS = 12.dp
 private const val TV_SERIES_HERO_ARTWORK_FRACTION = 0.48f
+
+/**
+ * Vignette d'épisode dimensionnée pour que **quatre** cartes tiennent dans le
+ * panneau sans défiler sur un écran TV 1080p (540 dp de haut) : la carte fait
+ * la hauteur de la vignette plus son rembourrage, soit ~84 dp, et quatre cartes
+ * espacées de [TV_SERIES_EPISODE_SPACING] rentrent sous l'en-tête saisons.
+ */
+private val TV_SERIES_EPISODE_THUMB_WIDTH = 120.dp
+private val TV_SERIES_EPISODE_THUMB_HEIGHT = 68.dp
+private val TV_SERIES_EPISODE_SPACING = 8.dp
+
+/**
+ * Le focus ne peut être posé sur la première vignette des titres associés
+ * qu'une fois celle-ci composée. À la réouverture de la rangée, elle vient
+ * d'être ramenée dans le champ par un `scrollToItem` : quelques frames de
+ * rattrapage évitent une demande de focus perdue, qui laisserait la rangée
+ * ouverte mais inatteignable au D-pad.
+ */
+private const val TV_SERIES_RELATED_FOCUS_ATTEMPTS = 6
 
 /** Position visuelle locale de la fiche TV, réinitialisée à chaque série. */
 internal enum class TvSeriesDetailsSection { HERO, EPISODES, RELATED }
@@ -195,14 +224,49 @@ internal fun tvSeriesEpisodesEntryFocusTarget(
 internal fun tvSeriesSeasonDownFocusTarget(hasEpisodes: Boolean): TvSeriesEpisodesFocusTarget =
     if (hasEpisodes) TvSeriesEpisodesFocusTarget.FIRST_EPISODE else TvSeriesEpisodesFocusTarget.SEASON_PILL
 
+/**
+ * Avancement affiché sur la carte d'un épisode : plein pour un épisode déjà vu
+ * en entier, sinon la fraction reprise. Un épisode terminé n'a plus de position
+ * de reprise ([SeriesEpisode.watched] en tient lieu), sans quoi il n'affichait
+ * aucune chronologie et se confondait avec un épisode jamais lancé.
+ */
+internal fun tvSeriesEpisodeProgress(episode: SeriesEpisode): Float =
+    if (episode.watched) 1f else tvSeriesProgressFraction(episode)
+
 /** Returns a displayable duration only when a real resume position and duration are available. */
 internal fun tvSeriesRemainingDuration(episode: SeriesEpisode): String? {
-    if (tvSeriesProgressFraction(episode) <= 0f) return null
+    if (episode.watched || tvSeriesProgressFraction(episode) <= 0f) return null
     val remainingMinutes = ((episode.durationMs - episode.resumePositionMs).coerceAtLeast(0L) / 60_000L).toInt()
     if (remainingMinutes <= 0) return "0 min"
     val hours = remainingMinutes / 60
     val minutes = remainingMinutes % 60
     return if (hours > 0) "%dh%02d".format(hours, minutes) else "$minutes min"
+}
+
+/** Information de droite d'une carte d'épisode : une seule ligne, un seul sens. */
+internal enum class TvSeriesEpisodeStatus { WATCHED, REMAINING, DURATION, NONE }
+
+/**
+ * Ce que la carte d'un épisode affiche à droite.
+ *
+ * L'ancienne règle mélangeait deux axes — « durée du média » et « état de
+ * visionnage » — sur la même ligne : un épisode dont le panel ne renseigne pas
+ * la durée affichait « Non vu » **parce que** la durée manquait, et non parce
+ * qu'il n'avait pas été vu. Deux épisodes au même état de visionnage
+ * s'affichaient donc différemment, ce qui n'avait effectivement aucun sens.
+ *
+ * La ligne ne parle plus que de temps : temps restant si une reprise est en
+ * cours, « Vu » si l'épisode est terminé, durée totale sinon, et rien du tout
+ * quand le panel ne la renseigne pas — `"00:00"` étant la valeur de repli des
+ * DTO Xtream, elle vaut absence de donnée.
+ *
+ * Fonction pure, sans dépendance Compose, pour rester testable en JVM.
+ */
+internal fun tvSeriesEpisodeStatus(episode: SeriesEpisode): TvSeriesEpisodeStatus = when {
+    episode.watched -> TvSeriesEpisodeStatus.WATCHED
+    tvSeriesRemainingDuration(episode) != null -> TvSeriesEpisodeStatus.REMAINING
+    episode.duration.isNotBlank() && episode.duration != "00:00" -> TvSeriesEpisodeStatus.DURATION
+    else -> TvSeriesEpisodeStatus.NONE
 }
 
 internal fun tvSeriesRelatedShiftPx(
@@ -259,6 +323,7 @@ fun SeriesDetailsTvLayout(
     val lastEpisodeFocus = remember(details.seriesId, selectedSeason) { FocusRequester() }
     val firstRelatedFocus = remember(details.seriesId) { FocusRequester() }
     val relatedRowState = remember(details.seriesId) { LazyListState() }
+    var relatedFocused by remember(details.seriesId) { mutableStateOf(false) }
 
     LaunchedEffect(section) {
         when (section) {
@@ -279,7 +344,22 @@ fun SeriesDetailsTvLayout(
                 runCatching { requester.requestFocus() }
             }
             TvSeriesDetailsSection.RELATED -> {
-                if (relatedSeries.isNotEmpty()) runCatching { firstRelatedFocus.requestFocus() }
+                if (relatedSeries.isNotEmpty()) {
+                    // Réouverture : la rangée est restée là où le pivot l'avait
+                    // laissée à la fermeture. La première vignette peut alors
+                    // être sortie de la fenêtre de composition de la `LazyRow`,
+                    // et son `FocusRequester` n'a plus de nœud auquel s'adresser
+                    // — la demande de focus échouait silencieusement, la rangée
+                    // s'ouvrait sans cadre et sans réponse au D-pad. La ramener
+                    // en tête la recompose, et les quelques passes suivantes
+                    // couvrent le délai avant qu'elle soit posée.
+                    relatedRowState.scrollToItem(0)
+                    repeat(TV_SERIES_RELATED_FOCUS_ATTEMPTS) {
+                        if (relatedFocused) return@LaunchedEffect
+                        runCatching { firstRelatedFocus.requestFocus() }
+                        withFrameNanos { }
+                    }
+                }
             }
         }
     }
@@ -299,6 +379,24 @@ fun SeriesDetailsTvLayout(
             trailerState = trailerState,
             onTrailerFailed = onTrailerFailed,
             trailerMuted = trailerMuted
+        )
+
+        // Le visuel (ou le trailer) du hero occupe toute la hauteur de l'écran,
+        // derrière les panneaux qui défilent par-dessus. Le panneau des épisodes
+        // ne le couvre que sur sa propre hauteur : l'amorce des titres associés
+        // laissait donc dépasser un bandeau de trailer au bas de l'écran. Ce
+        // voile masque l'arrière-plan dès qu'on quitte le hero, pour que les
+        // sections saisons/épisodes et titres associés soient sur fond plein.
+        val backdropScrim by animateFloatAsState(
+            targetValue = if (section == TvSeriesDetailsSection.HERO) 0f else 1f,
+            animationSpec = tween(durationMillis = 300),
+            label = "seriesDetailsBackdropScrim"
+        )
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer { alpha = backdropScrim }
+                .background(Surface1)
         )
 
         var episodePanelHeightPx by remember { mutableFloatStateOf(0f) }
@@ -413,6 +511,7 @@ fun SeriesDetailsTvLayout(
                             .onSizeChanged { relatedRowHeightPx = it.height.toFloat() }
                             .onFocusedBoundsChanged { focusedRelatedChild = it }
                             .onFocusChanged {
+                                relatedFocused = it.hasFocus
                                 if (!it.hasFocus && section != TvSeriesDetailsSection.RELATED) focusSelector.clear()
                             }
                             .focusProperties { canFocus = section == TvSeriesDetailsSection.RELATED }
@@ -704,9 +803,9 @@ private fun TvSeriesEpisodesPanel(
 ) {
     val episodeListState = rememberLazyListState()
     LaunchedEffect(selectedSeason) { episodeListState.scrollToItem(0) }
-    Column(modifier = modifier.padding(horizontal = 48.dp, vertical = 26.dp)) {
+    Column(modifier = modifier.padding(horizontal = 48.dp, vertical = 18.dp)) {
         Text(stringResource(R.string.series_details_seasons_label), color = TextSecondary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(8.dp))
         if (seasons.isEmpty()) {
             var focused by remember { mutableStateOf(false) }
             Text(
@@ -755,14 +854,14 @@ private fun TvSeriesEpisodesPanel(
                                     else -> false
                                 }
                             }
-                            .padding(horizontal = 16.dp, vertical = 9.dp)
+                            .padding(horizontal = 16.dp, vertical = 7.dp)
                     )
                 }
             }
         }
-        Spacer(Modifier.height(20.dp))
+        Spacer(Modifier.height(12.dp))
         Text(stringResource(R.string.series_details_episodes_label), color = AccentLavande, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(8.dp))
         if (selectedEpisodes.isEmpty()) {
             Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
                 Text(stringResource(R.string.series_details_no_episodes_for_season), color = TextSecondary)
@@ -770,7 +869,7 @@ private fun TvSeriesEpisodesPanel(
         } else {
             LazyColumn(
                 state = episodeListState,
-                verticalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(TV_SERIES_EPISODE_SPACING),
                 modifier = Modifier.fillMaxWidth().weight(1f)
             ) {
                 itemsIndexed(selectedEpisodes, key = { _, episode -> episode.id }) { index, episode ->
@@ -800,7 +899,7 @@ private fun TvSeriesEpisodesPanel(
 @Composable
 private fun TvSeriesEpisodeCard(episode: SeriesEpisode, active: Boolean, modifier: Modifier, onClick: () -> Unit) {
     var focused by remember { mutableStateOf(false) }
-    val progress = tvSeriesProgressFraction(episode)
+    val progress = tvSeriesEpisodeProgress(episode)
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = modifier
@@ -811,27 +910,36 @@ private fun TvSeriesEpisodeCard(episode: SeriesEpisode, active: Boolean, modifie
             .border(1.dp, if (focused) AccentLavande else TV_SERIES_DIVIDER, RoundedCornerShape(12.dp))
             .background(if (focused) Surface3.copy(alpha = 0.9f) else Surface3.copy(alpha = 0.7f))
             .clickable(enabled = active) { onClick() }
-            .padding(10.dp)
+            .padding(8.dp)
     ) {
-        Box(Modifier.size(width = 176.dp, height = 99.dp).clip(RoundedCornerShape(8.dp)).background(Surface1), contentAlignment = Alignment.Center) {
+        Box(
+            Modifier
+                .size(width = TV_SERIES_EPISODE_THUMB_WIDTH, height = TV_SERIES_EPISODE_THUMB_HEIGHT)
+                .clip(RoundedCornerShape(8.dp))
+                .background(Surface1),
+            contentAlignment = Alignment.Center
+        ) {
             if (!episode.movieImage.isNullOrBlank()) AsyncImage(episode.movieImage, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-            else Icon(Icons.Default.PlayArrow, null, tint = TextSecondary, modifier = Modifier.size(30.dp))
+            else Icon(Icons.Default.PlayArrow, null, tint = TextSecondary, modifier = Modifier.size(24.dp))
         }
-        Spacer(Modifier.width(16.dp))
+        Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
-            Text("${episode.episodeNum.toString().padStart(2, '0')}  ${episode.title}", color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            episode.plot.takeIf { it.isNotBlank() }?.let { Text(it, color = TextSecondary, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 5.dp)) }
+            Text("${episode.episodeNum.toString().padStart(2, '0')}  ${episode.title}", color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            episode.plot.takeIf { it.isNotBlank() }?.let { Text(it, color = TextSecondary, fontSize = 11.5.sp, lineHeight = 15.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp)) }
         }
-        Column(horizontalAlignment = Alignment.End, modifier = Modifier.width(150.dp)) {
-            val remainingDuration = tvSeriesRemainingDuration(episode)
-            Text(
-                text = remainingDuration?.let { stringResource(R.string.series_details_resume_info, it) }
-                    ?: episode.duration.ifBlank { stringResource(R.string.series_details_not_watched) },
-                color = TextSecondary,
-                fontSize = 12.sp
-            )
+        Column(horizontalAlignment = Alignment.End, modifier = Modifier.width(130.dp)) {
+            val statusText = when (tvSeriesEpisodeStatus(episode)) {
+                TvSeriesEpisodeStatus.WATCHED -> stringResource(R.string.series_details_watched)
+                TvSeriesEpisodeStatus.REMAINING ->
+                    stringResource(R.string.series_details_resume_info, tvSeriesRemainingDuration(episode).orEmpty())
+                TvSeriesEpisodeStatus.DURATION -> episode.duration
+                TvSeriesEpisodeStatus.NONE -> null
+            }
+            statusText?.let {
+                Text(text = it, color = if (episode.watched) AccentLavande else TextSecondary, fontSize = 12.sp)
+            }
             if (progress > 0f) {
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(6.dp))
                 LinearProgressIndicator(
                     progress = { progress },
                     color = AccentLavande,

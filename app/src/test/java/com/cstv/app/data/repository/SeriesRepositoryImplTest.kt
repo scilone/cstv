@@ -593,4 +593,25 @@ class SeriesRepositoryImplTest {
         assertEquals(pageSize + 1, result.size)
         assertEquals(1, result.count { it.seriesId == 9001 })
     }
+
+    /**
+     * Non-régression : « déjà vu » se lit sur la **présence** d'une ligne de
+     * position remise à zéro par le lecteur en fin de lecture. Sans cette
+     * distinction, un épisode terminé était indiscernable d'un épisode jamais
+     * lancé — les deux à `resumePositionMs = 0`.
+     */
+    @Test
+    fun `a zeroed playback row marks the episode as watched, no row means never played`() {
+        assertFalse(isEpisodeWatched(null))
+        assertTrue(isEpisodeWatched(playbackRow(positionMs = 0L, durationMs = 0L)))
+        assertFalse(isEpisodeWatched(playbackRow(positionMs = 12_000L, durationMs = 60_000L)))
+    }
+
+    private fun playbackRow(positionMs: Long, durationMs: Long) = PlaybackPositionEntity(
+        streamId = 1,
+        profileId = 1,
+        positionMs = positionMs,
+        durationMs = durationMs,
+        lastAccessedAt = 1L
+    )
 }
