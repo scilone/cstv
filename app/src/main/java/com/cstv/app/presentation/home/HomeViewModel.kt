@@ -263,9 +263,20 @@ class HomeViewModel @Inject constructor(
         }
         // Phase 58 : recharge la Home quand les préférences de catégories
         // (masquage/ordre) changent — le ViewModel est partagé au niveau app.
+        //
+        // Les recommandations sont invalidées **avant** le rechargement : leur
+        // résultat est mis en cache 24 h par profil (`GetRecommendationsUseCase`)
+        // et le filtrage des catégories masquées a lieu au **calcul**, pas à la
+        // lecture. Sans cette invalidation, masquer une catégorie ne changeait
+        // rien à la rangée « recommandé pour vous », qui continuait d'en proposer
+        // les médias jusqu'à l'expiration du cache ou la mort du processus —
+        // seule la reprise de lecture invalidait ce cache jusqu'ici.
         viewModelScope.launch {
             categoryPreferenceRepository.changes.collect {
-                if (hasActiveProfile) loadHomeData()
+                if (hasActiveProfile) {
+                    getRecommendationsUseCase.invalidateCache()
+                    loadHomeData()
+                }
             }
         }
         // Phase 41 : "Continuer à regarder" et "Favoris" restent à jour en

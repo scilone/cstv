@@ -12,6 +12,9 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import com.cstv.app.presentation.components.TvSeeAllCard
 import com.cstv.app.presentation.components.tvPivotItem
+import com.cstv.app.presentation.components.rememberTvRowFocusEntry
+import com.cstv.app.presentation.components.tvRowFocusEntry
+import com.cstv.app.presentation.components.tvRowFocusEntryTarget
 import com.cstv.app.presentation.components.tvPivotSection
 import com.cstv.app.presentation.components.tvPivotHorizontalEndSpacer
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -127,17 +130,19 @@ fun CategorySectionRow(
         // `streams` : l'onglet « Tout » ne charge que les premières chaînes de
         // chaque catégorie, la liste reçue ne dit donc rien du reste.
         val showSeeAllCard = onSeeAll != null && (totalCount ?: streams.size) > CATEGORY_ROW_MAX_ITEMS
+        val rowEntry = rememberTvRowFocusEntry()
         LazyRow(
             state = rowState,
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             contentPadding = PaddingValues(horizontal = 12.dp),
-            modifier = Modifier.fillMaxWidth().focusGroup()
+            modifier = Modifier.fillMaxWidth().tvRowFocusEntry(isTv, rowEntry).focusGroup()
         ) {
             itemsIndexed(displayList) { index, stream ->
                 val isFav = favoritesList.any { it.id == stream.streamId && it.type == "live" }
                 // Rayon 12.dp : StreamTvCard n'a pas été unifiée au rayon
                 // 14.dp de B18 (hors périmètre de ce ticket-là).
                 Box(modifier = Modifier.tvPivotItem(isTv, rowState, index, selectorCornerRadius = 12.dp)
+                    .tvRowFocusEntryTarget(isTv, rowEntry, rowState, index)
                     .tvInitialFocusTarget(initialFocusState, index == 0 && isInitialTarget)) {
                     if (isTv) {
                         StreamTvCard(
@@ -369,16 +374,18 @@ fun RecentlyWatchedRow(
         )
 
         val rowState = rememberRowScrollState(isTv, "livetv_recently_watched", getScroll, saveScroll)
+        val rowEntry = rememberTvRowFocusEntry()
         LazyRow(
             state = rowState,
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             contentPadding = PaddingValues(horizontal = 12.dp),
-            modifier = Modifier.fillMaxWidth().focusGroup()
+            modifier = Modifier.fillMaxWidth().tvRowFocusEntry(isTv, rowEntry).focusGroup()
         ) {
             itemsIndexed(streams) { index, stream ->
                 // Rayon 12.dp : StreamTvCard n'a pas été unifiée au rayon
                 // 14.dp de B18 (hors périmètre de ce ticket-là).
                 Box(modifier = Modifier.tvPivotItem(isTv, rowState, index, selectorCornerRadius = 12.dp)
+                    .tvRowFocusEntryTarget(isTv, rowEntry, rowState, index)
                     .tvInitialFocusTarget(initialFocusState, index == 0 && isInitialTarget)) {
                     if (isTv) {
                         RecentlyWatchedTvItem(

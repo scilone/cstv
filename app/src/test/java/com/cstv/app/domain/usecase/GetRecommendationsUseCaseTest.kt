@@ -142,4 +142,54 @@ class GetRecommendationsUseCaseTest {
         assertEquals(1, result.movies.size)
         assertEquals("Ok Movie", result.movies[0].name)
     }
+
+    /**
+     * Le filtrage des catégories masquées a lieu au calcul, dont le résultat est
+     * conservé 24 h : un masquage décidé après coup laissait la rangée
+     * « recommandé pour vous » proposer les médias de la catégorie masquée
+     * jusqu'à l'expiration du cache. La lecture du cache les écarte désormais.
+     */
+    @Test
+    fun test_cachedResultExcludesCategoriesHiddenAfterComputation() = runTest {
+        val vodRepository = mock<VodRepository>()
+        val seriesRepository = mock<SeriesRepository>()
+        val categoryPreferenceRepository = mock<CategoryPreferenceRepository>()
+        val profileManager = mock<ProfileManager>()
+        val mediaRatingRepository = mock<com.cstv.app.domain.repository.MediaRatingRepository>()
+        whenever(mediaRatingRepository.getAllRatings()).thenReturn(emptyList())
+
+        whenever(profileManager.currentProfileId()).thenReturn(1)
+
+        val history = listOf(
+            PlaybackPosition(streamId = 1, positionMs = 1000L, durationMs = 5000L, lastAccessedAt = 0L, type = "movie"),
+            PlaybackPosition(streamId = 2, positionMs = 1000L, durationMs = 5000L, lastAccessedAt = 0L, type = "movie"),
+            PlaybackPosition(streamId = 3, positionMs = 1000L, durationMs = 5000L, lastAccessedAt = 0L, type = "movie")
+        )
+        whenever(vodRepository.getAllPlaybackPositions()).thenReturn(history)
+
+        val movieCatOk = VodStream(10, "Ok Movie", "icon", "5", "0", "cat_ok")
+        val movieCatLater = VodStream(11, "Later Hidden Movie", "icon", "5", "0", "cat_later")
+        whenever(vodRepository.getCachedVodStreams("all")).thenReturn(listOf(movieCatOk, movieCatLater))
+        whenever(seriesRepository.getCachedSeriesStreams("all")).thenReturn(emptyList())
+
+        // Premier calcul : aucune catégorie masquée, les deux films entrent en cache.
+        whenever(categoryPreferenceRepository.getPreferences(any())).thenReturn(emptyMap())
+
+        val useCase = GetRecommendationsUseCase(vodRepository, seriesRepository, categoryPreferenceRepository, profileManager, mediaRatingRepository, CoroutineScope(SupervisorJob()))
+        assertEquals(2, useCase(currentTimeMs = 1000L).movies.size)
+
+        // Masquage décidé après coup : même profil, cache encore frais.
+        whenever(categoryPreferenceRepository.getPreferences(CategoryType.VOD)).thenReturn(
+            mapOf("cat_later" to CategoryPreference("cat_later", hidden = true, sortOrder = null))
+        )
+        whenever(categoryPreferenceRepository.getPreferences(CategoryType.SERIES)).thenReturn(emptyMap())
+
+        val fromCache = useCase(currentTimeMs = 2000L)
+
+        // Le cache n'a pas été recalculé…
+        verify(vodRepository, times(1)).getCachedVodStreams("all")
+        // …mais le film de la catégorie masquée n'est plus proposé.
+        assertEquals(1, fromCache.movies.size)
+        assertEquals("Ok Movie", fromCache.movies[0].name)
+    }
 }

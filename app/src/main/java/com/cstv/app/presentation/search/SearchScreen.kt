@@ -27,6 +27,9 @@ import androidx.compose.foundation.lazy.items
 import com.cstv.app.presentation.components.rememberTvInitialFocus
 import com.cstv.app.presentation.components.tvInitialFocusTarget
 import com.cstv.app.presentation.components.tvPivotItem
+import com.cstv.app.presentation.components.rememberTvRowFocusEntry
+import com.cstv.app.presentation.components.tvRowFocusEntry
+import com.cstv.app.presentation.components.tvRowFocusEntryTarget
 import com.cstv.app.presentation.components.TvChannelGrid
 import com.cstv.app.presentation.components.tvPivotCell
 import com.cstv.app.presentation.components.tvPivotSection
@@ -308,13 +311,15 @@ fun SearchScreen(
                                     onSeeAll = { expandedType = SearchExpandedType.LIVE }
                                 )
                                 val rowState = rememberLazyListState()
+                                val rowEntry = rememberTvRowFocusEntry()
                                 LazyRow(
                                     state = rowState,
                                     horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                    modifier = Modifier.fillMaxWidth().focusGroup()
+                                    modifier = Modifier.fillMaxWidth().tvRowFocusEntry(isTv, rowEntry).focusGroup()
                                 ) {
                                     itemsIndexed(state.searchResult.liveResults.take(SEARCH_ROW_MAX_ITEMS)) { index, stream ->
-                                        Box(modifier = Modifier.tvPivotItem(isTv, rowState, index, selectorCornerRadius = 12.dp)) {
+                                        Box(modifier = Modifier.tvPivotItem(isTv, rowState, index, selectorCornerRadius = 12.dp)
+                                            .tvRowFocusEntryTarget(isTv, rowEntry, rowState, index)) {
                                             SearchCardItem(
                                                 name = stream.name,
                                                 cover = stream.streamIcon,
@@ -355,13 +360,15 @@ fun SearchScreen(
                                     onSeeAll = { expandedType = SearchExpandedType.VOD }
                                 )
                                 val rowState = rememberLazyListState()
+                                val rowEntry = rememberTvRowFocusEntry()
                                 LazyRow(
                                     state = rowState,
                                     horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                    modifier = Modifier.fillMaxWidth().focusGroup()
+                                    modifier = Modifier.fillMaxWidth().tvRowFocusEntry(isTv, rowEntry).focusGroup()
                                 ) {
                                     itemsIndexed(state.searchResult.vodResults.take(SEARCH_ROW_MAX_ITEMS)) { index, stream ->
-                                        Box(modifier = Modifier.tvPivotItem(isTv, rowState, index, selectorCornerRadius = 12.dp)) {
+                                        Box(modifier = Modifier.tvPivotItem(isTv, rowState, index, selectorCornerRadius = 12.dp)
+                                            .tvRowFocusEntryTarget(isTv, rowEntry, rowState, index)) {
                                             SearchCardItem(
                                                 name = stream.name,
                                                 cover = stream.streamIcon,
@@ -403,13 +410,15 @@ fun SearchScreen(
                                     onSeeAll = { expandedType = SearchExpandedType.SERIES }
                                 )
                                 val rowState = rememberLazyListState()
+                                val rowEntry = rememberTvRowFocusEntry()
                                 LazyRow(
                                     state = rowState,
                                     horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                    modifier = Modifier.fillMaxWidth().focusGroup()
+                                    modifier = Modifier.fillMaxWidth().tvRowFocusEntry(isTv, rowEntry).focusGroup()
                                 ) {
                                     itemsIndexed(state.searchResult.seriesResults.take(SEARCH_ROW_MAX_ITEMS)) { index, stream ->
-                                        Box(modifier = Modifier.tvPivotItem(isTv, rowState, index, selectorCornerRadius = 12.dp)) {
+                                        Box(modifier = Modifier.tvPivotItem(isTv, rowState, index, selectorCornerRadius = 12.dp)
+                                            .tvRowFocusEntryTarget(isTv, rowEntry, rowState, index)) {
                                             SearchCardItem(
                                                 name = stream.name,
                                                 cover = stream.cover,

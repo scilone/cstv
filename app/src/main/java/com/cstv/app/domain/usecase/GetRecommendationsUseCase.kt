@@ -100,7 +100,7 @@ class GetRecommendationsUseCase @Inject constructor(
                 cachedProfileId == currentProfileId &&
                 (currentTimeMs - cacheTimestamp) < TTL_MILLIS) {
                 com.cstv.app.di.IptvLog.d("RECO", "Serving recommendations from cache for profile $currentProfileId")
-                return cached
+                return withoutHiddenCategories(cached)
             }
 
             inFlight?.takeIf { it.isActive }
@@ -234,6 +234,28 @@ class GetRecommendationsUseCase @Inject constructor(
         cachedProfileId = profileId
         cacheTimestamp = timeMs
         cachedResult = result
+    }
+
+    /**
+     * Second garde-fou du masquage de catégories : le calcul écarte déjà les
+     * catégories masquées, mais son résultat est conservé 24 h. Un masquage
+     * décidé entre-temps laissait donc la rangée proposer des médias d'une
+     * catégorie masquée jusqu'à l'expiration du cache — l'invalidation
+     * explicite (`HomeViewModel`, sur `categoryPreferenceRepository.changes`)
+     * couvre le cas nominal, ce filtre à la lecture couvre tous les autres
+     * appelants, présents et futurs, sans relancer les treize secondes de
+     * calcul du moteur.
+     */
+    private suspend fun withoutHiddenCategories(
+        result: RecommendationResult
+    ): RecommendationResult {
+        val hiddenMovies = getHiddenCategories(CategoryType.VOD)
+        val hiddenSeries = getHiddenCategories(CategoryType.SERIES)
+        if (hiddenMovies.isEmpty() && hiddenSeries.isEmpty()) return result
+        return RecommendationResult(
+            movies = result.movies.filter { it.categoryId !in hiddenMovies },
+            series = result.series.filter { it.categoryId !in hiddenSeries }
+        )
     }
 
     suspend fun invalidateCache() {

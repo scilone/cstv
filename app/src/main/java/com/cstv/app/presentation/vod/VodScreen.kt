@@ -17,6 +17,9 @@ import com.cstv.app.presentation.components.CatalogUnavailableState
 import com.cstv.app.presentation.components.TvCatalogGrid
 import com.cstv.app.presentation.components.TvSeeAllCard
 import com.cstv.app.presentation.components.tvPivotItem
+import com.cstv.app.presentation.components.rememberTvRowFocusEntry
+import com.cstv.app.presentation.components.tvRowFocusEntry
+import com.cstv.app.presentation.components.tvRowFocusEntryTarget
 import com.cstv.app.presentation.components.tvPivotCell
 import com.cstv.app.presentation.components.tvPivotSection
 import com.cstv.app.presentation.components.tvPivotHorizontalEndSpacer
@@ -883,6 +886,7 @@ private fun CategorySectionRow(
         val rowState = rememberRowScrollState(isTv, "vod_row_${categoryId}", getScroll, saveScroll)
         val displayList = remember(movies) { movies.take(CATEGORY_ROW_MAX_ITEMS) }
         val showSeeAllCard = onSeeAll != null && (totalCount ?: movies.size) > CATEGORY_ROW_MAX_ITEMS
+        val rowEntry = rememberTvRowFocusEntry()
         LazyRow(
             state = rowState,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -893,12 +897,13 @@ private fun CategorySectionRow(
             // focus et l'annulation tue la recherche — la navigation vers le
             // haut devenait alors impossible dès qu'une rangée avait déjà été
             // visitée. La restauration exacte est pilotée par [restoredFocus].
-            modifier = Modifier.fillMaxWidth().focusGroup()
+            modifier = Modifier.fillMaxWidth().tvRowFocusEntry(isTv, rowEntry).focusGroup()
         ) {
             itemsIndexed(displayList) { index, stream ->
                 val isRestoredTarget = categoryId == restoredCategoryId && stream.streamId == restoredStreamId
                 val focusState = if (isRestoredTarget) restoredFocusState else initialFocusState
                 Box(modifier = Modifier.tvPivotItem(isTv, rowState, index)
+                    .tvRowFocusEntryTarget(isTv, rowEntry, rowState, index)
                     .tvInitialFocusTarget(focusState, isRestoredTarget || (index == 0 && isInitialTarget))) {
                     HomeVodMovieCard(
                         stream = stream,

@@ -7,6 +7,9 @@ import com.cstv.app.presentation.home.components.CAROUSEL_PEEK
 import com.cstv.app.presentation.home.components.TV_HERO_PEEK
 import com.cstv.app.presentation.components.SeeAllLink
 import com.cstv.app.presentation.components.tvPivotItem
+import com.cstv.app.presentation.components.rememberTvRowFocusEntry
+import com.cstv.app.presentation.components.tvRowFocusEntry
+import com.cstv.app.presentation.components.tvRowFocusEntryTarget
 import com.cstv.app.presentation.components.tvPivotSection
 import com.cstv.app.presentation.components.tvPivotHorizontalEndSpacer
 import com.cstv.app.presentation.components.tvPivotVerticalEndSpacer
@@ -462,16 +465,18 @@ fun HomeScreen(
                             // d'une même carte doivent s'accorder sur son rayon réel (B22).
                             modifier = Modifier.tvPivotSection(isTv, lazyListState, "home_resume", selectorCornerRadius = 12.dp, anchor = TvPivotAnchor.MidViewport)
                         ) {
+                            val rowEntry = rememberTvRowFocusEntry()
                             LazyRow(
                                 state = rowState,
                                 horizontalArrangement = Arrangement.spacedBy(16.dp),
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).focusGroup()
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).tvRowFocusEntry(isTv, rowEntry).focusGroup()
                             ) {
                                 itemsIndexed(state.resumeWatchingList) { index, position ->
                                     // Rayon 12.dp : HomeResumeWatchingCard n'est
                                     // pas unifiée au rayon 14.dp de B18 (Review
                                     // F23, Mineur R5).
                                     Box(modifier = Modifier.tvPivotItem(isTv, rowState, index, selectorCornerRadius = 12.dp)
+                                        .tvRowFocusEntryTarget(isTv, rowEntry, rowState, index)
                                         .tvInitialFocusTarget(homeInitialFocus, index == 0 && homeInitialTarget == HomeFocusTarget.RESUME)) {
                                         HomeResumeWatchingCard(
                                             position = position,
@@ -497,13 +502,15 @@ fun HomeScreen(
                             onSeeAll = { expandedSection = HomeExpandedSection.FAVORITES },
                             modifier = Modifier.tvPivotSection(isTv, lazyListState, "home_favorites", anchor = TvPivotAnchor.MidViewport)
                         ) {
+                            val rowEntry = rememberTvRowFocusEntry()
                             LazyRow(
                                 state = rowState,
                                 horizontalArrangement = Arrangement.spacedBy(16.dp),
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).focusGroup()
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).tvRowFocusEntry(isTv, rowEntry).focusGroup()
                             ) {
                                 itemsIndexed(state.favoritesList) { index, fav ->
                                     Box(modifier = Modifier.tvPivotItem(isTv, rowState, index)
+                                        .tvRowFocusEntryTarget(isTv, rowEntry, rowState, index)
                                         .tvInitialFocusTarget(homeInitialFocus, index == 0 && homeInitialTarget == HomeFocusTarget.FAVORITES)) {
                                         HomeFavoriteItemCard(
                                             favorite = fav,
@@ -528,16 +535,18 @@ fun HomeScreen(
                             // Rayon aligné sur HomeLiveTvCard (16.dp), même raison que "home_resume".
                             modifier = Modifier.tvPivotSection(isTv, lazyListState, "home_livetv", selectorCornerRadius = 16.dp, anchor = TvPivotAnchor.MidViewport)
                         ) {
+                            val rowEntry = rememberTvRowFocusEntry()
                             LazyRow(
                                 state = rowState,
                                 horizontalArrangement = Arrangement.spacedBy(16.dp),
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).focusGroup()
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).tvRowFocusEntry(isTv, rowEntry).focusGroup()
                             ) {
                                 itemsIndexed(state.firstLiveStreams) { index, stream ->
                                     // Rayon 16.dp : HomeLiveTvCard n'est pas
                                     // unifiée au rayon 14.dp de B18 (Review F23,
                                     // Mineur R5).
                                     Box(modifier = Modifier.tvPivotItem(isTv, rowState, index, selectorCornerRadius = 16.dp)
+                                        .tvRowFocusEntryTarget(isTv, rowEntry, rowState, index)
                                         .tvInitialFocusTarget(homeInitialFocus, index == 0 && homeInitialTarget == HomeFocusTarget.LIVETV)) {
                                         HomeLiveTvCard(
                                             stream = stream,
@@ -562,13 +571,15 @@ fun HomeScreen(
                             onSeeAll = onSeeAllVod,
                             modifier = Modifier.tvPivotSection(isTv, lazyListState, "home_vod", anchor = TvPivotAnchor.MidViewport)
                         ) {
+                            val rowEntry = rememberTvRowFocusEntry()
                             LazyRow(
                                 state = rowState,
                                 horizontalArrangement = Arrangement.spacedBy(16.dp),
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).focusGroup()
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).tvRowFocusEntry(isTv, rowEntry).focusGroup()
                             ) {
                                 itemsIndexed(state.firstVodStreams) { index, stream ->
                                     Box(modifier = Modifier.tvPivotItem(isTv, rowState, index)
+                                        .tvRowFocusEntryTarget(isTv, rowEntry, rowState, index)
                                         .tvInitialFocusTarget(homeInitialFocus, index == 0 && homeInitialTarget == HomeFocusTarget.VOD)) {
                                         HomeVodMovieCard(
                                             stream = stream,
@@ -595,13 +606,15 @@ fun HomeScreen(
                             onSeeAll = null,
                             modifier = Modifier.tvPivotSection(isTv, lazyListState, "home_top_movies", anchor = TvPivotAnchor.MidViewport)
                         ) {
+                            val rowEntry = rememberTvRowFocusEntry()
                             LazyRow(
                                 state = rowState,
                                 horizontalArrangement = Arrangement.spacedBy(16.dp),
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).focusGroup()
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).tvRowFocusEntry(isTv, rowEntry).focusGroup()
                             ) {
                                 itemsIndexed(displayedTopVodStreams) { index, stream ->
                                     Box(modifier = Modifier.tvPivotItem(isTv, rowState, index)
+                                        .tvRowFocusEntryTarget(isTv, rowEntry, rowState, index)
                                         .tvInitialFocusTarget(homeInitialFocus, index == 0 && homeInitialTarget == HomeFocusTarget.TOP_MOVIES)) {
                                         HomeVodMovieCard(
                                             stream = stream,
@@ -626,13 +639,15 @@ fun HomeScreen(
                             onSeeAll = { expandedSection = HomeExpandedSection.RECOMMENDED_MOVIES },
                             modifier = Modifier.tvPivotSection(isTv, lazyListState, "home_reco_movies", anchor = TvPivotAnchor.MidViewport)
                         ) {
+                            val rowEntry = rememberTvRowFocusEntry()
                             LazyRow(
                                 state = rowState,
                                 horizontalArrangement = Arrangement.spacedBy(16.dp),
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).focusGroup()
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).tvRowFocusEntry(isTv, rowEntry).focusGroup()
                             ) {
                                 itemsIndexed(state.recommendedMovies) { index, stream ->
                                     Box(modifier = Modifier.tvPivotItem(isTv, rowState, index)
+                                        .tvRowFocusEntryTarget(isTv, rowEntry, rowState, index)
                                         .tvInitialFocusTarget(homeInitialFocus, index == 0 && homeInitialTarget == HomeFocusTarget.RECOMMENDED_MOVIES)) {
                                         HomeVodMovieCard(
                                             stream = stream,
@@ -656,13 +671,15 @@ fun HomeScreen(
                             onSeeAll = onSeeAllSeries,
                             modifier = Modifier.tvPivotSection(isTv, lazyListState, "home_series", anchor = TvPivotAnchor.MidViewport)
                         ) {
+                            val rowEntry = rememberTvRowFocusEntry()
                             LazyRow(
                                 state = rowState,
                                 horizontalArrangement = Arrangement.spacedBy(16.dp),
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).focusGroup()
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).tvRowFocusEntry(isTv, rowEntry).focusGroup()
                             ) {
                                 itemsIndexed(state.firstSeriesStreams) { index, stream ->
                                     Box(modifier = Modifier.tvPivotItem(isTv, rowState, index)
+                                        .tvRowFocusEntryTarget(isTv, rowEntry, rowState, index)
                                         .tvInitialFocusTarget(homeInitialFocus, index == 0 && homeInitialTarget == HomeFocusTarget.SERIES)) {
                                         HomeSeriesShowCard(
                                             stream = stream,
@@ -686,13 +703,15 @@ fun HomeScreen(
                             onSeeAll = null,
                             modifier = Modifier.tvPivotSection(isTv, lazyListState, "home_top_series", anchor = TvPivotAnchor.MidViewport)
                         ) {
+                            val rowEntry = rememberTvRowFocusEntry()
                             LazyRow(
                                 state = rowState,
                                 horizontalArrangement = Arrangement.spacedBy(16.dp),
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).focusGroup()
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).tvRowFocusEntry(isTv, rowEntry).focusGroup()
                             ) {
                                 itemsIndexed(displayedTopSeriesStreams) { index, stream ->
                                     Box(modifier = Modifier.tvPivotItem(isTv, rowState, index)
+                                        .tvRowFocusEntryTarget(isTv, rowEntry, rowState, index)
                                         .tvInitialFocusTarget(homeInitialFocus, index == 0 && homeInitialTarget == HomeFocusTarget.TOP_SERIES)) {
                                         HomeSeriesShowCard(
                                             stream = stream,
@@ -717,13 +736,15 @@ fun HomeScreen(
                             onSeeAll = { expandedSection = HomeExpandedSection.RECOMMENDED_SERIES },
                             modifier = Modifier.tvPivotSection(isTv, lazyListState, "home_reco_series", anchor = TvPivotAnchor.MidViewport)
                         ) {
+                            val rowEntry = rememberTvRowFocusEntry()
                             LazyRow(
                                 state = rowState,
                                 horizontalArrangement = Arrangement.spacedBy(16.dp),
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).focusGroup()
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).tvRowFocusEntry(isTv, rowEntry).focusGroup()
                             ) {
                                 itemsIndexed(state.recommendedSeries) { index, stream ->
                                     Box(modifier = Modifier.tvPivotItem(isTv, rowState, index)
+                                        .tvRowFocusEntryTarget(isTv, rowEntry, rowState, index)
                                         .tvInitialFocusTarget(homeInitialFocus, index == 0 && homeInitialTarget == HomeFocusTarget.RECOMMENDED_SERIES)) {
                                         HomeSeriesShowCard(
                                             stream = stream,
@@ -748,13 +769,15 @@ fun HomeScreen(
                             onSeeAll = onNavigateToDownloads,
                             modifier = Modifier.tvPivotSection(isTv, lazyListState, "home_downloads", anchor = TvPivotAnchor.MidViewport)
                         ) {
+                            val rowEntry = rememberTvRowFocusEntry()
                             LazyRow(
                                 state = rowState,
                                 horizontalArrangement = Arrangement.spacedBy(16.dp),
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).focusGroup()
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).tvRowFocusEntry(isTv, rowEntry).focusGroup()
                             ) {
                                 itemsIndexed(state.downloadedItems, key = { _, item -> item.contentId }) { index, item ->
-                                    Box(modifier = Modifier.tvPivotItem(isTv, rowState, index)) {
+                                    Box(modifier = Modifier.tvPivotItem(isTv, rowState, index)
+                                        .tvRowFocusEntryTarget(isTv, rowEntry, rowState, index)) {
                                         HomeDownloadCard(
                                             item = item,
                                             isTv = isTv,

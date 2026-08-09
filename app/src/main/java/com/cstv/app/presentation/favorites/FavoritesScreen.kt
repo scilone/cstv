@@ -14,6 +14,9 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import com.cstv.app.presentation.components.tvPivotItem
+import com.cstv.app.presentation.components.rememberTvRowFocusEntry
+import com.cstv.app.presentation.components.tvRowFocusEntry
+import com.cstv.app.presentation.components.tvRowFocusEntryTarget
 import com.cstv.app.presentation.components.tvPivotSection
 import com.cstv.app.presentation.components.tvPivotHorizontalEndSpacer
 import com.cstv.app.presentation.components.tvPivotVerticalEndSpacer
@@ -195,13 +198,15 @@ private fun FavoritesCategoryRow(
         )
 
         val rowState = rememberLazyListState()
+        val rowEntry = rememberTvRowFocusEntry()
         LazyRow(
             state = rowState,
             horizontalArrangement = Arrangement.spacedBy(14.dp),
-            modifier = Modifier.fillMaxWidth().focusGroup()
+            modifier = Modifier.fillMaxWidth().tvRowFocusEntry(isTv, rowEntry).focusGroup()
         ) {
             itemsIndexed(itemsList) { index, item ->
-                Box(modifier = Modifier.tvPivotItem(isTv, rowState, index)) {
+                Box(modifier = Modifier.tvPivotItem(isTv, rowState, index)
+                    .tvRowFocusEntryTarget(isTv, rowEntry, rowState, index)) {
                     FavoriteCardItem(item = item, onClick = { onClick(item) })
                 }
             }
