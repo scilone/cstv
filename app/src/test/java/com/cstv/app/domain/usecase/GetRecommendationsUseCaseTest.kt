@@ -9,6 +9,8 @@ import com.cstv.app.domain.repository.CategoryPreferenceRepository
 import com.cstv.app.domain.repository.SeriesRepository
 import com.cstv.app.domain.repository.VodRepository
 import com.cstv.app.data.local.storage.ProfileManager
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -50,7 +52,7 @@ class GetRecommendationsUseCaseTest {
         )
         whenever(vodRepository.getAllPlaybackPositions()).thenReturn(history)
 
-        val useCase = GetRecommendationsUseCase(vodRepository, seriesRepository, categoryPreferenceRepository, profileManager, mediaRatingRepository)
+        val useCase = GetRecommendationsUseCase(vodRepository, seriesRepository, categoryPreferenceRepository, profileManager, mediaRatingRepository, CoroutineScope(SupervisorJob()))
 
         val result = useCase(currentTimeMs = 1000L)
 
@@ -80,7 +82,7 @@ class GetRecommendationsUseCaseTest {
         whenever(seriesRepository.getCachedSeriesStreams("all")).thenReturn(emptyList())
         whenever(categoryPreferenceRepository.getPreferences(any())).thenReturn(emptyMap())
 
-        val useCase = GetRecommendationsUseCase(vodRepository, seriesRepository, categoryPreferenceRepository, profileManager, mediaRatingRepository)
+        val useCase = GetRecommendationsUseCase(vodRepository, seriesRepository, categoryPreferenceRepository, profileManager, mediaRatingRepository, CoroutineScope(SupervisorJob()))
 
         // 1st call for Profile 1
         whenever(profileManager.currentProfileId()).thenReturn(1)
@@ -133,7 +135,7 @@ class GetRecommendationsUseCaseTest {
         )
         whenever(categoryPreferenceRepository.getPreferences(CategoryType.SERIES)).thenReturn(emptyMap())
 
-        val useCase = GetRecommendationsUseCase(vodRepository, seriesRepository, categoryPreferenceRepository, profileManager, mediaRatingRepository)
+        val useCase = GetRecommendationsUseCase(vodRepository, seriesRepository, categoryPreferenceRepository, profileManager, mediaRatingRepository, CoroutineScope(SupervisorJob()))
         val result = useCase(currentTimeMs = 1000L)
 
         // The hidden movie should not be recommended

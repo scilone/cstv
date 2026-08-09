@@ -3,7 +3,7 @@
 ## Informations générales
 
 Status:
-IDEA
+SPECIFICATION
 
 Created:
 2026-08-05
@@ -53,7 +53,125 @@ Créer une expérience de navigation cinéma immersive haut de gamme sur Android
 
 ---
 
-# 4. Hypothèses
+# 4. Spécification fonctionnelle
+
+## User story
+
+En tant qu'utilisateur Android TV, lorsque j'ouvre une série, je veux arriver
+sur une fiche cinéma lisible à distance, centrée sur l'action de lecture. Je
+veux pouvoir accéder d'un appui Bas au choix de la saison et des épisodes, puis
+aux titres associés sans perdre le contexte ni le focus de la télécommande.
+
+## Périmètre
+
+- La refonte concerne uniquement `SeriesDetailsScreen` en mode Android TV.
+- La fiche série mobile, les données de série, la lecture, les téléchargements,
+  les favoris, les notes et la sélection des titres associés gardent leurs
+  comportements existants.
+- La maquette de référence est la fiche série et la planche
+  `refonte-fiche-serie-episodes.png` dans `docs/design-reference/`. Les tokens
+  existants de la charte (notamment `AccentLavande` et les surfaces sombres)
+  sont conservés.
+
+## Vue Hero — arrivée sur la fiche
+
+1. L'ouverture d'une série affiche la vue Hero, jamais directement le
+   sélecteur d'épisodes.
+2. La moitié gauche de l'écran est occupée par l'affiche grand format de la
+   série, fondue horizontalement vers le fond sombre à droite. La colonne de
+   droite contient, dans cet ordre : titre, métadonnées (année, genres, note),
+   synopsis, réalisateur, acteurs, actions puis action principale de lecture.
+3. Les actions Favoris, J'aime et Je n'aime pas restent disponibles avec leur
+   état actuel et sont séparées visuellement par des filets. Les crédits
+   restent sélectionnables et déclenchent la recherche existante.
+4. Le focus initial est placé sur le bouton de lecture. Aucun bloc « Titres
+   associés » n'est visible dans cette vue.
+5. Si un épisode repris est disponible selon les règles de reprise existantes,
+   le libellé est `REPRENDRE SXXEXX` et la lecture ouvre cet épisode à sa
+   position mémorisée. Une barre fine lavande sur piste sombre est affichée
+   immédiatement sous ce bouton ; sa proportion correspond à la progression de
+   l'épisode repris, comme les barres visibles dans la liste d'épisodes de la
+   maquette.
+6. Sinon, le libellé est `LIRE LA SÉRIE` et lance le premier épisode disponible
+   de la série. Aucune barre de progression n'est affichée dans ce cas.
+7. Le bouton de lecture est large, arrondi et textuel : il n'affiche pas
+   d'icône.
+
+## Vue Épisodes — navigation depuis la vue Hero
+
+1. Un appui D-pad Bas depuis le bouton de lecture bascule vers la vue Épisodes
+   par une transition verticale d'un écran complet. La vue Hero quitte la zone
+   visible ; elle n'est pas mélangée à la liste des épisodes.
+2. Le focus arrive sur la gélule de la saison courante. Les gélules de saisons
+   sont disposées horizontalement ; Gauche/Droite change de saison et Bas mène
+   à la liste d'épisodes.
+3. Chaque épisode affiche son numéro, son titre, sa description, sa vignette
+   au format paysage et, lorsqu'il est entamé, une barre de progression lavande
+   sur piste sombre avec l'information de reprise pertinente.
+4. Une vignette d'épisode manquante est remplacée par un visuel neutre. La
+   pochette générale de la série ne doit pas être réutilisée comme vignette.
+5. À la sélection d'une autre saison, la liste est remplacée par les épisodes
+   de cette saison et le focus descend automatiquement sur son premier épisode.
+   Si cette saison ne contient aucun épisode, le focus reste sur sa gélule et
+   l'état vide non interactif est affiché à la place de la liste.
+6. OK sur un épisode lance cet épisode selon le comportement de lecture
+   existant. La saison sélectionnée et l'épisode ciblé restent cohérents avec
+   les informations affichées dans la liste.
+
+## Titres associés et navigation inverse
+
+1. Si des titres associés existent, leur rangée est placée après le dernier
+   épisode et n'est visible qu'en aperçu au bas de la vue Épisodes.
+2. Depuis le dernier épisode, un appui D-pad Bas fait remonter la vue de façon
+   animée jusqu'à rendre entièrement visible la rangée « Titres associés », puis
+   place le focus sur sa première vignette.
+3. Gauche/Droite parcourt la rangée ; OK ouvre la fiche du titre choisi avec le
+   comportement de navigation existant.
+4. D-pad Haut depuis la rangée remet la vue à sa position de repos et replace
+   le focus sur le dernier épisode de la saison.
+5. Sans titre associé, aucune rangée, aucun aperçu ni remontée ne sont créés ;
+   D-pad Bas au dernier épisode ne déclenche pas de déplacement artificiel.
+
+## Retour, cas limites et erreurs
+
+- La touche Retour quitte toujours la fiche série vers l'écran précédent, que
+  l'utilisateur se trouve dans la vue Hero ou Épisodes. Elle ne revient pas au
+  Hero depuis la vue Épisodes ; le retour de navigation interne se fait avec
+  D-pad Haut.
+- Sans épisode disponible dans la série, l'action de lecture ne lance rien et
+  un état vide explicite est affiché dans la vue Épisodes. Les informations de
+  la série et les actions de la vue Hero restent accessibles.
+- L'absence d'affiche, de synopsis, de métadonnée, de crédits ou de note ne
+  casse pas la composition : la zone concernée est omise ou utilise le visuel
+  neutre existant, sans libellé de remplacement trompeur.
+- La transition, le changement de saison et la remontée des titres associés ne
+  doivent jamais provoquer de lecture automatique, de requête réseau
+  additionnelle ni de perte de la sélection courante.
+
+## Critères d'acceptation
+
+- [ ] L'ouverture d'une série TV affiche exclusivement la vue Hero, avec
+  l'affiche à gauche, les informations à droite et le focus sur l'action de
+  lecture.
+- [ ] Le bouton affiche exactement `LIRE LA SÉRIE` sans reprise, ou
+  `REPRENDRE SXXEXX` avec une barre fine lavande sur piste sombre lorsqu'une
+  reprise est possible ; il ne contient aucune icône.
+- [ ] D-pad Bas depuis ce bouton affiche la vue Épisodes et focalise la saison
+  courante.
+- [ ] Une saison sélectionnée amène le focus sur son premier épisode ; une
+  saison vide conserve le focus sur sa gélule et rend un état vide.
+- [ ] Chaque épisode conserve ses données disponibles et utilise un visuel
+  neutre si sa vignette est absente.
+- [ ] D-pad Bas depuis le dernier épisode rend entièrement visible et focalise
+  les titres associés lorsqu'ils existent ; D-pad Haut réalise le trajet
+  inverse vers le dernier épisode.
+- [ ] Retour quitte la fiche directement vers l'écran précédent depuis les deux
+  vues.
+- [ ] Les fiches série mobile et film ne changent pas.
+
+---
+
+# 5. Hypothèses à examiner à l'étape 3
 
 - **H1** : Le changement d'écran ou la transition "cran complet" vers les saisons/épisodes peut être gérée au sein du même composable `SeriesDetailsTvLayout` à l'aide d'un état d'affichage (ex: `enum class TvSeriesScreenState { Hero, Episodes }`) ou par une translation verticale complète (`translationY` animée de la hauteur de l'écran).
 - **H2** : Les modèles de données existants (`SeriesDetails`, `SeriesEpisode`) contiennent déjà toutes les métadonnées requises pour les épisodes (vignettes, résumés, positions de reprise `resumePositionMs` et durées `durationMs`).
@@ -61,13 +179,15 @@ Créer une expérience de navigation cinéma immersive haut de gamme sur Android
 
 ---
 
-# 5. Questions ouvertes
+# 6. Décisions fonctionnelles actées
 
-1. **Bouton de retour physique** : Depuis l'écran des épisodes, la touche Retour de la télécommande doit-elle faire revenir à l'écran d'accueil Hero de la série, ou fermer complètement la fiche pour revenir à la navigation précédente ?
-   - *Option recommandée* : Retour vers l'écran Hero si on est sur les épisodes, puis retour vers l'écran précédent si on est déjà sur l'écran Hero.
-2. **Design de la barre de progression** : Quel est le style exact de la barre de progression sous le bouton de lecture ? Doit-elle utiliser `LinearProgressIndicator` avec `AccentLavande` et un fond discret, ou un tracé personnalisé plus fin ?
-3. **Comportement des vignettes d'épisodes** : Si le serveur ne fournit pas de vignettes individuelles pour certains épisodes, doit-on afficher une image de substitution générique ou la pochette générale de la série ?
-4. **Transition entre les saisons** : Quand on change de saison via les gélules horizontales, le focus doit-il automatiquement descendre sur le premier épisode de la nouvelle saison ?
+1. Depuis la vue Épisodes, Retour ferme la fiche et revient à l'écran précédent.
+2. La barre de reprise sous `REPRENDRE SXXEXX` est fine, lavande, sur une piste
+   sombre, selon le langage visuel des épisodes de la maquette.
+3. Une vignette d'épisode absente est représentée par un visuel neutre, jamais
+   par la pochette de série.
+4. Un changement de saison place automatiquement le focus sur l'épisode 1 de
+   la saison nouvellement sélectionnée lorsqu'il existe.
 
 ---
 

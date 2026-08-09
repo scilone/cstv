@@ -1,5 +1,12 @@
 # Journal des Modifications (Changelog) - CSTV IPTV
 
+## [v1.76.4] - 2026-08-09
+### ⚡ Premier catalogue ouvert : le moteur de recommandation affamait la navigation
+* **Cause identifiée** : le rapport de diagnostic v1.76.3 est sans ambiguïté. L'ouverture de la base prend 20 ms — ce n'était donc ni elle ni le journal SQLite. En revanche, pendant les seize secondes où le moteur de recommandation tourne au lancement, **tout** ralentit dans les mêmes proportions : les catégories du premier catalogue ouvert mettent 13,0 s à s'afficher (contre 75 ms une fois le calcul fini), et `syncIfStale`, qui ne fait que lire trois lignes, passe de 9 ms à 8,0 s. Ce n'est pas une requête lente, c'est une famine de temps processeur.
+* **Un fil dédié, de priorité minimale** : le moteur lit tout le catalogue (3 929 films, 2 268 séries), construit un profil de goûts puis note chaque titre. Il s'exécutait sur `Dispatchers.Default`, qui lui donnait autant de fils que l'appareil a de cœurs — quatre ici — et il les prenait tous. Il tourne désormais sur un fil unique en `MIN_PRIORITY` : trois cœurs restent à la navigation, et l'ordonnanceur fait céder le moteur devant les fils d'interface. Les recommandations arrivent un peu plus tard sur l'Accueil ; c'est une garniture, pas un contenu qu'on attend.
+* **Plus de calcul jeté puis refait** : `HomeViewModel.refreshRecommendations` annule le travail en cours avant d'en relancer un. Au lancement, deux déclencheurs se suivent de près — les traces montraient deux « Calculating recommendations » pour un seul résultat, soit treize secondes de calcul perdues. Le calcul vit maintenant dans la portée applicative et survit à l'annulation de son appelant : un second appel rejoint celui qui court au lieu d'en ouvrir un autre.
+* **Mesure** : durée totale du calcul et durée de la lecture du catalogue sont tracées séparément.
+
 ## [v1.76.3] - 2026-08-09
 ### ⚡ Premier catalogue ouvert : journal WAL, ouverture anticipée et mesure fine
 * **Journal WAL explicite** : la base était construite avec le mode `AUTOMATIC` par défaut, qui retombe sur le journal TRUNCATE dès que le système déclare l'appareil « low RAM » — le cas des téléviseurs d'entrée de gamme, dont le tas applicatif plafonne à 192 Mo. Avec TRUNCATE, une écriture prend le verrou de la base et bloque **toutes** les lectures le temps de sa transaction : un enrichissement de métadonnées ou une insertion de milliers de lignes gèle les requêtes qui alimentent l'écran, sans qu'aucune trace ne l'indique. WAL laisse lecteurs et écrivain avancer de front.
