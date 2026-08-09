@@ -1,5 +1,9 @@
 # Journal des Modifications (Changelog) - CSTV IPTV
 
+## [v1.76.2] - 2026-08-09
+### 🐛 Fiche film Android TV : le défilement automatique revenait après un aller-retour (F30)
+* **Titres associés qui déroulent seuls à la réouverture du bloc** : corrigé en v1.76.1 pour la première ouverture, le défaut réapparaissait dès qu'on avait navigué vers la droite puis quitté le bloc. `LazyListState` conserve sa position de défilement : la rangée rouvrait donc défilée, sa première vignette n'était plus composée, le `requestFocus` de `tvFocusDownTo` échouait silencieusement — son échec est muet par conception, pour qu'aucun appui ne reste sans effet — et Compose reprenait sa recherche géométrique, qui vise de nouveau le milieu de l'écran. L'état de la rangée est hoissé (`RelatedTitlesRow` accepte un `state`) et ramené à l'index 0 dès que le focus quitte le bloc.
+
 ## [v1.76.1] - 2026-08-09
 ### 🐛 Fiche film Android TV : navigation des titres associés et lisibilité du résumé (F30)
 * **Défilement de six affiches à chaque ouverture du bloc « Titres associés »** : le bouton de lecture occupe toute la largeur de la colonne, son centre tombe donc vers 72 % de l'écran. La recherche de focus par défaut retenant le candidat géométriquement le plus proche, la descente atterrissait sur la sixième vignette — que le pivot ramenait ensuite à l'ancre de début, d'où un défilement systématique et une première affiche à retrouver en allant à gauche. La descente est désormais explicite (`tvFocusDownTo` vers un `FocusRequester` posé sur la première vignette), le dispositif déjà écrit pour ce cas en B22.

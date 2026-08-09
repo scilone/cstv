@@ -143,7 +143,7 @@ Aucun impact `data`/`domain`.
 
 | | |
 | --- | --- |
-| Version | **v1.76.1** (`versionCode` 17601) |
+| Version | **v1.76.2** (`versionCode` 17602) |
 | Date | 2026-08-09 |
 
 ---
@@ -156,3 +156,20 @@ Aucun impact `data`/`domain`.
 | Synopsis quasi invisible | La pondération faisait son travail — elle ne donnait que la place restante, et il n'en restait qu'une ligne. De la hauteur lui est rendue en amont : titre de 38 à 30 sp, réserve haute de 36 à 20 dp, débord de la rangée de 110 à 96 dp, marges internes resserrées. |
 | Défilement de six vignettes à l'ouverture du bloc | Le bouton de lecture occupe toute la largeur de la colonne : son centre tombe vers 72 % de l'écran et la recherche de focus par défaut, qui retient le candidat géométriquement le plus proche, atterrissait sur la sixième affiche — que le pivot ramenait ensuite à l'ancre, d'où le défilement. Descente explicite par `tvFocusDownTo` vers un `FocusRequester` posé sur la première vignette, le dispositif déjà écrit pour ce cas exact en B22. |
 | Pression à droite en fin de rangée : le cadre reste et le bloc se referme | Aucun focalisable à droite de la dernière vignette : la recherche par défaut sortait de la rangée pour la cible la plus proche ailleurs dans l'arbre — les étiquettes de crédits, posées plus haut à droite. Le focus quittant le bloc, celui-ci redescendait et le cadre restait affiché. `focusProperties { right = FocusRequester.Cancel }` sur la dernière vignette (et `left` sur la première) fait de la butée un non-événement, et la sortie de focus efface désormais le cadre. |
+
+---
+
+# 10. Troisième passe (v1.76.2)
+
+**Le défilement automatique revenait après un aller-retour.** Corrigé en
+v1.76.1 à la première ouverture, le défaut réapparaissait dès qu'on avait
+navigué vers la droite puis quitté le bloc : `LazyListState` conserve sa
+position, la rangée rouvrait donc défilée, sa première vignette n'était plus
+composée, `requestFocus` échouait silencieusement — l'échec est volontairement
+muet dans `tvFocusDownTo` — et Compose reprenait sa recherche géométrique, qui
+vise de nouveau le milieu de l'écran.
+
+L'état de la rangée est désormais hoissé (`RelatedTitlesRow` accepte un
+`state`) et la fiche le ramène à l'index 0 dès que le focus quitte le bloc. La
+première vignette est donc toujours composée quand la descente suivante la
+demande.

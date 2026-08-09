@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -51,7 +52,8 @@ fun <T> RelatedTitlesRow(
     onClick: (T) -> Unit,
     modifier: Modifier = Modifier,
     tvPivotEnabled: Boolean = false,
-    firstItemFocusRequester: FocusRequester? = null
+    firstItemFocusRequester: FocusRequester? = null,
+    state: LazyListState = rememberLazyListState()
 ) {
     val lastIndex = items.lastIndex
     Column(modifier = modifier.fillMaxWidth()) {
@@ -62,9 +64,8 @@ fun <T> RelatedTitlesRow(
             color = Color.White,
             modifier = Modifier.padding(bottom = 12.dp, start = 4.dp)
         )
-        val rowState = rememberLazyListState()
         LazyRow(
-            state = rowState,
+            state = state,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             modifier = Modifier.fillMaxWidth().focusGroup()
         ) {
@@ -73,7 +74,7 @@ fun <T> RelatedTitlesRow(
                     modifier = Modifier
                         .tvPivotItem(
                             enabled = tvPivotEnabled,
-                            state = rowState,
+                            state = state,
                             index = index,
                             selectorCornerRadius = 12.dp
                         )

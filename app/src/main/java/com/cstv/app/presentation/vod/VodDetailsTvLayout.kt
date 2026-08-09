@@ -8,6 +8,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.onFocusedBoundsChanged
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -238,6 +239,17 @@ fun VodDetailsTvLayout(
         // sixième vignette, que le pivot ramenait ensuite à l'ancre. D'où un
         // défilement de six affiches à chaque ouverture du bloc (B22).
         val firstRelatedFocus = remember(details.streamId) { FocusRequester() }
+
+        // La rangée revient à son début dès que le focus quitte le bloc.
+        //
+        // Sans cela, la descente suivante retombait dans le défaut d'origine :
+        // une rangée laissée défilée n'a plus sa première vignette composée,
+        // `requestFocus` échoue donc silencieusement, et Compose reprend sa
+        // recherche géométrique — qui vise de nouveau le milieu de l'écran.
+        val relatedRowState = rememberLazyListState()
+        LaunchedEffect(isRelatedFocused) {
+            if (!isRelatedFocused) relatedRowState.scrollToItem(0)
+        }
 
         // Le cadre est dessiné à une position *publiée*, alors que la remontée
         // translate la colonne entière : sans republication, il resterait à sa
@@ -500,7 +512,8 @@ fun VodDetailsTvLayout(
                         label = { it.name },
                         onClick = onSelectRelated,
                         tvPivotEnabled = true,
-                        firstItemFocusRequester = firstRelatedFocus
+                        firstItemFocusRequester = firstRelatedFocus,
+                        state = relatedRowState
                     )
                 }
             }
