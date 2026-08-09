@@ -120,6 +120,68 @@ class SeriesDetailsTvLayoutTest {
     }
 
     @Test
+    fun `entering the panel lands on the most recently accessed episode of the season`() {
+        val episodes = listOf(
+            episode(1, 2, 1, accessedAt = 100L),
+            episode(2, 2, 2),
+            episode(3, 2, 3, accessedAt = 300L),
+            episode(4, 2, 4)
+        )
+
+        assertEquals(2, tvSeriesInitialEpisodeIndex(episodes))
+        assertEquals(
+            TvSeriesEpisodesFocusTarget.RESUME_EPISODE,
+            tvSeriesEpisodesEntryFocusTarget(
+                hasSeasons = true,
+                hasEpisodes = true,
+                returnToLastEpisode = false,
+                resumeEpisodeIndex = 2
+            )
+        )
+    }
+
+    @Test
+    fun `a season never watched still enters on its pill`() {
+        val episodes = listOf(episode(1, 1, 1), episode(2, 1, 2))
+
+        assertNull(tvSeriesInitialEpisodeIndex(episodes))
+        assertEquals(
+            TvSeriesEpisodesFocusTarget.SEASON_PILL,
+            tvSeriesEpisodesEntryFocusTarget(
+                hasSeasons = true,
+                hasEpisodes = true,
+                returnToLastEpisode = false,
+                resumeEpisodeIndex = null
+            )
+        )
+    }
+
+    @Test
+    fun `coming back from the related row still wins over the resumed episode`() {
+        assertEquals(
+            TvSeriesEpisodesFocusTarget.LAST_EPISODE,
+            tvSeriesEpisodesEntryFocusTarget(
+                hasSeasons = true,
+                hasEpisodes = true,
+                returnToLastEpisode = true,
+                resumeEpisodeIndex = 2
+            )
+        )
+    }
+
+    @Test
+    fun `episode slots never let two focus requesters claim the same item`() {
+        // Épisode repris confondu avec le premier ou le dernier : un seul
+        // requester est posé, et l'entrée doit désigner exactement celui-là.
+        assertEquals(TvSeriesEpisodeSlot.FIRST, tvSeriesEpisodeSlot(0, 4, 0))
+        assertEquals(TvSeriesEpisodeSlot.LAST, tvSeriesEpisodeSlot(4, 4, 4))
+        assertEquals(TvSeriesEpisodeSlot.RESUME, tvSeriesEpisodeSlot(2, 4, 2))
+        assertEquals(TvSeriesEpisodeSlot.NONE, tvSeriesEpisodeSlot(3, 4, 2))
+        // Saison à un seul épisode : premier et dernier à la fois.
+        assertEquals(TvSeriesEpisodeSlot.FIRST, tvSeriesEpisodeSlot(0, 0, 0))
+    }
+
+    @Test
     fun `a watched episode shows a full timeline even without a resume position`() {
         val watched = episode(1, 1, 1, watched = true)
 

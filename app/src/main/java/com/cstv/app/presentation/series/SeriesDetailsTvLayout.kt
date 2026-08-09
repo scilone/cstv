@@ -26,7 +26,6 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.onFocusedBoundsChanged
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -156,7 +155,44 @@ internal enum class TvSeriesDetailsTransition {
 }
 
 /** Explicit destinations at the episodes-panel boundaries; ordinary episode-to-episode moves stay geometric. */
-internal enum class TvSeriesEpisodesFocusTarget { SEASON_PILL, FIRST_EPISODE, LAST_EPISODE, EMPTY_SERIES }
+internal enum class TvSeriesEpisodesFocusTarget { SEASON_PILL, FIRST_EPISODE, LAST_EPISODE, RESUME_EPISODE, EMPTY_SERIES }
+
+/**
+ * Emplacements de la liste d'épisodes qui portent un `FocusRequester` nommé.
+ *
+ * Un même item peut prétendre à plusieurs rôles — l'épisode repris est parfois
+ * le premier ou le dernier de la saison. Deux `Modifier.focusRequester` sur le
+ * même nœud ne se cumulent pas : cette précédence unique, partagée par la pose
+ * du modificateur et par la résolution de la cible d'entrée, garantit que les
+ * deux désignent toujours le même requester.
+ *
+ * Fonction pure, sans dépendance Compose, pour rester testable en JVM.
+ */
+internal enum class TvSeriesEpisodeSlot { FIRST, LAST, RESUME, NONE }
+
+internal fun tvSeriesEpisodeSlot(index: Int, lastIndex: Int, resumeIndex: Int?): TvSeriesEpisodeSlot = when {
+    index == 0 -> TvSeriesEpisodeSlot.FIRST
+    index == lastIndex -> TvSeriesEpisodeSlot.LAST
+    resumeIndex != null && index == resumeIndex -> TvSeriesEpisodeSlot.RESUME
+    else -> TvSeriesEpisodeSlot.NONE
+}
+
+/**
+ * Rang, dans la saison affichée, de l'épisode consulté le plus récemment —
+ * `null` si aucun ne l'a été.
+ *
+ * Prolonge [tvSeriesInitialSeason] au cran suivant : atterrir en tête d'une
+ * saison de trente épisodes obligeait à descendre jusqu'à celui qu'on suit.
+ * Même repère que pour la saison, `lastAccessedAt`, pour que les deux
+ * présélections désignent le même épisode.
+ *
+ * Fonction pure, sans dépendance Compose, pour rester testable en JVM.
+ */
+internal fun tvSeriesInitialEpisodeIndex(episodes: List<SeriesEpisode>): Int? = episodes
+    .withIndex()
+    .filter { it.value.lastAccessedAt > 0L }
+    .maxByOrNull { it.value.lastAccessedAt }
+    ?.index
 
 internal data class TvSeriesPlaybackTarget(
     val episode: SeriesEpisode?,
@@ -241,10 +277,12 @@ internal fun tvSeriesSectionAfter(
 internal fun tvSeriesEpisodesEntryFocusTarget(
     hasSeasons: Boolean,
     hasEpisodes: Boolean,
-    returnToLastEpisode: Boolean
+    returnToLastEpisode: Boolean,
+    resumeEpisodeIndex: Int? = null
 ): TvSeriesEpisodesFocusTarget = when {
     !hasSeasons -> TvSeriesEpisodesFocusTarget.EMPTY_SERIES
     returnToLastEpisode && hasEpisodes -> TvSeriesEpisodesFocusTarget.LAST_EPISODE
+    hasEpisodes && resumeEpisodeIndex != null -> TvSeriesEpisodesFocusTarget.RESUME_EPISODE
     else -> TvSeriesEpisodesFocusTarget.SEASON_PILL
 }
 
@@ -347,6 +385,9 @@ fun SeriesDetailsTvLayout(
     val emptyEpisodesFocus = remember(details.seriesId) { FocusRequester() }
     val firstEpisodeFocus = remember(details.seriesId, selectedSeason) { FocusRequester() }
     val lastEpisodeFocus = remember(details.seriesId, selectedSeason) { FocusRequester() }
+    val resumeEpisodeFocus = remember(details.seriesId, selectedSeason) { FocusRequester() }
+    val resumeEpisodeIndex = remember(selectedEpisodes) { tvSeriesInitialEpisodeIndex(selectedEpisodes) }
+    val episodeListState = remember(details.seriesId) { LazyListState() }
     val firstRelatedFocus = remember(details.seriesId) { FocusRequester() }
     val seasonRowState = remember(details.seriesId) { LazyListState() }
     val relatedRowState = remember(details.seriesId) { LazyListState() }
@@ -359,7 +400,8 @@ fun SeriesDetailsTvLayout(
                 val focusTarget = tvSeriesEpisodesEntryFocusTarget(
                     hasSeasons = seasons.isNotEmpty(),
                     hasEpisodes = selectedEpisodes.isNotEmpty(),
-                    returnToLastEpisode = returnToLastEpisode
+                    returnToLastEpisode = returnToLastEpisode,
+                    resumeEpisodeIndex = resumeEpisodeIndex
                 )
                 returnToLastEpisode = false
                 val requester = when (focusTarget) {
@@ -367,6 +409,18 @@ fun SeriesDetailsTvLayout(
                     TvSeriesEpisodesFocusTarget.LAST_EPISODE -> lastEpisodeFocus
                     TvSeriesEpisodesFocusTarget.EMPTY_SERIES -> emptyEpisodesFocus
                     TvSeriesEpisodesFocusTarget.FIRST_EPISODE -> firstEpisodeFocus
+                    TvSeriesEpisodesFocusTarget.RESUME_EPISODE -> {
+                        val index = resumeEpisodeIndex ?: 0
+                        // La liste peut compter trente épisodes : celui qu'on
+                        // reprend n'est composé qu'une fois ramené dans le
+                        // champ, sans quoi son requester n'a aucun nœud.
+                        episodeListState.scrollToItem(index)
+                        when (tvSeriesEpisodeSlot(index, selectedEpisodes.lastIndex, resumeEpisodeIndex)) {
+                            TvSeriesEpisodeSlot.FIRST -> firstEpisodeFocus
+                            TvSeriesEpisodeSlot.LAST -> lastEpisodeFocus
+                            else -> resumeEpisodeFocus
+                        }
+                    }
                 }
                 // La saison présélectionnée n'est plus forcément la première
                 // (voir tvSeriesInitialSeason) : sur une série à nombreuses
@@ -509,7 +563,10 @@ fun SeriesDetailsTvLayout(
                     active = section == TvSeriesDetailsSection.EPISODES,
                     firstEpisodeFocus = firstEpisodeFocus,
                     lastEpisodeFocus = lastEpisodeFocus,
+                    resumeEpisodeFocus = resumeEpisodeFocus,
+                    resumeEpisodeIndex = resumeEpisodeIndex,
                     emptyEpisodesFocus = emptyEpisodesFocus,
+                    episodeListState = episodeListState,
                     seasonFocus = { number -> seasonRequesters.getOrPut(number) { FocusRequester() } },
                     seasonRowState = seasonRowState,
                     onSeasonFocused = { number ->
@@ -836,7 +893,10 @@ private fun TvSeriesEpisodesPanel(
     active: Boolean,
     firstEpisodeFocus: FocusRequester,
     lastEpisodeFocus: FocusRequester,
+    resumeEpisodeFocus: FocusRequester,
+    resumeEpisodeIndex: Int?,
     emptyEpisodesFocus: FocusRequester,
+    episodeListState: LazyListState,
     seasonFocus: (Int) -> FocusRequester,
     seasonRowState: LazyListState,
     onSeasonFocused: (Int) -> Unit,
@@ -845,7 +905,9 @@ private fun TvSeriesEpisodesPanel(
     onOpenRelated: () -> Boolean,
     modifier: Modifier = Modifier
 ) {
-    val episodeListState = rememberLazyListState()
+    // Le changement de saison repart en tête ; l'entrée dans le panneau, elle,
+    // vise l'épisode repris (voir tvSeriesInitialEpisodeIndex) et défile
+    // elle-même — d'où un état hissé, piloté des deux côtés.
     LaunchedEffect(selectedSeason) { episodeListState.scrollToItem(0) }
     Column(modifier = modifier.padding(horizontal = 48.dp, vertical = 18.dp)) {
         Text(stringResource(R.string.series_details_seasons_label), color = TextSecondary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
@@ -917,12 +979,19 @@ private fun TvSeriesEpisodesPanel(
                 modifier = Modifier.fillMaxWidth().weight(1f)
             ) {
                 itemsIndexed(selectedEpisodes, key = { _, episode -> episode.id }) { index, episode ->
+                    val slot = tvSeriesEpisodeSlot(index, selectedEpisodes.lastIndex, resumeEpisodeIndex)
                     TvSeriesEpisodeCard(
                         episode = episode,
                         active = active,
                         modifier = Modifier
-                            .then(if (index == 0) Modifier.focusRequester(firstEpisodeFocus) else Modifier)
-                            .then(if (index == selectedEpisodes.lastIndex) Modifier.focusRequester(lastEpisodeFocus) else Modifier)
+                            .then(
+                                when (slot) {
+                                    TvSeriesEpisodeSlot.FIRST -> Modifier.focusRequester(firstEpisodeFocus)
+                                    TvSeriesEpisodeSlot.LAST -> Modifier.focusRequester(lastEpisodeFocus)
+                                    TvSeriesEpisodeSlot.RESUME -> Modifier.focusRequester(resumeEpisodeFocus)
+                                    TvSeriesEpisodeSlot.NONE -> Modifier
+                                }
+                            )
                             .onKeyEvent { event ->
                                 when {
                                     event.type != KeyEventType.KeyDown -> false

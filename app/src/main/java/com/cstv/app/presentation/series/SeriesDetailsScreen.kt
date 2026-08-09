@@ -179,7 +179,12 @@ fun SeriesDetailsScreen(
                     // hauteur laissée aux listes d'épisodes.
                     .then(if (isTv) Modifier.weight(1f) else Modifier)
                     .padding(horizontal = if (isTv) 0.dp else 24.dp)
-                    .padding(top = if (isTv) 0.dp else 20.dp, bottom = 24.dp)
+                    // Aucune marge basse sur TV : le layout TV pose lui-même
+                    // son fond plein et gère ses réserves. La marge laissait au
+                    // bas de l'écran une bande de 24 dp par laquelle le visuel
+                    // de couverture flouté du fond ressortait — la « barre de
+                    // couleur » visible sous les titres associés.
+                    .padding(top = if (isTv) 0.dp else 20.dp, bottom = if (isTv) 0.dp else 24.dp)
             ) {
             if (isTv) {
                 SeriesDetailsTvLayout(
