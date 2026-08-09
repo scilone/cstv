@@ -114,6 +114,12 @@
     <string name="profile_confirm_delete_cancel">Annuler</string>
     <string name="profile_logout">Déconnexion</string>
     <string name="series_details_seasons_label">SAISONS</string>
+    <string name="series_details_episodes_label">ÉPISODES</string>
+    <string name="series_details_play">LIRE LA SÉRIE</string>
+    <string name="series_details_resume_episode">REPRENDRE %1$s</string>
+    <string name="series_details_resume_info">%1$s restantes</string>
+    <string name="series_details_season_default">Saison %1$d</string>
+    <string name="series_details_not_watched">Non vu</string>
     <string name="series_details_no_episodes_for_season">Aucun épisode disponible pour cette saison</string>
     <string name="series_details_no_episodes">Aucun épisode disponible</string>
     <string name="player_audio_track_title">PISTE AUDIO</string>

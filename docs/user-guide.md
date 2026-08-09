@@ -311,7 +311,27 @@ Le sélecteur fixe s'active automatiquement dès que l'application est lancée s
 
 ### 📱 Préservation de la version Mobile
 * Cette fonctionnalité est strictement réservée à l'expérience TV à la télécommande.
-* Sur smartphone ou tablette, le défilement tactile classique, le comportement des cartes et la mémorisation de position restent parfaitement inchangés.
+* Sur smartphone ou tablette, le défilement tactile classique, le comportement des cartes and la mémorisation de position restent parfaitement inchangés.
+
+---
+
+## 19. Nouvelles fiches détails cinéma sur Android TV (F28 / F29)
+
+Les fiches détaillées des **Films (VOD)** et des **Séries** sur Android TV ont été entièrement refondues pour offrir une présentation moderne digne d'une salle de cinéma, optimisée à 100 % pour la télécommande.
+
+### 🎬 Fiche de détails d'un Film (VOD)
+* **Écran d'Arrivée** : À l'ouverture d'un film, l'affiche s'affiche en grand format sur la moitié gauche de l'écran, fusionnée vers la droite sous un dégradé horizontal fluide. La colonne de droite affiche le titre, les métadonnées (durée, genres, année, note), un résumé lisible, les crédits d'acteurs/réalisateurs et un ensemble d'actions rapides (favori, j'aime, je n'aime pas) séparées par des filets fins.
+* **Action principale** : Le focus initial est placé directement sur le bouton principal arrondi et textuel, sans icône : **« LIRE LE FILM »** (ou **« REPRENDRE LA LECTURE »** / **« RELIRE DEPUIS LE DÉBUT »** si vous aviez déjà entamé le film). Un appui sur **OK** de la télécommande lance immédiatement la lecture.
+* **Navigation vers les Titres associés** : Le bloc des recommandations (« Titres associés ») dépasse volontairement en bas de l'écran. Un appui sur la touche **Bas (Dpad DOWN)** depuis le dernier bouton de lecture fait glisser toute la page vers le haut d'une distance mesurée exacte, amenant la rangée des titres associés en plein écran et plaçant le focus sur la première vignette. Appuyer sur **Haut (Dpad UP)** fait redescendre la page et remet le focus sur le bouton de lecture.
+
+### 📺 Fiche de détails d'une Série
+* **Écran d'Arrivée (Hero)** : Similaire au film, l'écran d'accueil d'une série se focalise sur l'esthétique cinéma. Le bouton de lecture s'appelle **« LIRE LA SÉRIE »** (lance le premier épisode) ou **« REPRENDRE SXXEXX »** (ex: "REPRENDRE S01E02"). Si un historique existe, une **barre de progression lavande fine** apparaît directement sous le bouton pour visualiser votre avancement sur cet épisode. Les titres associés sont totalement masqués ici pour ne pas encombrer l'écran.
+* **Sélecteur double couche (Dpad DOWN)** : Depuis le bouton de lecture principal, appuyer sur **Bas (Dpad DOWN)** fait glisser verticalement l'écran de la hauteur d'un écran complet pour afficher le panneau fonctionnel des épisodes.
+* **Choix des Saisons (Gélules horizontales)** : Le focus arrive sur la gélule de la saison active. Naviguez avec **Gauche/Droite** pour changer de saison. Le focus reste sur les gélules fixes en haut de l'écran pour vous permettre de feuilleter les saisons confortablement.
+* **Choix des Épisodes** : Appuyez sur **Bas** depuis les gélules pour entrer dans la liste verticale des épisodes de la saison choisie. Chaque épisode affiche son numéro, son titre, son résumé, sa vignette paysage de prévisualisation et une barre de progression si l'épisode a été entamé.
+* **Accès aux Titres associés** : En faisant **Bas** depuis le tout dernier épisode de la saison courante, le bloc « Titres associés » remonte de manière fluide pour s'afficher entièrement au bas du sélecteur d'épisodes et prend le focus horizontal. Appuyer sur **Haut** depuis les titres associés repositionne l'écran et remonte le focus sur le dernier épisode.
+* **Touche Retour** : La touche Retour de votre télécommande quitte immédiatement la fiche série et retourne à votre écran précédent, que vous soyez sur l'écran d'accueil Hero ou sur le sélecteur d'épisodes. Pour remonter des épisodes vers le Hero, utilisez simplement la touche **Haut** depuis le premier épisode de la liste.
+
 
 
 

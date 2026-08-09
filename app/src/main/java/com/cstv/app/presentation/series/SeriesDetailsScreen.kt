@@ -98,7 +98,7 @@ fun SeriesDetailsScreen(
     var trailerMuted by remember(trailerMedia, isTv) { mutableStateOf(!isTv) }
     val snackbarHostState = remember { SnackbarHostState() }
     LaunchedEffect(ratingError) { ratingError?.let { snackbarHostState.showSnackbar(it); onConsumeRatingError() } }
-    var selectedSeasonNumber by remember { mutableStateOf(details.seasons.firstOrNull()?.seasonNumber ?: 1) }
+    var selectedSeasonNumber by remember(details.seriesId) { mutableStateOf(details.seasons.firstOrNull()?.seasonNumber ?: 1) }
     val currentEpisodes = remember(selectedSeasonNumber, details.episodes) {
         details.episodes[selectedSeasonNumber] ?: emptyList()
     }
@@ -137,20 +137,6 @@ fun SeriesDetailsScreen(
 
         val trailerPlaying = (trailerState as? TrailerPreviewUiState.Playing)?.preview?.media == trailerMedia
 
-        // Sur TV le trailer reste un fond plein écran assombri, derrière un
-        // layout en deux colonnes qui ne lui laisse pas d'autre place.
-        if (isTv) {
-            MediaDetailsTrailerBackdrop(
-                media = trailerMedia,
-                state = trailerState,
-                posterUrl = details.cover,
-                onPlaybackFailed = onTrailerFailed,
-                muted = trailerMuted,
-                scrimAlpha = 0.62f,
-                modifier = Modifier.fillMaxSize()
-            )
-        }
-
         // 2. Content Structure
         // Le défilement n'est monté que sur mobile : le layout TV contient des
         // LazyColumn à hauteur pondérée, qui ne peuvent pas être mesurées sous
@@ -169,12 +155,7 @@ fun SeriesDetailsScreen(
             // sortir le bloc de la zone défilante : le déplacer dans l'arbre
             // recréerait la WebView le jour où un trailer devient disponible,
             // ce qui relancerait sa lecture depuis la phase de chargement.
-            if (isTv) {
-                // Pas de bouton retour sur TV : la touche Retour de la
-                // télécommande remplit déjà ce rôle, et le bouton captait le
-                // focus à l'arrivée sur la fiche. Seule sa réserve haute reste.
-                Spacer(modifier = Modifier.height(24.dp))
-            } else {
+            if (!isTv) {
                 com.cstv.app.presentation.components.MediaDetailsHeader(
                     imageUrl = details.cover,
                     contentDescription = details.name,
@@ -197,28 +178,25 @@ fun SeriesDetailsScreen(
                     // Sur TV, sans défilement, c'est ce bloc qui doit borner la
                     // hauteur laissée aux listes d'épisodes.
                     .then(if (isTv) Modifier.weight(1f) else Modifier)
-                    .padding(horizontal = 24.dp)
+                    .padding(horizontal = if (isTv) 0.dp else 24.dp)
                     .padding(top = if (isTv) 0.dp else 20.dp, bottom = 24.dp)
             ) {
             if (isTv) {
-                TvLayout(
+                SeriesDetailsTvLayout(
                     details = details,
                     isFavorite = isFavorite,
                     onToggleFavorite = onToggleFavorite,
-                    selectedSeason = selectedSeasonNumber,
-                    episodes = currentEpisodes,
-                    onSeasonSelected = { selectedSeasonNumber = it },
                     onEpisodeClick = onEpisodeSelected,
                     onSearchQueryTriggered = onSearchQueryTriggered,
                     relatedSeries = relatedSeries,
                     onSelectRelated = onSelectRelated,
-                    episodeDownloads = episodeDownloads,
-                    onDownloadEpisode = onDownloadEpisode,
-                    onRemoveEpisodeDownload = onRemoveEpisodeDownload,
                     mediaRating = mediaRating,
                     isRatingSaving = isRatingSaving,
                     onLike = onLike,
-                    onDislike = onDislike
+                    onDislike = onDislike,
+                    trailerState = trailerState,
+                    onTrailerFailed = onTrailerFailed,
+                    trailerMuted = trailerMuted
                 )
             } else {
                 MobileLayout(

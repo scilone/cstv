@@ -1,5 +1,13 @@
 # Journal des Modifications (Changelog) - CSTV IPTV
 
+## [v1.77.0] - 2026-08-05
+### ✨ Refonte de la fiche série Android TV (F29)
+* **Présentation cinéma sur l'écran Hero** : À l'arrivée sur la fiche d'une série, affichage d'un visuel cinéma immersif (affiche grand format ou trailer dans la moitié gauche sous un fondu dégradé horizontal vers la droite, informations détaillées à droite). Le focus initial est sur le bouton principal, arrondi, sans icône, textuel (« LIRE LA SÉRIE » ou « REPRENDRE SXXEXX »).
+* **Barre de progression directe** : Une barre fine de progression lavande sur piste sombre apparaît directement sous le bouton de lecture d'accueil Hero si l'épisode ciblé est entamé.
+* **Sélecteur double couche (Dpad DOWN)** : Un appui Bas fait glisser verticalement l'écran de la hauteur d'un écran complet pour dévoiler le panneau des épisodes. Les saisons sont sous forme de gélules horizontales et les épisodes sont présentés de manière exhaustive (numéro, titre, résumé, vignette et progression).
+* **Remontée animée des titres associés** : Le bloc des titres associés est masqué par défaut, visible en aperçu au dernier épisode, et remonte complètement pour prendre le focus horizontal sur une impulsion Bas depuis le dernier épisode.
+* **Isolation et non-régression** : Le layout mobile et la fiche série mobile restent strictement inchangés et isolés du nouveau layout TV.
+
 ## [v1.76.6] - 2026-08-09
 ### 💄 Barre de navigation TV repliée resserrée à la largeur de l'avatar
 * La barre latérale repliée passe de 68 à 60 dp : la largeur de l'avatar de profil (42 dp, plus 3 dp de réserve de chaque côté pour son anneau de focus) et 6 dp de marge latérale. C'est le plancher réel — descendre plus bas demanderait de rapetisser l'avatar lui-même. La marge de la barre reste à 10 dp une fois dépliée.

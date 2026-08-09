@@ -60,6 +60,12 @@ Introduits en Phase 27, les profils locaux permettent un partage personnalisé d
 
 ## 5. Séries TV
 * **Navigation par saisons & épisodes** : Interface optimisée permettant de parcourir facilement les saisons d'une série et d'accéder à la liste de ses épisodes.
+* **Fiche série Android TV refondue (F29)** : Séparation claire de l'écran en deux phases interactives : la vue Hero cinéma et le sélecteur double couche saisons/épisodes.
+  * **Vue Hero cinéma** : Identique à la fiche film TV, avec une grande affiche sous un dégradé horizontal fluide sur la moitié gauche, le titre géant, les métadonnées globales, le synopsis et les étiquettes de crédits cliquables à droite. Le focus initial est sur le bouton principal textuel et arrondi sans icône (« LIRE LA SÉRIE » ou « REPRENDRE SXXEXX »).
+  * **Barre de progression directe** : Une barre fine de progression lavande sur piste sombre apparaît directement sous le bouton de lecture Hero d'accueil si un historique existe pour l'épisode ciblé.
+  * **Sélecteur double couche (Dpad DOWN)** : Une impulsion Bas fait glisser verticalement l'écran de la hauteur exacte d'un écran complet pour dévoiler le sélecteur de saisons (puces/gélules horizontales fixes en haut) et la liste des épisodes dans une `LazyColumn` (avec numéro, titre, description, vignette paysage et barre de progression de lecture si entamé).
+  * **Remontée animée des titres associés** : Le bloc des titres associés est totalement masqué au Hero, dépasse en bas de la vue Épisodes, et remonte complètement pour prendre le focus horizontal sur un appui Bas depuis le dernier épisode de la saison courante.
+  * **Isolation mobile** : La fiche série mobile et la fiche mobile classique restent inchangées.
 * **Retrait de la recherche par catégorie TV (F27)** : Retrait de la barre de recherche textuelle locale dans l'en-tête de catégorie spécifique sur TV, identique au comportement appliqué sur la VOD.
 * **Métadonnées détaillées** : Résumé des épisodes, notes et dates de sortie.
 * **Reprise de lecture par épisode** : Suivi de l'état de lecture propre à chaque épisode et à chaque profil local.
