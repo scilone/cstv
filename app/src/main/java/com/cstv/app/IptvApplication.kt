@@ -11,7 +11,11 @@ import com.cstv.app.data.local.storage.SyncFrequency
 import com.cstv.app.data.util.DiagnosticManager
 import com.cstv.app.data.worker.DatabaseSyncWorker
 import com.cstv.app.data.worker.SyncScheduling
+import com.cstv.app.di.IptvLog
 import dagger.hilt.android.HiltAndroidApp
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import java.util.Calendar
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
@@ -33,6 +37,13 @@ class IptvApplication : Application(), ImageLoaderFactory {
     @Inject
     lateinit var catalogSyncManager: com.cstv.app.domain.sync.CatalogSyncManager
 
+    /**
+     * `Lazy` et non injection directe : construire la base sur le thread
+     * principal, dans `onCreate`, déplacerait le coût au lieu de le supprimer.
+     */
+    @Inject
+    lateinit var database: dagger.Lazy<com.cstv.app.data.local.db.AppDatabase>
+
     override fun onCreate() {
         super.onCreate()
         diagnosticManager.initialize()
@@ -40,6 +51,37 @@ class IptvApplication : Application(), ImageLoaderFactory {
             diagnosticManager.startLogging()
         }
         scheduleDefaultBackgroundSync()
+        warmUpDatabase()
+    }
+
+    /**
+     * Ouvre la base hors du chemin critique.
+     *
+     * Le premier accès à Room paie l'ouverture du fichier SQLite, la
+     * vérification d'empreinte du schéma (vingt tables), l'installation des
+     * déclencheurs d'invalidation et, le cas échéant, la reprise d'un journal
+     * laissé par une session interrompue. Payé par le premier écran de
+     * catalogue ouvert, ce coût est directement visible ; payé ici, il se
+     * déroule pendant que l'Accueil s'affiche depuis ses caches.
+     *
+     * La durée est tracée : si elle est négligeable, la lenteur observée sur le
+     * premier catalogue vient d'ailleurs, et la trace le dira au lieu de
+     * laisser croire que le sujet est réglé.
+     */
+    private fun warmUpDatabase() {
+        CoroutineScope(Dispatchers.IO).launch {
+            val startedAt = System.nanoTime()
+            runCatching { database.get().openHelper.writableDatabase }
+                .onSuccess {
+                    IptvLog.d(
+                        "PERF",
+                        "Base ouverte au démarrage en ${(System.nanoTime() - startedAt) / 1_000_000}ms"
+                    )
+                }
+                .onFailure {
+                    IptvLog.d("PERF", "Ouverture de la base au démarrage impossible : ${it.message}")
+                }
+        }
     }
 
     /**

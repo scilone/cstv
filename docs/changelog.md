@@ -1,5 +1,11 @@
 # Journal des Modifications (Changelog) - CSTV IPTV
 
+## [v1.76.3] - 2026-08-09
+### ⚡ Premier catalogue ouvert : journal WAL, ouverture anticipée et mesure fine
+* **Journal WAL explicite** : la base était construite avec le mode `AUTOMATIC` par défaut, qui retombe sur le journal TRUNCATE dès que le système déclare l'appareil « low RAM » — le cas des téléviseurs d'entrée de gamme, dont le tas applicatif plafonne à 192 Mo. Avec TRUNCATE, une écriture prend le verrou de la base et bloque **toutes** les lectures le temps de sa transaction : un enrichissement de métadonnées ou une insertion de milliers de lignes gèle les requêtes qui alimentent l'écran, sans qu'aucune trace ne l'indique. WAL laisse lecteurs et écrivain avancer de front.
+* **Ouverture de la base hors du chemin critique** : le premier accès à Room paie l'ouverture du fichier, la vérification d'empreinte du schéma (vingt tables), l'installation des déclencheurs d'invalidation et, le cas échéant, la reprise d'un journal laissé par une session interrompue. Ce coût est désormais payé au démarrage, pendant que l'Accueil s'affiche depuis ses caches, plutôt que par le premier catalogue ouvert. Sa durée est tracée.
+* **Mesure fine des catégories VOD** : la trace globale (12,6 s de première émission sur un téléviseur, contre 70 ms pour Séries et Live ouverts juste après) ne disait pas qui attendait. La requête Room et la lecture des préférences de catégories sont maintenant chronométrées séparément.
+
 ## [v1.76.2] - 2026-08-09
 ### 🐛 Fiche film Android TV : le défilement automatique revenait après un aller-retour (F30)
 * **Titres associés qui déroulent seuls à la réouverture du bloc** : corrigé en v1.76.1 pour la première ouverture, le défaut réapparaissait dès qu'on avait navigué vers la droite puis quitté le bloc. `LazyListState` conserve sa position de défilement : la rangée rouvrait donc défilée, sa première vignette n'était plus composée, le `requestFocus` de `tvFocusDownTo` échouait silencieusement — son échec est muet par conception, pour qu'aucun appui ne reste sans effet — et Compose reprenait sa recherche géométrique, qui vise de nouveau le milieu de l'écran. L'état de la rangée est hoissé (`RelatedTitlesRow` accepte un `state`) et ramené à l'index 0 dès que le focus quitte le bloc.

@@ -86,6 +86,17 @@ object AppModule {
         // Le fallback destructif est réservé aux breaking changes majeurs
         // explicitement décidés et documentés (voir AGENTS.md).
         .addMigrations(*ALL_MIGRATIONS)
+        // WAL explicite plutôt que le mode `AUTOMATIC` par défaut.
+        //
+        // `AUTOMATIC` retombe sur le journal TRUNCATE dès que le système
+        // déclare l'appareil « low RAM » — le cas des téléviseurs d'entrée de
+        // gamme, dont le tas applicatif plafonne à 192 Mo. Avec TRUNCATE, une
+        // écriture prend le verrou de la base et **bloque toutes les lectures**
+        // le temps de sa transaction : l'enrichissement de métadonnées ou une
+        // synchronisation qui insère des milliers de lignes gèlent alors les
+        // requêtes qui alimentent l'écran, sans qu'aucune trace ne l'indique.
+        // WAL laisse lecteurs et écrivain avancer de front.
+        .setJournalMode(androidx.room.RoomDatabase.JournalMode.WRITE_AHEAD_LOGGING)
         .build()
     }
 
