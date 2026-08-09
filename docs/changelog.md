@@ -1,5 +1,12 @@
 # Journal des Modifications (Changelog) - CSTV IPTV
 
+## [v1.76.1] - 2026-08-09
+### 🐛 Fiche film Android TV : navigation des titres associés et lisibilité du résumé (F30)
+* **Défilement de six affiches à chaque ouverture du bloc « Titres associés »** : le bouton de lecture occupe toute la largeur de la colonne, son centre tombe donc vers 72 % de l'écran. La recherche de focus par défaut retenant le candidat géométriquement le plus proche, la descente atterrissait sur la sixième vignette — que le pivot ramenait ensuite à l'ancre de début, d'où un défilement systématique et une première affiche à retrouver en allant à gauche. La descente est désormais explicite (`tvFocusDownTo` vers un `FocusRequester` posé sur la première vignette), le dispositif déjà écrit pour ce cas en B22.
+* **Pression vers la droite en fin de rangée** : aucune vignette à droite de la dernière, la recherche de focus sortait donc de la rangée pour la cible la plus proche ailleurs dans l'arbre — les étiquettes de crédits, posées plus haut à droite. Le focus quittant le bloc, celui-ci redescendait tandis que le cadre restait affiché en l'air. `focusProperties { right = FocusRequester.Cancel }` sur la dernière vignette (et `left` sur la première) fait de la butée un non-événement, et la sortie de focus efface le cadre.
+* **Résumé lisible par défaut** : la pondération du synopsis ne lui laissait qu'une ligne, faute de place restante. De la hauteur lui est rendue en amont — titre de 38 à 30 sp, réserve haute de 36 à 20 dp, débord de la rangée de 110 à 96 dp, marges internes resserrées.
+* **« Voir plus » discret** : plus de pastille bordée, mais un simple texte souligné en `TextSecondary` qui passe en `AccentLavande` au focus, dans le fil du résumé.
+
 ## [v1.76.0] - 2026-08-09
 ### ✨ Fiche film Android TV : retours PO sur la refonte (F30)
 * **Synopsis qui ne chasse plus les boutons** : le texte passe en `weight(1f, fill = false)` dans la colonne de droite. Un `Column` mesurant ses enfants non pondérés en premier, le synopsis n'obtient que la place restante et se tronque : crédits, actions et boutons de lecture restent visibles quelle que soit la longueur du résumé. S'il est effectivement tronqué (`hasVisualOverflow`), une action **« VOIR PLUS »** apparaît et ouvre le texte intégral dans une fenêtre plein écran — un dépliement en place aurait déplacé le contenu sous le focus, ce que F28 refusait précisément.

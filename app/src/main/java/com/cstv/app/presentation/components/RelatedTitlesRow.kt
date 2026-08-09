@@ -18,6 +18,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -47,8 +50,10 @@ fun <T> RelatedTitlesRow(
     label: (T) -> String,
     onClick: (T) -> Unit,
     modifier: Modifier = Modifier,
-    tvPivotEnabled: Boolean = false
+    tvPivotEnabled: Boolean = false,
+    firstItemFocusRequester: FocusRequester? = null
 ) {
+    val lastIndex = items.lastIndex
     Column(modifier = modifier.fillMaxWidth()) {
         Text(
             text = title,
@@ -65,12 +70,37 @@ fun <T> RelatedTitlesRow(
         ) {
             itemsIndexed(items) { index, item ->
                 Box(
-                    modifier = Modifier.tvPivotItem(
-                        enabled = tvPivotEnabled,
-                        state = rowState,
-                        index = index,
-                        selectorCornerRadius = 12.dp
-                    )
+                    modifier = Modifier
+                        .tvPivotItem(
+                            enabled = tvPivotEnabled,
+                            state = rowState,
+                            index = index,
+                            selectorCornerRadius = 12.dp
+                        )
+                        .then(
+                            if (firstItemFocusRequester != null && index == 0) {
+                                Modifier.focusRequester(firstItemFocusRequester)
+                            } else {
+                                Modifier
+                            }
+                        )
+                        // Aux deux extrémités, la recherche de focus par défaut
+                        // sort de la rangée et va chercher le focalisable le
+                        // plus proche ailleurs dans l'arbre — les étiquettes de
+                        // crédits, posées plus haut à droite. Le focus quittait
+                        // donc la rangée sur une simple pression vers la droite
+                        // en fin de liste. `Cancel` fait de la butée un
+                        // non-événement, comportement attendu en bout de rangée.
+                        .then(
+                            if (!tvPivotEnabled) {
+                                Modifier
+                            } else {
+                                Modifier.focusProperties {
+                                    if (index == 0) left = FocusRequester.Cancel
+                                    if (index == lastIndex) right = FocusRequester.Cancel
+                                }
+                            }
+                        )
                 ) {
                     RelatedTitleCard(
                         cover = poster(item),

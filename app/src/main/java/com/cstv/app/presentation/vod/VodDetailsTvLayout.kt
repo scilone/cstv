@@ -22,6 +22,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Brush
@@ -37,6 +38,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -57,6 +59,7 @@ import com.cstv.app.presentation.components.TvFocusSelectorOverlay
 import com.cstv.app.presentation.components.TvFocusSelectorState
 import com.cstv.app.presentation.components.formatReleaseYear
 import com.cstv.app.presentation.components.rememberTvInitialFocus
+import com.cstv.app.presentation.components.tvFocusDownTo
 import com.cstv.app.presentation.components.tvInitialFocusTarget
 import com.cstv.app.presentation.theme.AccentLavande
 import com.cstv.app.presentation.theme.AccentLavandeHover
@@ -71,7 +74,7 @@ import com.cstv.app.presentation.theme.TextPrimary
 import com.cstv.app.presentation.theme.TextSecondary
 
 /** Réserve laissée en bas d'écran par le bloc principal : la rangée « Titres associés » y dépasse. */
-private val TV_DETAILS_RELATED_PEEK = 110.dp
+private val TV_DETAILS_RELATED_PEEK = 96.dp
 
 /** Marge conservée sous la rangée une fois celle-ci entièrement remontée. */
 private val TV_DETAILS_BOTTOM_RESERVE = 24.dp
@@ -228,6 +231,14 @@ fun VodDetailsTvLayout(
         val focusSelector = remember { TvFocusSelectorState() }
         var focusedRelatedChild by remember { mutableStateOf<LayoutCoordinates?>(null) }
 
+        // Descente explicite vers la première affiche. Le bouton de lecture
+        // occupe toute la largeur de la colonne : son centre tombe vers 72 % de
+        // l'écran, et la recherche de focus par défaut — qui retient le
+        // candidat géométriquement le plus proche — atterrissait donc sur la
+        // sixième vignette, que le pivot ramenait ensuite à l'ancre. D'où un
+        // défilement de six affiches à chaque ouverture du bloc (B22).
+        val firstRelatedFocus = remember(details.streamId) { FocusRequester() }
+
         // Le cadre est dessiné à une position *publiée*, alors que la remontée
         // translate la colonne entière : sans republication, il resterait à sa
         // place d'avant la remontée. On le repose donc à chaque valeur de
@@ -274,13 +285,13 @@ fun VodDetailsTvLayout(
                 Column(
                     modifier = Modifier
                         .weight(1f)
-                        .padding(end = 48.dp, top = 36.dp, bottom = 12.dp)
+                        .padding(end = 48.dp, top = 20.dp, bottom = 12.dp)
                 ) {
                     // Movie Title
                     Text(
                         text = details.name.uppercase(),
                         color = TextPrimary,
-                        fontSize = 38.sp,
+                        fontSize = 30.sp,
                         fontFamily = BricolageGrotesque,
                         fontWeight = FontWeight.Bold,
                         maxLines = 2,
@@ -341,7 +352,7 @@ fun VodDetailsTvLayout(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
 
                     // Synopsis : pondéré, donc mesuré avec la place qui reste
                     // une fois les crédits, les actions et les boutons posés.
@@ -357,18 +368,17 @@ fun VodDetailsTvLayout(
                         onTextLayout = { plotOverflows = it.hasVisualOverflow },
                         modifier = Modifier
                             .weight(1f, fill = false)
-                            .padding(bottom = 8.dp)
+                            .padding(bottom = 4.dp)
                     )
 
                     if (plotOverflows) {
-                        PlotMoreButton(onClick = { showFullPlot = true })
-                        Spacer(modifier = Modifier.height(4.dp))
+                        PlotMoreLink(onClick = { showFullPlot = true })
                     }
 
                     HorizontalDivider(
                         color = TvDetailsDividerColor,
                         thickness = 0.5.dp,
-                        modifier = Modifier.padding(vertical = 8.dp)
+                        modifier = Modifier.padding(vertical = 6.dp)
                     )
 
                     // Credits (Director & Cast)
@@ -434,7 +444,9 @@ fun VodDetailsTvLayout(
                     // « relire depuis le début » en action secondaire.
                     Column(
                         verticalArrangement = Arrangement.spacedBy(10.dp),
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .tvFocusDownTo(firstRelatedFocus)
                     ) {
                         if (hasHistory) {
                             PlayButton(
@@ -472,7 +484,13 @@ fun VodDetailsTvLayout(
                         .fillMaxWidth()
                         .padding(horizontal = TV_DETAILS_RELATED_SIDE_MARGIN)
                         .onSizeChanged { relatedRowHeightPx = it.height.toFloat() }
-                        .onFocusChanged { isRelatedFocused = it.hasFocus }
+                        .onFocusChanged {
+                            isRelatedFocused = it.hasFocus
+                            // Le cadre fixe n'appartient qu'à cette rangée : le
+                            // laisser affiché après la sortie du focus le
+                            // faisait flotter sur une fiche redescendue.
+                            if (!it.hasFocus) focusSelector.clear()
+                        }
                         .onFocusedBoundsChanged { focusedRelatedChild = it }
                 ) {
                     RelatedTitlesRow(
@@ -481,7 +499,8 @@ fun VodDetailsTvLayout(
                         poster = { it.streamIcon },
                         label = { it.name },
                         onClick = onSelectRelated,
-                        tvPivotEnabled = true
+                        tvPivotEnabled = true,
+                        firstItemFocusRequester = firstRelatedFocus
                     )
                 }
             }
@@ -619,31 +638,28 @@ private fun PlayButton(
     }
 }
 
-/** Ouvre le synopsis intégral ; n'apparaît que si le texte est tronqué. */
+/**
+ * Ouvre le synopsis intégral ; n'apparaît que si le texte est tronqué.
+ *
+ * Volontairement dépouillé — ni cadre, ni fond, ni pastille : c'est un mot
+ * sélectionnable dans le fil du texte, qui ne doit pas concurrencer le bouton
+ * de lecture. Seule la couleur signale le focus.
+ */
 @Composable
-private fun PlotMoreButton(onClick: () -> Unit) {
+private fun PlotMoreLink(onClick: () -> Unit) {
     var isFocused by remember { mutableStateOf(false) }
-    Box(
+    Text(
+        text = stringResource(R.string.details_plot_see_more),
+        color = if (isFocused) AccentLavande else TextSecondary,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 12.sp,
+        fontFamily = HankenGrotesk,
+        textDecoration = TextDecoration.Underline,
         modifier = Modifier
-            .clip(RoundedCornerShape(6.dp))
             .onFocusChanged { isFocused = it.isFocused }
-            .background(if (isFocused) AccentLavande.copy(alpha = 0.15f) else Color.Transparent)
-            .border(
-                width = 1.5.dp,
-                color = if (isFocused) AccentLavande else Color.Transparent,
-                shape = RoundedCornerShape(6.dp)
-            )
             .clickable { onClick() }
-            .padding(horizontal = 10.dp, vertical = 4.dp)
-    ) {
-        Text(
-            text = stringResource(R.string.details_plot_see_more),
-            color = if (isFocused) AccentLavande else TextPrimary,
-            fontWeight = FontWeight.SemiBold,
-            fontSize = 12.sp,
-            fontFamily = HankenGrotesk
-        )
-    }
+            .padding(vertical = 2.dp)
+    )
 }
 
 /**

@@ -143,5 +143,16 @@ Aucun impact `data`/`domain`.
 
 | | |
 | --- | --- |
-| Version | **v1.76.0** (`versionCode` 17600) |
+| Version | **v1.76.1** (`versionCode` 17601) |
 | Date | 2026-08-09 |
+
+---
+
+# 9. Deuxième passe de retours PO (v1.76.1)
+
+| Retour | Traitement |
+| --- | --- |
+| « VOIR PLUS » trop appuyé | Devenu `PlotMoreLink` : un texte souligné sans cadre ni fond, en `TextSecondary`, qui passe en `AccentLavande` au focus. Il ne concurrence plus le bouton de lecture. |
+| Synopsis quasi invisible | La pondération faisait son travail — elle ne donnait que la place restante, et il n'en restait qu'une ligne. De la hauteur lui est rendue en amont : titre de 38 à 30 sp, réserve haute de 36 à 20 dp, débord de la rangée de 110 à 96 dp, marges internes resserrées. |
+| Défilement de six vignettes à l'ouverture du bloc | Le bouton de lecture occupe toute la largeur de la colonne : son centre tombe vers 72 % de l'écran et la recherche de focus par défaut, qui retient le candidat géométriquement le plus proche, atterrissait sur la sixième affiche — que le pivot ramenait ensuite à l'ancre, d'où le défilement. Descente explicite par `tvFocusDownTo` vers un `FocusRequester` posé sur la première vignette, le dispositif déjà écrit pour ce cas exact en B22. |
+| Pression à droite en fin de rangée : le cadre reste et le bloc se referme | Aucun focalisable à droite de la dernière vignette : la recherche par défaut sortait de la rangée pour la cible la plus proche ailleurs dans l'arbre — les étiquettes de crédits, posées plus haut à droite. Le focus quittant le bloc, celui-ci redescendait et le cadre restait affiché. `focusProperties { right = FocusRequester.Cancel }` sur la dernière vignette (et `left` sur la première) fait de la butée un non-événement, et la sortie de focus efface désormais le cadre. |
