@@ -45,6 +45,7 @@ import com.cstv.app.presentation.theme.RatingDislike
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.MaterialTheme as TvTheme
 import androidx.tv.material3.Text as TvText
+import kotlinx.coroutines.launch
 
 @Composable
 fun SettingsScreen(
@@ -120,7 +121,8 @@ private fun TvSettingsActionButton(
     loading: Boolean = false,
     containerColor: Color = Surface3,
     contentColor: Color = Color.White,
-    focusBorderColor: Color = AccentLavandeHover
+    focusBorderColor: Color = AccentLavandeHover,
+    onFocusChanged: ((Boolean) -> Unit)? = null
 ) {
     var isFocused by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(8.dp)
@@ -131,7 +133,7 @@ private fun TvSettingsActionButton(
             .clip(shape)
             .background(if (enabled) containerColor else containerColor.copy(alpha = 0.5f))
             .tvFocusHighlight(focused = isFocused, shape = shape, color = focusBorderColor, strokeWidth = 2.dp)
-            .onFocusChanged { isFocused = it.isFocused }
+            .onFocusChanged { isFocused = it.isFocused; onFocusChanged?.invoke(it.isFocused) }
             .clickable(enabled = enabled) { onClick() },
         contentAlignment = Alignment.Center
     ) {
@@ -194,12 +196,15 @@ private fun TvSettingsLayout(
     onUploadLogs: () -> Unit,
     onLogout: () -> Unit
 ) {
+    val scrollState = rememberScrollState()
+    val coroutineScope = rememberCoroutineScope()
+
     Column(
         modifier = Modifier
             .fillMaxWidth(0.85f)
             .fillMaxHeight()
             .padding(24.dp)
-            .verticalScroll(rememberScrollState()),
+            .verticalScroll(scrollState),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
@@ -208,18 +213,20 @@ private fun TvSettingsLayout(
             style = TvTheme.typography.headlineMedium,
             color = Color.White,
             fontWeight = FontWeight.Bold,
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        TvText(
-            text = "Gérez les catégories affichées (masquage et ordre par profil) et la mise à jour automatique en arrière-plan.",
-            color = Color.Gray,
-            style = TvTheme.typography.bodyMedium,
             modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
         )
 
-        // Gestion des catégories (Phase 58)
-        TvManageCategoriesCard(onManageCategories = onManageCategories)
+        // Gestion des catégories (Phase 58). Premier contrôle focalisable de
+        // l'écran : le ramener en tête de liste dès qu'il reprend le focus
+        // (remontée au D-pad depuis une section plus basse) garde le titre
+        // visible, sinon le défilement implicite de Compose s'arrête dès que
+        // ce bouton est visible, sans remonter jusqu'en haut de la colonne.
+        TvManageCategoriesCard(
+            onManageCategories = onManageCategories,
+            onFocusChanged = { focused ->
+                if (focused) coroutineScope.launch { scrollState.animateScrollTo(0) }
+            }
+        )
 
         TvSyncFrequencyCard(
             currentFrequency = state.syncFrequency,
@@ -253,7 +260,10 @@ private fun TvSettingsLayout(
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
-private fun TvManageCategoriesCard(onManageCategories: () -> Unit) {
+private fun TvManageCategoriesCard(
+    onManageCategories: () -> Unit,
+    onFocusChanged: ((Boolean) -> Unit)? = null
+) {
     Card(
         colors = CardDefaults.cardColors(containerColor = Surface3),
         modifier = Modifier.fillMaxWidth()
@@ -276,7 +286,8 @@ private fun TvManageCategoriesCard(onManageCategories: () -> Unit) {
             TvSettingsActionButton(
                 text = stringResource(R.string.settings_manage_categories_tv),
                 onClick = onManageCategories,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                onFocusChanged = onFocusChanged
             )
         }
     }

@@ -59,14 +59,18 @@ fun CategoryManagementScreen(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            IconButton(onClick = onBack) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Retour",
-                    tint = Color.White
-                )
+            // Bouton visuel retiré sur TV (comme les Paramètres, F32) : la touche
+            // Retour de la télécommande gère déjà ce comportement via NavHost.
+            if (!isTv) {
+                IconButton(onClick = onBack) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Retour",
+                        tint = Color.White
+                    )
+                }
+                Spacer(modifier = Modifier.width(8.dp))
             }
-            Spacer(modifier = Modifier.width(8.dp))
             Text(
                 text = "GESTION DES CATÉGORIES",
                 fontSize = 18.sp,

@@ -20,6 +20,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -158,17 +159,32 @@ fun ProfileManagementScreen(
 
 @Composable
 private fun EditableProfileItem(profile: Profile, onEditClick: () -> Unit) {
+    // Seule la pastille crayon est cliquable/focalisable ; le contour se
+    // dessine autour de l'avatar entier, sinon le marquage de focus est trop
+    // petit pour situer le profil visé au D-pad.
+    var focused by remember { mutableStateOf(false) }
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier.width(120.dp)
     ) {
         Box(contentAlignment = Alignment.BottomEnd) {
-            ProfileAvatar(avatarId = profile.avatarId, name = profile.name, size = 96)
+            Box(
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .border(
+                        width = if (focused) 3.dp else 0.dp,
+                        color = if (focused) AccentLavande else Color.Transparent,
+                        shape = CircleShape
+                    )
+            ) {
+                ProfileAvatar(avatarId = profile.avatarId, name = profile.name, size = 96)
+            }
             Box(
                 modifier = Modifier
                     .size(32.dp)
                     .clip(CircleShape)
                     .background(Color.White)
+                    .onFocusChanged { focused = it.isFocused }
                     .clickable { onEditClick() },
                 contentAlignment = Alignment.Center
             ) {
@@ -248,6 +264,25 @@ private fun ProfileNameDialog(
     )
 }
 
+/** Pastille de couleur du sélecteur d'avatar : bordure blanche si sélectionnée, lavande au focus. */
+@Composable
+private fun ProfileColorSwatch(colorLong: Long, selected: Boolean, onClick: () -> Unit) {
+    var focused by remember { mutableStateOf(false) }
+    Box(
+        modifier = Modifier
+            .size(36.dp)
+            .clip(CircleShape)
+            .background(Color(colorLong))
+            .border(
+                width = if (selected || focused) 3.dp else 0.dp,
+                color = if (focused) AccentLavande else Color.White,
+                shape = CircleShape
+            )
+            .onFocusChanged { focused = it.isFocused }
+            .clickable(onClick = onClick)
+    )
+}
+
 /**
  * Modification simple d'un profil existant : nom + couleur + suppression,
  * dans un seul dialog (retour utilisateur : l'ancien écran de modif façon
@@ -284,17 +319,10 @@ private fun ProfileEditDialog(
                         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             rowColors.forEachIndexed { colIndex, colorLong ->
                                 val index = rowIndex * 4 + colIndex
-                                Box(
-                                    modifier = Modifier
-                                        .size(36.dp)
-                                        .clip(CircleShape)
-                                        .background(Color(colorLong))
-                                        .border(
-                                            width = if (index == avatarId) 3.dp else 0.dp,
-                                            color = Color.White,
-                                            shape = CircleShape
-                                        )
-                                        .clickable { avatarId = index }
+                                ProfileColorSwatch(
+                                    colorLong = colorLong,
+                                    selected = index == avatarId,
+                                    onClick = { avatarId = index }
                                 )
                             }
                         }
@@ -326,15 +354,19 @@ private fun ProfileEditDialog(
                         Text(stringResource(R.string.profile_delete_confirm_prompt), color = Color(0xFFCF6679), fontSize = 13.sp)
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             TextButton(onClick = { confirmingDelete = false }) { Text(stringResource(R.string.profile_confirm_delete_cancel)) }
-                            TextButton(onClick = onDelete) {
-                                Text(stringResource(R.string.profile_delete_confirm), color = Color(0xFFCF6679))
-                            }
+                            TextButton(
+                                onClick = onDelete,
+                                colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFFCF6679))
+                            ) { Text(stringResource(R.string.profile_delete_confirm)) }
                         }
                     }
                 } else {
-                    TextButton(onClick = { confirmingDelete = true }) {
-                        Text(stringResource(R.string.profile_delete_btn), color = Color(0xFFCF6679))
-                    }
+                    // `colors` (pas seulement le texte) : sinon le focus TV se
+                    // marque encore en lavande, la couleur par défaut du bouton.
+                    TextButton(
+                        onClick = { confirmingDelete = true },
+                        colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFFCF6679))
+                    ) { Text(stringResource(R.string.profile_delete_btn)) }
                 }
             }
         },

@@ -133,8 +133,8 @@ fun ProfileSelectionScreen(
                     if (manageFocused) AccentLavande else Color.White.copy(alpha = 0.15f)
                 ),
                 colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = if (manageFocused) Color.White else Color.White,
-                    containerColor = if (manageFocused) AccentLavande.copy(alpha = 0.55f) else Surface3
+                    contentColor = Color.White,
+                    containerColor = Surface3
                 ),
                 shape = RoundedCornerShape(12.dp),
                 modifier = Modifier
