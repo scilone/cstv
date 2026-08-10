@@ -7,6 +7,9 @@ import com.cstv.app.data.local.dao.VodDao
 import com.cstv.app.data.local.entity.ProfileEntity
 import com.cstv.app.data.local.storage.ProfileManager
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.*
 import org.junit.Before
@@ -42,6 +45,32 @@ class ProfileRepositoryImplTest {
 
     private fun profile(id: Int, name: String = "P$id") =
         ProfileEntity(id = id, name = name, avatarId = 0, createdAt = id.toLong())
+
+    /**
+     * Fake à état réel (par opposition au mock d'interactions ci-dessus) : seul
+     * moyen de vérifier la valeur *courante* après une écriture, requis par la
+     * review F31-R1 pour prouver qu'un remplacement A → B ne laisse jamais deux
+     * profils marqués ni un état intermédiaire observable.
+     */
+    private class FakeProfileManager(
+        initialActive: Int = ProfileManager.NO_PROFILE,
+        initialAutoStart: Int = ProfileManager.NO_PROFILE
+    ) : ProfileManager {
+        private val _activeProfileId = MutableStateFlow(initialActive)
+        override val activeProfileId: StateFlow<Int> = _activeProfileId.asStateFlow()
+        override fun currentProfileId(): Int = _activeProfileId.value
+        override fun setActiveProfileId(id: Int) { _activeProfileId.value = id }
+
+        private val _autoStartProfileId = MutableStateFlow(initialAutoStart)
+        override val autoStartProfileId: StateFlow<Int> = _autoStartProfileId.asStateFlow()
+        override fun currentAutoStartProfileId(): Int = _autoStartProfileId.value
+        override fun setAutoStartProfileId(id: Int) { _autoStartProfileId.value = id }
+    }
+
+    private fun repositoryWith(fakeManager: ProfileManager) = ProfileRepositoryImpl(
+        profileDao, fakeManager, favoritesDao, vodDao, liveTvDao,
+        trackPreferenceDao, categoryPreferenceDao, mediaRatingDao, seriesWatchStateDao
+    )
 
     @Before
     fun setUp() {
@@ -114,5 +143,156 @@ class ProfileRepositoryImplTest {
         verify(profileDao).deleteById(5)
         // Bascule vers le profil restant.
         verify(profileManager).setActiveProfileId(6)
+    }
+
+    @Test
+    fun test_deleteProfile_cleansAutoStart_whenDeletedProfileWasDesignated() = runTest {
+        whenever(profileDao.count()).thenReturn(2)
+        doReturn(ProfileManager.NO_PROFILE).whenever(profileManager).currentProfileId()
+        doReturn(5).whenever(profileManager).currentAutoStartProfileId()
+        whenever(profileDao.getAll()).thenReturn(listOf(profile(6)))
+
+        repository.deleteProfile(5)
+
+        verify(profileManager).setAutoStartProfileId(ProfileManager.NO_PROFILE)
+    }
+
+    @Test
+    fun test_deleteProfile_doesNotTouchAutoStart_whenDeletedProfileWasNotDesignated() = runTest {
+        whenever(profileDao.count()).thenReturn(2)
+        doReturn(ProfileManager.NO_PROFILE).whenever(profileManager).currentProfileId()
+        doReturn(7).whenever(profileManager).currentAutoStartProfileId()
+        whenever(profileDao.getAll()).thenReturn(listOf(profile(6)))
+
+        repository.deleteProfile(5)
+
+        verify(profileManager, never()).setAutoStartProfileId(any())
+    }
+
+    @Test
+    fun test_setAutoStartProfile_switchesDesignatedProfile_withSingleWrite() = runTest {
+        repository.setAutoStartProfile(2)
+
+        verify(profileManager, times(1)).setAutoStartProfileId(2)
+        verify(profileManager, never()).setActiveProfileId(any())
+    }
+
+    @Test
+    fun test_setAutoStartProfile_null_disables() = runTest {
+        repository.setAutoStartProfile(null)
+
+        verify(profileManager).setAutoStartProfileId(ProfileManager.NO_PROFILE)
+    }
+
+    @Test
+    fun test_resolveStartupProfile_appliesValidAutoStart_evenWithMultipleProfiles() = runTest {
+        whenever(profileDao.getAll()).thenReturn(listOf(profile(5), profile(6)))
+        doReturn(6).whenever(profileManager).currentProfileId()
+        doReturn(6).whenever(profileManager).currentAutoStartProfileId()
+
+        val resolution = repository.resolveStartupProfile()
+
+        assertFalse(resolution.needsSelection)
+        assertEquals(2, resolution.profiles.size)
+        verify(profileManager).setActiveProfileId(6)
+    }
+
+    @Test
+    fun test_resolveStartupProfile_cleansOrphanAutoStart_andFallsBackToSelector() = runTest {
+        whenever(profileDao.getAll()).thenReturn(listOf(profile(5), profile(6)))
+        doReturn(5).whenever(profileManager).currentProfileId()
+        doReturn(99).whenever(profileManager).currentAutoStartProfileId()
+
+        val resolution = repository.resolveStartupProfile()
+
+        assertTrue(resolution.needsSelection)
+        verify(profileManager).setAutoStartProfileId(ProfileManager.NO_PROFILE)
+        verify(profileManager, never()).setActiveProfileId(99)
+    }
+
+    @Test
+    fun test_resolveStartupProfile_noAutoStart_followsExisting0or1orNRule() = runTest {
+        whenever(profileDao.getAll()).thenReturn(listOf(profile(5), profile(6)))
+        doReturn(5).whenever(profileManager).currentProfileId()
+        doReturn(ProfileManager.NO_PROFILE).whenever(profileManager).currentAutoStartProfileId()
+
+        val resolution = repository.resolveStartupProfile()
+
+        assertTrue(resolution.needsSelection)
+    }
+
+    @Test
+    fun test_resolveStartupProfile_onLoadFailure_needsSelection_andDoesNotTouchAutoStart() = runTest {
+        whenever(profileDao.getAll()).thenThrow(RuntimeException("boom"))
+
+        val resolution = repository.resolveStartupProfile()
+
+        assertTrue(resolution.needsSelection)
+        assertTrue(resolution.profiles.isEmpty())
+        verify(profileManager, never()).setAutoStartProfileId(any())
+    }
+
+    @Test
+    fun test_setAutoStartProfile_replacesDesignatedProfile_asSingleObservableCurrentValue() = runTest {
+        val fakeManager = FakeProfileManager(initialAutoStart = 1)
+        val repo = repositoryWith(fakeManager)
+
+        repo.setAutoStartProfile(2)
+
+        // Une seule valeur courante après l'écriture : jamais 1 et 2 marqués ensemble.
+        assertEquals(2, fakeManager.currentAutoStartProfileId())
+    }
+
+    @Test
+    fun test_setAutoStartProfile_null_disables_asObservableCurrentValue() = runTest {
+        val fakeManager = FakeProfileManager(initialAutoStart = 3)
+        val repo = repositoryWith(fakeManager)
+
+        repo.setAutoStartProfile(null)
+
+        assertEquals(ProfileManager.NO_PROFILE, fakeManager.currentAutoStartProfileId())
+    }
+
+    @Test
+    fun test_resolveStartupProfile_noAutoStart_zeroProfiles_goesDirectlyHome() = runTest {
+        whenever(profileDao.getAll())
+            .thenReturn(emptyList())
+            .thenReturn(listOf(profile(1, "Profil 1")))
+        whenever(profileDao.insert(any())).thenReturn(1L)
+        doReturn(ProfileManager.NO_PROFILE).whenever(profileManager).currentAutoStartProfileId()
+
+        val resolution = repository.resolveStartupProfile()
+
+        assertFalse(resolution.needsSelection)
+        assertEquals(1, resolution.profiles.size)
+    }
+
+    @Test
+    fun test_resolveStartupProfile_noAutoStart_singleProfile_goesDirectlyHome() = runTest {
+        whenever(profileDao.getAll()).thenReturn(listOf(profile(5)))
+        doReturn(5).whenever(profileManager).currentProfileId()
+        doReturn(ProfileManager.NO_PROFILE).whenever(profileManager).currentAutoStartProfileId()
+
+        val resolution = repository.resolveStartupProfile()
+
+        assertFalse(resolution.needsSelection)
+    }
+
+    @Test
+    fun test_renameProfile_doesNotTouchAutoStart() = runTest {
+        whenever(profileDao.getById(5)).thenReturn(profile(5))
+
+        repository.renameProfile(5, "Nouveau nom")
+
+        verify(profileManager, never()).setAutoStartProfileId(any())
+    }
+
+    @Test
+    fun test_updateAvatar_doesNotTouchAutoStart() = runTest {
+        whenever(profileDao.getById(5)).thenReturn(profile(5))
+
+        repository.updateAvatar(5, 3)
+
+        verify(profileManager, never()).setAutoStartProfileId(any())
     }
 }

@@ -15,7 +15,8 @@ import javax.inject.Inject
 data class ProfileUiState(
     val profiles: List<Profile> = emptyList(),
     val activeProfileId: Int = -1,
-    val initialized: Boolean = false
+    val initialized: Boolean = false,
+    val autoStartProfileId: Int = -1
 )
 
 /**
@@ -38,28 +39,40 @@ class ProfileViewModel @Inject constructor(
                 }
             }
         }
+        viewModelScope.launch {
+            profileRepository.autoStartProfileId.collect { id ->
+                _state.update { it.copy(autoStartProfileId = id) }
+            }
+        }
     }
 
     /**
-     * Garantit un profil actif valide. Retourne true s'il faut afficher l'écran
-     * de sélection (plusieurs profils), false si on peut aller directement à la
-     * Home (0 ou 1 profil).
+     * Garantit un profil actif valide et applique le profil de démarrage
+     * automatique s'il en existe un. Retourne true s'il faut afficher l'écran
+     * de sélection, false si on peut aller directement à la Home (profil
+     * automatique appliqué, ou 0/1 profil sans réglage automatique).
      */
     suspend fun ensureInitializedAndNeedsSelection(): Boolean {
-        val profiles = profileRepository.ensureInitialized()
+        val resolution = profileRepository.resolveStartupProfile()
         _state.update {
             it.copy(
-                profiles = profiles,
+                profiles = resolution.profiles,
                 activeProfileId = profileRepository.currentProfileId(),
+                autoStartProfileId = profileRepository.currentAutoStartProfileId(),
                 initialized = true
             )
         }
-        return profiles.size > 1
+        return resolution.needsSelection
     }
 
     fun selectProfile(id: Int) {
         profileRepository.setActiveProfile(id)
         _state.update { it.copy(activeProfileId = id) }
+    }
+
+    /** Aucun effet sur le profil actif de la session en cours. `null` désactive. */
+    fun setAutoStartProfile(id: Int?) {
+        viewModelScope.launch { profileRepository.setAutoStartProfile(id) }
     }
 
     fun createProfile(name: String, avatarId: Int) {

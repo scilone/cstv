@@ -81,6 +81,8 @@
     <string name="profile_delete_confirm">Confirmer la suppression</string>
     <string name="profile_delete_btn">Supprimer le profil</string>
     <string name="profile_save_btn">Enregistrer</string>
+    <string name="profile_auto_start_label">Connexion automatique au démarrage</string>
+    <string name="profile_auto_start_description">Ce profil sera utilisé directement au lancement de l\'application, sans passer par l\'écran de sélection.</string>
     <string name="profile_selection_title">Qui regarde ?</string>
     <string name="home_welcome">BIENVENUE, %1$s</string>
     <string name="home_expiration_connections">Expiration : %1$s | Max connexions : %2$s</string>
@@ -126,7 +128,6 @@
     <string name="player_subtitles_title">SOUS-TITRES</string>
     <string name="player_close">Fermer</string>
     <string name="series_search_placeholder">Rechercher dans cette catégorie...</string>
-    <string name="settings_back">RETOUR</string>
     <string name="settings_logout">DÉCONNEXION</string>
     <string name="settings_manage_categories_tv">GÉRER LES CATÉGORIES</string>
     <string name="settings_manage_categories_mobile">Gérer les catégories</string>

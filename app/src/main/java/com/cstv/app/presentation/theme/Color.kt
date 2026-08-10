@@ -26,3 +26,6 @@ val FavoriteGold = Color(0xFFFFB300)
 // Rating (F7) - sober red/green. Red reused from Settings (logout/danger) for homogeneity.
 val RatingLike = Color(0xFF66BB6A)
 val RatingDislike = Color(0xFFCF6679)
+
+// Contenu foncé contrasté sur un aplat RatingDislike (bouton déconnexion TV, F32).
+val OnRatingDislike = Color(0xFF1A0D10)

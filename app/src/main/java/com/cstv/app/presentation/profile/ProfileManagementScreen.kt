@@ -135,9 +135,14 @@ fun ProfileManagementScreen(
     editingProfile?.let { profile ->
         ProfileEditDialog(
             profile = profile,
-            onSave = { name, avatarId ->
+            isAutoStart = state.autoStartProfileId == profile.id,
+            onSave = { name, avatarId, autoStart ->
                 if (name != profile.name) viewModel.renameProfile(profile.id, name)
                 if (avatarId != profile.avatarId) viewModel.updateAvatar(profile.id, avatarId)
+                val wasAutoStart = state.autoStartProfileId == profile.id
+                if (autoStart != wasAutoStart) {
+                    viewModel.setAutoStartProfile(if (autoStart) profile.id else null)
+                }
                 editingProfile = null
             },
             onDelete = {
@@ -251,12 +256,14 @@ private fun ProfileNameDialog(
 @Composable
 private fun ProfileEditDialog(
     profile: Profile,
-    onSave: (name: String, avatarId: Int) -> Unit,
+    isAutoStart: Boolean,
+    onSave: (name: String, avatarId: Int, autoStart: Boolean) -> Unit,
     onDelete: () -> Unit,
     onDismiss: () -> Unit
 ) {
     var name by remember { mutableStateOf(profile.name) }
     var avatarId by remember { mutableStateOf(profile.avatarId) }
+    var autoStart by remember { mutableStateOf(isAutoStart) }
     var confirmingDelete by remember { mutableStateOf(false) }
 
     AlertDialog(
@@ -294,6 +301,26 @@ private fun ProfileEditDialog(
                     }
                 }
 
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(stringResource(R.string.profile_auto_start_label), fontSize = 13.sp, color = Color.White)
+                        Text(
+                            stringResource(R.string.profile_auto_start_description),
+                            fontSize = 11.sp,
+                            color = Color.Gray
+                        )
+                    }
+                    Switch(
+                        checked = autoStart,
+                        onCheckedChange = { autoStart = it },
+                        colors = SwitchDefaults.colors(checkedTrackColor = AccentLavande)
+                    )
+                }
+
                 if (confirmingDelete) {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(stringResource(R.string.profile_delete_confirm_prompt), color = Color(0xFFCF6679), fontSize = 13.sp)
@@ -313,7 +340,7 @@ private fun ProfileEditDialog(
         },
         confirmButton = {
             TextButton(
-                onClick = { if (name.isNotBlank()) onSave(name.trim(), avatarId) },
+                onClick = { if (name.isNotBlank()) onSave(name.trim(), avatarId, autoStart) },
                 enabled = name.isNotBlank()
             ) { Text(stringResource(R.string.profile_save_btn)) }
         },

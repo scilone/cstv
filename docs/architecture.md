@@ -175,6 +175,12 @@ Responsable de l'interface utilisateur. Elle utilise **Jetpack Compose** pour l'
   - **Garantie de dimensionnement et interlignes déterministes** : Configuration de dimensions de hauteur explicites (`LIVE_TV_CARD_HEIGHT = 92.dp`) partagées de manière uniforme entre les cartes de chaînes (`StreamTvCard`) et les cartes de redirection d'enchaînement (`SeeAllCard`), évitant tout désalignement.
   - **Spécification stricte de lineHeight** : Application d'un budget vertical sécurisé (49 dp consommés pour 76 dp disponibles à l'intérieur de la carte) grâce à des tailles de police (`fontSize`) et de hauteur de lignes (`lineHeight`) explicites associées à une troncature automatique (`TextOverflow.Ellipsis`) pour immuniser l'affichage contre les forts grossissements d'accessibilité (`fontScale`).
   - **Carte unique partagée entre rangée et grille** : la grille de catégorie (`LazyVerticalGrid`) compose la même `StreamTvCard` que les rangées du mode « Tout », donc les mêmes dimensions et le même geste de favori en appui long, sans composant parallèle à maintenir.
+* **Connexion automatique au profil au démarrage (F31)** :
+  - **Stockage de clé scalaire unique dans SharedPreferences** : Au lieu d'ajouter un attribut booléen à `ProfileEntity` dans la base de données Room (qui exigerait une migration de schéma SQL version 25 -> 26 avec les risques de régression associés), le choix s'est porté sur une clé unique `auto_start_profile_id` dans `profile_prefs`. Cela garantit par construction l'unicité de la connexion automatique sans transaction SQL complexe de démarquage.
+  - **Résolution de démarrage découplée (`StartupProfileResolution`)** : La décision finale du profil actif au démarrage et de la nécessité d'afficher ou non le sélecteur ("Qui regarde ?") est encapsulée dans le modèle domain `StartupProfileResolution`.
+* **Refonte de l'écran des paramètres TV (F32)** :
+  - **Composable d'action unifié et modulaire (`TvSettingsActionButton`)** : Centralisation du style et de l'état des boutons d'actions TV (taille, forme, couleurs de repos, liseré de focus de 2 dp réutilisant `Modifier.tvFocusHighlight(...)`) pour assurer l'homogénéité visuelle.
+  - **Retrait complet du code mort TV** : Au lieu d'avoir un masquage conditionnel des cartes non applicables sur TV (Téléchargements hors-ligne et bouton Retour), ces cartes ont été purement et simplement retirées de la branche TV pour éliminer toute dette technique, tout en préservant le layout mobile existant.
 
 ---
 

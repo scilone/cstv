@@ -23,6 +23,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.ui.graphics.vector.ImageVector
 import coil.compose.AsyncImage
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -36,7 +37,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.tv.material3.Button as TvButton
+import com.cstv.app.presentation.components.tvFocusHighlight
+import com.cstv.app.presentation.theme.AccentLavande
+import com.cstv.app.presentation.theme.AccentLavandeHover
+import com.cstv.app.presentation.theme.OnRatingDislike
+import com.cstv.app.presentation.theme.RatingDislike
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.MaterialTheme as TvTheme
 import androidx.tv.material3.Text as TvText
@@ -63,7 +68,6 @@ fun SettingsScreen(
             TvSettingsLayout(
                 state = state,
                 onManageCategories = onManageCategories,
-                onManageDownloads = onManageDownloads,
                 onSyncFrequencyChanged = { viewModel.updateSyncFrequency(it) },
                 onForceSyncNow = { viewModel.forceSyncNow() },
                 onSubtitleSizeChanged = { viewModel.updateSubtitleSize(it) },
@@ -71,7 +75,6 @@ fun SettingsScreen(
                 onSubtitleBackgroundChanged = { viewModel.updateSubtitleBackground(it) },
                 onDebugModeChanged = { viewModel.updateDebugModeEnabled(it) },
                 onUploadLogs = { viewModel.uploadDiagnosticLogs() },
-                onBack = onBack,
                 onLogout = onLogout
             )
         } else {
@@ -102,12 +105,86 @@ fun SettingsScreen(
     }
 }
 
+/**
+ * Action de paramètres TV unifiée (F32) : `Surface3` au repos, liseré
+ * `tvFocusHighlight` au focus. Porteur unique du langage visuel des actions
+ * de paramètres — toute évolution future du style se fait ici.
+ */
+@Composable
+private fun TvSettingsActionButton(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    icon: ImageVector? = null,
+    enabled: Boolean = true,
+    loading: Boolean = false,
+    containerColor: Color = Surface3,
+    contentColor: Color = Color.White,
+    focusBorderColor: Color = AccentLavandeHover
+) {
+    var isFocused by remember { mutableStateOf(false) }
+    val shape = RoundedCornerShape(8.dp)
+
+    Box(
+        modifier = modifier
+            .height(44.dp)
+            .clip(shape)
+            .background(if (enabled) containerColor else containerColor.copy(alpha = 0.5f))
+            .tvFocusHighlight(focused = isFocused, shape = shape, color = focusBorderColor, strokeWidth = 2.dp)
+            .onFocusChanged { isFocused = it.isFocused }
+            .clickable(enabled = enabled) { onClick() },
+        contentAlignment = Alignment.Center
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (loading) {
+                CircularProgressIndicator(
+                    color = contentColor,
+                    strokeWidth = 2.dp,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+            } else if (icon != null) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = if (enabled) contentColor else contentColor.copy(alpha = 0.5f),
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+            }
+            TvText(
+                text = text,
+                color = if (enabled) contentColor else contentColor.copy(alpha = 0.5f),
+                fontWeight = FontWeight.Bold,
+                style = TvTheme.typography.labelMedium
+            )
+        }
+    }
+}
+
+/** Variante destructive de [TvSettingsActionButton] : aplat rouge (`RatingDislike`), contenu foncé contrasté. */
+@Composable
+private fun TvSettingsDestructiveButton(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    TvSettingsActionButton(
+        text = text,
+        onClick = onClick,
+        modifier = modifier,
+        icon = Icons.AutoMirrored.Filled.ExitToApp,
+        containerColor = RatingDislike,
+        contentColor = OnRatingDislike,
+        focusBorderColor = Color.White
+    )
+}
+
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 private fun TvSettingsLayout(
     state: SettingsState,
     onManageCategories: () -> Unit,
-    onManageDownloads: () -> Unit,
     onSyncFrequencyChanged: (SyncFrequency) -> Unit,
     onForceSyncNow: () -> Unit,
     onSubtitleSizeChanged: (SubtitleTextSize) -> Unit,
@@ -115,7 +192,6 @@ private fun TvSettingsLayout(
     onSubtitleBackgroundChanged: (SubtitleBackground) -> Unit,
     onDebugModeChanged: (Boolean) -> Unit,
     onUploadLogs: () -> Unit,
-    onBack: () -> Unit,
     onLogout: () -> Unit
 ) {
     Column(
@@ -127,34 +203,13 @@ private fun TvSettingsLayout(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Start
-        ) {
-            TvButton(
-                onClick = onBack,
-                modifier = Modifier.height(40.dp)
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Retour",
-                        tint = Color.White,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    TvText(stringResource(R.string.settings_back), style = TvTheme.typography.labelMedium)
-                }
-            }
-            Spacer(modifier = Modifier.width(16.dp))
-            TvText(
-                text = "PARAMÈTRES DE L'APPLICATION",
-                style = TvTheme.typography.headlineMedium,
-                color = Color.White,
-                fontWeight = FontWeight.Bold
-            )
-        }
+        TvText(
+            text = "PARAMÈTRES DE L'APPLICATION",
+            style = TvTheme.typography.headlineMedium,
+            color = Color.White,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.fillMaxWidth()
+        )
 
         TvText(
             text = "Gérez les catégories affichées (masquage et ordre par profil) et la mise à jour automatique en arrière-plan.",
@@ -165,9 +220,6 @@ private fun TvSettingsLayout(
 
         // Gestion des catégories (Phase 58)
         TvManageCategoriesCard(onManageCategories = onManageCategories)
-
-        // Téléchargements hors-ligne (feature #15)
-        TvManageDownloadsCard(onManageDownloads = onManageDownloads)
 
         TvSyncFrequencyCard(
             currentFrequency = state.syncFrequency,
@@ -191,21 +243,11 @@ private fun TvSettingsLayout(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        TvButton(
+        TvSettingsDestructiveButton(
+            text = stringResource(R.string.settings_logout),
             onClick = onLogout,
-            modifier = Modifier.fillMaxWidth().height(44.dp)
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ExitToApp,
-                    contentDescription = "Déconnexion",
-                    tint = Color(0xFFCF6679),
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                TvText(stringResource(R.string.settings_logout), style = TvTheme.typography.labelLarge, color = Color(0xFFCF6679), fontWeight = FontWeight.Bold)
-            }
-        }
+            modifier = Modifier.fillMaxWidth()
+        )
     }
 }
 
@@ -231,44 +273,11 @@ private fun TvManageCategoriesCard(onManageCategories: () -> Unit) {
                 color = Color.Gray,
                 style = TvTheme.typography.bodySmall
             )
-            TvButton(
+            TvSettingsActionButton(
+                text = stringResource(R.string.settings_manage_categories_tv),
                 onClick = onManageCategories,
-                modifier = Modifier.fillMaxWidth().height(40.dp)
-            ) {
-                TvText(stringResource(R.string.settings_manage_categories_tv), style = TvTheme.typography.labelMedium)
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalTvMaterial3Api::class)
-@Composable
-private fun TvManageDownloadsCard(onManageDownloads: () -> Unit) {
-    Card(
-        colors = CardDefaults.cardColors(containerColor = Surface3),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            TvText(
-                text = stringResource(R.string.downloads_settings_card_title).uppercase(),
-                color = MaterialTheme.colorScheme.primary,
-                fontWeight = FontWeight.Bold,
-                style = TvTheme.typography.titleMedium
+                modifier = Modifier.fillMaxWidth()
             )
-            TvText(
-                text = stringResource(R.string.downloads_settings_card_subtitle),
-                color = Color.Gray,
-                style = TvTheme.typography.bodySmall
-            )
-            TvButton(
-                onClick = onManageDownloads,
-                modifier = Modifier.fillMaxWidth().height(40.dp)
-            ) {
-                TvText(stringResource(R.string.downloads_settings_card_button).uppercase(), style = TvTheme.typography.labelMedium)
-            }
         }
     }
 }
@@ -570,23 +579,17 @@ private fun TvSyncFrequencyCard(
                 }
             }
 
-            TvButton(
+            TvSettingsActionButton(
+                text = stringResource(
+                    if (isSyncingNow) R.string.settings_sync_in_progress else R.string.settings_force_sync_now
+                ),
                 onClick = onForceSyncNow,
                 enabled = !isSyncingNow,
-                modifier = Modifier.fillMaxWidth().height(40.dp)
-            ) {
-                if (isSyncingNow) {
-                    CircularProgressIndicator(
-                        color = Color.White,
-                        strokeWidth = 2.dp,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    TvText(stringResource(R.string.settings_sync_in_progress), style = TvTheme.typography.labelMedium)
-                } else {
-                    TvText(stringResource(R.string.settings_force_sync_now), style = TvTheme.typography.labelMedium)
-                }
-            }
+                loading = isSyncingNow,
+                containerColor = AccentLavande,
+                focusBorderColor = Color.White,
+                modifier = Modifier.fillMaxWidth()
+            )
         }
     }
 }
@@ -904,12 +907,11 @@ private fun TvDiagnosticCard(
                 )
             }
 
-            TvButton(
+            TvSettingsActionButton(
+                text = "EXTRAIRE LES LOGS DE DIAGNOSTIC",
                 onClick = onUploadLogs,
-                modifier = Modifier.fillMaxWidth().height(40.dp)
-            ) {
-                TvText("EXTRAIRE LES LOGS DE DIAGNOSTIC", style = TvTheme.typography.labelMedium)
-            }
+                modifier = Modifier.fillMaxWidth()
+            )
         }
     }
 }

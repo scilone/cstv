@@ -1,6 +1,7 @@
 package com.cstv.app.domain.repository
 
 import com.cstv.app.domain.model.Profile
+import com.cstv.app.domain.model.StartupProfileResolution
 import kotlinx.coroutines.flow.Flow
 
 interface ProfileRepository {
@@ -33,4 +34,19 @@ interface ProfileRepository {
     fun setActiveProfile(id: Int)
 
     val activeProfileId: Flow<Int>
+
+    val autoStartProfileId: Flow<Int>
+
+    fun currentAutoStartProfileId(): Int
+
+    /** null désactive le démarrage automatique. */
+    suspend fun setAutoStartProfile(id: Int?)
+
+    /**
+     * Normalise les profils (cf. [ensureInitialized]) puis applique le profil
+     * de démarrage automatique s'il désigne encore un profil existant.
+     * En cas d'erreur temporaire de lecture, ne modifie jamais le choix
+     * mémorisé et retombe sur `needsSelection = true`.
+     */
+    suspend fun resolveStartupProfile(): StartupProfileResolution
 }

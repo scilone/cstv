@@ -32,6 +32,7 @@ Une fois connecté, l'application vous propose l'écran de sélection de profil 
 * Vous pouvez créer plusieurs profils locaux distincts pour chaque membre de la famille.
 * Chaque profil dispose de son propre historique de visionnage, de ses favoris personnalisés, de ses positions de lecture de films/séries ainsi que de ses préférences de langue audio/sous-titres par défaut.
 * Le catalogue de chaînes et de vidéos reste commun pour ne pas encombrer la mémoire de l'appareil.
+* **Connexion automatique au démarrage (F31)** : Lors de l'édition d'un profil (mobile ou TV), vous pouvez cocher l'option "Connexion automatique au démarrage". Au lancement de l'application, l'écran "Qui regarde ?" sera totalement contourné et vous serez directement connecté à ce profil. Un seul profil à la fois peut être configuré en connexion automatique. Si vous l'activez sur un autre profil, le premier profil est automatiquement décoché. Si le profil automatique est supprimé, le comportement par défaut de sélection de profil est restauré.
 
 ---
 
@@ -110,6 +111,10 @@ Pour une meilleure ergonomie à la télécommande (D-pad), plusieurs simplificat
 * **Langues par défaut** : Définissez vos préférences de pistes audio et de sous-titres (ex: Français par défaut). Le lecteur ExoPlayer tentera systématiquement de sélectionner ces pistes en priorité lors du démarrage d'une vidéo.
 * **Filtrage des catégories** : Si certaines catégories de chaînes ou de VOD ne vous intéressent pas (ex : langues étrangères, chaînes thématiques inutilisées), vous pouvez les masquer complètement dans les paramètres afin d'épurer l'interface de l'application.
 * **Synchronisation** : Vous pouvez forcer manuellement la mise à jour du catalogue de votre serveur IPTV ou régler la fréquence de mise à jour automatique en arrière-plan.
+* **Refonte de l'interface Android TV (F32)** : L'écran des paramètres sur Android TV a été entièrement refondu pour une meilleure ergonomie et une intégration parfaite dans la charte esthétique de l'application :
+  - **Élimination des éléments inutiles** : Le bouton de retour textuel "Retour" (redondant avec la touche Back physique de votre télécommande) ainsi que la section "Téléchargements hors-ligne" (spécifique aux mobiles) ont été retirés de la version TV pour une interface plus claire et épurée.
+  - **Boutons d'action optimisés** : Les boutons d'action (Gérer les catégories, Forcer la mise à jour, Extraire les logs et Déconnexion) ont été redessinés sous forme de cartes élégantes avec un liseré lumineux de focus très visible à distance.
+  - **Hiérarchie visuelle** : L'action de synchronisation utilise un fond lavande (`AccentLavande`) tandis que l'action destructive de déconnexion arbore un fond rouge (`RatingDislike`) très distinct pour prévenir les erreurs.
 
 ---
 

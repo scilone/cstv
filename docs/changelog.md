@@ -1,5 +1,17 @@
 # Journal des Modifications (Changelog) - CSTV IPTV
 
+## [v1.78.0] - 2026-08-10
+### ✨ Connexion automatique au profil au démarrage (F31)
+* **Contournement du sélecteur de profils ("Qui regarde ?")** : Si un profil est désigné comme profil de démarrage automatique, l'application s'y connecte directement et ouvre l'Accueil au démarrage, évitant l'écran de sélection de profils.
+* **Option dans l'édition de profil** : Une option d'activation/désactivation de connexion automatique est ajoutée dans le dialogue d'édition commun mobile/TV.
+* **Unicité automatique** : Activer l'option sur un profil la désactive automatiquement sur tout autre profil.
+* **Prise en charge de la robustesse** : La suppression du profil de démarrage automatique retire proprement le marquage pour éviter les crashs, les boucles de navigation ou l'activation de profils inexistants. Les tests JVM et le linter valident à 100 % cette fonctionnalité.
+
+### 🎨 Refonte esthétique de l'écran des paramètres Android TV (F32)
+* **Élimination des distractions** : Suppression du bouton "Retour" visuel (inutile sur TV grâce à la télécommande Back) et du bloc de téléchargements mobiles ("Téléchargements hors-ligne").
+* **Boutons personnalisés TV unifiés** : Remplacement des boutons standards de la bibliothèque TV Material3 par des surfaces interactives uniformes, de rayon 8 dp avec un liseré lumineux au focus (en `AccentLavande` pour les réglages généraux et `RatingDislike` pour la déconnexion).
+* **Hiérarchie visuelle préservée** : Utilisation d'aplats de couleur au repos pour différencier les actions : l'action principale de synchronisation arbore un fond lavande (`AccentLavande`) et l'action de déconnexion un fond rouge destructif (`RatingDislike`) au repos avec un focus blanc à fort contraste.
+
 ## [v1.77.0] - 2026-08-05
 ### ✨ Refonte de la fiche série Android TV (F29)
 * **Présentation cinéma sur l'écran Hero** : À l'arrivée sur la fiche d'une série, affichage d'un visuel cinéma immersif (affiche grand format ou trailer dans la moitié gauche sous un fondu dégradé horizontal vers la droite, informations détaillées à droite). Le focus initial est sur le bouton principal, arrondi, sans icône, textuel (« LIRE LA SÉRIE » ou « REPRENDRE SXXEXX »).

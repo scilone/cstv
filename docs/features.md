@@ -295,6 +295,23 @@ Cette évolution résout les problèmes de troncature verticale des informations
 
 ---
 
+## 27. Connexion automatique au profil au démarrage (F31)
+Cette fonctionnalité permet d'activer la connexion automatique sur un profil spécifique.
+* **Contournement du sélecteur de profil** : Au démarrage de l'application (après login/auto-login sur le compte Xtream Codes), si un profil est désigné comme profil de connexion automatique, l'application s'y connecte directement et contourne totalement l'écran de sélection de profil ("Qui regarde ?").
+* **Option d'activation/désactivation dédiée** : L'option est disponible uniquement dans la boîte d'édition d'un profil local, sur mobile comme sur Android TV.
+* **Unicité garantie** : L'activation de l'option sur un profil retire automatiquement le marquage de tout autre profil (règle d'un seul profil de démarrage automatique à un instant donné).
+* **Nettoyage automatique** : La suppression du profil automatique retire ce choix pour éviter tout crash ou boucle de navigation.
+
+---
+
+## 28. Refonte de l'écran des paramètres TV (F32)
+Refonte ergonomique et visuelle de l'écran des paramètres sur Android TV afin de respecter la charte esthétique de l'application et d'épurer l'affichage.
+* **Retrait des éléments non TV** : Suppression du bouton visuel "Retour" en haut de l'écran (le bouton retour physique de la télécommande gère déjà ce comportement) et retrait définitif de la section de téléchargements ("Téléchargements hors-ligne") sur TV.
+* **Harmonisation visuelle des boutons** : Les boutons d'action clés (Gérer les catégories, Forcer la mise à jour, Extraire les logs de diagnostic, et Déconnexion) sont remplacés par des surfaces personnalisées (`Box` avec un liseré lumineux au focus en `AccentLavande` ou `RatingDislike` pour la déconnexion).
+* **Aplats de couleurs de la charte** : Fourniture explicite de l'aplat `AccentLavande` à l'action principale de synchronisation et de `RatingDislike` à l'action de déconnexion destructive au repos avec focus blanc pour un contraste et une lisibilité maximums.
+
+---
+
 ## 🚫 Fonctionnalités hors périmètre (Exclusions validées)
 Pour des raisons de performance, de stabilité ou d'expérience utilisateur, les fonctionnalités suivantes sont **strictement hors périmètre** :
 * **Multi-comptes Xtream** : L'application gère un seul compte Xtream Codes actif à la fois (les profils sont purement locaux et rattachés à ce compte unique).

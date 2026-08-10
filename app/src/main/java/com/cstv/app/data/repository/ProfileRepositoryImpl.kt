@@ -11,7 +11,9 @@ import com.cstv.app.data.local.dao.SeriesWatchStateDao
 import com.cstv.app.data.local.entity.ProfileEntity
 import com.cstv.app.data.local.storage.ProfileManager
 import com.cstv.app.domain.model.Profile
+import com.cstv.app.domain.model.StartupProfileResolution
 import com.cstv.app.domain.repository.ProfileRepository
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
@@ -86,6 +88,11 @@ class ProfileRepositoryImpl @Inject constructor(
         if (profileManager.currentProfileId() == id) {
             profileDao.getAll().firstOrNull()?.let { profileManager.setActiveProfileId(it.id) }
         }
+
+        // Le profil de démarrage automatique ne peut pas survivre à sa propre suppression.
+        if (profileManager.currentAutoStartProfileId() == id) {
+            profileManager.setAutoStartProfileId(ProfileManager.NO_PROFILE)
+        }
         return true
     }
 
@@ -94,6 +101,38 @@ class ProfileRepositoryImpl @Inject constructor(
     override fun setActiveProfile(id: Int) = profileManager.setActiveProfileId(id)
 
     override val activeProfileId: Flow<Int> = profileManager.activeProfileId
+
+    override val autoStartProfileId: Flow<Int> = profileManager.autoStartProfileId
+
+    override fun currentAutoStartProfileId(): Int = profileManager.currentAutoStartProfileId()
+
+    override suspend fun setAutoStartProfile(id: Int?) {
+        profileManager.setAutoStartProfileId(id ?: ProfileManager.NO_PROFILE)
+    }
+
+    override suspend fun resolveStartupProfile(): StartupProfileResolution {
+        return try {
+            val profiles = ensureInitialized()
+            val autoStartId = profileManager.currentAutoStartProfileId()
+            when {
+                autoStartId == ProfileManager.NO_PROFILE ->
+                    StartupProfileResolution(profiles, needsSelection = profiles.size > 1)
+
+                profiles.any { it.id == autoStartId } -> {
+                    profileManager.setActiveProfileId(autoStartId)
+                    StartupProfileResolution(profiles, needsSelection = false)
+                }
+
+                else -> {
+                    profileManager.setAutoStartProfileId(ProfileManager.NO_PROFILE)
+                    StartupProfileResolution(profiles, needsSelection = profiles.size > 1)
+                }
+            }
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            StartupProfileResolution(emptyList(), needsSelection = true)
+        }
+    }
 
     private fun ProfileEntity.toDomain() = Profile(id, name, avatarId, createdAt)
 }
