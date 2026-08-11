@@ -1,0 +1,47 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Cstv\Backend\Tests\Integration;
+
+use Cstv\Backend\Database\Migrator;
+
+final class MigrationTest extends IntegrationTestCase
+{
+    public function testMigrationsBuildAnEmptyPostgresqlSchemaAndAreIdempotent(): void
+    {
+        $schema = 'migration_test_' . bin2hex(random_bytes(6));
+        $this->pdo->exec('CREATE SCHEMA ' . $schema);
+        $this->pdo->exec('SET search_path TO ' . $schema);
+
+        try {
+            $migrator = new Migrator($this->pdo, dirname(__DIR__, 2) . '/migrations');
+            self::assertSame(['001_initial.sql'], $migrator->migrate());
+            self::assertSame([], $migrator->migrate());
+
+            $tables = $this->pdo->query(
+                "SELECT tablename FROM pg_tables WHERE schemaname = current_schema() ORDER BY tablename",
+            )->fetchAll(\PDO::FETCH_COLUMN);
+            self::assertSame(
+                ['accounts', 'otp_codes', 'profile_objects', 'profiles', 'schema_migrations', 'sync_changes'],
+                $tables,
+            );
+
+            $indexes = $this->pdo->query(
+                "SELECT indexname FROM pg_indexes WHERE schemaname = current_schema() ORDER BY indexname",
+            )->fetchAll(\PDO::FETCH_COLUMN);
+            foreach ([
+                'otp_codes_email_created_idx',
+                'otp_codes_ip_created_idx',
+                'profile_objects_listing_idx',
+                'profiles_account_idx',
+                'sync_changes_account_revision_idx',
+            ] as $expectedIndex) {
+                self::assertContains($expectedIndex, $indexes);
+            }
+        } finally {
+            $this->pdo->exec('SET search_path TO public');
+            $this->pdo->exec('DROP SCHEMA ' . $schema . ' CASCADE');
+        }
+    }
+}

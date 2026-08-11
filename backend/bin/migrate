@@ -1,0 +1,23 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+use Cstv\Backend\Database\Connection;
+use Cstv\Backend\Database\Migrator;
+use Cstv\Backend\Shared\Config;
+
+require dirname(__DIR__) . '/vendor/autoload.php';
+
+$config = Config::fromEnvironment();
+$migrator = new Migrator(Connection::create($config), dirname(__DIR__) . '/migrations');
+$applied = $migrator->migrate();
+
+if ($applied === []) {
+    fwrite(STDOUT, "Database is already up to date.\n");
+    exit(0);
+}
+
+foreach ($applied as $migration) {
+    fwrite(STDOUT, sprintf("Applied %s\n", $migration));
+}

@@ -1,0 +1,44 @@
+{
+    "name": "cstv/backend-poc",
+    "description": "Minimal CSTV authentication and opaque profile synchronization API.",
+    "type": "project",
+    "license": "proprietary",
+    "require": {
+        "php": "^8.5",
+        "ext-json": "*",
+        "ext-mbstring": "*",
+        "ext-pdo": "*",
+        "ext-pdo_pgsql": "*",
+        "firebase/php-jwt": "^7.0",
+        "slim/psr7": "^1.7",
+        "slim/slim": "^4.15.2"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^12.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Cstv\\Backend\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Cstv\\Backend\\Tests\\": "tests/"
+        }
+    },
+    "config": {
+        "allow-plugins": false,
+        "optimize-autoloader": true,
+        "sort-packages": true,
+        "platform": {
+            "php": "8.5.0"
+        }
+    },
+    "scripts": {
+        "test:prepare": "php bin/test-prepare.php",
+        "test": [
+            "@test:prepare",
+            "phpunit"
+        ]
+    }
+}

@@ -1,0 +1,120 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-cstv}
+      POSTGRES_USER: ${POSTGRES_USER:-cstv}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cstv-dev-password}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    restart: unless-stopped
+
+  php:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+    environment:
+      APP_ENV: ${APP_ENV:-dev}
+      APP_DEBUG: ${APP_DEBUG:-0}
+      DB_HOST: postgres
+      DB_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-cstv}
+      POSTGRES_USER: ${POSTGRES_USER:-cstv}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cstv-dev-password}
+      JWT_SECRET: ${JWT_SECRET:-change-this-dev-jwt-secret-at-least-32-chars}
+      JWT_TTL_SECONDS: ${JWT_TTL_SECONDS:-3600}
+      OTP_HASH_SECRET: ${OTP_HASH_SECRET:-change-this-dev-otp-secret-at-least-32-chars}
+      OTP_TEST_CODE: ${OTP_TEST_CODE-123456}
+      OTP_TTL_SECONDS: ${OTP_TTL_SECONDS:-300}
+      OTP_MAX_ATTEMPTS: ${OTP_MAX_ATTEMPTS:-5}
+      OTP_REQUEST_LIMIT_EMAIL: ${OTP_REQUEST_LIMIT_EMAIL:-5}
+      OTP_REQUEST_LIMIT_IP: ${OTP_REQUEST_LIMIT_IP:-20}
+      OTP_RATE_WINDOW_SECONDS: ${OTP_RATE_WINDOW_SECONDS:-3600}
+      MAX_OBJECT_SIZE_BYTES: ${MAX_OBJECT_SIZE_BYTES:-1048576}
+      SYNC_MAX_LIMIT: ${SYNC_MAX_LIMIT:-500}
+      # Enables the real parallel-request tests; they are skipped when this is unset.
+      E2E_BASE_URL: ${E2E_BASE_URL-http://nginx}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:1.28-alpine
+    ports:
+      - "${HTTP_PORT:-18080}:80"
+    volumes:
+      - ./public:/var/www/html/public:ro
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - php
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  postgres-test:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: cstv_test
+      POSTGRES_USER: cstv_test
+      POSTGRES_PASSWORD: cstv-test-password
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cstv_test -d cstv_test"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  php-test:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+    environment:
+      APP_ENV: test
+      APP_DEBUG: 0
+      DB_HOST: postgres-test
+      DB_PORT: 5432
+      POSTGRES_DB: cstv_test
+      POSTGRES_USER: cstv_test
+      POSTGRES_PASSWORD: cstv-test-password
+      JWT_SECRET: cstv-test-jwt-secret-that-is-at-least-32-characters
+      JWT_TTL_SECONDS: 3600
+      OTP_HASH_SECRET: cstv-test-otp-secret-that-is-at-least-32-characters
+      OTP_TEST_CODE: 123456
+      OTP_TTL_SECONDS: 300
+      OTP_MAX_ATTEMPTS: 5
+      OTP_REQUEST_LIMIT_EMAIL: 5
+      OTP_REQUEST_LIMIT_IP: 20
+      OTP_RATE_WINDOW_SECONDS: 3600
+      MAX_OBJECT_SIZE_BYTES: 1024
+      SYNC_MAX_LIMIT: 500
+      API_TEST_BASE_URL: http://nginx-test
+      E2E_BASE_URL: http://nginx-test
+    depends_on:
+      postgres-test:
+        condition: service_healthy
+
+  nginx-test:
+    image: nginx:1.28-alpine
+    volumes:
+      - ./public:/var/www/html/public:ro
+      - ./docker/nginx/test.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - php-test
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/health"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  postgres-data:
