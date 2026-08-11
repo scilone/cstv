@@ -24,7 +24,6 @@ final readonly class Config
         public int $otpRequestLimitIp,
         public int $otpRateWindowSeconds,
         public int $maxObjectSizeBytes,
-        public int $syncMaxLimit,
     ) {
     }
 
@@ -72,7 +71,6 @@ final readonly class Config
             otpRequestLimitIp: self::integer('OTP_REQUEST_LIMIT_IP', 20, 1, 1000),
             otpRateWindowSeconds: self::integer('OTP_RATE_WINDOW_SECONDS', 3600, 60, 86_400),
             maxObjectSizeBytes: self::integer('MAX_OBJECT_SIZE_BYTES', 1_048_576, 1, 16_777_216),
-            syncMaxLimit: self::integer('SYNC_MAX_LIMIT', 500, 1, 5000),
         );
     }
 

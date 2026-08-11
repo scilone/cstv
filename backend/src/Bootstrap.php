@@ -15,7 +15,6 @@ use Cstv\Backend\Http\Action\HealthAction;
 use Cstv\Backend\Http\Action\MeAction;
 use Cstv\Backend\Http\Action\ObjectAction;
 use Cstv\Backend\Http\Action\ProfileAction;
-use Cstv\Backend\Http\Action\SyncAction;
 use Cstv\Backend\Http\ApiErrorHandler;
 use Cstv\Backend\Http\AuthMiddleware;
 use Cstv\Backend\Profile\ProfileRepository;
@@ -23,8 +22,6 @@ use Cstv\Backend\Profile\ProfileService;
 use Cstv\Backend\Shared\Config;
 use Cstv\Backend\Sync\ObjectRepository;
 use Cstv\Backend\Sync\ObjectService;
-use Cstv\Backend\Sync\SyncRepository;
-use Cstv\Backend\Sync\SyncService;
 use PDO;
 use Slim\App;
 use Slim\Factory\AppFactory;
@@ -50,7 +47,6 @@ final class Bootstrap
             $jwt,
         );
         $objectService = new ObjectService($pdo, $profiles, new ObjectRepository($pdo));
-        $sync = new SyncService(new SyncRepository($pdo), $config->syncMaxLimit);
 
         $app = AppFactory::create();
         $app->get('/health', new HealthAction($pdo));
@@ -60,17 +56,16 @@ final class Bootstrap
 
         $profileAction = new ProfileAction($profiles, $profileService);
         $objectAction = new ObjectAction($objectService, $config->maxObjectSizeBytes);
-        $app->group('/v1', function (RouteCollectorProxy $group) use ($profiles, $profileAction, $objectAction, $sync): void {
+        $app->group('/v1', function (RouteCollectorProxy $group) use ($profiles, $profileAction, $objectAction): void {
             $group->get('/me', new MeAction($profiles));
             $group->get('/profiles', [$profileAction, 'list']);
             $group->post('/profiles', [$profileAction, 'create']);
             $group->patch('/profiles/{profileId}', [$profileAction, 'update']);
             $group->delete('/profiles/{profileId}', [$profileAction, 'delete']);
             $group->get('/profiles/{profileId}/objects', [$objectAction, 'list']);
-            $group->get('/profiles/{profileId}/objects/{namespace}/{objectKey}', [$objectAction, 'get']);
-            $group->put('/profiles/{profileId}/objects/{namespace}/{objectKey}', [$objectAction, 'put']);
-            $group->delete('/profiles/{profileId}/objects/{namespace}/{objectKey}', [$objectAction, 'delete']);
-            $group->get('/sync/changes', new SyncAction($sync));
+            $group->get('/profiles/{profileId}/objects/{namespace}', [$objectAction, 'get']);
+            $group->put('/profiles/{profileId}/objects/{namespace}', [$objectAction, 'put']);
+            $group->delete('/profiles/{profileId}/objects/{namespace}', [$objectAction, 'delete']);
         })->add(new AuthMiddleware($jwt, $accounts));
 
         $app->addBodyParsingMiddleware();

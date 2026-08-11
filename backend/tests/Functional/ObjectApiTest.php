@@ -8,31 +8,33 @@ use PHPUnit\Framework\Attributes\DataProvider;
 
 final class ObjectApiTest extends FunctionalTestCase
 {
-    public function testFavoriteGzipRoundTripIsStrictlyByteForByte(): void
+    public function testFavoritesNamespaceGzipRoundTripIsStrictlyByteForByte(): void
     {
         $account = $this->createAccount();
         $profileId = $account['profileIds'][0];
         $document = [
             'schemaVersion' => 1,
-            'id' => 12345,
-            'type' => 'movie',
-            'name' => 'Interstellar',
-            'cover' => 'https://example.com/interstellar.jpg',
-            'categoryId' => '42',
-            'addedAt' => 1786441680000,
+            'objects' => [
+                'movie-12345' => [
+                    'id' => 12345,
+                    'type' => 'movie',
+                    'name' => 'Interstellar',
+                    'cover' => 'https://example.com/interstellar.jpg',
+                    'categoryId' => '42',
+                    'addedAt' => 1786441680000,
+                ],
+            ],
         ];
-        $json = json_encode($document, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
-        $gzip = gzencode($json);
+        $gzip = gzencode(json_encode($document, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
         self::assertNotFalse($gzip);
 
-        $put = $this->putObject($account['token'], $profileId, 'favorites', 'movie-12345', $gzip);
+        $put = $this->putObject($account['token'], $profileId, 'favorites', $gzip);
         self::assertSame(204, $put->status);
         $expectedEtag = '"' . hash('sha256', $gzip) . '"';
         self::assertSame($expectedEtag, $put->header('etag'));
 
         $get = $this->api->get(
-            '/v1/profiles/' . $profileId . '/objects/favorites/movie-12345',
-            $this->auth($account['token']),
+            '/v1/profiles/' . $profileId . '/objects/favorites', $this->auth($account['token']),
         );
         self::assertSame(200, $get->status);
         self::assertSame('application/vnd.cstv.blob+gzip', $get->header('content-type'));
@@ -40,169 +42,103 @@ final class ObjectApiTest extends FunctionalTestCase
         self::assertSame($gzip, $get->body);
 
         $metadata = $this->api->get(
-            '/v1/profiles/' . $profileId . '/objects?namespace=favorites',
-            $this->auth($account['token']),
+            '/v1/profiles/' . $profileId . '/objects', $this->auth($account['token']),
         )->json()['objects'][0];
-        self::assertSame(1, $metadata['schemaVersion']);
+        self::assertSame(['namespace', 'etag', 'schemaVersion', 'compressedSize', 'updatedAt'], array_keys($metadata));
         self::assertSame(strlen($gzip), $metadata['compressedSize']);
-        self::assertSame(hash('sha256', $gzip), $metadata['etag']);
-        self::assertSame(1, (int) $this->pdo->query('SELECT COUNT(*) FROM sync_changes')->fetchColumn());
     }
 
-    public function testUnicodeGzipRoundTripSurvivesEveryTransportLayer(): void
+    public function testUnicodeAndBinaryBytesSurviveNginxPhpFpmSlimAndPostgresql(): void
     {
         $account = $this->createAccount();
         $profileId = $account['profileIds'][0];
         $gzip = gzencode(json_encode([
-            'title' => 'Le Château ambulant 🎬',
-            'languages' => ['français', '日本語', 'العربية'],
-            'nul' => "\0",
+            'schemaVersion' => 1,
+            'objects' => ['unicode' => ['title' => 'Le Château ambulant 🎬', 'text' => "日本語\0العربية"]],
         ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE));
         self::assertNotFalse($gzip);
 
-        self::assertSame(204, $this->putObject($account['token'], $profileId, 'future-data', 'unicode-1', $gzip)->status);
-        $received = $this->api->get(
-            '/v1/profiles/' . $profileId . '/objects/future-data/unicode-1',
-            $this->auth($account['token']),
-        );
-        self::assertSame($gzip, $received->body);
+        self::assertSame(204, $this->putObject($account['token'], $profileId, 'future-data', $gzip)->status);
+        self::assertSame($gzip, $this->api->get(
+            '/v1/profiles/' . $profileId . '/objects/future-data', $this->auth($account['token']),
+        )->body);
     }
 
-    public function testListingReturnsMetadataOnlyAndFiltersNamespace(): void
+    public function testListingReturnsOneMetadataEntryPerNamespaceWithoutPayloadOrKey(): void
     {
         $account = $this->createAccount();
         $profileId = $account['profileIds'][0];
-        foreach ([
-            ['favorites', 'movie-1', 'favorite'],
-            ['playback', 'movie-1', 'playback'],
-            ['ratings', 'movie-1', 'rating'],
-        ] as [$namespace, $key, $value]) {
-            $this->putObject($account['token'], $profileId, $namespace, $key, (string) gzencode($value));
+        foreach (['favorites', 'playback', 'ratings'] as $namespace) {
+            $this->putObject($account['token'], $profileId, $namespace, (string) gzencode($namespace));
         }
 
-        $headers = $this->auth($account['token']);
-        $all = $this->api->get('/v1/profiles/' . $profileId . '/objects', $headers)->json()['objects'];
-        self::assertCount(3, $all);
-        foreach ($all as $metadata) {
-            self::assertSame(
-                ['namespace', 'key', 'etag', 'schemaVersion', 'compressedSize', 'updatedAt'],
-                array_keys($metadata),
-            );
-            self::assertArrayNotHasKey('payload', $metadata);
-        }
-
-        $favorites = $this->api->get(
-            '/v1/profiles/' . $profileId . '/objects?namespace=favorites',
-            $headers,
+        $listed = $this->api->get(
+            '/v1/profiles/' . $profileId . '/objects', $this->auth($account['token']),
         )->json()['objects'];
-        self::assertCount(1, $favorites);
-        self::assertSame('favorites', $favorites[0]['namespace']);
+        self::assertSame(['favorites', 'playback', 'ratings'], array_column($listed, 'namespace'));
+        foreach ($listed as $metadata) {
+            self::assertArrayNotHasKey('payload', $metadata);
+            self::assertArrayNotHasKey('key', $metadata);
+        }
     }
 
-    public function testEtagIsDeterministicAndChangesOnlyWithPayloadBytes(): void
+    public function testExistingSnapshotCannotBeBlindlyOverwritten(): void
     {
         $account = $this->createAccount();
         $profileId = $account['profileIds'][0];
-        $payloadA = (string) gzencode('{"version":"A"}');
-        $payloadB = (string) gzencode('{"version":"B"}');
+        $etagA = $this->putObject($account['token'], $profileId, 'playback', (string) gzencode('A'))->header('etag');
 
-        $first = $this->putObject($account['token'], $profileId, 'playback', 'movie-1', $payloadA);
-        $same = $this->putObject($account['token'], $profileId, 'playback', 'movie-1', $payloadA);
-        $different = $this->putObject($account['token'], $profileId, 'playback', 'movie-1', $payloadB);
-
-        self::assertSame($first->header('etag'), $same->header('etag'));
-        self::assertNotSame($first->header('etag'), $different->header('etag'));
-        self::assertSame($different->header('etag'), $this->api->get(
-            '/v1/profiles/' . $profileId . '/objects/playback/movie-1',
-            $this->auth($account['token']),
-        )->header('etag'));
-        self::assertSame(3, (int) $this->pdo->query('SELECT COUNT(*) FROM sync_changes')->fetchColumn());
-    }
-
-    public function testStaleIfMatchAllowsOnlyFirstClientUpdate(): void
-    {
-        $account = $this->createAccount();
-        $profileId = $account['profileIds'][0];
-        $etagA = $this->putObject(
-            $account['token'],
-            $profileId,
-            'favorites',
-            'movie-1',
-            (string) gzencode('A'),
-        )->header('etag');
-
-        $clientOne = $this->putObject(
-            $account['token'],
-            $profileId,
-            'favorites',
-            'movie-1',
-            (string) gzencode('B'),
-            ['If-Match' => $etagA],
+        $this->assertError(
+            $this->putObject($account['token'], $profileId, 'playback', (string) gzencode('B')),
+            428,
+            'PRECONDITION_REQUIRED',
         );
-        self::assertSame(204, $clientOne->status);
-        self::assertNotSame($etagA, $clientOne->header('etag'));
-
-        $clientTwo = $this->putObject(
-            $account['token'],
-            $profileId,
-            'favorites',
-            'movie-1',
-            (string) gzencode('C'),
-            ['If-Match' => $etagA],
+        $updated = $this->putObject(
+            $account['token'], $profileId, 'playback', (string) gzencode('B'), ['If-Match' => $etagA],
         );
-        $this->assertError($clientTwo, 412, 'ETAG_MISMATCH');
+        self::assertSame(204, $updated->status);
+        self::assertNotSame($etagA, $updated->header('etag'));
+        $this->assertError(
+            $this->putObject(
+                $account['token'], $profileId, 'playback', (string) gzencode('C'), ['If-Match' => $etagA],
+            ),
+            412,
+            'ETAG_MISMATCH',
+        );
     }
 
-    public function testDeleteWithIfMatchIsIdempotentAndProducesOneTombstone(): void
+    public function testDeleteRequiresCurrentEtagAndIsIdempotentAfterDeletion(): void
     {
         $account = $this->createAccount();
         $profileId = $account['profileIds'][0];
-        $path = '/v1/profiles/' . $profileId . '/objects/favorites/movie-12345';
-        $etag = $this->putObject(
-            $account['token'], $profileId, 'favorites', 'movie-12345', (string) gzencode('favorite'),
-        )->header('etag');
+        $path = '/v1/profiles/' . $profileId . '/objects/favorites';
+        $etag = $this->putObject($account['token'], $profileId, 'favorites', (string) gzencode('favorite'))
+            ->header('etag');
 
+        $this->assertError($this->api->delete($path, $this->auth($account['token'])), 428, 'PRECONDITION_REQUIRED');
         $this->assertError(
             $this->api->delete($path, $this->auth($account['token']) + ['If-Match' => '"wrong"']),
             412,
             'ETAG_MISMATCH',
         );
         self::assertSame(204, $this->api->delete(
-            $path,
-            $this->auth($account['token']) + ['If-Match' => $etag],
+            $path, $this->auth($account['token']) + ['If-Match' => $etag],
         )->status);
         $this->assertError($this->api->get($path, $this->auth($account['token'])), 404, 'OBJECT_NOT_FOUND');
-
-        $revisionCount = (int) $this->pdo->query('SELECT COUNT(*) FROM sync_changes')->fetchColumn();
         self::assertSame(204, $this->api->delete($path, $this->auth($account['token']))->status);
-        self::assertSame($revisionCount, (int) $this->pdo->query('SELECT COUNT(*) FROM sync_changes')->fetchColumn());
-
-        $changes = $this->api->get('/v1/sync/changes?cursor=1', $this->auth($account['token']))->json()['changes'];
-        self::assertCount(1, $changes);
-        self::assertSame('DELETE', $changes[0]['operation']);
-        self::assertSame('favorites', $changes[0]['namespace']);
-        self::assertSame('movie-12345', $changes[0]['key']);
     }
 
     public function testPayloadLimitUsesActualReceivedBytes(): void
     {
         $account = $this->createAccount();
         $profileId = $account['profileIds'][0];
-        $accepted = $this->putObject(
-            $account['token'], $profileId, 'opaque', 'at-limit', str_repeat('a', $this->config->maxObjectSizeBytes),
-        );
-        self::assertSame(204, $accepted->status);
-
-        $rejected = $this->putObject(
-            $account['token'],
-            $profileId,
-            'opaque',
-            'over-limit',
-            str_repeat('b', $this->config->maxObjectSizeBytes + 1),
+        self::assertSame(204, $this->putObject(
+            $account['token'], $profileId, 'opaque', str_repeat('a', $this->config->maxObjectSizeBytes),
+        )->status);
+        $this->assertError($this->putObject(
+            $account['token'], $profileId, 'too-large', str_repeat('b', $this->config->maxObjectSizeBytes + 1),
             ['X-Compressed-Size' => '1'],
-        );
-        $this->assertError($rejected, 413, 'PAYLOAD_TOO_LARGE');
-        self::assertSame(0, (int) $this->pdo->query("SELECT COUNT(*) FROM profile_objects WHERE object_key = 'over-limit'")->fetchColumn());
+        ), 413, 'PAYLOAD_TOO_LARGE');
     }
 
     /** @return list<array{string}> */
@@ -220,32 +156,21 @@ final class ObjectApiTest extends FunctionalTestCase
             $headers['X-Schema-Version'] = $version;
         }
         $response = $this->api->putBinary(
-            '/v1/profiles/' . $account['profileIds'][0] . '/objects/favorites/movie-1',
-            (string) gzencode('x'),
-            $headers,
+            '/v1/profiles/' . $account['profileIds'][0] . '/objects/favorites', 'x', $headers,
         );
-
         $this->assertError($response, 422, 'INVALID_SCHEMA_VERSION');
     }
 
-    public function testNamespaceAndObjectKeyValidationRemainGenericAndSafe(): void
+    public function testNamespaceValidationRemainsGenericAndSafe(): void
     {
         $account = $this->createAccount();
         $profileId = $account['profileIds'][0];
         self::assertSame(204, $this->putObject(
-            $account['token'], $profileId, 'future-domain.v2', 'arbitrary:key-1', (string) gzencode('future'),
+            $account['token'], $profileId, 'future-domain.v2', (string) gzencode('future'),
         )->status);
-
-        foreach ([
-            [str_repeat('n', 65), 'key', 'INVALID_NAMESPACE'],
-            ['Favorites', 'key', 'INVALID_NAMESPACE'],
-            ['valid', str_repeat('k', 129), 'INVALID_OBJECT_KEY'],
-            ['valid', '-danger', 'INVALID_OBJECT_KEY'],
-        ] as [$namespace, $key, $code]) {
+        foreach ([str_repeat('n', 65), 'Favorites', '_hidden'] as $namespace) {
             $this->assertError(
-                $this->putObject($account['token'], $profileId, $namespace, $key, (string) gzencode('x')),
-                422,
-                $code,
+                $this->putObject($account['token'], $profileId, $namespace, 'x'), 422, 'INVALID_NAMESPACE',
             );
         }
     }
@@ -254,10 +179,22 @@ final class ObjectApiTest extends FunctionalTestCase
     {
         $account = $this->createAccount();
         $response = $this->api->putBinary(
-            '/v1/profiles/' . $account['profileIds'][0] . '/objects/favorites/movie-1',
+            '/v1/profiles/' . $account['profileIds'][0] . '/objects/favorites',
             '{}',
             $this->auth($account['token']) + ['Content-Type' => 'application/json', 'X-Schema-Version' => '1'],
         );
         $this->assertError($response, 415, 'UNSUPPORTED_MEDIA_TYPE');
+    }
+
+    public function testLegacySyncJournalAndObjectKeyRoutesAreRemoved(): void
+    {
+        $account = $this->createAccount();
+        $headers = $this->auth($account['token']);
+
+        self::assertSame(404, $this->api->get('/v1/sync/changes', $headers)->status);
+        self::assertSame(404, $this->api->get(
+            '/v1/profiles/' . $account['profileIds'][0] . '/objects/favorites/movie-1',
+            $headers,
+        )->status);
     }
 }

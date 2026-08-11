@@ -42,7 +42,7 @@ final class ProfileTest extends IntegrationTestCase
         self::assertSame('LAST_PROFILE_REQUIRED', $this->json($response)['error']['code']);
     }
 
-    public function testProfileDeletionCreatesObjectTombstones(): void
+    public function testProfileDeletionCascadesNamespaceSnapshots(): void
     {
         $account = $this->createAccount(profileCount: 2);
         $deletedProfile = $account['profileIds'][1];
@@ -50,7 +50,6 @@ final class ProfileTest extends IntegrationTestCase
             $account['token'],
             $deletedProfile,
             'favorites',
-            'movie-1',
             gzencode('{"id":1}') ?: '',
         )->getStatusCode());
 
@@ -64,8 +63,8 @@ final class ProfileTest extends IntegrationTestCase
         self::assertSame(0, (int) $this->pdo->query(
             "SELECT COUNT(*) FROM profiles WHERE id = '{$deletedProfile}'",
         )->fetchColumn());
-        self::assertSame(1, (int) $this->pdo->query(
-            "SELECT COUNT(*) FROM sync_changes WHERE profile_id = '{$deletedProfile}' AND operation = 'DELETE'",
+        self::assertSame(0, (int) $this->pdo->query(
+            "SELECT COUNT(*) FROM profile_objects WHERE profile_id = '{$deletedProfile}'",
         )->fetchColumn());
     }
 

@@ -2,7 +2,7 @@ openapi: 3.1.0
 info:
   title: CSTV Backend POC API
   version: 1.0.0
-  description: Email OTP authentication and opaque per-profile synchronization for CSTV.
+  description: Email OTP authentication and opaque per-profile namespace snapshots for CSTV.
 servers:
   - url: http://localhost:18080
 tags:
@@ -11,7 +11,6 @@ tags:
   - name: Account
   - name: Profiles
   - name: Objects
-  - name: Sync
 paths:
   /health:
     get:
@@ -181,7 +180,7 @@ paths:
     delete:
       tags: [Profiles]
       operationId: deleteProfile
-      description: Deletes a non-last profile and appends DELETE changes for all objects removed by the cascade.
+      description: Deletes a non-last profile; its namespace snapshots are removed by PostgreSQL cascade.
       security:
         - bearerAuth: []
       responses:
@@ -205,15 +204,9 @@ paths:
       operationId: listProfileObjects
       security:
         - bearerAuth: []
-      parameters:
-        - name: namespace
-          in: query
-          required: false
-          schema:
-            $ref: '#/components/schemas/Namespace'
       responses:
         '200':
-          description: Object metadata only; payloads are not loaded or returned.
+          description: One metadata entry per namespace; payloads are not loaded or returned.
           content:
             application/json:
               schema:
@@ -232,11 +225,10 @@ paths:
           $ref: '#/components/responses/Error'
         '422':
           $ref: '#/components/responses/Error'
-  /v1/profiles/{profileId}/objects/{namespace}/{objectKey}:
+  /v1/profiles/{profileId}/objects/{namespace}:
     parameters:
       - $ref: '#/components/parameters/ProfileId'
       - $ref: '#/components/parameters/Namespace'
-      - $ref: '#/components/parameters/ObjectKey'
     get:
       tags: [Objects]
       operationId: getProfileObject
@@ -244,7 +236,7 @@ paths:
         - bearerAuth: []
       responses:
         '200':
-          description: Exact opaque bytes stored for this object.
+          description: Exact opaque bytes stored for this namespace snapshot.
           headers:
             ETag:
               $ref: '#/components/headers/ETag'
@@ -265,10 +257,10 @@ paths:
       tags: [Objects]
       operationId: putProfileObject
       description: >-
-        Stores the bytes as received, without any decompression or inspection. Re-sending identical
-        content succeeds, returns the same ETag and still appends one UPSERT revision. `If-Match`
-        is optional: without it the last committed write wins, with it the header must match the
-        ETag currently stored, and `*` only matches an object that already exists.
+        Stores the namespace snapshot bytes as received, without decompression or inspection.
+        A missing snapshot may be created without `If-Match`. Replacing an existing snapshot
+        requires its current ETag; omission returns 428 and a stale value returns 412. `*` only
+        matches an existing snapshot. Re-sending identical bytes returns the same ETag.
       security:
         - bearerAuth: []
       parameters:
@@ -289,7 +281,7 @@ paths:
               contentEncoding: binary
       responses:
         '204':
-          description: Object created or replaced and sync revision appended.
+          description: Namespace snapshot created or replaced.
           headers:
             ETag:
               $ref: '#/components/headers/ETag'
@@ -307,14 +299,15 @@ paths:
           $ref: '#/components/responses/Error'
         '422':
           $ref: '#/components/responses/Error'
+        '428':
+          $ref: '#/components/responses/Error'
     delete:
       tags: [Objects]
       operationId: deleteProfileObject
       description: >-
-        Idempotent without `If-Match`: deleting an absent object returns 204 and appends no
-        revision. With `If-Match`, the precondition is evaluated first and fails with 412 when the
-        object is absent or carries another ETag, so a stale client cannot believe it removed the
-        version it still held.
+        Deleting an existing namespace snapshot requires its current ETag; omission returns 428
+        and a stale value returns 412. Deleting an already absent snapshot without `If-Match` is
+        idempotent and returns 204. `If-Match` against an absent snapshot returns 412.
       security:
         - bearerAuth: []
       parameters:
@@ -332,45 +325,7 @@ paths:
           $ref: '#/components/responses/Error'
         '422':
           $ref: '#/components/responses/Error'
-  /v1/sync/changes:
-    get:
-      tags: [Sync]
-      operationId: getSyncChanges
-      description: >-
-        Returns the account journal with `revision > cursor`, ordered ascending. Appends are
-        serialized per account, so revision order is also commit order and polling with
-        `nextCursor` can neither skip nor duplicate a change.
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: cursor
-          in: query
-          required: false
-          schema:
-            type: integer
-            minimum: 0
-            default: 0
-        - name: limit
-          in: query
-          required: false
-          description: Maximum is configured by SYNC_MAX_LIMIT (500 by default).
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 500
-            default: 100
-      responses:
-        '200':
-          description: Ordered changes for the authenticated account, without payloads.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SyncPage'
-        '401':
-          $ref: '#/components/responses/Error'
-        '403':
-          $ref: '#/components/responses/Error'
-        '422':
+        '428':
           $ref: '#/components/responses/Error'
 components:
   securitySchemes:
@@ -392,12 +347,6 @@ components:
       required: true
       schema:
         $ref: '#/components/schemas/Namespace'
-    ObjectKey:
-      name: objectKey
-      in: path
-      required: true
-      schema:
-        $ref: '#/components/schemas/ObjectKey'
     IfMatch:
       name: If-Match
       in: header
@@ -534,20 +483,13 @@ components:
       minLength: 1
       maxLength: 64
       pattern: '^[a-z0-9][a-z0-9._-]{0,63}$'
-    ObjectKey:
-      type: string
-      minLength: 1
-      maxLength: 128
-      pattern: '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$'
     ObjectMetadata:
       type: object
       additionalProperties: false
-      required: [namespace, key, etag, schemaVersion, compressedSize, updatedAt]
+      required: [namespace, etag, schemaVersion, compressedSize, updatedAt]
       properties:
         namespace:
           $ref: '#/components/schemas/Namespace'
-        key:
-          $ref: '#/components/schemas/ObjectKey'
         etag:
           type: string
           pattern: '^[a-f0-9]{64}$'
@@ -560,46 +502,6 @@ components:
         updatedAt:
           type: string
           format: date-time
-    SyncChange:
-      type: object
-      additionalProperties: false
-      required: [revision, profileId, namespace, key, operation, etag, changedAt]
-      properties:
-        revision:
-          type: integer
-          minimum: 1
-        profileId:
-          type: string
-          format: uuid
-        namespace:
-          $ref: '#/components/schemas/Namespace'
-        key:
-          $ref: '#/components/schemas/ObjectKey'
-        operation:
-          type: string
-          enum: [UPSERT, DELETE]
-        etag:
-          oneOf:
-            - type: string
-              pattern: '^[a-f0-9]{64}$'
-            - type: 'null'
-        changedAt:
-          type: string
-          format: date-time
-    SyncPage:
-      type: object
-      additionalProperties: false
-      required: [changes, nextCursor, hasMore]
-      properties:
-        changes:
-          type: array
-          items:
-            $ref: '#/components/schemas/SyncChange'
-        nextCursor:
-          type: integer
-          minimum: 0
-        hasMore:
-          type: boolean
     Error:
       type: object
       additionalProperties: false

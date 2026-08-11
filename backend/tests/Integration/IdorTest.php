@@ -32,7 +32,6 @@ final class IdorTest extends IntegrationTestCase
             $this->victim['token'],
             $this->victimProfileId,
             'favorites',
-            'movie-1',
             $payload,
         )->getHeaderLine('ETag');
         self::assertNotSame('', $this->victimEtag);
@@ -57,8 +56,8 @@ final class IdorTest extends IntegrationTestCase
             $this->attacker['token'],
             $this->victimProfileId,
             'favorites',
-            'movie-1',
             (string) gzencode('{"secret":false}'),
+            ['If-Match' => $this->victimEtag],
         );
 
         self::assertSame(404, $response->getStatusCode());
@@ -72,7 +71,6 @@ final class IdorTest extends IntegrationTestCase
             $this->attacker['token'],
             $this->victimProfileId,
             'ratings',
-            'movie-999',
             (string) gzencode('{"rating":1}'),
         );
 
@@ -123,17 +121,6 @@ final class IdorTest extends IntegrationTestCase
         )->fetchColumn());
     }
 
-    public function testForeignChangesNeverAppearInTheSyncJournal(): void
-    {
-        $response = $this->request('GET', '/v1/sync/changes', '', $this->auth($this->attacker['token']));
-        $page = $this->json($response);
-
-        self::assertSame(200, $response->getStatusCode());
-        self::assertSame([], $page['changes']);
-        self::assertSame(0, $page['nextCursor']);
-        self::assertFalse($page['hasMore']);
-    }
-
     public function testForeignProfilesNeverAppearInMe(): void
     {
         $response = $this->request('GET', '/v1/me', '', $this->auth($this->attacker['token']));
@@ -145,7 +132,7 @@ final class IdorTest extends IntegrationTestCase
 
     private function victimObjectUri(): string
     {
-        return sprintf('/v1/profiles/%s/objects/favorites/movie-1', $this->victimProfileId);
+        return sprintf('/v1/profiles/%s/objects/favorites', $this->victimProfileId);
     }
 
     private function currentEtag(): string

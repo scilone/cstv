@@ -1,1 +1,1 @@
-{"schemaVersion":1,"id":12345,"type":"movie","name":"Interstellar - Postman update","cover":"https://images.example.test/interstellar.jpg","categoryId":"42","addedAt":1786441680000}
+{"schemaVersion":1,"objects":{"movie-postman-12345":{"id":12345,"type":"movie","name":"Interstellar - Postman update","cover":"https://images.example.test/interstellar.jpg","categoryId":"42","addedAt":1786441680000}}}

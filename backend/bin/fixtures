@@ -14,13 +14,13 @@ if ($config->appEnv === 'production') {
     exit(1);
 }
 
-/** @var array{accounts: list<array<string, mixed>>, profiles: list<array<string, mixed>>, objects: list<array<string, mixed>>} $fixture */
+/** @var array{accounts: list<array<string, mixed>>, profiles: list<array<string, mixed>>, namespaces: list<array<string, mixed>>} $fixture */
 $fixture = require dirname(__DIR__) . '/fixtures/demo.php';
 $pdo = Connection::create($config);
 $pdo->beginTransaction();
 
 try {
-    $pdo->exec('TRUNCATE TABLE sync_changes, profile_objects, profiles, otp_codes, accounts RESTART IDENTITY CASCADE');
+    $pdo->exec('TRUNCATE TABLE profile_objects, profiles, otp_codes, accounts RESTART IDENTITY CASCADE');
 
     $insertAccount = $pdo->prepare(
         'INSERT INTO accounts (id, email, enabled, active_until, created_at, updated_at) '
@@ -45,39 +45,25 @@ try {
 
     $insertObject = $pdo->prepare(
         'INSERT INTO profile_objects '
-        . '(profile_id, namespace, object_key, payload, etag, schema_version, compressed_size, created_at, updated_at) '
-        . 'VALUES (:profile_id, :namespace, :object_key, :payload, :etag, :schema_version, :compressed_size, NOW(), NOW())',
-    );
-    $insertChange = $pdo->prepare(
-        'INSERT INTO sync_changes '
-        . "(account_id, profile_id, namespace, object_key, operation, etag, changed_at) "
-        . "VALUES (:account_id, :profile_id, :namespace, :object_key, 'UPSERT', :etag, NOW())",
+        . '(profile_id, namespace, payload, etag, schema_version, compressed_size, created_at, updated_at) '
+        . 'VALUES (:profile_id, :namespace, :payload, :etag, :schema_version, :compressed_size, NOW(), NOW())',
     );
 
-    foreach ($fixture['objects'] as $object) {
-        $json = json_encode($object['value'], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
+    foreach ($fixture['namespaces'] as $snapshot) {
+        $json = json_encode($snapshot['value'], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
         $payload = gzencode($json, 6);
         if ($payload === false) {
             throw new RuntimeException('Unable to gzip fixture payload.');
         }
         $etag = hash('sha256', $payload);
 
-        $insertObject->bindValue(':profile_id', $object['profile_id']);
-        $insertObject->bindValue(':namespace', $object['namespace']);
-        $insertObject->bindValue(':object_key', $object['key']);
+        $insertObject->bindValue(':profile_id', $snapshot['profile_id']);
+        $insertObject->bindValue(':namespace', $snapshot['namespace']);
         $insertObject->bindValue(':payload', $payload, PDO::PARAM_LOB);
         $insertObject->bindValue(':etag', $etag);
-        $insertObject->bindValue(':schema_version', $object['schema_version'], PDO::PARAM_INT);
+        $insertObject->bindValue(':schema_version', $snapshot['schema_version'], PDO::PARAM_INT);
         $insertObject->bindValue(':compressed_size', strlen($payload), PDO::PARAM_INT);
         $insertObject->execute();
-
-        $insertChange->execute([
-            'account_id' => '11111111-1111-4111-8111-111111111101',
-            'profile_id' => $object['profile_id'],
-            'namespace' => $object['namespace'],
-            'object_key' => $object['key'],
-            'etag' => $etag,
-        ]);
     }
 
     $pdo->commit();

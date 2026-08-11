@@ -16,14 +16,14 @@ final class MigrationTest extends IntegrationTestCase
 
         try {
             $migrator = new Migrator($this->pdo, dirname(__DIR__, 2) . '/migrations');
-            self::assertSame(['001_initial.sql'], $migrator->migrate());
+            self::assertSame(['001_initial.sql', '002_namespace_snapshots.sql'], $migrator->migrate());
             self::assertSame([], $migrator->migrate());
 
             $tables = $this->pdo->query(
                 "SELECT tablename FROM pg_tables WHERE schemaname = current_schema() ORDER BY tablename",
             )->fetchAll(\PDO::FETCH_COLUMN);
             self::assertSame(
-                ['accounts', 'otp_codes', 'profile_objects', 'profiles', 'schema_migrations', 'sync_changes'],
+                ['accounts', 'otp_codes', 'profile_objects', 'profiles', 'schema_migrations'],
                 $tables,
             );
 
@@ -33,12 +33,16 @@ final class MigrationTest extends IntegrationTestCase
             foreach ([
                 'otp_codes_email_created_idx',
                 'otp_codes_ip_created_idx',
-                'profile_objects_listing_idx',
                 'profiles_account_idx',
-                'sync_changes_account_revision_idx',
             ] as $expectedIndex) {
                 self::assertContains($expectedIndex, $indexes);
             }
+
+            $columns = $this->pdo->query(
+                "SELECT column_name FROM information_schema.columns "
+                . "WHERE table_schema = current_schema() AND table_name = 'profile_objects' ORDER BY ordinal_position",
+            )->fetchAll(\PDO::FETCH_COLUMN);
+            self::assertNotContains('object_key', $columns);
         } finally {
             $this->pdo->exec('SET search_path TO public');
             $this->pdo->exec('DROP SCHEMA ' . $schema . ' CASCADE');

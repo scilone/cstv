@@ -41,9 +41,9 @@ final class ValidatorTest extends TestCase
     }
 
     #[DataProvider('unsafePathProvider')]
-    public function testUnsafeObjectKeysAreRejected(string $key): void
+    public function testUnsafeNamespacesAreRejected(string $key): void
     {
         $this->expectException(ApiException::class);
-        Validator::objectKey($key);
+        Validator::namespace($key);
     }
 }

@@ -96,12 +96,11 @@ abstract class FunctionalTestCase extends TestCase
         string $token,
         string $profileId,
         string $namespace,
-        string $key,
         string $payload,
         array $headers = [],
     ): ApiResponse {
         return $this->api->putBinary(
-            sprintf('/v1/profiles/%s/objects/%s/%s', $profileId, $namespace, $key),
+            sprintf('/v1/profiles/%s/objects/%s', $profileId, $namespace),
             $payload,
             array_merge($this->auth($token), [
                 'Content-Type' => 'application/vnd.cstv.blob+gzip',

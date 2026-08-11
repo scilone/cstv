@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Cstv\Backend\Profile;
 
-use Cstv\Backend\Database\AdvisoryLock;
 use Cstv\Backend\Shared\ApiException;
 use Cstv\Backend\Shared\Validator;
 use PDO;
@@ -47,7 +46,6 @@ final readonly class ProfileService
     {
         $this->pdo->beginTransaction();
         try {
-            AdvisoryLock::accountJournal($this->pdo, $accountId);
             $profileIds = $this->profiles->lockIdsForAccount($accountId);
             if (!in_array($profileId, $profileIds, true)) {
                 throw new ApiException(404, 'PROFILE_NOT_FOUND', 'Profile was not found.');
@@ -55,13 +53,6 @@ final readonly class ProfileService
             if (count($profileIds) <= 1) {
                 throw new ApiException(409, 'LAST_PROFILE_REQUIRED', 'An account must keep at least one profile.');
             }
-
-            $tombstones = $this->pdo->prepare(
-                "INSERT INTO sync_changes (account_id, profile_id, namespace, object_key, operation, etag, changed_at) "
-                . "SELECT :account_id, profile_id, namespace, object_key, 'DELETE', NULL, clock_timestamp() "
-                . 'FROM profile_objects WHERE profile_id = :profile_id',
-            );
-            $tombstones->execute(['account_id' => $accountId, 'profile_id' => $profileId]);
 
             $this->profiles->deleteOwned($profileId, $accountId);
             $this->pdo->commit();

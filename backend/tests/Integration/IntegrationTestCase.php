@@ -199,13 +199,12 @@ abstract class IntegrationTestCase extends TestCase
         string $token,
         string $profileId,
         string $namespace,
-        string $key,
         string $payload,
         array $extraHeaders = [],
     ): ResponseInterface {
         return $this->request(
             'PUT',
-            sprintf('/v1/profiles/%s/objects/%s/%s', $profileId, $namespace, $key),
+            sprintf('/v1/profiles/%s/objects/%s', $profileId, $namespace),
             $payload,
             array_merge($this->auth($token), [
                 'Content-Type' => 'application/vnd.cstv.blob+gzip',

@@ -49,56 +49,60 @@ return [
             'avatar_id' => 0,
         ],
     ],
-    'objects' => [
+    'namespaces' => [
         [
             'profile_id' => '22222222-2222-4222-8222-222222222201',
             'namespace' => 'favorites',
-            'key' => 'movie-12345',
             'schema_version' => 1,
             'value' => [
                 'schemaVersion' => 1,
-                'id' => 12345,
-                'type' => 'movie',
-                'name' => 'Interstellar',
-                'cover' => 'https://images.example.test/interstellar.jpg',
-                'categoryId' => '42',
-                'addedAt' => 1786441680000,
+                'objects' => [
+                    'movie-12345' => [
+                        'id' => 12345,
+                        'type' => 'movie',
+                        'name' => 'Interstellar',
+                        'cover' => 'https://images.example.test/interstellar.jpg',
+                        'categoryId' => '42',
+                        'addedAt' => 1786441680000,
+                    ],
+                    'series-456' => ['id' => 456, 'type' => 'series', 'name' => 'The Expanse'],
+                ],
             ],
         ],
         [
             'profile_id' => '22222222-2222-4222-8222-222222222201',
-            'namespace' => 'favorites',
-            'key' => 'series-456',
-            'schema_version' => 1,
-            'value' => ['schemaVersion' => 1, 'id' => 456, 'type' => 'series', 'name' => 'The Expanse'],
-        ],
-        [
-            'profile_id' => '22222222-2222-4222-8222-222222222201',
             'namespace' => 'playback',
-            'key' => 'movie-12345',
             'schema_version' => 1,
-            'value' => ['schemaVersion' => 1, 'positionMs' => 4120000, 'durationMs' => 10140000],
-        ],
-        [
-            'profile_id' => '22222222-2222-4222-8222-222222222201',
-            'namespace' => 'playback',
-            'key' => 'episode-456',
-            'schema_version' => 1,
-            'value' => ['schemaVersion' => 1, 'positionMs' => 1320000, 'durationMs' => 2700000],
+            'value' => [
+                'schemaVersion' => 1,
+                'objects' => [
+                    'movie-12345' => ['positionMs' => 4120000, 'durationMs' => 10140000],
+                    'episode-456' => ['positionMs' => 1320000, 'durationMs' => 2700000],
+                ],
+            ],
         ],
         [
             'profile_id' => '22222222-2222-4222-8222-222222222201',
             'namespace' => 'ratings',
-            'key' => 'movie-12345',
             'schema_version' => 1,
-            'value' => ['schemaVersion' => 1, 'rating' => 9, 'ratedAt' => 1786441700000],
+            'value' => [
+                'schemaVersion' => 1,
+                'objects' => ['movie-12345' => ['rating' => 9, 'ratedAt' => 1786441700000]],
+            ],
         ],
         [
             'profile_id' => '22222222-2222-4222-8222-222222222201',
             'namespace' => 'category-preferences',
-            'key' => 'snapshot',
             'schema_version' => 1,
-            'value' => ['schemaVersion' => 1, 'hiddenCategoryIds' => ['18', '99'], 'updatedAt' => 1786441800000],
+            'value' => [
+                'schemaVersion' => 1,
+                'objects' => [
+                    'preferences' => [
+                        'hiddenCategoryIds' => ['18', '99'],
+                        'updatedAt' => 1786441800000,
+                    ],
+                ],
+            ],
         ],
     ],
 ];

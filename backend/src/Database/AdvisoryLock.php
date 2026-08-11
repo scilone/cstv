@@ -9,28 +9,15 @@ use PDO;
 /**
  * Transaction scoped PostgreSQL advisory locks.
  *
- * Every mutation takes them in the same order — account journal first, then object —
- * so two concurrent requests can never deadlock against each other.
+ * The namespace lock is held until COMMIT so If-Match remains authoritative even
+ * when two PHP-FPM workers update the same snapshot concurrently.
  */
 final class AdvisoryLock
 {
-    /**
-     * Serializes the sync_changes appends of one account.
-     *
-     * BIGSERIAL hands out a revision at INSERT time, not at COMMIT time. Without this lock two
-     * concurrent writes can commit in the reverse order of their revisions: a client that reads
-     * the journal in between advances its cursor past a revision that is still uncommitted and
-     * never sees it again. Holding the lock until COMMIT makes revision order = commit order.
-     */
-    public static function accountJournal(PDO $pdo, string $accountId): void
+    /** Serializes concurrent PUT/DELETE on the same namespace snapshot. */
+    public static function namespace(PDO $pdo, string $profileId, string $namespace): void
     {
-        self::acquire($pdo, 'sync:' . $accountId);
-    }
-
-    /** Serializes concurrent PUT/DELETE on the same object key so If-Match stays authoritative. */
-    public static function object(PDO $pdo, string $profileId, string $namespace, string $objectKey): void
-    {
-        self::acquire($pdo, sprintf('object:%s:%s:%s', $profileId, $namespace, $objectKey));
+        self::acquire($pdo, sprintf('namespace:%s:%s', $profileId, $namespace));
     }
 
     private static function acquire(PDO $pdo, string $key): void

@@ -1,6 +1,6 @@
 # Collection Postman CSTV
 
-La collection couvre le parcours local complet avec les fixtures : santé, OTP/JWT, compte, CRUD profils, blobs gzip opaques, ETag/If-Match, suppression idempotente, journal de synchronisation et comptes expiré/désactivé.
+La collection couvre le parcours local complet avec les fixtures : santé, OTP/JWT, compte, CRUD profils, snapshots gzip opaques par namespace, ETag/If-Match, suppression idempotente et comptes expiré/désactivé.
 
 ## Préparation
 
@@ -35,4 +35,4 @@ make postman-fixtures
 
 Le flow d'authentification demande d'abord un OTP puis utilise `123456`, valeur de développement fournie par Docker Compose. Ce code est volontairement refusé par la configuration de production. Après `/v1/me`, la collection sélectionne automatiquement le profil fixture **Nico**.
 
-Le profil créé pendant le scénario est supprimé en fin de dossier. L'objet Postman utilise la clé dédiée `movie-postman-12345`, puis est supprimé ; les six objets de démonstration restent donc intacts. Le journal `sync_changes` conserve normalement les révisions produites par le scénario. Relancer `bin/fixtures` permet de restaurer exactement l'état initial de démonstration.
+Le profil créé pendant le scénario est supprimé en fin de dossier. Le snapshot utilise le namespace dédié `postman-favorites`, puis est supprimé ; les quatre snapshots de démonstration restent donc intacts. Les clés métier comme `movie-postman-12345` vivent uniquement dans le JSON gzip géré par l'application. Relancer `bin/fixtures` restaure exactement l'état initial de démonstration.

@@ -90,7 +90,7 @@ final class ProfileIdorApiTest extends FunctionalTestCase
         $attacker = $this->createAccount('attacker@example.com');
         $profileId = $owner['profileIds'][0];
         $payload = (string) gzencode('{"secret":true}');
-        self::assertSame(204, $this->putObject($owner['token'], $profileId, 'favorites', 'movie-1', $payload)->status);
+        self::assertSame(204, $this->putObject($owner['token'], $profileId, 'favorites', $payload)->status);
 
         $attackerAuth = $this->auth($attacker['token']);
         $this->assertError(
@@ -109,31 +109,28 @@ final class ProfileIdorApiTest extends FunctionalTestCase
             'PROFILE_NOT_FOUND',
         );
 
-        $uri = '/v1/profiles/' . $profileId . '/objects/favorites/movie-1';
+        $uri = '/v1/profiles/' . $profileId . '/objects/favorites';
         $this->assertError($this->api->get($uri, $attackerAuth), 404, 'OBJECT_NOT_FOUND');
         $this->assertError(
-            $this->putObject($attacker['token'], $profileId, 'favorites', 'movie-1', (string) gzencode('{}')),
+            $this->putObject(
+                $attacker['token'], $profileId, 'favorites', (string) gzencode('{}'), ['If-Match' => '*'],
+            ),
             404,
             'PROFILE_NOT_FOUND',
         );
         $this->assertError($this->api->delete($uri, $attackerAuth), 404, 'PROFILE_NOT_FOUND');
 
-        $changes = $this->api->get('/v1/sync/changes', $attackerAuth)->json()['changes'];
-        self::assertSame([], $changes);
         self::assertSame($payload, $this->api->get($uri, $this->auth($owner['token']))->body);
     }
 
-    public function testDeletingProfileCreatesTombstonesBeforeCascade(): void
+    public function testDeletingProfileCascadesNamespaceSnapshots(): void
     {
         $account = $this->createAccount(profileCount: 2);
         $profileId = $account['profileIds'][1];
-        $this->putObject($account['token'], $profileId, 'favorites', 'movie-1', (string) gzencode('one'));
-        $this->putObject($account['token'], $profileId, 'playback', 'movie-1', (string) gzencode('two'));
+        $this->putObject($account['token'], $profileId, 'favorites', (string) gzencode('one'));
+        $this->putObject($account['token'], $profileId, 'playback', (string) gzencode('two'));
 
         self::assertSame(204, $this->api->delete('/v1/profiles/' . $profileId, $this->auth($account['token']))->status);
-        $page = $this->api->get('/v1/sync/changes?cursor=0', $this->auth($account['token']))->json();
-        self::assertSame(['UPSERT', 'UPSERT', 'DELETE', 'DELETE'], array_column($page['changes'], 'operation'));
-        self::assertSame([$profileId, $profileId, $profileId, $profileId], array_column($page['changes'], 'profileId'));
         self::assertSame(0, (int) $this->pdo->query("SELECT COUNT(*) FROM profile_objects WHERE profile_id = '{$profileId}'")->fetchColumn());
     }
 }

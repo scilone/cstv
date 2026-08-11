@@ -1,6 +1,6 @@
 {
     "name": "cstv/backend-poc",
-    "description": "Minimal CSTV authentication and opaque profile synchronization API.",
+    "description": "Minimal CSTV authentication and opaque per-namespace snapshot API.",
     "type": "project",
     "license": "proprietary",
     "require": {

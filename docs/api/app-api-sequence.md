@@ -1,8 +1,8 @@
 # Workflow application CSTV / API
 
-Ces diagrammes décrivent le contrat actuellement implémenté. L'application Android conserve ses données locales dans Room et échange avec le backend uniquement des profils et des blobs gzip opaques. Le backend ne connaît ni appareil, ni installation, ni source ou credential IPTV.
+L’application Android conserve la donnée métier dans Room. Le backend stocke uniquement un snapshot gzip opaque par `(profil, namespace)` et son ETag ; les clés d’objets restent à l’intérieur du document applicatif. Il ne connaît ni appareil, ni installation, ni source ou credential IPTV.
 
-## Vue d'ensemble
+## Authentification et chargement initial
 
 ```mermaid
 sequenceDiagram
@@ -11,12 +11,12 @@ sequenceDiagram
     participant App as App Android / TV
     participant API as Nginx + PHP-FPM + Slim
     participant DB as PostgreSQL
-    participant OTP as Service d'envoi OTP
+    participant OTP as Service OTP
 
-    U->>App: Saisit son email
+    U->>App: Saisit email
     App->>API: POST /v1/auth/otp/request
-    API->>DB: Stocke uniquement le HMAC du code
-    API->>OTP: Demande l'envoi du code
+    API->>DB: Stocke seulement le HMAC du code
+    API->>OTP: Envoie le code
     API-->>App: 202 accepted
     OTP-->>U: Code à 6 chiffres
 
@@ -26,75 +26,59 @@ sequenceDiagram
     alt Premier accès
         API->>DB: Transaction compte + Profil 1
         Note over API,DB: enabled=true<br/>active_until=NOW()+1 an<br/>avatarId=0
-    else Compte existant
-        API->>DB: Recharge le compte existant
     end
     API-->>App: JWT accessToken
 
     App->>API: GET /v1/me avec Bearer JWT
-    API->>API: Vérifie signature, exp et sub
-    API->>DB: Relit enabled et active_until
-    DB-->>API: Compte actuel + profils
-    API-->>App: Compte et profils
+    API->>DB: Relit compte et profils
+    API-->>App: Compte + profils
 
-    App->>API: GET /v1/sync/changes?cursor=X
-    API->>DB: Révisions du compte supérieures à X
-    DB-->>API: Métadonnées triées par revision
-    API-->>App: changes + nextCursor + hasMore
-    loop Chaque objet UPSERT utile
-        App->>API: GET /profiles/{profileId}/objects/{namespace}/{key}
+    App->>API: GET /v1/profiles/{profileId}/objects
+    API->>DB: Métadonnées, sans BYTEA
+    API-->>App: namespace + ETag + taille + version
+    loop Chaque ETag absent ou différent localement
+        App->>API: GET /objects/{namespace}
         API->>DB: Vérifie ownership et lit BYTEA
         API-->>App: Octets gzip exacts + ETag
-        App->>App: Persiste le document dans Room
+        App->>App: Décompresse, fusionne et persiste dans Room
     end
-    App->>App: Persiste nextCursor localement
 ```
 
-Points importants :
+Le même chargement des métadonnées est rejoué au démarrage, à la reprise de l’application et après un retour réseau. Il n’existe ni cursor ni journal `sync_changes`.
 
-- `/otp/request` ne crée jamais le compte et répond de manière générique pour limiter l'énumération d'adresses ;
-- la création du compte et de `Profil 1` est atomique après un OTP valide ;
-- le JWT ne contient que l'identité technique du compte (`sub`) et sa durée de validité ;
-- chaque endpoint authentifié relit le compte dans PostgreSQL avant d'autoriser l'accès ;
-- le change feed ne contient jamais les blobs : l'application télécharge séparément les objets nécessaires.
-
-## Écriture locale, ETag et conflit optimiste
+## Modification locale et envoi asynchrone
 
 ```mermaid
 sequenceDiagram
     autonumber
-    participant App as App Android / TV
+    participant UI as UI / Player
+    participant App as Couche sync app
     participant Room as Room locale
     participant API as API CSTV
     participant DB as PostgreSQL
 
-    App->>Room: Favori / playback / rating modifié
-    Room-->>App: Document métier local
-    App->>App: Sérialise puis compresse en gzip
-    App->>API: PUT objet + X-Schema-Version + If-Match
-    Note over App,API: Content-Type application/vnd.cstv.blob+gzip
-
-    API->>DB: Relit le compte et vérifie le profil
-    API->>DB: Verrou journal du compte puis objet
-    API->>DB: Lit l'ETag courant
-    alt If-Match absent ou conforme
-        API->>DB: Transaction UPSERT profile_objects
-        API->>DB: INSERT sync_changes operation UPSERT
-        Note over API,DB: Le payload reste opaque<br/>aucun gzdecode ni parsing JSON
-        DB-->>API: COMMIT
-        API-->>App: 204 + nouvel ETag SHA-256
-        App->>Room: Mémorise le nouvel ETag
-    else If-Match périmé
-        API-->>App: 412 ETAG_MISMATCH
-        App->>API: GET objet courant
-        API-->>App: Version serveur + ETag courant
-        App->>App: Résout le conflit puis réessaie
+    UI->>Room: Favori / rating / playback modifié
+    Room-->>App: État local mis à jour immédiatement
+    App->>App: Marque le namespace pending
+    alt Namespace playback
+        App->>App: Debounce / pause / background / fin lecture
+        Note over App: Aucun PUT à chaque tick
+    else Autre namespace
+        App->>App: Envoi asynchrone dès que possible
     end
+    App->>App: Sérialise tout le namespace puis gzip
+    App->>API: PUT /objects/{namespace}<br/>X-Schema-Version + If-Match courant
+    API->>DB: Relit compte, vérifie profil, verrouille namespace
+    API->>DB: Vérifie ETag puis UPSERT snapshot
+    Note over API,DB: Aucun gzdecode, parsing ou recompression
+    DB-->>API: COMMIT
+    API-->>App: 204 + nouvel ETag SHA-256
+    App->>Room: Mémorise snapshot de base + ETag
 ```
 
-Sans `If-Match`, la dernière écriture validée gagne. Avec `If-Match`, deux clients partis du même ETag ne peuvent pas écraser silencieusement leurs changements : le premier réussit et le second reçoit `412 ETAG_MISMATCH`.
+Seul un namespace absent peut être créé sans `If-Match`. Pour un snapshot existant, l’absence du header renvoie `428 PRECONDITION_REQUIRED`.
 
-## Suppression et propagation multi-installation
+## Fusion applicative après conflit ETag
 
 ```mermaid
 sequenceDiagram
@@ -104,26 +88,44 @@ sequenceDiagram
     participant DB as PostgreSQL
     participant B as Installation B
 
-    A->>API: DELETE objet avec If-Match courant
-    API->>DB: Vérifie compte, profil et ETag
-    API->>DB: Transaction DELETE objet
-    API->>DB: INSERT sync_changes operation DELETE
-    DB-->>API: COMMIT
-    API-->>A: 204
+    A->>API: PUT favorites If-Match ETag-1
+    API->>DB: Snapshot ETag-1 -> ETag-2
+    API-->>A: 204 ETag-2
 
-    B->>API: GET /v1/sync/changes?cursor=ancienCursor
-    API->>DB: Lit les révisions suivantes du compte
-    API-->>B: DELETE namespace + key, sans payload
-    B->>B: Supprime la donnée locale Room
-    B->>B: Persiste nextCursor
-
-    A->>API: DELETE du même objet sans If-Match
-    API->>DB: Objet déjà absent
-    API-->>A: 204 idempotent
-    Note over API,DB: Aucune nouvelle révision inutile
+    B->>API: PUT favorites If-Match ETag-1
+    API->>DB: ETag courant = ETag-2
+    API-->>B: 412 ETAG_MISMATCH
+    B->>API: GET /objects/favorites
+    API-->>B: Snapshot serveur + ETag-2
+    B->>B: Fusion 3 voies<br/>base synchronisée + serveur + changements locaux
+    B->>API: PUT snapshot fusionné If-Match ETag-2
+    API->>DB: Snapshot ETag-2 -> ETag-3
+    API-->>B: 204 ETag-3
 ```
 
-Pour un UPSERT effectué par l'installation A, l'installation B reçoit de la même façon la métadonnée dans `/v1/sync/changes`, puis télécharge les octets avec `GET /v1/profiles/{profileId}/objects/{namespace}/{key}`.
+La politique de fusion appartient à l’application, car elle seule comprend les données. Par exemple, les favoris peuvent fusionner des ajouts/retraits par clé métier et le playback peut retenir la progression la plus récente selon le contrat local. Le serveur reste volontairement aveugle au JSON compressé.
+
+## Suppression d’un namespace
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant App as App Android / TV
+    participant API as API CSTV
+    participant DB as PostgreSQL
+
+    App->>API: DELETE /objects/{namespace}<br/>If-Match courant
+    API->>DB: Verrouille et vérifie l'ETag
+    API->>DB: DELETE snapshot
+    API-->>App: 204
+
+    App->>API: DELETE du namespace déjà absent
+    API->>DB: Snapshot absent
+    API-->>App: 204 idempotent
+
+    App->>API: DELETE absent avec ancien If-Match
+    API-->>App: 412 ETAG_MISMATCH
+```
 
 ## Désactivation ou expiration immédiate
 
@@ -137,30 +139,25 @@ sequenceDiagram
 
     Admin->>DB: UPDATE accounts SET enabled=false
     App->>API: GET /v1/me avec le même JWT
-    API->>API: JWT valide, sub extrait
-    API->>DB: SELECT compte courant
-    DB-->>API: enabled=false
+    API->>DB: Relit le compte courant
     API-->>App: 403 ACCOUNT_DISABLED
 
-    Admin->>DB: enabled=true et active_until dans le passé
-    App->>API: Nouvelle requête avec le même JWT
-    API->>DB: SELECT compte courant
-    DB-->>API: compte expiré
+    Admin->>DB: enabled=true, active_until dans le passé
+    App->>API: Nouvelle requête, même JWT
+    API->>DB: Relit le compte courant
     API-->>App: 403 ACCOUNT_EXPIRED
 ```
-
-Il n'est donc pas nécessaire de révoquer ou régénérer les JWT pour appliquer une intervention manuelle : PostgreSQL reste la source de vérité à chaque requête.
 
 ## Responsabilités
 
 | Application Android / TV | API CSTV |
 |---|---|
-| Afficher le flow email + OTP | Générer, hacher, limiter et valider les OTP |
-| Stocker le JWT de manière sûre | Signer le JWT et en valider la signature/expiration |
-| Conserver le cursor de chaque synchronisation | Servir un journal ordonné et isolé par compte |
-| Sérialiser et compresser les documents | Stocker et restituer les octets sans les inspecter |
-| Conserver les ETags et gérer les réponses 412 | Appliquer `If-Match` sous verrou transactionnel |
-| Appliquer UPSERT/DELETE dans Room | Garantir l'atomicité objet + événement de synchronisation |
-| Continuer à appeler directement Xtream/TMDB/YouTube | Ne jamais stocker ni relayer les données ou credentials IPTV |
+| Conserver Room comme état métier local | Stocker un blob opaque par profil et namespace |
+| Garder le dernier snapshot synchronisé et son ETag | Calculer l’ETag SHA-256 sur les octets reçus |
+| Sérialiser, compresser et décompresser | Restituer exactement les octets sans les inspecter |
+| Fusionner les conflits 412 puis réessayer | Imposer `If-Match` sous verrou transactionnel |
+| Regrouper les envois playback | Borner chaque snapshot par `MAX_OBJECT_SIZE_BYTES` |
+| Resynchroniser au démarrage/reprise/reconnexion | Relire le compte PostgreSQL à chaque requête |
+| Continuer à appeler Xtream/TMDB/YouTube | Ne jamais stocker les credentials ou catalogues IPTV |
 
 Le contrat HTTP détaillé reste défini dans [`openapi.yaml`](openapi.yaml).

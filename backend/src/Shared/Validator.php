@@ -61,12 +61,4 @@ final class Validator
         return $value;
     }
 
-    public static function objectKey(mixed $value): string
-    {
-        if (!is_string($value) || !preg_match('/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/', $value)) {
-            throw new ApiException(422, 'INVALID_OBJECT_KEY', 'objectKey has an invalid format.');
-        }
-
-        return $value;
-    }
 }

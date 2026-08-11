@@ -35,7 +35,7 @@ final class TestDatabase
     {
         self::assertSafe($pdo, $config);
         $pdo->exec(
-            'TRUNCATE TABLE sync_changes, profile_objects, profiles, otp_codes, accounts RESTART IDENTITY CASCADE',
+            'TRUNCATE TABLE profile_objects, profiles, otp_codes, accounts RESTART IDENTITY CASCADE',
         );
     }
 }

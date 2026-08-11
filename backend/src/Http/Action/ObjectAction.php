@@ -24,21 +24,16 @@ final readonly class ObjectAction
     public function list(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
     {
         $profileId = Validator::uuid($args['profileId'] ?? null, 'profileId');
-        $namespace = $request->getQueryParams()['namespace'] ?? null;
-        if ($namespace !== null) {
-            $namespace = Validator::namespace($namespace);
-        }
-
         return Json::response($response, [
-            'objects' => $this->objects->list($this->accountId($request), $profileId, $namespace),
+            'objects' => $this->objects->list($this->accountId($request), $profileId),
         ]);
     }
 
     /** @param array<string, string> $args */
     public function get(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
     {
-        [$profileId, $namespace, $objectKey] = $this->path($args);
-        $object = $this->objects->get($this->accountId($request), $profileId, $namespace, $objectKey);
+        [$profileId, $namespace] = $this->path($args);
+        $object = $this->objects->get($this->accountId($request), $profileId, $namespace);
         $response->getBody()->write((string) $object['payload']);
 
         return $response
@@ -59,12 +54,11 @@ final readonly class ObjectAction
             throw new ApiException(422, 'INVALID_SCHEMA_VERSION', 'X-Schema-Version must be a positive integer.');
         }
 
-        [$profileId, $namespace, $objectKey] = $this->path($args);
+        [$profileId, $namespace] = $this->path($args);
         $result = $this->objects->put(
             $this->accountId($request),
             $profileId,
             $namespace,
-            $objectKey,
             BinaryBody::read($request, $this->maximumBytes),
             (int) $rawSchemaVersion,
             $request->hasHeader('If-Match') ? $request->getHeaderLine('If-Match') : null,
@@ -78,25 +72,23 @@ final readonly class ObjectAction
     /** @param array<string, string> $args */
     public function delete(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
     {
-        [$profileId, $namespace, $objectKey] = $this->path($args);
+        [$profileId, $namespace] = $this->path($args);
         $this->objects->delete(
             $this->accountId($request),
             $profileId,
             $namespace,
-            $objectKey,
             $request->hasHeader('If-Match') ? $request->getHeaderLine('If-Match') : null,
         );
 
         return $response->withStatus(204);
     }
 
-    /** @param array<string, string> $args @return array{string, string, string} */
+    /** @param array<string, string> $args @return array{string, string} */
     private function path(array $args): array
     {
         return [
             Validator::uuid($args['profileId'] ?? null, 'profileId'),
             Validator::namespace($args['namespace'] ?? null),
-            Validator::objectKey($args['objectKey'] ?? null),
         ];
     }
 
