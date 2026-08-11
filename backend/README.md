@@ -55,6 +55,12 @@ La copie de `.env.example` est recommandée, mais Compose possède des valeurs d
 
 Les fixtures ne sont jamais un prérequis de PHPUnit et ne sont jamais chargées automatiquement par la commande de test.
 
+## Collection Postman
+
+Une collection prête à importer, son environnement local et deux payloads gzip réels sont disponibles dans `postman/`. Elle utilise les comptes de démonstration, récupère automatiquement le profil Nico, puis teste l'authentification, les profils, les objets binaires, ETag/If-Match et la synchronisation.
+
+Voir `postman/README.md` pour la préparation et le réglage du *working directory* Postman.
+
 ## Base et architecture des tests
 
 Docker Compose fournit une stack de test indépendante de la stack de développement :

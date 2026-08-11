@@ -1,4 +1,4 @@
-.PHONY: up down migrate fixtures test test-unit test-integration test-functional test-prepare logs
+.PHONY: up down migrate fixtures postman-fixtures test test-unit test-integration test-functional test-prepare logs
 
 up:
 	docker compose up -d --build
@@ -11,6 +11,10 @@ migrate:
 
 fixtures:
 	docker compose exec php bin/fixtures
+
+postman-fixtures:
+	gzip -n -k -f postman/fixtures/favorite.json
+	gzip -n -k -f postman/fixtures/favorite-updated.json
 
 test:
 	docker compose up -d --build postgres-test php-test nginx-test

@@ -1,0 +1,661 @@
+{
+  "info": {
+    "_postman_id": "2bc9805b-d3d1-4a9b-81aa-cb06f3b0933f",
+    "name": "CSTV Backend POC",
+    "description": "Parcours local complet du backend CSTV. Exécuter dans l'ordre avec l'environnement `CSTV Backend - Local fixtures` après `bin/migrate` et `bin/fixtures`. Les PUT utilisent de vrais fichiers gzip opaques présents dans `postman/fixtures`.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      { "key": "token", "value": "{{accessToken}}", "type": "string" }
+    ]
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:18080" },
+    { "key": "demoEmail", "value": "demo@cstv.local" },
+    { "key": "otpTestCode", "value": "123456" },
+    { "key": "objectNamespace", "value": "favorites" },
+    { "key": "objectKey", "value": "movie-postman-12345" }
+  ],
+  "item": [
+    {
+      "name": "00 - Santé et authentification fixture",
+      "item": [
+        {
+          "name": "Healthcheck PostgreSQL",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('PostgreSQL est accessible', () => pm.expect(pm.response.json()).to.eql({ status: 'ok' }));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": "{{baseUrl}}/health",
+            "description": "Le healthcheck exécute réellement SELECT 1 sur PostgreSQL."
+          }
+        },
+        {
+          "name": "Demander OTP pour demo@cstv.local",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 202', () => pm.response.to.have.status(202));",
+                  "pm.test('Réponse anti-enumeration', () => pm.expect(pm.response.json()).to.eql({ status: 'accepted' }));",
+                  "pm.test('Le code OTP n est pas exposé', () => pm.expect(pm.response.text()).not.to.include(pm.environment.get('otpTestCode')));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{demoEmail}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/v1/auth/otp/request"
+          }
+        },
+        {
+          "name": "Vérifier OTP et mémoriser le JWT",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('JWT Bearer retourné', () => {",
+                  "  pm.expect(body.tokenType).to.eql('Bearer');",
+                  "  pm.expect(body.accessToken).to.be.a('string').and.not.empty;",
+                  "});",
+                  "pm.environment.set('accessToken', body.accessToken);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{demoEmail}}\",\n  \"code\": \"{{otpTestCode}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/v1/auth/otp/verify"
+          }
+        },
+        {
+          "name": "Lire /me et sélectionner Nico",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('Compte fixture actif', () => {",
+                  "  pm.expect(body.email).to.eql(pm.environment.get('demoEmail'));",
+                  "  pm.expect(body.enabled).to.eql(true);",
+                  "  pm.expect(body.profiles.map(profile => profile.name)).to.include.members(['Nico', 'Enfant']);",
+                  "});",
+                  "const nico = body.profiles.find(profile => profile.name === 'Nico');",
+                  "pm.expect(nico, 'Le profil fixture Nico doit exister').to.exist;",
+                  "pm.environment.set('nicoProfileId', nico.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/v1/me"
+          }
+        },
+        {
+          "name": "Erreur 401 sans JWT",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 401', () => pm.response.to.have.status(401));",
+                  "pm.test('Erreur uniforme', () => pm.expect(pm.response.json().error.code).to.eql('AUTHENTICATION_REQUIRED'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": "{{baseUrl}}/v1/me"
+          }
+        }
+      ]
+    },
+    {
+      "name": "01 - Profils",
+      "item": [
+        {
+          "name": "Lister les profils fixtures",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Nico et Enfant sont présents', () => pm.expect(pm.response.json().profiles.map(profile => profile.name)).to.include.members(['Nico', 'Enfant']));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/v1/profiles"
+          }
+        },
+        {
+          "name": "Créer un profil temporaire",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
+                  "const profile = pm.response.json();",
+                  "pm.test('Profil créé', () => { pm.expect(profile.name).to.eql('Postman'); pm.expect(profile.avatarId).to.eql(9); });",
+                  "pm.environment.set('createdProfileId', profile.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Postman\",\n  \"avatarId\": 9\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/v1/profiles"
+          }
+        },
+        {
+          "name": "Modifier le profil temporaire",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Nom et avatar modifiés', () => { const profile = pm.response.json(); pm.expect(profile.name).to.eql('Postman modifié'); pm.expect(profile.avatarId).to.eql(10); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Postman modifié\",\n  \"avatarId\": 10\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{baseUrl}}/v1/profiles/{{createdProfileId}}"
+          }
+        },
+        {
+          "name": "Supprimer le profil temporaire",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/v1/profiles/{{createdProfileId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 - Objets gzip, ETag et synchronisation",
+      "item": [
+        {
+          "name": "Lister les métadonnées fixtures de Nico",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "const objects = pm.response.json().objects;",
+                  "pm.test('Objets fixtures présents sans payload', () => {",
+                  "  pm.expect(objects.length).to.be.at.least(6);",
+                  "  objects.forEach(object => pm.expect(object).not.to.have.property('payload'));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/v1/profiles/{{nicoProfileId}}/objects"
+          }
+        },
+        {
+          "name": "Filtrer les favoris fixtures",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Uniquement favorites', () => pm.response.json().objects.forEach(object => pm.expect(object.namespace).to.eql('favorites')));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/v1/profiles/{{nicoProfileId}}/objects?namespace=favorites"
+          }
+        },
+        {
+          "name": "PUT favori gzip initial",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 204', () => pm.response.to.have.status(204));",
+                  "const etag = pm.response.headers.get('ETag');",
+                  "pm.test('ETag SHA-256 fort', () => pm.expect(etag).to.match(/^\"[a-f0-9]{64}\"$/));",
+                  "pm.environment.set('staleObjectEtag', etag);",
+                  "pm.environment.set('currentObjectEtag', etag);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/vnd.cstv.blob+gzip" },
+              { "key": "X-Schema-Version", "value": "1" }
+            ],
+            "body": {
+              "mode": "file",
+              "file": { "src": "postman/fixtures/favorite.json.gz" }
+            },
+            "url": "{{baseUrl}}/v1/profiles/{{nicoProfileId}}/objects/{{objectNamespace}}/{{objectKey}}",
+            "description": "Envoie exactement les octets du fichier gzip, sans Content-Encoding."
+          }
+        },
+        {
+          "name": "GET favori gzip byte-for-byte",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Content-Type gzip opaque', () => pm.expect(pm.response.headers.get('Content-Type')).to.eql('application/vnd.cstv.blob+gzip'));",
+                  "pm.test('ETag identique au PUT', () => pm.expect(pm.response.headers.get('ETag')).to.eql(pm.environment.get('currentObjectEtag')));",
+                  "pm.test('Payload binaire non vide', () => pm.expect(pm.response.responseSize).to.be.above(0));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/v1/profiles/{{nicoProfileId}}/objects/{{objectNamespace}}/{{objectKey}}"
+          }
+        },
+        {
+          "name": "PUT conditionnel avec If-Match courant",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 204', () => pm.response.to.have.status(204));",
+                  "const etag = pm.response.headers.get('ETag');",
+                  "pm.test('Le nouveau contenu change l ETag', () => pm.expect(etag).not.to.eql(pm.environment.get('staleObjectEtag')));",
+                  "pm.environment.set('currentObjectEtag', etag);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/vnd.cstv.blob+gzip" },
+              { "key": "X-Schema-Version", "value": "1" },
+              { "key": "If-Match", "value": "{{currentObjectEtag}}" }
+            ],
+            "body": {
+              "mode": "file",
+              "file": { "src": "postman/fixtures/favorite-updated.json.gz" }
+            },
+            "url": "{{baseUrl}}/v1/profiles/{{nicoProfileId}}/objects/{{objectNamespace}}/{{objectKey}}"
+          }
+        },
+        {
+          "name": "PUT refusé avec ETag périmé",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 412', () => pm.response.to.have.status(412));",
+                  "pm.test('Erreur ETAG_MISMATCH', () => pm.expect(pm.response.json().error.code).to.eql('ETAG_MISMATCH'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/vnd.cstv.blob+gzip" },
+              { "key": "X-Schema-Version", "value": "1" },
+              { "key": "If-Match", "value": "{{staleObjectEtag}}" }
+            ],
+            "body": {
+              "mode": "file",
+              "file": { "src": "postman/fixtures/favorite.json.gz" }
+            },
+            "url": "{{baseUrl}}/v1/profiles/{{nicoProfileId}}/objects/{{objectNamespace}}/{{objectKey}}"
+          }
+        },
+        {
+          "name": "Mémoriser le cursor avant suppression",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "const page = pm.response.json();",
+                  "pm.environment.set('syncCursorBeforeDelete', String(page.nextCursor));",
+                  "pm.test('Aucun payload dans le journal', () => page.changes.forEach(change => pm.expect(change).not.to.have.property('payload')));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/v1/sync/changes?cursor=0&limit=100"
+          }
+        },
+        {
+          "name": "DELETE refusé avec mauvais ETag",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 412', () => pm.response.to.have.status(412));",
+                  "pm.test('Erreur ETAG_MISMATCH', () => pm.expect(pm.response.json().error.code).to.eql('ETAG_MISMATCH'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "If-Match", "value": "\"incorrect\"" }
+            ],
+            "url": "{{baseUrl}}/v1/profiles/{{nicoProfileId}}/objects/{{objectNamespace}}/{{objectKey}}"
+          }
+        },
+        {
+          "name": "DELETE avec ETag courant",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "If-Match", "value": "{{currentObjectEtag}}" }
+            ],
+            "url": "{{baseUrl}}/v1/profiles/{{nicoProfileId}}/objects/{{objectNamespace}}/{{objectKey}}"
+          }
+        },
+        {
+          "name": "GET objet supprimé",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 404', () => pm.response.to.have.status(404));",
+                  "pm.test('Erreur OBJECT_NOT_FOUND', () => pm.expect(pm.response.json().error.code).to.eql('OBJECT_NOT_FOUND'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/v1/profiles/{{nicoProfileId}}/objects/{{objectNamespace}}/{{objectKey}}"
+          }
+        },
+        {
+          "name": "DELETE idempotent",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/v1/profiles/{{nicoProfileId}}/objects/{{objectNamespace}}/{{objectKey}}"
+          }
+        },
+        {
+          "name": "Lire le tombstone depuis le cursor",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "const changes = pm.response.json().changes;",
+                  "pm.test('Un seul tombstone Postman', () => {",
+                  "  pm.expect(changes).to.have.length(1);",
+                  "  pm.expect(changes[0].operation).to.eql('DELETE');",
+                  "  pm.expect(changes[0].namespace).to.eql(pm.environment.get('objectNamespace'));",
+                  "  pm.expect(changes[0].key).to.eql(pm.environment.get('objectKey'));",
+                  "  pm.expect(changes[0]).not.to.have.property('payload');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/v1/sync/changes?cursor={{syncCursorBeforeDelete}}&limit=10"
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 - États comptes fixtures",
+      "item": [
+        {
+          "name": "Demander OTP compte expiré",
+          "event": [
+            {
+              "listen": "test",
+              "script": { "type": "text/javascript", "exec": ["pm.test('HTTP 202', () => pm.response.to.have.status(202));"] }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{expiredEmail}}\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/v1/auth/otp/request"
+          }
+        },
+        {
+          "name": "Vérifier OTP compte expiré",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200 et JWT émis', () => pm.response.to.have.status(200));",
+                  "pm.environment.set('expiredAccessToken', pm.response.json().accessToken);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{expiredEmail}}\",\n  \"code\": \"{{otpTestCode}}\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/v1/auth/otp/verify"
+          }
+        },
+        {
+          "name": "Compte expiré refusé avec son JWT",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 403', () => pm.response.to.have.status(403));",
+                  "pm.test('Erreur ACCOUNT_EXPIRED', () => pm.expect(pm.response.json().error.code).to.eql('ACCOUNT_EXPIRED'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{expiredAccessToken}}", "type": "string" }] },
+            "method": "GET",
+            "url": "{{baseUrl}}/v1/me"
+          }
+        },
+        {
+          "name": "Demander OTP compte désactivé",
+          "event": [
+            {
+              "listen": "test",
+              "script": { "type": "text/javascript", "exec": ["pm.test('HTTP 202', () => pm.response.to.have.status(202));"] }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{disabledEmail}}\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/v1/auth/otp/request"
+          }
+        },
+        {
+          "name": "Vérifier OTP compte désactivé",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200 et JWT émis', () => pm.response.to.have.status(200));",
+                  "pm.environment.set('disabledAccessToken', pm.response.json().accessToken);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{disabledEmail}}\",\n  \"code\": \"{{otpTestCode}}\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/v1/auth/otp/verify"
+          }
+        },
+        {
+          "name": "Compte désactivé refusé avec son JWT",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 403', () => pm.response.to.have.status(403));",
+                  "pm.test('Erreur ACCOUNT_DISABLED', () => pm.expect(pm.response.json().error.code).to.eql('ACCOUNT_DISABLED'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{disabledAccessToken}}", "type": "string" }] },
+            "method": "GET",
+            "url": "{{baseUrl}}/v1/me"
+          }
+        }
+      ]
+    }
+  ]
+}
