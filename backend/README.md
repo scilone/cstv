@@ -61,6 +61,8 @@ Une collection prête à importer, son environnement local et deux payloads gzip
 
 Voir `postman/README.md` pour la préparation et le réglage du *working directory* Postman.
 
+Le workflow complet entre l'application, l'API et PostgreSQL est illustré dans [`docs/api/app-api-sequence.md`](../docs/api/app-api-sequence.md) avec les parcours d'authentification, de synchronisation, de conflit ETag et de désactivation immédiate.
+
 ## Base et architecture des tests
 
 Docker Compose fournit une stack de test indépendante de la stack de développement :
