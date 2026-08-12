@@ -38,7 +38,7 @@ final class Bootstrap
         $accounts = new AccountRepository($pdo);
         $profiles = new ProfileRepository($pdo);
         $profileService = new ProfileService($pdo, $profiles);
-        $jwt = new JwtService($config->jwtSecret, $config->jwtTtlSeconds);
+        $jwt = new JwtService($config->jwtSecret);
         $otpSender = $config->appEnv === 'production'
             ? new MailOtpSender($config->otpFromEmail, $config->otpFromName)
             : new LogOtpSender($config->appEnv);

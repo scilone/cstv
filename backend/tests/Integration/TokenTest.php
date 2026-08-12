@@ -6,6 +6,7 @@ namespace Cstv\Backend\Tests\Integration;
 
 use Cstv\Backend\Auth\JwtService;
 use Cstv\Backend\Shared\Uuid;
+use DateTimeImmutable;
 use Firebase\JWT\JWT;
 
 final class TokenTest extends IntegrationTestCase
@@ -59,9 +60,14 @@ final class TokenTest extends IntegrationTestCase
     public function testTokenSignedWithAnotherSecretIsRejected(): void
     {
         $account = $this->createAccount('other-secret@example.com');
-        $foreign = new JwtService(str_repeat('z', 48), 3600);
+        $foreign = new JwtService(str_repeat('z', 48));
 
-        $response = $this->request('GET', '/v1/me', '', $this->auth($foreign->issue($account['id'])['token']));
+        $response = $this->request(
+            'GET',
+            '/v1/me',
+            '',
+            $this->auth($foreign->issue($account['id'], new DateTimeImmutable('+1 hour'))['token']),
+        );
 
         self::assertSame(401, $response->getStatusCode());
         self::assertSame('INVALID_TOKEN', $this->json($response)['error']['code']);
@@ -70,9 +76,13 @@ final class TokenTest extends IntegrationTestCase
     public function testExpiredTokenIsRejected(): void
     {
         $account = $this->createAccount('expired-token@example.com');
-        $expired = new JwtService($this->config->jwtSecret, -60);
+        $expired = JWT::encode(
+            ['sub' => $account['id'], 'iat' => time() - 120, 'exp' => time() - 60],
+            $this->config->jwtSecret,
+            'HS256',
+        );
 
-        $response = $this->request('GET', '/v1/me', '', $this->auth($expired->issue($account['id'])['token']));
+        $response = $this->request('GET', '/v1/me', '', $this->auth($expired));
 
         self::assertSame(401, $response->getStatusCode());
         self::assertSame('INVALID_TOKEN', $this->json($response)['error']['code']);

@@ -34,7 +34,7 @@ abstract class IntegrationTestCase extends TestCase
         (new Migrator($this->pdo, dirname(__DIR__, 2) . '/migrations'))->migrate();
         TestDatabase::reset($this->pdo, $this->config);
         $this->app = Bootstrap::createApp($this->config, $this->pdo);
-        $this->jwt = new JwtService($this->config->jwtSecret, $this->config->jwtTtlSeconds);
+        $this->jwt = new JwtService($this->config->jwtSecret);
     }
 
     /** @param array<string, string> $headers */
@@ -74,7 +74,7 @@ abstract class IntegrationTestCase extends TestCase
         int $profileCount = 1,
     ): array {
         $accountId = Uuid::v4();
-        $activeUntil = (new DateTimeImmutable($active ? '+1 year' : '-1 day'))->format('c');
+        $activeUntil = new DateTimeImmutable($active ? '+1 year' : '-1 day');
         $statement = $this->pdo->prepare(
             'INSERT INTO accounts (id, email, enabled, active_until, created_at, updated_at) '
             . 'VALUES (:id, :email, :enabled, :active_until, NOW(), NOW())',
@@ -82,7 +82,7 @@ abstract class IntegrationTestCase extends TestCase
         $statement->bindValue(':id', $accountId);
         $statement->bindValue(':email', strtolower($email));
         $statement->bindValue(':enabled', $enabled, PDO::PARAM_BOOL);
-        $statement->bindValue(':active_until', $activeUntil);
+        $statement->bindValue(':active_until', $activeUntil->format('c'));
         $statement->execute();
 
         $profileIds = [];
@@ -103,7 +103,12 @@ abstract class IntegrationTestCase extends TestCase
         return [
             'id' => $accountId,
             'profileIds' => $profileIds,
-            'token' => $this->jwt->issue($accountId)['token'],
+            // An expired database account still needs a syntactically valid token to verify that
+            // AuthMiddleware rejects the current PostgreSQL state rather than trusting JWT claims.
+            'token' => $this->jwt->issue(
+                $accountId,
+                $active ? $activeUntil : new DateTimeImmutable('+1 hour'),
+            )['token'],
         ];
     }
 

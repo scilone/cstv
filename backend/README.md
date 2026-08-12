@@ -35,7 +35,7 @@ La copie de `.env.example` est recommandée, mais Compose possède des valeurs d
 | `HTTP_PORT` | port Nginx exposé | `18080` |
 | `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD` | base et accès PostgreSQL | valeurs dans `.env.example` |
 | `DB_HOST`, `DB_PORT` | connexion PHP vers PostgreSQL | `postgres`, `5432` |
-| `JWT_SECRET`, `JWT_TTL_SECONDS` | signature HS256 et durée de l’access token | 3600 s |
+| `JWT_SECRET` | signature HS256 ; le JWT expire à `active_until` du compte | aucune valeur de production fournie |
 | `OTP_HASH_SECRET` | clé HMAC des OTP stockés | aucune valeur de production fournie |
 | `OTP_TEST_CODE` | OTP déterministe hors production | `123456` |
 | `OTP_FROM_EMAIL`, `OTP_FROM_NAME` | expéditeur OTP requis en production | aucun, `CSTV` |
@@ -104,7 +104,7 @@ Les scénarios de concurrence réelle passent par `curl_multi` vers `E2E_BASE_UR
 
 1. `POST /v1/auth/otp/request` normalise l’email, purge ses codes plus vieux que la fenêtre de quota, applique les quotas par email et IP, invalide l’ancien code actif, stocke uniquement son HMAC et renvoie toujours `202 {"status":"accepted"}`. `created_at` utilise `clock_timestamp()` et non `NOW()` : deux demandes concurrentes sur le même email s’ordonnent par leur INSERT réel, pas par le début de leur transaction.
 2. En `dev`, l’expéditeur remplaçable écrit le code dans stdout ; en `test`, `OTP_TEST_CODE` rend le scénario déterministe. En production, l’expéditeur utilise `mail()` et le relais local de l’hébergeur avec `OTP_FROM_EMAIL`. Le code n’apparaît jamais dans une réponse HTTP ni dans les logs de production.
-3. `POST /v1/auth/otp/verify` verrouille le dernier OTP, contrôle les cinq minutes, les essais et l’usage unique. Une réussite crée atomiquement le compte et `Profil 1` si nécessaire, puis renvoie un JWT contenant `sub`, `iat` et `exp`.
+3. `POST /v1/auth/otp/verify` verrouille le dernier OTP, contrôle les cinq minutes, les essais et l’usage unique. Une réussite crée atomiquement le compte et `Profil 1` si nécessaire, puis renvoie un JWT contenant `sub`, `iat` et un `exp` égal à `active_until`. Un compte désactivé ou expiré ne reçoit pas de nouveau JWT.
 4. Chaque route protégée valide le JWT puis relit l’état courant du compte en base.
 
 ## Flow de synchronisation

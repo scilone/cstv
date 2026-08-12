@@ -32,7 +32,7 @@ abstract class FunctionalTestCase extends TestCase
         self::assertIsString($baseUrl, 'API_TEST_BASE_URL must target the dedicated test Nginx service.');
         self::assertNotSame('', trim($baseUrl));
         $this->api = new ApiClient($baseUrl);
-        $this->jwt = new JwtService($this->config->jwtSecret, $this->config->jwtTtlSeconds);
+        $this->jwt = new JwtService($this->config->jwtSecret);
     }
 
     /** @return array{id: string, email: string, profileIds: list<string>, token: string} */
@@ -50,7 +50,8 @@ abstract class FunctionalTestCase extends TestCase
         $statement->bindValue(':id', $accountId);
         $statement->bindValue(':email', strtolower($email));
         $statement->bindValue(':enabled', $enabled, PDO::PARAM_BOOL);
-        $statement->bindValue(':active_until', (new DateTimeImmutable($active ? '+1 year' : '-1 day'))->format('c'));
+        $activeUntil = new DateTimeImmutable($active ? '+1 year' : '-1 day');
+        $statement->bindValue(':active_until', $activeUntil->format('c'));
         $statement->execute();
 
         $profileIds = [];
@@ -72,7 +73,12 @@ abstract class FunctionalTestCase extends TestCase
             'id' => $accountId,
             'email' => strtolower($email),
             'profileIds' => $profileIds,
-            'token' => $this->jwt->issue($accountId)['token'],
+            // Keep a valid test JWT for expired accounts so HTTP tests prove that PostgreSQL,
+            // not a stale token claim, controls account access.
+            'token' => $this->jwt->issue(
+                $accountId,
+                $active ? $activeUntil : new DateTimeImmutable('+1 hour'),
+            )['token'],
         ];
     }
 

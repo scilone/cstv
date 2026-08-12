@@ -95,6 +95,9 @@ final class AuthAccountApiTest extends FunctionalTestCase
         self::assertSame(0, $me->json()['profiles'][0]['avatarId']);
         self::assertGreaterThan(time() + 360 * 86400, strtotime($me->json()['activeUntil']));
         self::assertLessThan(time() + 370 * 86400, strtotime($me->json()['activeUntil']));
+        $claims = $this->jwtClaims($token);
+        self::assertSame($this->accountExpiration($email), $claims['exp']);
+        self::assertSame($claims['exp'] - $claims['iat'], $verified->json()['expiresIn']);
         self::assertSame(1, (int) $this->pdo->query('SELECT COUNT(*) FROM accounts')->fetchColumn());
         self::assertSame(1, (int) $this->pdo->query('SELECT COUNT(*) FROM profiles')->fetchColumn());
     }
@@ -136,6 +139,33 @@ SQL);
         );
     }
 
+    public function testOtpJwtUsesTheCurrentDatabaseExpirationForAnExistingAccount(): void
+    {
+        $email = 'extended@example.com';
+        $account = $this->createAccount($email);
+        $update = $this->pdo->prepare("UPDATE accounts SET active_until = NOW() + INTERVAL '2 years' WHERE id = :id");
+        $update->execute(['id' => $account['id']]);
+
+        self::assertSame(202, $this->requestOtp($email)->status);
+        $verified = $this->verifyOtp($email);
+
+        self::assertSame(200, $verified->status);
+        $claims = $this->jwtClaims($verified->json()['accessToken']);
+        self::assertSame($this->accountExpiration($email), $claims['exp']);
+        self::assertSame($claims['exp'] - $claims['iat'], $verified->json()['expiresIn']);
+    }
+
+    public function testDisabledAndExpiredAccountsCannotReceiveANewJwt(): void
+    {
+        $disabled = $this->createAccount('disabled-login@example.com', enabled: false);
+        self::assertSame(202, $this->requestOtp($disabled['email'])->status);
+        $this->assertError($this->verifyOtp($disabled['email']), 403, 'ACCOUNT_DISABLED');
+
+        $expired = $this->createAccount('expired-login@example.com', active: false);
+        self::assertSame(202, $this->requestOtp($expired['email'])->status);
+        $this->assertError($this->verifyOtp($expired['email']), 403, 'ACCOUNT_EXPIRED');
+    }
+
     public function testAlreadyIssuedJwtUsesCurrentDatabaseAccountState(): void
     {
         $account = $this->createAccount('state@example.com');
@@ -166,5 +196,27 @@ SQL);
             401,
             'INVALID_TOKEN',
         );
+    }
+
+    /** @return array{iat: int, exp: int, sub: string} */
+    private function jwtClaims(string $token): array
+    {
+        $segments = explode('.', $token);
+        self::assertCount(3, $segments);
+        $payload = base64_decode(strtr($segments[1], '-_', '+/'), true);
+        self::assertIsString($payload);
+
+        /** @var array{iat: int, exp: int, sub: string} $claims */
+        $claims = json_decode($payload, true, 512, JSON_THROW_ON_ERROR);
+        return $claims;
+    }
+
+    private function accountExpiration(string $email): int
+    {
+        $statement = $this->pdo->prepare(
+            "SELECT FLOOR(EXTRACT(EPOCH FROM active_until))::bigint FROM accounts WHERE email = :email",
+        );
+        $statement->execute(['email' => $email]);
+        return (int) $statement->fetchColumn();
     }
 }

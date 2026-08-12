@@ -8,6 +8,7 @@ use Cstv\Backend\Account\AccountRepository;
 use Cstv\Backend\Shared\ApiException;
 use Cstv\Backend\Shared\Config;
 use Cstv\Backend\Shared\Validator;
+use DateTimeImmutable;
 use PDO;
 use Throwable;
 
@@ -97,11 +98,17 @@ final readonly class AuthService
                 throw new ApiException(400, 'INVALID_OTP', 'OTP code is invalid.');
             }
 
-            $this->otps->consume((string) $otp['id']);
             $account = $this->accounts->findByEmailForUpdate($email);
             if ($account === null) {
                 $account = $this->accounts->createWithDefaultProfile($email);
             }
+            if ($account['enabled'] !== true) {
+                throw new ApiException(403, 'ACCOUNT_DISABLED', 'This account is disabled.');
+            }
+            if ($account['not_expired'] !== true) {
+                throw new ApiException(403, 'ACCOUNT_EXPIRED', 'This account has expired.');
+            }
+            $this->otps->consume((string) $otp['id']);
             $this->pdo->commit();
         } catch (Throwable $exception) {
             if ($this->pdo->inTransaction()) {
@@ -110,7 +117,10 @@ final readonly class AuthService
             throw $exception;
         }
 
-        $token = $this->jwt->issue((string) $account['id']);
+        $token = $this->jwt->issue(
+            (string) $account['id'],
+            new DateTimeImmutable((string) $account['active_until']),
+        );
         return [
             'accessToken' => $token['token'],
             'tokenType' => 'Bearer',

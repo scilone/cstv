@@ -407,7 +407,8 @@ components:
           const: Bearer
         expiresIn:
           type: integer
-          minimum: 60
+          minimum: 1
+          description: Nombre de secondes restant jusqu'à activeUntil du compte.
     Account:
       type: object
       additionalProperties: false

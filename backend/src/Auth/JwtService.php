@@ -6,27 +6,34 @@ namespace Cstv\Backend\Auth;
 
 use Cstv\Backend\Shared\ApiException;
 use Cstv\Backend\Shared\Validator;
+use DateTimeInterface;
 use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
+use InvalidArgumentException;
 use Throwable;
 
 final readonly class JwtService
 {
-    public function __construct(private string $secret, private int $ttlSeconds)
+    public function __construct(private string $secret)
     {
     }
 
     /** @return array{token: string, expiresIn: int} */
-    public function issue(string $accountId): array
+    public function issue(string $accountId, DateTimeInterface $activeUntil): array
     {
         $now = time();
+        $expiresAt = $activeUntil->getTimestamp();
+        if ($expiresAt <= $now) {
+            throw new InvalidArgumentException('JWT expiration must be in the future.');
+        }
+
         return [
             'token' => JWT::encode([
                 'sub' => $accountId,
                 'iat' => $now,
-                'exp' => $now + $this->ttlSeconds,
+                'exp' => $expiresAt,
             ], $this->secret, 'HS256'),
-            'expiresIn' => $this->ttlSeconds,
+            'expiresIn' => $expiresAt - $now,
         ];
     }
 
