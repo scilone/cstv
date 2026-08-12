@@ -61,8 +61,8 @@ sequenceDiagram
     Room-->>App: État local mis à jour immédiatement
     App->>App: Marque le namespace pending
     alt Namespace playback
-        App->>App: Debounce / pause / background / fin lecture
-        Note over App: Aucun PUT à chaque tick
+        App->>App: Démarrage effectif / pause / fin naturelle
+        Note over App: Aucun PUT à chaque tick, au passage en arrière-plan ou à la simple sortie du lecteur
     else Autre namespace
         App->>App: Envoi asynchrone dès que possible
     end
@@ -156,7 +156,7 @@ sequenceDiagram
 | Garder le dernier snapshot synchronisé et son ETag | Calculer l’ETag SHA-256 sur les octets reçus |
 | Sérialiser, compresser et décompresser | Restituer exactement les octets sans les inspecter |
 | Fusionner les conflits 412 puis réessayer | Imposer `If-Match` sous verrou transactionnel |
-| Regrouper les envois playback | Borner chaque snapshot par `MAX_OBJECT_SIZE_BYTES` |
+| Envoyer playback uniquement au démarrage effectif, à la pause et à la fin naturelle | Borner chaque snapshot par `MAX_OBJECT_SIZE_BYTES` |
 | Resynchroniser au démarrage/reprise/reconnexion | Relire le compte PostgreSQL à chaque requête |
 | Continuer à appeler Xtream/TMDB/YouTube | Ne jamais stocker les credentials ou catalogues IPTV |
 

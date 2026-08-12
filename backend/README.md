@@ -117,7 +117,7 @@ La création d’un namespace absent se fait sans `If-Match`. Toute réécriture
 
 Les mutations concurrentes du même `(profil, namespace)` sont sérialisées par un verrou consultatif PostgreSQL tenu jusqu’au commit. Deux clients partis du même ETag ne peuvent donc pas écraser silencieusement leurs changements. Une suppression déjà effectuée reste idempotente sans `If-Match`; fournir un ancien ETag pour une ressource absente renvoie 412.
 
-Pour `playback`, l’application doit mettre à jour Room immédiatement, mais regrouper les envois réseau : debounce périodique, pause/arrêt, passage en arrière-plan et fin de lecture. Il ne faut pas pousser chaque tick du lecteur.
+Pour `playback`, l’application doit mettre à jour Room immédiatement, mais envoyer le snapshot uniquement au démarrage effectif du média, à la pause et à la fin naturelle de lecture. Il ne faut pas pousser à chaque tick, lors du passage en arrière-plan, ni à la simple sortie ou destruction du lecteur. Un envoi périodique pourra être évalué dans un second temps.
 
 La suppression d’un profil est interdite s’il est le dernier. Sinon PostgreSQL supprime ses snapshots par cascade ; les autres installations constatent la liste de profils et les snapshots actuels lors de leur prochaine synchronisation complète.
 
