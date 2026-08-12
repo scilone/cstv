@@ -170,6 +170,75 @@ final class AuthTest extends IntegrationTestCase
         }
     }
 
+    public function testProductionRequiresAValidOtpSenderAddress(): void
+    {
+        $previous = [
+            'APP_ENV' => getenv('APP_ENV'),
+            'OTP_TEST_CODE' => getenv('OTP_TEST_CODE'),
+            'JWT_SECRET' => getenv('JWT_SECRET'),
+            'OTP_HASH_SECRET' => getenv('OTP_HASH_SECRET'),
+            'OTP_FROM_EMAIL' => getenv('OTP_FROM_EMAIL'),
+            'OTP_FROM_NAME' => getenv('OTP_FROM_NAME'),
+        ];
+        putenv('APP_ENV=production');
+        putenv('OTP_TEST_CODE');
+        putenv('JWT_SECRET=' . str_repeat('a', 48));
+        putenv('OTP_HASH_SECRET=' . str_repeat('b', 48));
+        putenv('OTP_FROM_EMAIL');
+
+        try {
+            $this->expectException(InvalidArgumentException::class);
+            $this->expectExceptionMessage('OTP_FROM_EMAIL must be configured in production.');
+            Config::fromEnvironment();
+        } finally {
+            foreach ($previous as $name => $value) {
+                $value === false ? putenv($name) : putenv($name . '=' . $value);
+            }
+        }
+    }
+
+    public function testProductionRejectsAnInvalidOtpSenderAddress(): void
+    {
+        $previous = [
+            'APP_ENV' => getenv('APP_ENV'),
+            'OTP_TEST_CODE' => getenv('OTP_TEST_CODE'),
+            'JWT_SECRET' => getenv('JWT_SECRET'),
+            'OTP_HASH_SECRET' => getenv('OTP_HASH_SECRET'),
+            'OTP_FROM_EMAIL' => getenv('OTP_FROM_EMAIL'),
+        ];
+        putenv('APP_ENV=production');
+        putenv('OTP_TEST_CODE');
+        putenv('JWT_SECRET=' . str_repeat('a', 48));
+        putenv('OTP_HASH_SECRET=' . str_repeat('b', 48));
+        putenv('OTP_FROM_EMAIL=not-an-email');
+
+        try {
+            $this->expectException(InvalidArgumentException::class);
+            $this->expectExceptionMessage('OTP_FROM_EMAIL must be a valid email address.');
+            Config::fromEnvironment();
+        } finally {
+            foreach ($previous as $name => $value) {
+                $value === false ? putenv($name) : putenv($name . '=' . $value);
+            }
+        }
+    }
+
+    public function testOtpSenderNameCannotInjectAnEmailHeader(): void
+    {
+        $previous = ['OTP_FROM_NAME' => getenv('OTP_FROM_NAME')];
+        putenv("OTP_FROM_NAME=CSTV\r\nBcc: attacker@example.com");
+
+        try {
+            $this->expectException(InvalidArgumentException::class);
+            $this->expectExceptionMessage('OTP_FROM_NAME must be a single header line of at most 100 bytes.');
+            Config::fromEnvironment();
+        } finally {
+            foreach ($previous as $name => $value) {
+                $value === false ? putenv($name) : putenv($name . '=' . $value);
+            }
+        }
+    }
+
     public function testDevelopmentSecretsAreRefusedInProduction(): void
     {
         $previous = [

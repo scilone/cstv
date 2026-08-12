@@ -8,6 +8,7 @@ use Cstv\Backend\Account\AccountRepository;
 use Cstv\Backend\Auth\AuthService;
 use Cstv\Backend\Auth\JwtService;
 use Cstv\Backend\Auth\LogOtpSender;
+use Cstv\Backend\Auth\MailOtpSender;
 use Cstv\Backend\Auth\OtpRepository;
 use Cstv\Backend\Database\Connection;
 use Cstv\Backend\Http\Action\AuthAction;
@@ -38,12 +39,15 @@ final class Bootstrap
         $profiles = new ProfileRepository($pdo);
         $profileService = new ProfileService($pdo, $profiles);
         $jwt = new JwtService($config->jwtSecret, $config->jwtTtlSeconds);
+        $otpSender = $config->appEnv === 'production'
+            ? new MailOtpSender($config->otpFromEmail, $config->otpFromName)
+            : new LogOtpSender($config->appEnv);
         $auth = new AuthService(
             $pdo,
             $config,
             new OtpRepository($pdo),
             $accounts,
-            new LogOtpSender($config->appEnv),
+            $otpSender,
             $jwt,
         );
         $objectService = new ObjectService($pdo, $profiles, new ObjectRepository($pdo));

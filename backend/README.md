@@ -38,13 +38,14 @@ La copie de `.env.example` est recommandée, mais Compose possède des valeurs d
 | `JWT_SECRET`, `JWT_TTL_SECONDS` | signature HS256 et durée de l’access token | 3600 s |
 | `OTP_HASH_SECRET` | clé HMAC des OTP stockés | aucune valeur de production fournie |
 | `OTP_TEST_CODE` | OTP déterministe hors production | `123456` |
+| `OTP_FROM_EMAIL`, `OTP_FROM_NAME` | expéditeur OTP requis en production | aucun, `CSTV` |
 | `OTP_TTL_SECONDS`, `OTP_MAX_ATTEMPTS` | validité et essais OTP | 300 s, 5 |
 | `OTP_REQUEST_LIMIT_EMAIL`, `OTP_REQUEST_LIMIT_IP`, `OTP_RATE_WINDOW_SECONDS` | quotas PostgreSQL | 5, 20, 3600 s |
 | `MAX_OBJECT_SIZE_BYTES` | taille compressée maximale mesurée côté serveur | 1 MiB |
 | `API_TEST_BASE_URL` | cible HTTP des tests fonctionnels permanents | `http://nginx-test` dans la stack de test |
 | `E2E_BASE_URL` | cible HTTP des tests de concurrence réelle | `http://nginx-test` dans la stack de test |
 
-`JWT_SECRET` et `OTP_HASH_SECRET` doivent faire au moins 32 caractères et les valeurs de développement sont refusées en production. En production, définir des secrets aléatoires et `OTP_TEST_CODE=` ; toute valeur de test provoque une erreur de configuration.
+`JWT_SECRET` et `OTP_HASH_SECRET` doivent faire au moins 32 caractères et les valeurs de développement sont refusées en production. En production, définir des secrets aléatoires, `OTP_TEST_CODE=` et une adresse valide `OTP_FROM_EMAIL` ; toute valeur de test ou expéditeur absent provoque une erreur de configuration.
 
 ## Migrations et fixtures de démonstration
 
@@ -102,7 +103,7 @@ Les scénarios de concurrence réelle passent par `curl_multi` vers `E2E_BASE_UR
 ## Flow OTP
 
 1. `POST /v1/auth/otp/request` normalise l’email, purge ses codes plus vieux que la fenêtre de quota, applique les quotas par email et IP, invalide l’ancien code actif, stocke uniquement son HMAC et renvoie toujours `202 {"status":"accepted"}`. `created_at` utilise `clock_timestamp()` et non `NOW()` : deux demandes concurrentes sur le même email s’ordonnent par leur INSERT réel, pas par le début de leur transaction.
-2. En `dev`, l’expéditeur remplaçable écrit le code dans stdout ; en `test`, `OTP_TEST_CODE` rend le scénario déterministe. Le code n’apparaît jamais dans une réponse HTTP.
+2. En `dev`, l’expéditeur remplaçable écrit le code dans stdout ; en `test`, `OTP_TEST_CODE` rend le scénario déterministe. En production, l’expéditeur utilise `mail()` et le relais local de l’hébergeur avec `OTP_FROM_EMAIL`. Le code n’apparaît jamais dans une réponse HTTP ni dans les logs de production.
 3. `POST /v1/auth/otp/verify` verrouille le dernier OTP, contrôle les cinq minutes, les essais et l’usage unique. Une réussite crée atomiquement le compte et `Profil 1` si nécessaire, puis renvoie un JWT contenant `sub`, `iat` et `exp`.
 4. Chaque route protégée valide le JWT puis relit l’état courant du compte en base.
 

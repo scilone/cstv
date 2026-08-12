@@ -18,6 +18,8 @@ final readonly class Config
         public int $jwtTtlSeconds,
         public string $otpHashSecret,
         public ?string $otpTestCode,
+        public string $otpFromEmail,
+        public string $otpFromName,
         public int $otpTtlSeconds,
         public int $otpMaxAttempts,
         public int $otpRequestLimitEmail,
@@ -51,6 +53,19 @@ final readonly class Config
             throw new InvalidArgumentException('Development secrets must be replaced in production.');
         }
 
+        $otpFromEmail = self::nullableString('OTP_FROM_EMAIL') ?? '';
+        if ($environment === 'production' && $otpFromEmail === '') {
+            throw new InvalidArgumentException('OTP_FROM_EMAIL must be configured in production.');
+        }
+        if ($otpFromEmail !== '' && filter_var($otpFromEmail, FILTER_VALIDATE_EMAIL) === false) {
+            throw new InvalidArgumentException('OTP_FROM_EMAIL must be a valid email address.');
+        }
+
+        $otpFromName = self::string('OTP_FROM_NAME', 'CSTV');
+        if (strlen($otpFromName) > 100 || preg_match('/[\r\n\x00]/', $otpFromName)) {
+            throw new InvalidArgumentException('OTP_FROM_NAME must be a single header line of at most 100 bytes.');
+        }
+
         $host = self::string('DB_HOST', 'postgres');
         $port = self::integer('DB_PORT', 5432, 1, 65535);
         $database = self::string('POSTGRES_DB', 'cstv');
@@ -65,6 +80,8 @@ final readonly class Config
             jwtTtlSeconds: self::integer('JWT_TTL_SECONDS', 3600, 60, 2_592_000),
             otpHashSecret: $otpHashSecret,
             otpTestCode: $otpTestCode,
+            otpFromEmail: $otpFromEmail,
+            otpFromName: $otpFromName,
             otpTtlSeconds: self::integer('OTP_TTL_SECONDS', 300, 60, 3600),
             otpMaxAttempts: self::integer('OTP_MAX_ATTEMPTS', 5, 1, 20),
             otpRequestLimitEmail: self::integer('OTP_REQUEST_LIMIT_EMAIL', 5, 1, 100),
