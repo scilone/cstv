@@ -3,7 +3,7 @@
 ## Informations générales
 
 Status:
-VALIDATION
+RELEASE
 
 Created:
 2026-08-11
@@ -1316,7 +1316,10 @@ décision PO du 2026-08-12 ci-dessus).
 # 9. Release
 
 Version :
+v1.78.0
 
 Commit :
+e8a7406ab05bfb78c04305f7fc910f8a6a1fb965
 
 Date :
+2026-08-12

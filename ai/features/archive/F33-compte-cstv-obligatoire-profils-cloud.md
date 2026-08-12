@@ -3,7 +3,7 @@
 ## Informations générales
 
 Status:
-VALIDATION
+RELEASE
 
 Created:
 2026-08-11
@@ -1512,7 +1512,10 @@ Ordre conseillé pour l'étape 7 :
 # 9. Release
 
 Version :
+v1.78.0
 
 Commit :
+e8a7406ab05bfb78c04305f7fc910f8a6a1fb965
 
 Date :
+2026-08-12
