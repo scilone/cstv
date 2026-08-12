@@ -10,6 +10,8 @@ import com.cstv.app.domain.repository.SeriesWatchStateRepository
 import com.cstv.app.domain.util.TimeProvider
 import javax.inject.Inject
 import javax.inject.Singleton
+import com.cstv.app.domain.sync.CloudSyncManager
+import com.cstv.app.domain.sync.SyncNamespace
 
 private const val NEVER_NOTIFIED = -1
 
@@ -18,7 +20,8 @@ class SeriesWatchStateRepositoryImpl @Inject constructor(
     private val dao: SeriesWatchStateDao,
     private val favoritesDao: FavoritesDao,
     private val vodDao: VodDao,
-    private val timeProvider: TimeProvider
+    private val timeProvider: TimeProvider,
+    private val sync: CloudSyncManager? = null
 ) : SeriesWatchStateRepository {
 
     override suspend fun eligibleSeriesIds(profileId: Int): Set<Int> {
@@ -32,6 +35,7 @@ class SeriesWatchStateRepositoryImpl @Inject constructor(
 
     override suspend fun upsert(state: SeriesWatchState) {
         dao.upsert(state.toEntity(timeProvider.nowMillis()))
+        sync?.markDirty(state.profileId, SyncNamespace.SERIES_WATCH_STATE)
     }
 
     private fun SeriesWatchStateEntity.toDomain() = SeriesWatchState(

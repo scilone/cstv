@@ -222,6 +222,7 @@ fun SeriesPlayerScreen(
     KeepScreenOnEffect()
 
     var isPlaying by remember { mutableStateOf(true) }
+    var cloudPlaybackStarted by remember(currentEpisode.id) { mutableStateOf(false) }
     var isBuffering by remember { mutableStateOf(true) }
     var playbackError by remember { mutableStateOf<String?>(null) }
     var currentPosition by remember { mutableStateOf(episode.resumePositionMs) }
@@ -416,6 +417,8 @@ fun SeriesPlayerScreen(
                 }
                 
                 if (playbackState == Player.STATE_ENDED) {
+                    viewModel.markPlaybackForCloud()
+                    cloudPlaybackStarted = false
                     // Fin d'épisode : enchaîner sur le suivant s'il existe
                     // (Phase 59), sinon comportement historique (fermeture).
                     val next = computeNextEpisode(seriesEpisodes, currentEpisode)
@@ -430,6 +433,13 @@ fun SeriesPlayerScreen(
 
             override fun onIsPlayingChanged(playing: Boolean) {
                 isPlaying = playing
+                when {
+                    playing && !cloudPlaybackStarted -> {
+                        cloudPlaybackStarted = true
+                        viewModel.markPlaybackForCloud()
+                    }
+                    !playing && cloudPlaybackStarted -> viewModel.markPlaybackForCloud()
+                }
             }
 
             override fun onPlayerError(error: PlaybackException) {

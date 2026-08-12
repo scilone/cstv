@@ -9,6 +9,9 @@ import com.cstv.app.data.local.entity.CategoryPreferenceEntity
 @Dao
 interface CategoryPreferenceDao {
 
+    @Query("SELECT * FROM category_preferences WHERE profileId = :profileId")
+    suspend fun getAllForProfile(profileId: Int): List<CategoryPreferenceEntity>
+
     @Query("SELECT * FROM category_preferences WHERE type = :type AND profileId = :profileId")
     suspend fun getForProfile(type: String, profileId: Int): List<CategoryPreferenceEntity>
 

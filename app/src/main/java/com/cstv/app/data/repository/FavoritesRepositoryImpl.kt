@@ -5,6 +5,8 @@ import com.cstv.app.data.local.entity.FavoriteEntity
 import com.cstv.app.data.local.storage.ProfileManager
 import com.cstv.app.domain.model.*
 import com.cstv.app.domain.repository.FavoritesRepository
+import com.cstv.app.domain.sync.CloudSyncManager
+import com.cstv.app.domain.sync.SyncNamespace
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flatMapLatest
@@ -15,7 +17,8 @@ import javax.inject.Singleton
 @Singleton
 class FavoritesRepositoryImpl @Inject constructor(
     private val favoritesDao: FavoritesDao,
-    private val profileManager: ProfileManager
+    private val profileManager: ProfileManager,
+    private val sync: CloudSyncManager? = null
 ) : FavoritesRepository {
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -40,10 +43,13 @@ class FavoritesRepositoryImpl @Inject constructor(
             profileId = profileManager.currentProfileId()
         )
         favoritesDao.addFavorite(entity)
+        sync?.markDirty(entity.profileId, SyncNamespace.FAVORITES)
     }
 
     override suspend fun removeFavorite(id: Int, type: String) {
-        favoritesDao.removeFavorite(id, type, profileManager.currentProfileId())
+        val profileId = profileManager.currentProfileId()
+        favoritesDao.removeFavorite(id, type, profileId)
+        sync?.markDirty(profileId, SyncNamespace.FAVORITES)
     }
 
     override suspend fun searchUnified(query: String): SearchResult {

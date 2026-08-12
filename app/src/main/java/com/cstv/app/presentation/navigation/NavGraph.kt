@@ -173,6 +173,7 @@ fun AppNavGraph(
     favsState: com.cstv.app.presentation.favorites.FavoritesUiState,
     homeLazyListState: LazyListState,
     isTv: Boolean,
+    appUpdateViewModel: com.cstv.app.presentation.update.AppUpdateViewModel,
     
     // Active states
     activeStream: LiveStream?,
@@ -486,6 +487,7 @@ fun AppNavGraph(
         }
         composableBelowStatusBar("settings", topInset) {
             val settingsViewModel: SettingsViewModel = hiltViewModel()
+            val appUpdateState by appUpdateViewModel.state.collectAsStateWithLifecycle()
             SettingsScreen(
                 viewModel = settingsViewModel,
                 isTv = isTv,
@@ -504,7 +506,10 @@ fun AppNavGraph(
                 },
                 onManageDownloads = {
                     navController.navigate("downloads")
-                }
+                },
+                appUpdateState = appUpdateState,
+                installedVersionName = com.cstv.app.BuildConfig.VERSION_NAME,
+                onCheckForUpdate = { appUpdateViewModel.checkManually() }
             )
         }
         composableBelowStatusBar("downloads", topInset) {

@@ -49,4 +49,7 @@ interface ProfileRepository {
      * mémorisé et retombe sur `needsSelection = true`.
      */
     suspend fun resolveStartupProfile(): StartupProfileResolution
+
+    /** Removes every profile-scoped datum before another CSTV account is imported. */
+    suspend fun purgeAllProfiles()
 }

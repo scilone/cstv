@@ -59,6 +59,9 @@ import com.cstv.app.presentation.home.HomeViewModel
 import com.cstv.app.presentation.login.LoginViewModel
 import com.cstv.app.presentation.login.AutoLoginState
 import com.cstv.app.presentation.login.SplashScreen
+import com.cstv.app.presentation.cstv.CstvAuthViewModel
+import com.cstv.app.presentation.cstv.CstvGateScreen
+import com.cstv.app.domain.model.CstvSessionState
 import com.cstv.app.presentation.favorites.FavoritesViewModel
 import com.cstv.app.presentation.settings.SettingsViewModel
 import com.cstv.app.presentation.profile.ProfileViewModel
@@ -78,6 +81,12 @@ import com.cstv.app.presentation.theme.SystemBarsController
 import com.cstv.app.presentation.theme.isImmersivePlayerRoute
 import androidx.compose.ui.unit.dp
 import dagger.hilt.android.AndroidEntryPoint
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
+import com.cstv.app.domain.sync.CloudSyncManager
+import com.cstv.app.domain.repository.ProfileRepository
 
 enum class MobileTab(val route: String, val title: String, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
     HOME("home", "Accueil", Icons.Default.Home),
@@ -92,6 +101,9 @@ class MainActivity : ComponentActivity() {
 
     @javax.inject.Inject
     lateinit var settingsManager: SettingsManager
+
+    @javax.inject.Inject lateinit var cloudSyncManager: CloudSyncManager
+    @javax.inject.Inject lateinit var profileRepository: ProfileRepository
 
     // Le deep link de notification (F12) arrive via onNewIntent, un callback
     // Activity classique hors composition : ce state hissé au niveau de la
@@ -120,11 +132,48 @@ class MainActivity : ComponentActivity() {
             SystemBarsController(isTv = isTv, isPlayerRoute = false)
             Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                 val loginViewModel: LoginViewModel = hiltViewModel()
+                val cstvAuthViewModel: CstvAuthViewModel = hiltViewModel()
                 val favoritesViewModel: FavoritesViewModel = hiltViewModel()
                 val homeViewModel: HomeViewModel = hiltViewModel()
+                // F35 : instance unique pour toute la session — le contrôle
+                // automatique (Accueil) et le contrôle manuel (Paramètres)
+                // doivent converger vers la même machine d'états.
+                val appUpdateViewModel: com.cstv.app.presentation.update.AppUpdateViewModel = hiltViewModel()
 
                 val autoLoginState by loginViewModel.autoLoginState.collectAsStateWithLifecycle()
+                val cstvSessionState by cstvAuthViewModel.sessionState.collectAsStateWithLifecycle()
                 var loggedInUser by remember { mutableStateOf<UserInfo?>(null) }
+
+                LaunchedEffect(cstvSessionState) {
+                    if (cstvSessionState is CstvSessionState.Active || cstvSessionState is CstvSessionState.Offline) {
+                        loginViewModel.startAutoLogin()
+                    }
+                    if (cstvSessionState is CstvSessionState.Active) {
+                        profileRepository.getProfiles().forEach { cloudSyncManager.synchronizeProfile(it.id) }
+                    }
+                }
+
+                DisposableEffect(cstvSessionState) {
+                    val observer = LifecycleEventObserver { _, event ->
+                        if (event == Lifecycle.Event.ON_RESUME && cstvSessionState is CstvSessionState.Active) {
+                            (this@MainActivity as? ComponentActivity)?.lifecycleScope?.launch {
+                                profileRepository.getProfiles().forEach { cloudSyncManager.synchronizeProfile(it.id) }
+                            }
+                        }
+                    }
+                    lifecycle.addObserver(observer)
+                    onDispose { lifecycle.removeObserver(observer) }
+                }
+
+                // F35 : reprend automatiquement le téléchargement au retour de
+                // l'écran système d'autorisation « sources inconnues » (§4.6).
+                DisposableEffect(Unit) {
+                    val observer = LifecycleEventObserver { _, event ->
+                        if (event == Lifecycle.Event.ON_RESUME) appUpdateViewModel.onAppResumed()
+                    }
+                    lifecycle.addObserver(observer)
+                    onDispose { lifecycle.removeObserver(observer) }
+                }
 
                 LaunchedEffect(autoLoginState) {
                     when (autoLoginState) {
@@ -231,7 +280,10 @@ class MainActivity : ComponentActivity() {
                 val showProfileSelection = loggedInUser != null &&
                     profileSelectionNeeded && !profileGateResolved
 
-                if (showSplash) {
+                val cstvGateResolved = cstvSessionState is CstvSessionState.Active || cstvSessionState is CstvSessionState.Offline
+                if (!cstvGateResolved) {
+                    CstvGateScreen(cstvAuthViewModel, cstvSessionState, isTv)
+                } else if (showSplash) {
                     SplashScreen(isTv = isTv)
                 } else if (showProfileSelection && showManagementFromGate) {
                     com.cstv.app.presentation.profile.ProfileManagementScreen(
@@ -323,6 +375,16 @@ class MainActivity : ComponentActivity() {
                         }
                         val activeProfile = profileState.profiles.firstOrNull { it.id == profileState.activeProfileId }
                         SystemBarsController(isTv = isTv, isPlayerRoute = isPlayerRoute)
+
+                        // F35 : vérification automatique au démarrage à froid,
+                        // uniquement à l'Accueil, jamais pendant une lecture
+                        // (RG1). Les gates CSTV/Xtream/profil sont déjà résolus
+                        // dans cette branche. `checkAutomatically()` s'auto-garde
+                        // contre tout second appel de ce démarrage.
+                        val appUpdateState by appUpdateViewModel.state.collectAsStateWithLifecycle()
+                        LaunchedEffect(currentRoute, isPlayerRoute) {
+                            if (currentRoute == "home" && !isPlayerRoute) appUpdateViewModel.checkAutomatically()
+                        }
 
                         // Bottom navigation bar is visible only on mobile, when user is logged in
                         // AND we are not on the login screen or in a full screen player
@@ -418,6 +480,7 @@ class MainActivity : ComponentActivity() {
                                     favsState = favsState,
                                     homeLazyListState = homeLazyListState,
                                     isTv = isTv,
+                                    appUpdateViewModel = appUpdateViewModel,
                                     activeStream = activeStream,
                                     onActiveStreamChanged = { activeStream = it },
                                     activeStreamsList = activeStreamsList,
@@ -464,6 +527,23 @@ class MainActivity : ComponentActivity() {
                                         profileSelectionNeeded = true
                                         profileGateResolved = false
                                     }
+                                )
+                            }
+                            // F35 : au-dessus du NavHost, jamais au-dessus des
+                            // gates (déjà résolus dans cette branche) ni du lecteur.
+                            if (!isPlayerRoute) {
+                                com.cstv.app.presentation.update.AppUpdateDialog(
+                                    state = appUpdateState,
+                                    isTv = isTv,
+                                    installedVersionName = com.cstv.app.BuildConfig.VERSION_NAME,
+                                    onInstall = { appUpdateViewModel.install() },
+                                    onLater = { appUpdateViewModel.postponeUpdate() },
+                                    onIgnore = { appUpdateViewModel.ignoreUpdate() },
+                                    onCancelDownload = { appUpdateViewModel.cancelDownload() },
+                                    onOpenPermissionSettings = { appUpdateViewModel.openPermissionSettings() },
+                                    onRetry = { appUpdateViewModel.retry() },
+                                    onDismiss = { appUpdateViewModel.dismiss() },
+                                    onQuit = { activity?.finish() }
                                 )
                             }
                         }

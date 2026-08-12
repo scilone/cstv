@@ -38,6 +38,20 @@ import com.cstv.app.data.repository.ViewingHistoryRepositoryImpl
 import com.cstv.app.data.local.dao.SeriesDao
 import com.cstv.app.data.local.dao.FavoritesDao
 import com.cstv.app.data.local.dao.MediaRatingDao
+import com.cstv.app.data.local.dao.ProfileSyncStateDao
+import com.cstv.app.data.local.storage.CstvSessionManager
+import com.cstv.app.data.local.storage.CstvSessionManagerImpl
+import com.cstv.app.data.remote.CstvErrorMapper
+import com.cstv.app.data.remote.api.CstvApiService
+import com.cstv.app.data.remote.api.CstvAuthInterceptor
+import com.cstv.app.data.remote.api.CstvSessionGuardInterceptor
+import com.cstv.app.data.remote.api.CstvObjectsApiService
+import com.cstv.app.data.repository.CstvAuthRepositoryImpl
+import com.cstv.app.domain.repository.CstvAuthRepository
+import com.cstv.app.data.cloudsync.CloudSyncManagerImpl
+import com.cstv.app.data.cloudsync.RoomSnapshotSerializer
+import com.cstv.app.data.cloudsync.SnapshotCodec
+import com.cstv.app.data.cloudsync.merge.SnapshotMerger
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -130,6 +144,22 @@ object AppModule {
         return database.profileDao()
     }
 
+    @Provides @Singleton
+    fun provideProfileSyncStateDao(database: AppDatabase): ProfileSyncStateDao = database.profileSyncStateDao()
+
+    @Provides @Singleton
+    fun provideCstvSessionManager(@ApplicationContext context: Context): CstvSessionManager = CstvSessionManagerImpl(context)
+
+    @Provides @Singleton
+    fun provideCstvErrorMapper(gson: Gson): CstvErrorMapper = CstvErrorMapper(gson)
+
+    @Provides @Singleton fun provideSnapshotCodec(gson: Gson): SnapshotCodec = SnapshotCodec(gson)
+    @Provides @Singleton fun provideSnapshotMerger(): SnapshotMerger = SnapshotMerger()
+    @Provides @Singleton
+    fun provideSnapshotSerializer(impl: RoomSnapshotSerializer): com.cstv.app.data.cloudsync.SnapshotSerializer = impl
+    @Provides @Singleton
+    fun provideCloudSyncManager(impl: CloudSyncManagerImpl): com.cstv.app.domain.sync.CloudSyncManager = impl
+
     @Provides
     @Singleton
     fun provideMediaRatingDao(database: AppDatabase): MediaRatingDao = database.mediaRatingDao()
@@ -190,9 +220,10 @@ object AppModule {
     @Singleton
     fun provideTrackPreferenceRepository(
         dao: com.cstv.app.data.local.dao.TrackPreferenceDao,
-        profileManager: ProfileManager
+        profileManager: ProfileManager,
+        sync: com.cstv.app.domain.sync.CloudSyncManager
     ): com.cstv.app.domain.repository.TrackPreferenceRepository {
-        return com.cstv.app.data.repository.TrackPreferenceRepositoryImpl(dao, profileManager)
+        return com.cstv.app.data.repository.TrackPreferenceRepositoryImpl(dao, profileManager, sync)
     }
 
     @Provides
@@ -205,9 +236,10 @@ object AppModule {
     @Singleton
     fun provideCategoryPreferenceRepository(
         dao: com.cstv.app.data.local.dao.CategoryPreferenceDao,
-        profileManager: ProfileManager
+        profileManager: ProfileManager,
+        sync: com.cstv.app.domain.sync.CloudSyncManager
     ): com.cstv.app.domain.repository.CategoryPreferenceRepository {
-        return com.cstv.app.data.repository.CategoryPreferenceRepositoryImpl(dao, profileManager)
+        return com.cstv.app.data.repository.CategoryPreferenceRepositoryImpl(dao, profileManager, sync)
     }
 
     @Provides
@@ -229,9 +261,12 @@ object AppModule {
         trackPreferenceDao: com.cstv.app.data.local.dao.TrackPreferenceDao,
         categoryPreferenceDao: com.cstv.app.data.local.dao.CategoryPreferenceDao,
         mediaRatingDao: MediaRatingDao,
-        seriesWatchStateDao: com.cstv.app.data.local.dao.SeriesWatchStateDao
+        seriesWatchStateDao: com.cstv.app.data.local.dao.SeriesWatchStateDao,
+        profileSyncStateDao: ProfileSyncStateDao,
+        cstvProfileGateway: com.cstv.app.data.repository.CstvProfileGateway,
+        database: AppDatabase
     ): ProfileRepository {
-        return ProfileRepositoryImpl(profileDao, profileManager, favoritesDao, vodDao, liveTvDao, trackPreferenceDao, categoryPreferenceDao, mediaRatingDao, seriesWatchStateDao)
+        return ProfileRepositoryImpl(profileDao, profileManager, favoritesDao, vodDao, liveTvDao, trackPreferenceDao, categoryPreferenceDao, mediaRatingDao, seriesWatchStateDao, profileSyncStateDao, cstvProfileGateway, database)
     }
 
     @Provides
@@ -241,17 +276,19 @@ object AppModule {
         mediaRatingDao: MediaRatingDao,
         favoritesDao: FavoritesDao,
         vodDao: VodDao,
-        profileManager: ProfileManager
+        profileManager: ProfileManager,
+        sync: com.cstv.app.domain.sync.CloudSyncManager
     ): com.cstv.app.domain.repository.MediaRatingRepository =
-        com.cstv.app.data.repository.MediaRatingRepositoryImpl(database, mediaRatingDao, favoritesDao, vodDao, profileManager)
+        com.cstv.app.data.repository.MediaRatingRepositoryImpl(database, mediaRatingDao, favoritesDao, vodDao, profileManager, sync)
 
     @Provides
     @Singleton
     fun provideViewingHistoryRepository(
         vodDao: VodDao,
         liveTvDao: LiveTvDao,
-        profileManager: ProfileManager
-    ): ViewingHistoryRepository = ViewingHistoryRepositoryImpl(vodDao, liveTvDao, profileManager)
+        profileManager: ProfileManager,
+        sync: com.cstv.app.domain.sync.CloudSyncManager
+    ): ViewingHistoryRepository = ViewingHistoryRepositoryImpl(vodDao, liveTvDao, profileManager, sync)
 
     @Provides
     @Singleton
@@ -273,6 +310,36 @@ object AppModule {
             .registerTypeAdapter(Long::class.javaPrimitiveType, SafeLongAdapter())
             .create()
     }
+
+    @Provides @Singleton
+    @javax.inject.Named("cstv")
+    fun provideCstvOkHttpClient(auth: CstvAuthInterceptor, guard: CstvSessionGuardInterceptor): OkHttpClient {
+        val logging = HttpLoggingInterceptor().apply { level = HttpLoggingInterceptor.Level.BASIC; redactHeader("Authorization") }
+        return OkHttpClient.Builder().addInterceptor(auth).addInterceptor(guard).addInterceptor(logging)
+            .connectTimeout(10, TimeUnit.SECONDS).readTimeout(10, TimeUnit.SECONDS).callTimeout(20, TimeUnit.SECONDS).build()
+    }
+
+    @Provides @Singleton
+    @javax.inject.Named("cstv")
+    fun provideCstvRetrofit(@javax.inject.Named("cstv") client: OkHttpClient, gson: Gson): Retrofit {
+        val baseUrl = requireNotNull(BuildConfig.CSTV_BASE_URL.takeIf { it.isNotBlank() }) { "CSTV_BASE_URL is missing" }.let { if (it.endsWith('/')) it else "$it/" }
+        return Retrofit.Builder().baseUrl(baseUrl).client(client).addConverterFactory(GsonConverterFactory.create(gson)).build()
+    }
+
+    @Provides @Singleton
+    @javax.inject.Named("cstvObjects")
+    fun provideCstvObjectsRetrofit(@javax.inject.Named("cstv") client: OkHttpClient, gson: Gson): Retrofit {
+        val baseUrl = requireNotNull(BuildConfig.CSTV_BASE_URL.takeIf { it.isNotBlank() }) { "CSTV_BASE_URL is missing" }.let { if (it.endsWith('/')) it else "$it/" }
+        val objectClient = client.newBuilder().readTimeout(20, TimeUnit.SECONDS).callTimeout(60, TimeUnit.SECONDS).build()
+        return Retrofit.Builder().baseUrl(baseUrl).client(objectClient).addConverterFactory(GsonConverterFactory.create(gson)).build()
+    }
+
+    @Provides @Singleton fun provideCstvApiService(@javax.inject.Named("cstv") retrofit: Retrofit): CstvApiService = retrofit.create(CstvApiService::class.java)
+    @Provides @Singleton fun provideCstvObjectsApiService(@javax.inject.Named("cstvObjects") retrofit: Retrofit): CstvObjectsApiService = retrofit.create(CstvObjectsApiService::class.java)
+    @Provides @Singleton
+    fun provideCloudProfileEmptinessProbe(impl: com.cstv.app.data.repository.CstvCloudProfileEmptinessProbe): com.cstv.app.data.repository.CloudProfileEmptinessProbe = impl
+    @Provides @Singleton
+    fun provideCstvAuthRepository(impl: CstvAuthRepositoryImpl): CstvAuthRepository = impl
 
     @Provides
     @Singleton
@@ -384,9 +451,10 @@ object AppModule {
         credentialsManager: CredentialsManager,
         profileManager: ProfileManager,
         requestGate: XtreamRequestGate,
-        networkMonitor: com.cstv.app.domain.network.NetworkMonitor
+        networkMonitor: com.cstv.app.domain.network.NetworkMonitor,
+        cloudSyncManager: com.cstv.app.domain.sync.CloudSyncManager
     ): LiveTvRepository {
-        return LiveTvRepositoryImpl(apiService, liveTvDao, credentialsManager, profileManager, requestGate, networkMonitor)
+        return LiveTvRepositoryImpl(apiService, liveTvDao, credentialsManager, profileManager, requestGate, networkMonitor, cloudSyncManager)
     }
 
     @Provides
@@ -398,9 +466,10 @@ object AppModule {
         credentialsManager: CredentialsManager,
         profileManager: ProfileManager,
         requestGate: XtreamRequestGate,
-        networkMonitor: com.cstv.app.domain.network.NetworkMonitor
+        networkMonitor: com.cstv.app.domain.network.NetworkMonitor,
+        cloudSyncManager: com.cstv.app.domain.sync.CloudSyncManager
     ): VodRepository {
-        return VodRepositoryImpl(apiService, vodDao, seriesDao, credentialsManager, profileManager, requestGate, networkMonitor)
+        return VodRepositoryImpl(apiService, vodDao, seriesDao, credentialsManager, profileManager, requestGate, networkMonitor, cloudSyncManager)
     }
 
     @Provides
@@ -421,9 +490,10 @@ object AppModule {
     @Singleton
     fun provideFavoritesRepository(
         favoritesDao: FavoritesDao,
-        profileManager: ProfileManager
+        profileManager: ProfileManager,
+        sync: com.cstv.app.domain.sync.CloudSyncManager
     ): FavoritesRepository {
-        return FavoritesRepositoryImpl(favoritesDao, profileManager)
+        return FavoritesRepositoryImpl(favoritesDao, profileManager, sync)
     }
 
     @Provides
@@ -522,9 +592,10 @@ object AppModule {
         dao: com.cstv.app.data.local.dao.SeriesWatchStateDao,
         favoritesDao: FavoritesDao,
         vodDao: VodDao,
-        timeProvider: com.cstv.app.domain.util.TimeProvider
+        timeProvider: com.cstv.app.domain.util.TimeProvider,
+        sync: com.cstv.app.domain.sync.CloudSyncManager
     ): com.cstv.app.domain.repository.SeriesWatchStateRepository =
-        com.cstv.app.data.repository.SeriesWatchStateRepositoryImpl(dao, favoritesDao, vodDao, timeProvider)
+        com.cstv.app.data.repository.SeriesWatchStateRepositoryImpl(dao, favoritesDao, vodDao, timeProvider, sync)
 
     @Provides
     @Singleton
@@ -532,6 +603,87 @@ object AppModule {
         @ApplicationContext context: Context
     ): com.cstv.app.domain.notification.NewEpisodeNotifier =
         com.cstv.app.data.notification.AndroidNewEpisodeNotifier(context)
+
+    // --- F35 : détection et installation des mises à jour in-app ---
+
+    @Provides
+    @Singleton
+    fun provideAppUpdatePreferences(
+        @ApplicationContext context: Context
+    ): com.cstv.app.data.local.storage.AppUpdatePreferences =
+        com.cstv.app.data.local.storage.AppUpdatePreferences(context)
+
+    @Provides @Singleton
+    @javax.inject.Named("github")
+    fun provideGithubOkHttpClient(): OkHttpClient {
+        val logging = HttpLoggingInterceptor().apply {
+            level = if (BuildConfig.DEBUG) HttpLoggingInterceptor.Level.BASIC else HttpLoggingInterceptor.Level.NONE
+        }
+        // Client dédié (§4.1) : jamais partagé avec Xtream (réécriture d'URL,
+        // identifiants) ni CSTV (jeton Authorization). Aucun secret envoyé à
+        // GitHub. Pas de `callTimeout` : le téléchargement de l'APK partage ce
+        // client et ne doit pas être plafonné en durée totale.
+        // F35-R4 : `followSslRedirects` vaut `true` par défaut chez OkHttp, ce
+        // qui autoriserait GitHub à rediriger le téléchargement de l'APK vers
+        // du HTTP. `false` refuse le suivi d'une redirection HTTPS -> HTTP ;
+        // l'intercepteur réseau ci-dessous est une seconde barrière qui refuse
+        // explicitement tout appel réseau, y compris un hop de redirection,
+        // dont l'URL n'est pas HTTPS.
+        return OkHttpClient.Builder()
+            .addInterceptor(logging)
+            .addNetworkInterceptor { chain ->
+                val request = chain.request()
+                if (!request.url.isHttps) throw java.io.IOException("Downgrade HTTP refusé : ${request.url}")
+                chain.proceed(request)
+            }
+            .followSslRedirects(false)
+            .connectTimeout(10, TimeUnit.SECONDS)
+            .readTimeout(20, TimeUnit.SECONDS)
+            .build()
+    }
+
+    @Provides @Singleton
+    fun provideGithubReleaseApiService(
+        @javax.inject.Named("github") client: OkHttpClient,
+        gson: Gson
+    ): com.cstv.app.data.remote.api.GithubReleaseApiService {
+        return Retrofit.Builder()
+            .baseUrl("https://api.github.com/")
+            .client(client)
+            .addConverterFactory(GsonConverterFactory.create(gson))
+            .build()
+            .create(com.cstv.app.data.remote.api.GithubReleaseApiService::class.java)
+    }
+
+    @Provides
+    @Singleton
+    fun provideApkInspector(
+        impl: com.cstv.app.data.update.AndroidApkInspector
+    ): com.cstv.app.data.update.ApkInspector = impl
+
+    @Provides
+    @Singleton
+    fun provideUpdateApkStore(
+        @ApplicationContext context: Context,
+        apkInspector: com.cstv.app.data.update.ApkInspector
+    ): com.cstv.app.data.update.UpdateApkStore =
+        com.cstv.app.data.update.UpdateApkStore(
+            directory = context.cacheDir.resolve("app_updates"),
+            apkInspector = apkInspector,
+            applicationId = BuildConfig.APPLICATION_ID
+        )
+
+    @Provides
+    @Singleton
+    fun provideAppUpdateRepository(
+        impl: com.cstv.app.data.repository.AppUpdateRepositoryImpl
+    ): com.cstv.app.domain.repository.AppUpdateRepository = impl
+
+    @Provides
+    @Singleton
+    fun providePackageInstallerGateway(
+        impl: com.cstv.app.data.update.AndroidPackageInstaller
+    ): com.cstv.app.domain.update.PackageInstallerGateway = impl
 }
 
 @javax.inject.Qualifier

@@ -189,6 +189,7 @@ fun VodPlayerScreen(
     KeepScreenOnEffect()
 
     var isPlaying by remember { mutableStateOf(true) }
+    var cloudPlaybackStarted by remember(details.streamId) { mutableStateOf(false) }
     var isBuffering by remember { mutableStateOf(true) }
     var playbackError by remember { mutableStateOf<String?>(null) }
     var currentPosition by remember { mutableStateOf(initialPositionMs) }
@@ -362,6 +363,8 @@ fun VodPlayerScreen(
                 
                 // If film completes (reaches end), delete saved position
                 if (playbackState == Player.STATE_ENDED) {
+                    viewModel.markPlaybackForCloud()
+                    cloudPlaybackStarted = false
                     viewModel.clearPosition(details.streamId)
                     handleClose()
                 }
@@ -369,6 +372,13 @@ fun VodPlayerScreen(
 
             override fun onIsPlayingChanged(playing: Boolean) {
                 isPlaying = playing
+                when {
+                    playing && !cloudPlaybackStarted -> {
+                        cloudPlaybackStarted = true
+                        viewModel.markPlaybackForCloud()
+                    }
+                    !playing && cloudPlaybackStarted -> viewModel.markPlaybackForCloud()
+                }
             }
 
             override fun onPlayerError(error: PlaybackException) {

@@ -7,6 +7,9 @@ import com.cstv.app.domain.model.SubtitleBackground
 import com.cstv.app.domain.model.SubtitleStyle
 import com.cstv.app.domain.model.SubtitleTextColor
 import com.cstv.app.domain.model.SubtitleTextSize
+import com.cstv.app.domain.repository.CstvAuthRepository
+import com.cstv.app.domain.sync.CloudSyncManager
+import com.cstv.app.domain.sync.CloudSyncStatus
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.*
@@ -41,6 +44,12 @@ class SettingsViewModelTest {
     @Mock
     private lateinit var context: android.content.Context
 
+    @Mock
+    private lateinit var cstvAuthRepository: CstvAuthRepository
+
+    @Mock
+    private lateinit var cloudSyncManager: CloudSyncManager
+
     private lateinit var viewModel: SettingsViewModel
     private val testDispatcher = UnconfinedTestDispatcher()
 
@@ -53,8 +62,10 @@ class SettingsViewModelTest {
         whenever(settingsManager.getSyncFrequency()).thenReturn(SyncFrequency.DISABLED)
         whenever(settingsManager.getSubtitleStyle()).thenReturn(SubtitleStyle())
         whenever(settingsManager.getDebugModeEnabled()).thenReturn(false)
+        whenever(cstvAuthRepository.storedEmail()).thenReturn(null)
+        whenever(cloudSyncManager.status).thenReturn(kotlinx.coroutines.flow.MutableStateFlow(CloudSyncStatus.Idle))
 
-        viewModel = SettingsViewModel(settingsManager, diagnosticManager, context)
+        viewModel = SettingsViewModel(settingsManager, diagnosticManager, cstvAuthRepository, cloudSyncManager, context)
     }
 
     @After
@@ -159,10 +170,22 @@ class SettingsViewModelTest {
     @Test
     fun test_clearUploadStatus_resetsState() {
         viewModel.clearUploadStatus()
-        
+
         val state = viewModel.state.value
         assertEquals(false, state.isUploadingLogs)
         assertNull(state.uploadedLogsUrl)
         assertNull(state.uploadLogsError)
+    }
+
+    /**
+     * F33 §5.7 : « Se déconnecter du compte CSTV » ne touche jamais aux
+     * identifiants Xtream — vrai par construction ici, `SettingsViewModel`
+     * n'a même pas de référence à `CredentialsManager`/`AuthRepository`.
+     */
+    @Test
+    fun test_signOutCstv_delegatesOnlyToCstvAuthRepository() {
+        viewModel.signOutCstv()
+
+        verify(cstvAuthRepository).signOut()
     }
 }

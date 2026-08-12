@@ -33,11 +33,12 @@ class LoginViewModel @Inject constructor(
     private val _savedCredentials = MutableStateFlow<Credentials?>(null)
     val savedCredentials: StateFlow<Credentials?> = _savedCredentials.asStateFlow()
 
-    init {
-        checkAutoLogin()
-    }
+    private var autoLoginStarted = false
 
-    private fun checkAutoLogin() {
+    /** Called only after the CSTV gate has resolved (F33). */
+    fun startAutoLogin() {
+        if (autoLoginStarted) return
+        autoLoginStarted = true
         _savedCredentials.value = getSavedCredentialsUseCase()
         _autoLoginState.value = AutoLoginState.Checking
         viewModelScope.launch {
@@ -100,5 +101,6 @@ class LoginViewModel @Inject constructor(
         _loginState.value = LoginState.Idle
         _autoLoginState.value = AutoLoginState.NoCredentials
         _savedCredentials.value = null
+        autoLoginStarted = false
     }
 }

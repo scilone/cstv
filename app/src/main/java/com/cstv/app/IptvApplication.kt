@@ -7,6 +7,7 @@ import coil.ImageLoaderFactory
 import coil.disk.DiskCache
 import coil.memory.MemoryCache
 import com.cstv.app.data.local.storage.SettingsManager
+import com.cstv.app.data.update.UpdateApkStore
 import com.cstv.app.data.local.storage.SyncFrequency
 import com.cstv.app.data.util.DiagnosticManager
 import com.cstv.app.data.worker.DatabaseSyncWorker
@@ -44,6 +45,9 @@ class IptvApplication : Application(), ImageLoaderFactory {
     @Inject
     lateinit var database: dagger.Lazy<com.cstv.app.data.local.db.AppDatabase>
 
+    @Inject
+    lateinit var updateApkStore: UpdateApkStore
+
     override fun onCreate() {
         super.onCreate()
         diagnosticManager.initialize()
@@ -52,6 +56,19 @@ class IptvApplication : Application(), ImageLoaderFactory {
         }
         scheduleDefaultBackgroundSync()
         warmUpDatabase()
+        purgeObsoleteAppUpdateApks()
+    }
+
+    /**
+     * Purge `cacheDir/app_updates` (F35, §4.7/RG13) : `.part` interrompus, APK
+     * illisibles/étrangers, et APK de version ≤ celle installée. Toujours hors
+     * thread principal, ne bloque jamais l'affichage du splash.
+     */
+    private fun purgeObsoleteAppUpdateApks() {
+        CoroutineScope(Dispatchers.IO).launch {
+            runCatching { updateApkStore.purge(BuildConfig.VERSION_CODE) }
+                .onFailure { IptvLog.e("APPUPDATE", "Purge du cache de mise à jour impossible", it) }
+        }
     }
 
     /**

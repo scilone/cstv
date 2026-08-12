@@ -4,7 +4,8 @@ data class Profile(
     val id: Int,
     val name: String,
     val avatarId: Int,
-    val createdAt: Long
+    val createdAt: Long,
+    val remoteId: String? = null
 )
 
 /**

@@ -88,6 +88,15 @@ fun ProfileManagementScreen(
             deleteError?.let {
                 Text(text = it, color = Color(0xFFCF6679), fontSize = 13.sp, modifier = Modifier.padding(bottom = 16.dp))
             }
+            state.profileActionErrorRes?.let { errorRes ->
+                Text(
+                    text = stringResource(errorRes),
+                    color = Color(0xFFCF6679),
+                    fontSize = 13.sp,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+            }
 
             LazyVerticalGrid(
                 columns = GridCells.Adaptive(minSize = 120.dp),
@@ -98,11 +107,15 @@ fun ProfileManagementScreen(
                 items(state.profiles, key = { it.id }) { profile ->
                     EditableProfileItem(
                         profile = profile,
+                        enabled = state.cloudCrudEnabled,
                         onEditClick = { editingProfile = profile }
                     )
                 }
                 item {
-                    AddProfileTile(onClick = { creatingProfile = true })
+                    AddProfileTile(
+                        enabled = state.cloudCrudEnabled,
+                        onClick = { creatingProfile = true }
+                    )
                 }
             }
 
@@ -158,7 +171,7 @@ fun ProfileManagementScreen(
 }
 
 @Composable
-private fun EditableProfileItem(profile: Profile, onEditClick: () -> Unit) {
+private fun EditableProfileItem(profile: Profile, enabled: Boolean, onEditClick: () -> Unit) {
     // Seule la pastille crayon est cliquable/focalisable ; le contour se
     // dessine autour de l'avatar entier, sinon le marquage de focus est trop
     // petit pour situer le profil visé au D-pad.
@@ -183,9 +196,9 @@ private fun EditableProfileItem(profile: Profile, onEditClick: () -> Unit) {
                 modifier = Modifier
                     .size(32.dp)
                     .clip(CircleShape)
-                    .background(Color.White)
+                    .background(if (enabled) Color.White else Color.LightGray)
                     .onFocusChanged { focused = it.isFocused }
-                    .clickable { onEditClick() },
+                    .clickable(enabled = enabled) { onEditClick() },
                 contentAlignment = Alignment.Center
             ) {
                 Icon(Icons.Default.Edit, contentDescription = "Modifier ${profile.name}", tint = Color.Black, modifier = Modifier.size(16.dp))
@@ -205,7 +218,7 @@ private fun EditableProfileItem(profile: Profile, onEditClick: () -> Unit) {
 }
 
 @Composable
-private fun AddProfileTile(onClick: () -> Unit) {
+private fun AddProfileTile(enabled: Boolean, onClick: () -> Unit) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier.width(120.dp)
@@ -214,12 +227,17 @@ private fun AddProfileTile(onClick: () -> Unit) {
             modifier = Modifier
                 .size(96.dp)
                 .clip(CircleShape)
-                .background(Surface3)
+                .background(if (enabled) Surface3 else Surface2)
                 .border(1.dp, Color.DarkGray, CircleShape)
-                .clickable { onClick() },
+                .clickable(enabled = enabled) { onClick() },
             contentAlignment = Alignment.Center
         ) {
-            Icon(Icons.Default.Add, contentDescription = stringResource(R.string.profile_add_description), tint = Color.White, modifier = Modifier.size(36.dp))
+            Icon(
+                Icons.Default.Add,
+                contentDescription = stringResource(R.string.profile_add_description),
+                tint = if (enabled) Color.White else Color.Gray,
+                modifier = Modifier.size(36.dp)
+            )
         }
         Spacer(modifier = Modifier.height(10.dp))
         Text(

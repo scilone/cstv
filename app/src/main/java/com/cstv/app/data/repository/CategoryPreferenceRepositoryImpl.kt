@@ -12,11 +12,14 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import javax.inject.Inject
 import javax.inject.Singleton
+import com.cstv.app.domain.sync.CloudSyncManager
+import com.cstv.app.domain.sync.SyncNamespace
 
 @Singleton
 class CategoryPreferenceRepositoryImpl @Inject constructor(
     private val dao: CategoryPreferenceDao,
-    private val profileManager: ProfileManager
+    private val profileManager: ProfileManager,
+    private val sync: CloudSyncManager? = null
 ) : CategoryPreferenceRepository {
 
     private val _changes = MutableSharedFlow<Unit>(
@@ -43,6 +46,7 @@ class CategoryPreferenceRepositoryImpl @Inject constructor(
             )
         )
         _changes.tryEmit(Unit)
+        sync?.markDirty(profileId, SyncNamespace.CATEGORY_PREFERENCES)
     }
 
     override suspend fun saveOrder(type: CategoryType, orderedCategoryIds: List<String>) {
@@ -60,5 +64,6 @@ class CategoryPreferenceRepositoryImpl @Inject constructor(
             }
         )
         _changes.tryEmit(Unit)
+        sync?.markDirty(profileId, SyncNamespace.CATEGORY_PREFERENCES)
     }
 }

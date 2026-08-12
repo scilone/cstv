@@ -9,6 +9,8 @@ import com.cstv.app.data.local.storage.SyncFrequency
 import com.cstv.app.data.util.DiagnosticManager
 import com.cstv.app.data.worker.DatabaseSyncWorker
 import com.cstv.app.data.worker.SyncScheduling
+import com.cstv.app.domain.repository.CstvAuthRepository
+import com.cstv.app.domain.sync.CloudSyncManager
 import com.cstv.app.domain.model.SubtitleBackground
 import com.cstv.app.domain.model.SubtitleTextColor
 import com.cstv.app.domain.model.SubtitleTextSize
@@ -26,6 +28,8 @@ import javax.inject.Inject
 class SettingsViewModel @Inject constructor(
     private val settingsManager: SettingsManager,
     private val diagnosticManager: DiagnosticManager,
+    private val cstvAuthRepository: CstvAuthRepository,
+    private val cloudSyncManager: CloudSyncManager,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
@@ -40,6 +44,9 @@ class SettingsViewModel @Inject constructor(
     init {
         loadSettings()
         observeForceSyncStatus()
+        viewModelScope.launch {
+            cloudSyncManager.status.collect { status -> _state.update { it.copy(cloudSyncStatus = status) } }
+        }
     }
 
     private fun loadSettings() {
@@ -47,7 +54,8 @@ class SettingsViewModel @Inject constructor(
             it.copy(
                 syncFrequency = settingsManager.getSyncFrequency(),
                 subtitleStyle = settingsManager.getSubtitleStyle(),
-                debugModeEnabled = settingsManager.getDebugModeEnabled()
+                debugModeEnabled = settingsManager.getDebugModeEnabled(),
+                cstvEmail = cstvAuthRepository.storedEmail()
             )
         }
     }
@@ -179,4 +187,7 @@ class SettingsViewModel @Inject constructor(
     fun clearUploadStatus() {
         _state.update { it.copy(uploadedLogsUrl = null, uploadLogsError = null, isUploadingLogs = false) }
     }
+
+    /** Keeps Xtream credentials and all local profile data intact (F33 §5.7). */
+    fun signOutCstv() = cstvAuthRepository.signOut()
 }

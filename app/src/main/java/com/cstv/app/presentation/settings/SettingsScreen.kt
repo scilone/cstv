@@ -3,6 +3,7 @@ package com.cstv.app.presentation.settings
 import androidx.compose.ui.res.stringResource
 import com.cstv.app.R
 import com.cstv.app.data.local.storage.SyncFrequency
+import com.cstv.app.domain.sync.CloudSyncStatus
 import com.cstv.app.presentation.theme.BricolageGrotesque
 import com.cstv.app.presentation.theme.HankenGrotesk
 import com.cstv.app.presentation.theme.Surface1
@@ -55,6 +56,9 @@ fun SettingsScreen(
     onLogout: () -> Unit,
     onManageCategories: () -> Unit,
     onManageDownloads: () -> Unit = {},
+    appUpdateState: com.cstv.app.presentation.update.AppUpdateUiState = com.cstv.app.presentation.update.AppUpdateUiState.Idle,
+    installedVersionName: String = "",
+    onCheckForUpdate: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -76,7 +80,12 @@ fun SettingsScreen(
                 onSubtitleBackgroundChanged = { viewModel.updateSubtitleBackground(it) },
                 onDebugModeChanged = { viewModel.updateDebugModeEnabled(it) },
                 onUploadLogs = { viewModel.uploadDiagnosticLogs() },
-                onLogout = onLogout
+                cstvEmail = state.cstvEmail,
+                onCstvLogout = { viewModel.signOutCstv() },
+                onLogout = onLogout,
+                appUpdateState = appUpdateState,
+                installedVersionName = installedVersionName,
+                onCheckForUpdate = onCheckForUpdate
             )
         } else {
             MobileSettingsLayout(
@@ -90,8 +99,13 @@ fun SettingsScreen(
                 onSubtitleBackgroundChanged = { viewModel.updateSubtitleBackground(it) },
                 onDebugModeChanged = { viewModel.updateDebugModeEnabled(it) },
                 onUploadLogs = { viewModel.uploadDiagnosticLogs() },
+                cstvEmail = state.cstvEmail,
+                onCstvLogout = { viewModel.signOutCstv() },
                 onBack = onBack,
-                onLogout = onLogout
+                onLogout = onLogout,
+                appUpdateState = appUpdateState,
+                installedVersionName = installedVersionName,
+                onCheckForUpdate = onCheckForUpdate
             )
         }
 
@@ -194,7 +208,12 @@ private fun TvSettingsLayout(
     onSubtitleBackgroundChanged: (SubtitleBackground) -> Unit,
     onDebugModeChanged: (Boolean) -> Unit,
     onUploadLogs: () -> Unit,
-    onLogout: () -> Unit
+    cstvEmail: String?,
+    onCstvLogout: () -> Unit,
+    onLogout: () -> Unit,
+    appUpdateState: com.cstv.app.presentation.update.AppUpdateUiState,
+    installedVersionName: String,
+    onCheckForUpdate: () -> Unit
 ) {
     val scrollState = rememberScrollState()
     val coroutineScope = rememberCoroutineScope()
@@ -247,6 +266,26 @@ private fun TvSettingsLayout(
             onDebugModeChanged = onDebugModeChanged,
             onUploadLogs = onUploadLogs
         )
+
+        TvCheckUpdateCard(
+            appUpdateState = appUpdateState,
+            installedVersionName = installedVersionName,
+            onCheckForUpdate = onCheckForUpdate
+        )
+
+        cstvEmail?.let { email ->
+            TvText(
+                text = stringResource(cloudSyncStatusStringRes(state.cloudSyncStatus)),
+                style = TvTheme.typography.bodySmall,
+                color = Color.White.copy(alpha = 0.7f),
+                modifier = Modifier.fillMaxWidth()
+            )
+            TvSettingsActionButton(
+                text = stringResource(R.string.cstv_logout, email),
+                onClick = onCstvLogout,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
 
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -348,8 +387,13 @@ private fun MobileSettingsLayout(
     onSubtitleBackgroundChanged: (SubtitleBackground) -> Unit,
     onDebugModeChanged: (Boolean) -> Unit,
     onUploadLogs: () -> Unit,
+    cstvEmail: String?,
+    onCstvLogout: () -> Unit,
     onBack: () -> Unit,
-    onLogout: () -> Unit
+    onLogout: () -> Unit,
+    appUpdateState: com.cstv.app.presentation.update.AppUpdateUiState,
+    installedVersionName: String,
+    onCheckForUpdate: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -416,6 +460,25 @@ private fun MobileSettingsLayout(
             onDebugModeChanged = onDebugModeChanged,
             onUploadLogs = onUploadLogs
         )
+
+        MobileCheckUpdateCard(
+            appUpdateState = appUpdateState,
+            installedVersionName = installedVersionName,
+            onCheckForUpdate = onCheckForUpdate
+        )
+
+        cstvEmail?.let { email ->
+            Text(
+                text = stringResource(cloudSyncStatusStringRes(state.cloudSyncStatus)),
+                color = Color.Gray,
+                fontSize = 12.sp,
+                textAlign = TextAlign.Start,
+                modifier = Modifier.fillMaxWidth()
+            )
+            OutlinedButton(onClick = onCstvLogout, modifier = Modifier.fillMaxWidth().height(44.dp)) {
+                Text(stringResource(R.string.cstv_logout, email))
+            }
+        }
 
         // Profiles (Phase 27)
         Spacer(modifier = Modifier.height(24.dp))
@@ -980,6 +1043,114 @@ private fun MobileDiagnosticCard(
                 modifier = Modifier.fillMaxWidth().height(40.dp)
             ) {
                 Text("EXTRAIRE LES LOGS DE DIAGNOSTIC", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            }
+        }
+    }
+}
+
+// --- Recherche manuelle de mise à jour (F35) ---
+
+/** T10 (F34) : état de synchronisation cloud en langage non technique. */
+@androidx.annotation.StringRes
+private fun cloudSyncStatusStringRes(status: CloudSyncStatus): Int = when (status) {
+    is CloudSyncStatus.Idle -> R.string.cstv_sync_idle
+    is CloudSyncStatus.Pending -> R.string.cstv_sync_pending
+    is CloudSyncStatus.Incompatible -> R.string.cstv_sync_incompatible
+    is CloudSyncStatus.Failed -> if (status.code == "PAYLOAD_TOO_LARGE") R.string.cstv_sync_too_large else R.string.cstv_sync_failed
+}
+
+@Composable
+private fun updateCheckSubtitle(state: com.cstv.app.presentation.update.AppUpdateUiState, installedVersionName: String): String =
+    when (state) {
+        is com.cstv.app.presentation.update.AppUpdateUiState.UpToDate -> stringResource(R.string.settings_check_update_up_to_date)
+        is com.cstv.app.presentation.update.AppUpdateUiState.Error ->
+            if (state.release == null) stringResource(R.string.update_error_check)
+            else stringResource(R.string.settings_check_update_subtitle, installedVersionName)
+        else -> stringResource(R.string.settings_check_update_subtitle, installedVersionName)
+    }
+
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+private fun TvCheckUpdateCard(
+    appUpdateState: com.cstv.app.presentation.update.AppUpdateUiState,
+    installedVersionName: String,
+    onCheckForUpdate: () -> Unit
+) {
+    val isChecking = appUpdateState is com.cstv.app.presentation.update.AppUpdateUiState.Checking
+    // F35-R5 : carte et action alignées sur §4.8 (Surface2 / AccentLavande),
+    // pas le Surface3 générique des autres cartes de cet écran.
+    Card(
+        colors = CardDefaults.cardColors(containerColor = Surface2),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            TvText(
+                text = "MISE À JOUR",
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.Bold,
+                style = TvTheme.typography.titleMedium
+            )
+            TvText(
+                text = updateCheckSubtitle(appUpdateState, installedVersionName),
+                color = Color.Gray,
+                style = TvTheme.typography.bodySmall
+            )
+            TvSettingsActionButton(
+                text = stringResource(R.string.settings_check_update),
+                onClick = onCheckForUpdate,
+                loading = isChecking,
+                enabled = !isChecking,
+                containerColor = AccentLavande,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+    }
+}
+
+@Composable
+private fun MobileCheckUpdateCard(
+    appUpdateState: com.cstv.app.presentation.update.AppUpdateUiState,
+    installedVersionName: String,
+    onCheckForUpdate: () -> Unit
+) {
+    val isChecking = appUpdateState is com.cstv.app.presentation.update.AppUpdateUiState.Checking
+    // F35-R5 : Surface2 (comme la variante TV ci-dessus), pas Surface3.
+    Card(
+        colors = CardDefaults.cardColors(containerColor = Surface2),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Column {
+                Text(
+                    text = stringResource(R.string.settings_check_update),
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp
+                )
+                Text(
+                    text = updateCheckSubtitle(appUpdateState, installedVersionName),
+                    color = Color.Gray,
+                    fontSize = 12.sp
+                )
+            }
+            Button(
+                onClick = onCheckForUpdate,
+                enabled = !isChecking,
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                shape = RoundedCornerShape(8.dp),
+                modifier = Modifier.fillMaxWidth().height(40.dp)
+            ) {
+                if (isChecking) {
+                    CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp, modifier = Modifier.size(16.dp))
+                } else {
+                    Text(stringResource(R.string.settings_check_update), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                }
             }
         }
     }

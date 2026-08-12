@@ -6,6 +6,8 @@ import com.cstv.app.data.local.storage.ProfileManager
 import com.cstv.app.domain.model.LiveStream
 import com.cstv.app.domain.model.PlaybackPosition
 import com.cstv.app.domain.repository.ViewingHistoryRepository
+import com.cstv.app.domain.sync.CloudSyncManager
+import com.cstv.app.domain.sync.SyncNamespace
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
@@ -14,7 +16,8 @@ import javax.inject.Inject
 class ViewingHistoryRepositoryImpl @Inject constructor(
     private val vodDao: VodDao,
     private val liveTvDao: LiveTvDao,
-    private val profileManager: ProfileManager
+    private val profileManager: ProfileManager,
+    private val sync: CloudSyncManager? = null
 ) : ViewingHistoryRepository {
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     override fun observeRecentlyWatched(limit: Int): Flow<List<LiveStream>> =
@@ -35,10 +38,14 @@ class ViewingHistoryRepositoryImpl @Inject constructor(
 
     override suspend fun removeFromContinueWatching(position: PlaybackPosition) {
         // streamId + active profile is deliberately the entire deletion scope.
-        vodDao.deletePlaybackPosition(position.streamId, profileManager.currentProfileId())
+        val profileId = profileManager.currentProfileId()
+        vodDao.deletePlaybackPosition(position.streamId, profileId)
+        sync?.markDirty(profileId, SyncNamespace.PLAYBACK)
     }
 
     override suspend fun removeRecentlyWatched(streamId: Int) {
-        liveTvDao.deleteRecentlyWatched(streamId, profileManager.currentProfileId())
+        val profileId = profileManager.currentProfileId()
+        liveTvDao.deleteRecentlyWatched(streamId, profileId)
+        sync?.markDirty(profileId, SyncNamespace.RECENTLY_WATCHED_LIVE)
     }
 }

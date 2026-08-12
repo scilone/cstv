@@ -1,6 +1,36 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">CSTV</string>
+    <string name="cstv_title">Compte CSTV</string>
+    <string name="cstv_email">Adresse email</string>
+    <string name="cstv_request_otp">Recevoir un code</string>
+    <string name="cstv_sending">Envoi…</string>
+    <string name="cstv_otp_title">Validation du code</string>
+    <string name="cstv_otp_sent">Un code à six chiffres a été envoyé à %1$s.</string>
+    <string name="cstv_otp_code">Code</string>
+    <string name="cstv_verify">Valider</string>
+    <string name="cstv_verifying">Validation…</string>
+    <string name="cstv_change_email">Utiliser une autre adresse</string>
+    <string name="cstv_retry">Revérifier</string>
+    <string name="cstv_session_expired">Votre session a expiré, veuillez vous reconnecter.</string>
+    <string name="cstv_session_rejected">Votre session n’est plus valide.</string>
+    <string name="cstv_account_disabled">Votre compte est désactivé.</string>
+    <string name="cstv_account_expired">La validité de votre compte est terminée.</string>
+    <string name="cstv_invalid_email">Saisissez une adresse email valide.</string>
+    <string name="cstv_invalid_otp_format">Saisissez le code à six chiffres.</string>
+    <string name="cstv_invalid_otp">Le code est invalide ou a expiré.</string>
+    <string name="cstv_rate_limited">Trop de demandes. Réessayez plus tard.</string>
+    <string name="cstv_network_unavailable">Une connexion internet est nécessaire.</string>
+    <string name="cstv_server_unavailable">Le service est temporairement indisponible.</string>
+    <string name="cstv_unknown_error">Une erreur est survenue. Réessayez.</string>
+    <string name="cstv_logout">Se déconnecter du compte CSTV (%1$s)</string>
+    <string name="cstv_sync_idle">Données à jour sur tous vos appareils.</string>
+    <string name="cstv_sync_pending">Synchronisation des données en attente.</string>
+    <string name="cstv_sync_incompatible">Certaines données ne peuvent pas être synchronisées pour le moment.</string>
+    <string name="cstv_sync_too_large">Certaines données sont trop volumineuses pour être synchronisées.</string>
+    <string name="cstv_sync_failed">La synchronisation des données a rencontré un problème temporaire.</string>
+    <string name="profile_cloud_offline">Les modifications de profils nécessitent une connexion internet.</string>
+    <string name="profile_cloud_action_failed">La modification du profil n’a pas pu être enregistrée.</string>
     <string name="new_episodes_channel_name">Nouveautés séries</string>
     <string name="new_episodes_channel_description">Alerte quand de nouveaux épisodes sont disponibles pour une série terminée</string>
     <string name="new_episodes_notification_title">Nouveaux épisodes disponibles</string>
@@ -174,4 +204,27 @@
     <string name="vod_empty_filtered">Aucun film ne correspond à ces filtres</string>
     <string name="series_empty_category">Aucune série dans cette catégorie</string>
     <string name="series_empty_filtered">Aucune série ne correspond à ces filtres</string>
+
+    <!-- F35 : détection et installation des mises à jour in-app -->
+    <string name="update_available_title">Mise à jour disponible</string>
+    <string name="update_available_message">La version %1$s est disponible. Vous utilisez la version %2$s.</string>
+    <string name="update_action_install">Mettre à jour</string>
+    <string name="update_action_later">Plus tard</string>
+    <string name="update_action_ignore">Ignorer cette version</string>
+    <string name="update_required_title">Mise à jour requise</string>
+    <string name="update_required_message">Cette version de l\'application n\'est plus compatible. Installez la version %1$s pour continuer.</string>
+    <string name="update_action_quit">Quitter</string>
+    <string name="update_downloading">Téléchargement… %1$d %%</string>
+    <string name="update_action_cancel">Annuler</string>
+    <string name="update_error_download">Le téléchargement a échoué. Réessayez plus tard.</string>
+    <string name="update_error_check">Impossible de vérifier les mises à jour. Vérifiez votre connexion.</string>
+    <string name="update_error_install">L\'installation a échoué. Réessayez plus tard.</string>
+    <string name="update_action_retry">Réessayer</string>
+    <string name="update_action_close">Fermer</string>
+    <string name="update_permission_message">Autorisez CSTV à installer des applications pour poursuivre la mise à jour.</string>
+    <string name="update_permission_action">Ouvrir les réglages</string>
+    <string name="update_permission_unavailable">Cet appareil ne permet pas d\'accorder cette autorisation. Installez la mise à jour manuellement depuis github.com/scilone/cstv/releases</string>
+    <string name="settings_check_update">Rechercher une mise à jour</string>
+    <string name="settings_check_update_subtitle">Version actuelle %1$s</string>
+    <string name="settings_check_update_up_to_date">Votre application est à jour.</string>
 </resources>

@@ -3,9 +3,14 @@ package com.cstv.app.data.repository
 import com.cstv.app.data.local.dao.FavoritesDao
 import com.cstv.app.data.local.dao.LiveTvDao
 import com.cstv.app.data.local.dao.ProfileDao
+import com.cstv.app.data.local.dao.ProfileSyncStateDao
 import com.cstv.app.data.local.dao.VodDao
 import com.cstv.app.data.local.entity.ProfileEntity
 import com.cstv.app.data.local.storage.ProfileManager
+import com.cstv.app.data.remote.CstvErrorMapper
+import com.cstv.app.data.remote.api.CstvApiService
+import com.cstv.app.data.remote.dto.CstvProfileDto
+import com.google.gson.Gson
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -40,8 +45,11 @@ class ProfileRepositoryImplTest {
     @Mock private lateinit var categoryPreferenceDao: com.cstv.app.data.local.dao.CategoryPreferenceDao
     @Mock private lateinit var mediaRatingDao: com.cstv.app.data.local.dao.MediaRatingDao
     @Mock private lateinit var seriesWatchStateDao: com.cstv.app.data.local.dao.SeriesWatchStateDao
+    @Mock private lateinit var profileSyncStateDao: ProfileSyncStateDao
+    @Mock private lateinit var api: CstvApiService
 
     private lateinit var repository: ProfileRepositoryImpl
+    private lateinit var repositoryWithCloud: ProfileRepositoryImpl
 
     private fun profile(id: Int, name: String = "P$id") =
         ProfileEntity(id = id, name = name, avatarId = 0, createdAt = id.toLong())
@@ -76,6 +84,13 @@ class ProfileRepositoryImplTest {
     fun setUp() {
         MockitoAnnotations.openMocks(this)
         repository = ProfileRepositoryImpl(profileDao, profileManager, favoritesDao, vodDao, liveTvDao, trackPreferenceDao, categoryPreferenceDao, mediaRatingDao, seriesWatchStateDao)
+        // Instance F33 : gateway CSTV réel adossé à une API mockée (piège Mockito
+        // AGENTS.md — CstvProfileGateway est une classe finale, pas une interface).
+        repositoryWithCloud = ProfileRepositoryImpl(
+            profileDao, profileManager, favoritesDao, vodDao, liveTvDao,
+            trackPreferenceDao, categoryPreferenceDao, mediaRatingDao, seriesWatchStateDao,
+            profileSyncStateDao, CstvProfileGateway(api, CstvErrorMapper(Gson())), database = null
+        )
     }
 
     @Test
@@ -294,5 +309,129 @@ class ProfileRepositoryImplTest {
         repository.updateAvatar(5, 3)
 
         verify(profileManager, never()).setAutoStartProfileId(any())
+    }
+
+    // ---- F33 T7 : CRUD confirmé par le backend avant Room ------------------
+
+    @Test
+    fun test_createProfile_confirmedByBackend_beforeRoomWrite() = runTest {
+        whenever(api.createProfile(any())).thenReturn(
+            retrofit2.Response.success(CstvProfileDto("remote-1", "Nicolas", 3, "2026-01-01T00:00:00Z"))
+        )
+        whenever(profileDao.insert(any())).thenReturn(9L)
+        whenever(profileDao.getById(9)).thenReturn(profile(9, "Nicolas").copy(avatarId = 3, remoteId = "remote-1"))
+
+        val created = repositoryWithCloud.createProfile("Nicolas", 3)
+
+        verify(profileDao).insert(org.mockito.kotlin.argThat {
+            name == "Nicolas" && avatarId == 3 && remoteId == "remote-1"
+        })
+        assertEquals("remote-1", created.remoteId)
+    }
+
+    @Test
+    fun test_createProfile_offline_neverWritesRoom_andSurfacesUnavailable() = runTest {
+        whenever(api.createProfile(any())).thenAnswer { throw java.io.IOException("no network") }
+
+        try {
+            repositoryWithCloud.createProfile("Nicolas", 3)
+            org.junit.Assert.fail("expected CstvException(Unavailable)")
+        } catch (e: CstvException) {
+            assertEquals(com.cstv.app.domain.model.CstvError.Unavailable, e.cstvError)
+        }
+        verify(profileDao, never()).insert(any())
+    }
+
+    @Test
+    fun test_renameProfile_confirmedByBackend_remoteNameWinsInRoom() = runTest {
+        whenever(profileDao.getById(5)).thenReturn(profile(5, "Ancien nom").copy(remoteId = "remote-5"))
+        whenever(api.updateProfile(eq("remote-5"), any())).thenReturn(
+            retrofit2.Response.success(CstvProfileDto("remote-5", "Nouveau nom", 0, "2026-01-01T00:00:00Z"))
+        )
+
+        repositoryWithCloud.renameProfile(5, "Nouveau nom")
+
+        verify(profileDao).update(org.mockito.kotlin.argThat { id == 5 && name == "Nouveau nom" })
+    }
+
+    @Test
+    fun test_renameProfile_offline_neverWritesRoom() = runTest {
+        whenever(profileDao.getById(5)).thenReturn(profile(5, "Ancien nom").copy(remoteId = "remote-5"))
+        whenever(api.updateProfile(eq("remote-5"), any())).thenAnswer { throw java.io.IOException("no network") }
+
+        try {
+            repositoryWithCloud.renameProfile(5, "Nouveau nom")
+            org.junit.Assert.fail("expected CstvException(Unavailable)")
+        } catch (e: CstvException) {
+            assertEquals(com.cstv.app.domain.model.CstvError.Unavailable, e.cstvError)
+        }
+        verify(profileDao, never()).update(any())
+    }
+
+    @Test
+    fun test_updateAvatar_confirmedByBackend_remoteAvatarWinsInRoom() = runTest {
+        whenever(profileDao.getById(5)).thenReturn(profile(5).copy(remoteId = "remote-5"))
+        whenever(api.updateProfile(eq("remote-5"), any())).thenReturn(
+            retrofit2.Response.success(CstvProfileDto("remote-5", "P5", 7, "2026-01-01T00:00:00Z"))
+        )
+
+        repositoryWithCloud.updateAvatar(5, 7)
+
+        verify(profileDao).update(org.mockito.kotlin.argThat { id == 5 && avatarId == 7 })
+    }
+
+    @Test
+    fun test_deleteProfile_confirmedByBackend_beforeRemovingLocalData() = runTest {
+        whenever(profileDao.count()).thenReturn(2)
+        whenever(profileDao.getById(5)).thenReturn(profile(5).copy(remoteId = "remote-5"))
+        whenever(api.deleteProfile("remote-5")).thenReturn(retrofit2.Response.success(Unit))
+        doReturn(ProfileManager.NO_PROFILE).whenever(profileManager).currentProfileId()
+        whenever(profileDao.getAll()).thenReturn(listOf(profile(6)))
+
+        val deleted = repositoryWithCloud.deleteProfile(5)
+
+        assertTrue(deleted)
+        verify(api).deleteProfile("remote-5")
+        verify(profileSyncStateDao).deleteForProfile(5)
+        verify(profileDao).deleteById(5)
+    }
+
+    @Test
+    fun test_deleteProfile_lastRemainingProfile_neverReachesTheBackend() = runTest {
+        whenever(profileDao.count()).thenReturn(1)
+
+        val deleted = repositoryWithCloud.deleteProfile(5)
+
+        assertFalse(deleted)
+        verify(api, never()).deleteProfile(any())
+    }
+
+    @Test
+    fun test_deleteProfile_offline_leavesTheProfileAndItsDataIntact() = runTest {
+        whenever(profileDao.count()).thenReturn(2)
+        whenever(profileDao.getById(5)).thenReturn(profile(5).copy(remoteId = "remote-5"))
+        whenever(api.deleteProfile("remote-5")).thenAnswer { throw java.io.IOException("no network") }
+
+        try {
+            repositoryWithCloud.deleteProfile(5)
+            org.junit.Assert.fail("expected CstvException(Unavailable)")
+        } catch (e: CstvException) {
+            assertEquals(com.cstv.app.domain.model.CstvError.Unavailable, e.cstvError)
+        }
+        verify(profileDao, never()).deleteById(any())
+        verify(favoritesDao, never()).deleteAllForProfile(any())
+    }
+
+    @Test
+    fun test_purgeAllProfiles_clearsCloudSyncStateAlongsideTheSevenScopedTables() = runTest {
+        whenever(profileDao.getAll()).thenReturn(listOf(profile(5), profile(6)))
+
+        repository.purgeAllProfiles()
+
+        verify(profileDao).deleteAll()
+        verify(favoritesDao).deleteAllForProfile(5)
+        verify(favoritesDao).deleteAllForProfile(6)
+        verify(profileManager).setActiveProfileId(ProfileManager.NO_PROFILE)
+        verify(profileManager).setAutoStartProfileId(ProfileManager.NO_PROFILE)
     }
 }

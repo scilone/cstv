@@ -23,6 +23,8 @@ import com.cstv.app.domain.model.LiveEpgNowNext
 import com.cstv.app.domain.model.LiveStream
 import com.cstv.app.domain.network.NetworkMonitor
 import com.cstv.app.domain.repository.LiveTvRepository
+import com.cstv.app.domain.sync.CloudSyncManager
+import com.cstv.app.domain.sync.SyncNamespace
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -33,7 +35,8 @@ class LiveTvRepositoryImpl @Inject constructor(
     private val credentialsManager: CredentialsManager,
     private val profileManager: com.cstv.app.data.local.storage.ProfileManager,
     private val requestGate: XtreamRequestGate,
-    private val networkMonitor: NetworkMonitor
+    private val networkMonitor: NetworkMonitor,
+    private val cloudSyncManager: CloudSyncManager? = null
 ) : LiveTvRepository {
 
     private fun LiveCategoryEntity.toDomain() = LiveCategory(categoryId, categoryName, parentId)
@@ -198,6 +201,7 @@ class LiveTvRepositoryImpl @Inject constructor(
             watchedAt = System.currentTimeMillis()
         )
         liveTvDao.insertRecentlyWatched(entity)
+        cloudSyncManager?.markDirty(entity.profileId, SyncNamespace.RECENTLY_WATCHED_LIVE)
     }
 
     override suspend fun getRecentlyWatched(): List<LiveStream> {

@@ -26,6 +26,10 @@
 # même besoin de règle explicite — sans elle, R8 casse le call adapter
 # générique en release et l'appel TMDB throw au chargement de l'Accueil.
 -keep interface com.cstv.app.data.remote.api.TmdbApiService { *; }
+-keep interface com.cstv.app.data.remote.api.CstvApiService { *; }
+-keep interface com.cstv.app.data.remote.api.CstvObjectsApiService { *; }
+# GithubReleaseApiService (F35) : même pattern, même besoin de règle explicite.
+-keep interface com.cstv.app.data.remote.api.GithubReleaseApiService { *; }
 
 # --- Gson & R8 TypeToken preservation ---
 -keep class * extends com.google.gson.reflect.TypeToken

@@ -9,6 +9,9 @@ import com.cstv.app.data.local.entity.TrackPreferenceEntity
 @Dao
 interface TrackPreferenceDao {
 
+    @Query("SELECT * FROM track_preferences WHERE profileId = :profileId")
+    suspend fun getAllForProfile(profileId: Int): List<TrackPreferenceEntity>
+
     @Query("SELECT * FROM track_preferences WHERE profileId = :profileId AND mediaType = :mediaType AND mediaId = :mediaId LIMIT 1")
     suspend fun getPreference(profileId: Int, mediaType: String, mediaId: Int): TrackPreferenceEntity?
 

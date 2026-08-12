@@ -64,7 +64,8 @@ class VodViewModel @Inject constructor(
     private val getTrailerPreviewUseCase: GetTrailerPreviewUseCase,
     private val invalidateTrailerPreviewUseCase: com.cstv.app.domain.usecase.InvalidateTrailerPreviewUseCase,
     @com.cstv.app.di.DefaultDispatcher
-    private val computationDispatcher: kotlinx.coroutines.CoroutineDispatcher
+    private val computationDispatcher: kotlinx.coroutines.CoroutineDispatcher,
+    private val markPlaybackSyncUseCase: com.cstv.app.domain.usecase.MarkPlaybackSyncUseCase? = null
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(VodState())
@@ -575,6 +576,11 @@ class VodViewModel @Inject constructor(
                 }
             }
         }
+    }
+
+    /** Called only from the player lifecycle: start, pause and natural end. */
+    fun markPlaybackForCloud() {
+        viewModelScope.launch { markPlaybackSyncUseCase?.invoke() }
     }
 
     fun getCredentials(): Credentials? {

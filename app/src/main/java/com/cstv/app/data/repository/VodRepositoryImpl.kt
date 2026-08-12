@@ -24,6 +24,8 @@ import com.cstv.app.domain.model.VodDetails
 import com.cstv.app.domain.model.VodStream
 import com.cstv.app.domain.model.ReleaseYearParser
 import com.cstv.app.domain.repository.VodRepository
+import com.cstv.app.domain.sync.CloudSyncManager
+import com.cstv.app.domain.sync.SyncNamespace
 import com.google.gson.JsonElement
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.Flow
@@ -41,7 +43,8 @@ class VodRepositoryImpl @Inject constructor(
     private val credentialsManager: CredentialsManager,
     private val profileManager: com.cstv.app.data.local.storage.ProfileManager,
     private val requestGate: XtreamRequestGate,
-    private val networkMonitor: NetworkMonitor
+    private val networkMonitor: NetworkMonitor,
+    private val cloudSyncManager: CloudSyncManager? = null
 ) : VodRepository {
 
     private var enrichmentDispatcher: CoroutineDispatcher = Dispatchers.IO
@@ -654,6 +657,8 @@ class VodRepositoryImpl @Inject constructor(
             releaseDate = finalReleaseDate,
             categoryId = finalCategoryId
         )
+        // This method is called on player ticks. Cloud sync is deliberately
+        // triggered only by the player's start/pause/end events (F34 §5.7).
         vodDao.savePlaybackPosition(entity)
     }
 
@@ -663,7 +668,9 @@ class VodRepositoryImpl @Inject constructor(
     }
 
     override suspend fun clearPlaybackPosition(streamId: Int) {
-        vodDao.deletePlaybackPosition(streamId, profileManager.currentProfileId())
+        val profileId = profileManager.currentProfileId()
+        vodDao.deletePlaybackPosition(streamId, profileId)
+        cloudSyncManager?.markDirty(profileId, SyncNamespace.PLAYBACK)
     }
 
     override suspend fun getAllPlaybackPositions(): List<PlaybackPosition> {

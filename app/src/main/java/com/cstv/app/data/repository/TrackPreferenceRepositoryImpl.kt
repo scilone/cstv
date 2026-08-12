@@ -6,13 +6,16 @@ import com.cstv.app.data.local.storage.ProfileManager
 import com.cstv.app.domain.model.MediaType
 import com.cstv.app.domain.model.TrackPreference
 import com.cstv.app.domain.repository.TrackPreferenceRepository
+import com.cstv.app.domain.sync.CloudSyncManager
+import com.cstv.app.domain.sync.SyncNamespace
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 class TrackPreferenceRepositoryImpl @Inject constructor(
     private val dao: TrackPreferenceDao,
-    private val profileManager: ProfileManager
+    private val profileManager: ProfileManager,
+    private val sync: CloudSyncManager? = null
 ) : TrackPreferenceRepository {
 
     override suspend fun getPreference(mediaType: MediaType, mediaId: Int): TrackPreference? {
@@ -33,6 +36,7 @@ class TrackPreferenceRepositoryImpl @Inject constructor(
                 subtitleLang = existing?.subtitleLang
             )
         )
+        sync?.markDirty(profileId, SyncNamespace.TRACK_PREFERENCES)
     }
 
     override suspend fun saveSubtitleLang(mediaType: MediaType, mediaId: Int, subtitleLang: String?) {
@@ -47,5 +51,6 @@ class TrackPreferenceRepositoryImpl @Inject constructor(
                 subtitleLang = subtitleLang
             )
         )
+        sync?.markDirty(profileId, SyncNamespace.TRACK_PREFERENCES)
     }
 }

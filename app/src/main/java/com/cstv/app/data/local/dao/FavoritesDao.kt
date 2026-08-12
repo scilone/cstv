@@ -20,6 +20,9 @@ interface FavoritesDao {
     @Query("SELECT * FROM favorites WHERE type = :type AND profileId = :profileId ORDER BY addedAt DESC")
     suspend fun getFavoritesByType(type: String, profileId: Int): List<FavoriteEntity>
 
+    @Query("SELECT * FROM favorites WHERE profileId = :profileId")
+    suspend fun getAllForProfile(profileId: Int): List<FavoriteEntity>
+
     @Query("SELECT EXISTS(SELECT 1 FROM favorites WHERE id = :id AND type = :type AND profileId = :profileId LIMIT 1)")
     suspend fun isFavorite(id: Int, type: String, profileId: Int): Boolean
 

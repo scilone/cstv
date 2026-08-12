@@ -16,6 +16,8 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import javax.inject.Singleton
+import com.cstv.app.domain.sync.CloudSyncManager
+import com.cstv.app.domain.sync.SyncNamespace
 
 @Singleton
 class MediaRatingRepositoryImpl @Inject constructor(
@@ -23,7 +25,8 @@ class MediaRatingRepositoryImpl @Inject constructor(
     private val mediaRatingDao: MediaRatingDao,
     private val favoritesDao: FavoritesDao,
     private val vodDao: VodDao,
-    private val profileManager: ProfileManager
+    private val profileManager: ProfileManager,
+    private val sync: CloudSyncManager? = null
 ) : MediaRatingRepository {
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     override fun observeRating(mediaId: Int, mediaType: RatedMediaType): Flow<MediaRatingValue?> =
@@ -55,6 +58,11 @@ class MediaRatingRepositoryImpl @Inject constructor(
                     if (seriesEpisodeIds.isNotEmpty()) vodDao.deletePlaybackPositionsByStreamIds(seriesEpisodeIds, profileId)
                 }
             }
+        }
+        sync?.markDirty(profileId, SyncNamespace.RATINGS)
+        if (value == MediaRatingValue.DISLIKE) {
+            sync?.markDirty(profileId, SyncNamespace.FAVORITES)
+            sync?.markDirty(profileId, SyncNamespace.PLAYBACK)
         }
     }
 

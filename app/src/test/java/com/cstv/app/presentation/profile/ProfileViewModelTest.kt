@@ -2,6 +2,9 @@ package com.cstv.app.presentation.profile
 
 import com.cstv.app.domain.model.Profile
 import com.cstv.app.domain.model.StartupProfileResolution
+import com.cstv.app.domain.model.CstvSession
+import com.cstv.app.domain.model.CstvSessionState
+import com.cstv.app.domain.repository.CstvAuthRepository
 import com.cstv.app.domain.repository.ProfileRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -31,6 +34,7 @@ class ProfileViewModelTest {
     private val testDispatcher = StandardTestDispatcher()
 
     @Mock private lateinit var profileRepository: ProfileRepository
+    @Mock private lateinit var cstvAuthRepository: CstvAuthRepository
 
     // MutableStateFlow contrôlé (F31-R1) : seul moyen de prouver que l'état UI
     // se met bien à jour quand la source émet, et non un simple relais figé
@@ -39,16 +43,19 @@ class ProfileViewModelTest {
 
     private fun profile(id: Int, name: String = "P$id") = Profile(id, name, 0, id.toLong())
 
-    private fun buildViewModel(initialAutoStart: Int = -1): ProfileViewModel {
-        MockitoAnnotations.openMocks(this)
+    private fun buildViewModel(
+        initialAutoStart: Int = -1,
+        cstvRepository: CstvAuthRepository? = null
+    ): ProfileViewModel {
         whenever(profileRepository.observeProfiles()).thenReturn(flowOf(listOf(profile(5), profile(6))))
         autoStartFlow = MutableStateFlow(initialAutoStart)
         whenever(profileRepository.autoStartProfileId).thenReturn(autoStartFlow)
-        return ProfileViewModel(profileRepository)
+        return ProfileViewModel(profileRepository, cstvRepository)
     }
 
     @Before
     fun setUp() {
+        MockitoAnnotations.openMocks(this)
         Dispatchers.setMain(testDispatcher)
     }
 
@@ -156,5 +163,20 @@ class ProfileViewModelTest {
 
         assertEquals(6, viewModel.state.value.autoStartProfileId)
         verify(profileRepository, never()).setAutoStartProfile(any())
+    }
+
+    @Test
+    fun test_offlineCstv_disablesProfileCrud_andPreventsLocalMutation() = runTest {
+        val session = CstvSession("token", "account", "mail@example.test", Long.MAX_VALUE)
+        whenever(cstvAuthRepository.sessionState).thenReturn(MutableStateFlow(CstvSessionState.Offline(session)))
+        val viewModel = buildViewModel(cstvRepository = cstvAuthRepository)
+
+        testDispatcher.scheduler.advanceUntilIdle()
+        viewModel.renameProfile(5, "Nouveau nom")
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertFalse(viewModel.state.value.cloudCrudEnabled)
+        assertEquals(com.cstv.app.R.string.profile_cloud_offline, viewModel.state.value.profileActionErrorRes)
+        verify(profileRepository, never()).renameProfile(any(), any())
     }
 }

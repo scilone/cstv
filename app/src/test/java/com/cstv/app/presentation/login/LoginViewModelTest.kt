@@ -62,12 +62,28 @@ class LoginViewModelTest {
         Dispatchers.resetMain()
     }
 
+    /**
+     * F33 T6 : l'auto-login Xtream ne doit plus démarrer dans `init` mais sur
+     * appel explicite `startAutoLogin()`, une fois le gate CSTV résolu.
+     */
+    @Test
+    fun test_autoLogin_doesNotStart_withoutAnExplicitCall() = runTest {
+        viewModel = LoginViewModel(loginUseCase, getSavedCredentialsUseCase, logoutUseCase, autoLoginUseCase, catalogSyncManager)
+
+        // `Checking` reste la valeur de construction du StateFlow : la preuve
+        // que l'auto-login n'est pas parti est l'absence d'appel ci-dessous,
+        // pas cette valeur par défaut.
+        assertEquals(AutoLoginState.Checking, viewModel.autoLoginState.value)
+        verify(getSavedCredentialsUseCase, never())()
+        verify(autoLoginUseCase, never())()
+    }
+
     @Test
     fun test_autoLogin_noSavedCredentials_transitionsToNoCredentials() = runTest {
         whenever(getSavedCredentialsUseCase()).thenReturn(null)
         whenever(autoLoginUseCase()).thenReturn(AutoLoginOutcome.NoCredentials)
 
-        viewModel = LoginViewModel(loginUseCase, getSavedCredentialsUseCase, logoutUseCase, autoLoginUseCase, catalogSyncManager)
+        viewModel = LoginViewModel(loginUseCase, getSavedCredentialsUseCase, logoutUseCase, autoLoginUseCase, catalogSyncManager).also { it.startAutoLogin() }
 
         assertEquals(AutoLoginState.NoCredentials, viewModel.autoLoginState.value)
         assertNull(viewModel.savedCredentials.value)
@@ -79,7 +95,7 @@ class LoginViewModelTest {
         whenever(getSavedCredentialsUseCase()).thenReturn(creds)
         whenever(autoLoginUseCase()).thenReturn(AutoLoginOutcome.NoCredentials)
 
-        viewModel = LoginViewModel(loginUseCase, getSavedCredentialsUseCase, logoutUseCase, autoLoginUseCase, catalogSyncManager)
+        viewModel = LoginViewModel(loginUseCase, getSavedCredentialsUseCase, logoutUseCase, autoLoginUseCase, catalogSyncManager).also { it.startAutoLogin() }
 
         assertEquals(AutoLoginState.NoCredentials, viewModel.autoLoginState.value)
         assertEquals(creds, viewModel.savedCredentials.value)
@@ -92,7 +108,7 @@ class LoginViewModelTest {
         whenever(getSavedCredentialsUseCase()).thenReturn(creds)
         whenever(autoLoginUseCase()).thenReturn(AutoLoginOutcome.Online(userInfo))
 
-        viewModel = LoginViewModel(loginUseCase, getSavedCredentialsUseCase, logoutUseCase, autoLoginUseCase, catalogSyncManager)
+        viewModel = LoginViewModel(loginUseCase, getSavedCredentialsUseCase, logoutUseCase, autoLoginUseCase, catalogSyncManager).also { it.startAutoLogin() }
 
         assertEquals(AutoLoginState.Success(userInfo), viewModel.autoLoginState.value)
         assertEquals(creds, viewModel.savedCredentials.value)
@@ -106,7 +122,7 @@ class LoginViewModelTest {
             AutoLoginOutcome.Rejected(AutoLoginRejection.INVALID_CREDENTIALS, "Invalid credentials")
         )
 
-        viewModel = LoginViewModel(loginUseCase, getSavedCredentialsUseCase, logoutUseCase, autoLoginUseCase, catalogSyncManager)
+        viewModel = LoginViewModel(loginUseCase, getSavedCredentialsUseCase, logoutUseCase, autoLoginUseCase, catalogSyncManager).also { it.startAutoLogin() }
 
         assertTrue(viewModel.autoLoginState.value is AutoLoginState.Error)
         assertEquals("Invalid credentials", (viewModel.autoLoginState.value as AutoLoginState.Error).message)
@@ -117,7 +133,7 @@ class LoginViewModelTest {
     fun test_logout_clearsCredentials_andTransitionsToNoCredentials() = runTest {
         whenever(getSavedCredentialsUseCase()).thenReturn(null)
         whenever(autoLoginUseCase()).thenReturn(AutoLoginOutcome.NoCredentials)
-        viewModel = LoginViewModel(loginUseCase, getSavedCredentialsUseCase, logoutUseCase, autoLoginUseCase, catalogSyncManager)
+        viewModel = LoginViewModel(loginUseCase, getSavedCredentialsUseCase, logoutUseCase, autoLoginUseCase, catalogSyncManager).also { it.startAutoLogin() }
 
         viewModel.logout()
 
@@ -131,7 +147,7 @@ class LoginViewModelTest {
     fun test_login_success_transitionsToSuccess() = runTest {
         whenever(getSavedCredentialsUseCase()).thenReturn(null)
         whenever(autoLoginUseCase()).thenReturn(AutoLoginOutcome.NoCredentials)
-        viewModel = LoginViewModel(loginUseCase, getSavedCredentialsUseCase, logoutUseCase, autoLoginUseCase, catalogSyncManager)
+        viewModel = LoginViewModel(loginUseCase, getSavedCredentialsUseCase, logoutUseCase, autoLoginUseCase, catalogSyncManager).also { it.startAutoLogin() }
 
         val creds = Credentials("host", 80, "username", "password", rememberMe = true)
         val userInfo = UserInfo("username", true, "Active", "12/12/2026", 1, 0, "OK")
@@ -146,7 +162,7 @@ class LoginViewModelTest {
     fun test_login_failure_transitionsToError() = runTest {
         whenever(getSavedCredentialsUseCase()).thenReturn(null)
         whenever(autoLoginUseCase()).thenReturn(AutoLoginOutcome.NoCredentials)
-        viewModel = LoginViewModel(loginUseCase, getSavedCredentialsUseCase, logoutUseCase, autoLoginUseCase, catalogSyncManager)
+        viewModel = LoginViewModel(loginUseCase, getSavedCredentialsUseCase, logoutUseCase, autoLoginUseCase, catalogSyncManager).also { it.startAutoLogin() }
 
         val creds = Credentials("host", 80, "username", "password", rememberMe = true)
         whenever(loginUseCase(creds)).thenThrow(RuntimeException("Connection Error"))

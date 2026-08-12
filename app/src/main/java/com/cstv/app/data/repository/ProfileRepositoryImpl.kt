@@ -8,6 +8,8 @@ import com.cstv.app.data.local.dao.TrackPreferenceDao
 import com.cstv.app.data.local.dao.VodDao
 import com.cstv.app.data.local.dao.MediaRatingDao
 import com.cstv.app.data.local.dao.SeriesWatchStateDao
+import com.cstv.app.data.local.dao.ProfileSyncStateDao
+import com.cstv.app.data.local.db.AppDatabase
 import com.cstv.app.data.local.entity.ProfileEntity
 import com.cstv.app.data.local.storage.ProfileManager
 import com.cstv.app.domain.model.Profile
@@ -18,6 +20,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import javax.inject.Singleton
+import androidx.room.withTransaction
 
 @Singleton
 class ProfileRepositoryImpl @Inject constructor(
@@ -29,7 +32,10 @@ class ProfileRepositoryImpl @Inject constructor(
     private val trackPreferenceDao: TrackPreferenceDao,
     private val categoryPreferenceDao: CategoryPreferenceDao,
     private val mediaRatingDao: MediaRatingDao,
-    private val seriesWatchStateDao: SeriesWatchStateDao
+    private val seriesWatchStateDao: SeriesWatchStateDao,
+    private val profileSyncStateDao: ProfileSyncStateDao? = null,
+    private val cstvProfileGateway: CstvProfileGateway? = null,
+    private val database: AppDatabase? = null
 ) : ProfileRepository {
 
     override fun observeProfiles(): Flow<List<Profile>> =
@@ -55,34 +61,44 @@ class ProfileRepositoryImpl @Inject constructor(
     }
 
     override suspend fun createProfile(name: String, avatarId: Int): Profile {
+        val remote = cstvProfileGateway?.create(name, avatarId)
         val id = profileDao.insert(
-            ProfileEntity(name = name, avatarId = avatarId, createdAt = System.currentTimeMillis())
+            ProfileEntity(name = remote?.name ?: name, avatarId = remote?.avatarId ?: avatarId, createdAt = remote?.createdAtMillis ?: System.currentTimeMillis(), remoteId = remote?.id)
         ).toInt()
         return profileDao.getById(id)!!.toDomain()
     }
 
     override suspend fun renameProfile(id: Int, name: String) {
         val existing = profileDao.getById(id) ?: return
-        profileDao.update(existing.copy(name = name))
+        val remote = cstvProfileGateway?.let { gateway -> existing.remoteId?.let { gateway.update(it, name = name) } }
+        profileDao.update(existing.copy(name = remote?.name ?: name, avatarId = remote?.avatarId ?: existing.avatarId))
     }
 
     override suspend fun updateAvatar(id: Int, avatarId: Int) {
         val existing = profileDao.getById(id) ?: return
-        profileDao.update(existing.copy(avatarId = avatarId))
+        val remote = cstvProfileGateway?.let { gateway -> existing.remoteId?.let { gateway.update(it, avatarId = avatarId) } }
+        profileDao.update(existing.copy(name = remote?.name ?: existing.name, avatarId = remote?.avatarId ?: avatarId))
     }
 
     override suspend fun deleteProfile(id: Int): Boolean {
         if (profileDao.count() <= 1) return false
 
-        // Nettoyage des données spécifiques au profil.
-        favoritesDao.deleteAllForProfile(id)
-        vodDao.deleteAllPlaybackForProfile(id)
-        liveTvDao.deleteRecentlyWatchedForProfile(id)
-        trackPreferenceDao.deleteAllForProfile(id)
-        categoryPreferenceDao.deleteAllForProfile(id)
-        mediaRatingDao.deleteAllForProfile(id)
-        seriesWatchStateDao.deleteAllForProfile(id)
-        profileDao.deleteById(id)
+        cstvProfileGateway?.let { gateway ->
+            profileDao.getById(id)?.remoteId?.let { gateway.delete(it) }
+        }
+
+        suspend fun deleteLocalProfile() {
+            favoritesDao.deleteAllForProfile(id)
+            vodDao.deleteAllPlaybackForProfile(id)
+            liveTvDao.deleteRecentlyWatchedForProfile(id)
+            trackPreferenceDao.deleteAllForProfile(id)
+            categoryPreferenceDao.deleteAllForProfile(id)
+            mediaRatingDao.deleteAllForProfile(id)
+            seriesWatchStateDao.deleteAllForProfile(id)
+            profileSyncStateDao?.deleteForProfile(id)
+            profileDao.deleteById(id)
+        }
+        database?.withTransaction { deleteLocalProfile() } ?: deleteLocalProfile()
 
         // Si on supprimait le profil actif, basculer sur un autre.
         if (profileManager.currentProfileId() == id) {
@@ -134,5 +150,24 @@ class ProfileRepositoryImpl @Inject constructor(
         }
     }
 
-    private fun ProfileEntity.toDomain() = Profile(id, name, avatarId, createdAt)
+    override suspend fun purgeAllProfiles() {
+        suspend fun purge() {
+            profileDao.getAll().forEach { profile ->
+                favoritesDao.deleteAllForProfile(profile.id)
+                vodDao.deleteAllPlaybackForProfile(profile.id)
+                liveTvDao.deleteRecentlyWatchedForProfile(profile.id)
+                trackPreferenceDao.deleteAllForProfile(profile.id)
+                categoryPreferenceDao.deleteAllForProfile(profile.id)
+                mediaRatingDao.deleteAllForProfile(profile.id)
+                seriesWatchStateDao.deleteAllForProfile(profile.id)
+                profileSyncStateDao?.deleteForProfile(profile.id)
+            }
+            profileDao.deleteAll()
+            profileManager.setActiveProfileId(ProfileManager.NO_PROFILE)
+            profileManager.setAutoStartProfileId(ProfileManager.NO_PROFILE)
+        }
+        database?.withTransaction { purge() } ?: purge()
+    }
+
+    private fun ProfileEntity.toDomain() = Profile(id, name, avatarId, createdAt, remoteId)
 }
