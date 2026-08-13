@@ -3,7 +3,7 @@
 ## Informations générales
 
 Status:
-REVIEW (étape 7 — correction T17-R2 appliquée, RESOLVED ; en attente d'une nouvelle review étape 6 ou de la validation étape 8)
+RELEASED
 
 Created:
 2026-08-13
@@ -234,7 +234,12 @@ automatisée locale, conformément aux autres tickets de ce lot.
 # 9. Release
 
 Version :
+v1.79.0
 
 Commit :
+67005b9943ec41c6169b9e1ffd9d95cfdc7c1aa8
 
 Date :
+2026-08-13
+
+**Étape 8 (validation)** : suite backend verte (147 tests / 704 assertions), preuve automatisée locale (`SecurityHeadersApiTest`) que les quatre en-têtes sont présents sur JSON, blob et erreur. Déployé en production le 2026-08-13 (`bin/migrate` exécuté avec succès) ; vérification `curl -I https://cstv.alwaysdata.net/health` en production demandée à l'utilisateur mais sa sortie ne m'a pas été rapportée — à confirmer visuellement si besoin, la couverture automatisée locale n'en dépend pas. Redirection HTTP → HTTPS déjà active depuis le 2026-08-13 (§0 Suivi). Les quatre critères d'acceptation de la section 3 sont satisfaits ; seule la mise à jour de la collection Postman reste volontairement hors périmètre (cf. plan §6).

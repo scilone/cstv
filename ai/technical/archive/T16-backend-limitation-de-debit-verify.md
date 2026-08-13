@@ -3,7 +3,7 @@
 ## Informations générales
 
 Status:
-REVIEW (étape 7 — corrections T16-R1–R6 appliquées, RESOLVED ; en attente d'une nouvelle review étape 6 ou de la validation étape 8)
+RELEASED
 
 Created:
 2026-08-13
@@ -222,7 +222,12 @@ appliqué.
 # 9. Release
 
 Version :
+v1.79.0
 
 Commit :
+67005b9943ec41c6169b9e1ffd9d95cfdc7c1aa8
 
 Date :
+2026-08-13
+
+**Étape 8 (validation)** : suite backend verte (147 tests / 704 assertions), `composer validate --strict` OK. Déployé en production le 2026-08-13 (`bin/migrate` a appliqué `003_verify_throttle.sql`). La reproduction initiale du bug (30 appels `verify` sans aucun 429) a motivé ce ticket ; le mécanisme est désormais couvert par des tests d'intégration incluant une course de 30 vérifications simultanées.

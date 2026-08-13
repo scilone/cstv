@@ -3,7 +3,7 @@
 ## Informations générales
 
 Status:
-REVIEW (étape 7 — corrections T19-R1–R4 appliquées, RESOLVED ; en attente d'une nouvelle review étape 6 ou de la validation étape 8)
+RELEASED
 
 Created:
 2026-08-13
@@ -259,7 +259,12 @@ engagée.
 # 9. Release
 
 Version :
+v1.79.0
 
 Commit :
+67005b9943ec41c6169b9e1ffd9d95cfdc7c1aa8
 
 Date :
+2026-08-13
+
+**Étape 8 (validation)** : `./gradlew testDebugUnitTest assembleDebug lintDebug` verts (902 tests, 0 échec). APK signé compilé et publié via `scripts/release-local.sh` — Release GitHub `v1.79.0` avec APK attaché. Les cinq critères d'acceptation de la section 3 sont couverts par les tests ajoutés à l'étape 7 (`RoomSnapshotSerializerTest`, `CloudSyncManagerMergeNormalizationTest`, statuts terminaux, `ProfileViewModel`/`CstvAuthViewModel`).

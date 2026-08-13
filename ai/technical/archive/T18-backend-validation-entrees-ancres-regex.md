@@ -3,7 +3,7 @@
 ## Informations générales
 
 Status:
-REVIEW (étape 6 — APPROVED après relecture de T18-R1)
+RELEASED
 
 Created:
 2026-08-13
@@ -175,7 +175,12 @@ technique locale. Aucun correctif de code n'a été appliqué.
 # 9. Release
 
 Version :
+v1.79.0
 
 Commit :
+67005b9943ec41c6169b9e1ffd9d95cfdc7c1aa8
 
 Date :
+2026-08-13
+
+**Étape 8 (validation)** : review APPROVED sans retour ouvert (§8), aucune correction requise à l'étape 7. Suite backend verte (147 tests / 704 assertions). Déployé en production le 2026-08-13 avec le reste du lot T14/T16/T17/T19.
