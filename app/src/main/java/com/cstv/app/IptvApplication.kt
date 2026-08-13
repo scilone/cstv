@@ -48,6 +48,9 @@ class IptvApplication : Application(), ImageLoaderFactory {
     @Inject
     lateinit var updateApkStore: UpdateApkStore
 
+    @Inject
+    lateinit var databaseMaintenanceRunner: com.cstv.app.data.local.db.DatabaseMaintenanceRunner
+
     override fun onCreate() {
         super.onCreate()
         diagnosticManager.initialize()
@@ -57,6 +60,20 @@ class IptvApplication : Application(), ImageLoaderFactory {
         scheduleDefaultBackgroundSync()
         warmUpDatabase()
         purgeObsoleteAppUpdateApks()
+        runDatabaseMaintenance()
+    }
+
+    /**
+     * T20-6 : rejoue le `VACUUM` demandé par la migration 27→28, hors thread
+     * principal. Sans effet tant qu'aucune demande n'est en attente dans
+     * `db_maintenance` ; une tentative échouée ou refusée (espace insuffisant)
+     * laisse la base intacte et sera rejouée au prochain démarrage.
+     */
+    private fun runDatabaseMaintenance() {
+        CoroutineScope(Dispatchers.IO).launch {
+            runCatching { databaseMaintenanceRunner.run() }
+                .onFailure { IptvLog.e("MAINTENANCE", "Compactage différé impossible", it) }
+        }
     }
 
     /**

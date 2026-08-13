@@ -1,7 +1,9 @@
 package com.cstv.app.data.repository
 
 import com.cstv.app.data.local.dao.CategoryPreferenceDao
+import com.cstv.app.data.local.dao.CategoryRefDao
 import com.cstv.app.data.local.entity.CategoryPreferenceEntity
+import com.cstv.app.data.local.storage.CurrentAccountKeyProvider
 import com.cstv.app.data.local.storage.ProfileManager
 import com.cstv.app.domain.model.CategoryPreference
 import com.cstv.app.domain.model.CategoryType
@@ -19,6 +21,8 @@ import com.cstv.app.domain.sync.SyncNamespace
 class CategoryPreferenceRepositoryImpl @Inject constructor(
     private val dao: CategoryPreferenceDao,
     private val profileManager: ProfileManager,
+    private val categoryRefDao: CategoryRefDao,
+    private val accountKeyProvider: CurrentAccountKeyProvider,
     private val sync: CloudSyncManager? = null
 ) : CategoryPreferenceRepository {
 
@@ -29,35 +33,29 @@ class CategoryPreferenceRepositoryImpl @Inject constructor(
     override val changes: Flow<Unit> = _changes.asSharedFlow()
 
     override suspend fun getPreferences(type: CategoryType): Map<String, CategoryPreference> {
-        return dao.getForProfile(type.value, profileManager.currentProfileId())
+        return dao.getForProfile(profileManager.currentProfileId(), accountKeyProvider.current(), type.value)
             .associate { it.categoryId to CategoryPreference(it.categoryId, it.hidden, it.sortOrder) }
     }
 
     override suspend fun setHidden(type: CategoryType, categoryId: String, hidden: Boolean) {
         val profileId = profileManager.currentProfileId()
-        val existing = dao.get(categoryId, type.value, profileId)
-        dao.upsert(
-            CategoryPreferenceEntity(
-                categoryId = categoryId,
-                type = type.value,
-                profileId = profileId,
-                hidden = hidden,
-                sortOrder = existing?.sortOrder
-            )
-        )
+        val accountKey = accountKeyProvider.current()
+        val existing = dao.get(profileId, accountKey, type.value, categoryId)
+        val catUid = categoryRefDao.resolve(accountKey, type.value, categoryId)
+        dao.upsert(CategoryPreferenceEntity(profileId = profileId, catUid = catUid, hidden = hidden, sortOrder = existing?.sortOrder))
         _changes.tryEmit(Unit)
         sync?.markDirty(profileId, SyncNamespace.CATEGORY_PREFERENCES)
     }
 
     override suspend fun saveOrder(type: CategoryType, orderedCategoryIds: List<String>) {
         val profileId = profileManager.currentProfileId()
-        val existing = dao.getForProfile(type.value, profileId).associateBy { it.categoryId }
+        val accountKey = accountKeyProvider.current()
+        val existing = dao.getForProfile(profileId, accountKey, type.value).associateBy { it.categoryId }
         dao.upsertAll(
             orderedCategoryIds.mapIndexed { index, categoryId ->
                 CategoryPreferenceEntity(
-                    categoryId = categoryId,
-                    type = type.value,
                     profileId = profileId,
+                    catUid = categoryRefDao.resolve(accountKey, type.value, categoryId),
                     hidden = existing[categoryId]?.hidden ?: false,
                     sortOrder = index
                 )

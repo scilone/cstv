@@ -59,10 +59,17 @@ class VodRepositoryImplTest {
     @Mock
     private lateinit var networkMonitor: com.cstv.app.domain.network.NetworkMonitor
 
+    @Mock
+    private lateinit var mediaRefDao: com.cstv.app.data.local.dao.MediaRefDao
+
+    @Mock
+    private lateinit var accountKeyProvider: com.cstv.app.data.local.storage.CurrentAccountKeyProvider
+
     private lateinit var repository: VodRepositoryImpl
 
     private val credentials = Credentials("test.com", 80, "username", "password", true)
     private val activeProfileId = 1
+    private val accountKey = "account-key"
 
     @Before
     fun setUp() {
@@ -70,7 +77,8 @@ class VodRepositoryImplTest {
         whenever(credentialsManager.getCredentials()).thenReturn(credentials)
         doReturn(activeProfileId).whenever(profileManager).currentProfileId()
         whenever(networkMonitor.isCurrentlyOnline()).thenReturn(true)
-        repository = VodRepositoryImpl(apiService, vodDao, seriesDao, credentialsManager, profileManager, com.cstv.app.data.remote.api.XtreamRequestGate(), networkMonitor)
+        doReturn(accountKey).whenever(accountKeyProvider).current()
+        repository = VodRepositoryImpl(apiService, vodDao, seriesDao, credentialsManager, profileManager, com.cstv.app.data.remote.api.XtreamRequestGate(), networkMonitor, mediaRefDao, accountKeyProvider)
     }
 
     // --- 1. PLAY URL CONSTRUCTION TESTS ---
@@ -234,7 +242,7 @@ class VodRepositoryImplTest {
                 releaseYear = 2019
             )
         )
-        whenever(vodDao.getPlaybackPosition(777, activeProfileId)).thenReturn(null)
+        whenever(vodDao.getPlaybackPosition(activeProfileId, accountKey, "movie", 777)).thenReturn(null)
 
         val result = repository.getVodDetails(777)
 
@@ -284,8 +292,8 @@ class VodRepositoryImplTest {
         whenever(apiService.getVodInfo("username", "password", 999)).thenReturn(remoteResponse)
 
         // Mock saved resume position in Room DB (e.g., played up to 45m 30s)
-        val savedPosition = PlaybackPositionEntity(999, activeProfileId, 2730000L, 9000000L, System.currentTimeMillis())
-        whenever(vodDao.getPlaybackPosition(999, activeProfileId)).thenReturn(savedPosition)
+        whenever(vodDao.getPlaybackPosition(activeProfileId, accountKey, "movie", 999))
+            .thenReturn(com.cstv.app.data.local.dao.PlaybackPositionValues(2730000L, 9000000L))
 
         val result = repository.getVodDetails(999)
 
@@ -333,7 +341,7 @@ class VodRepositoryImplTest {
         val remoteResponse = VodInfoResponseDto(infoDto, movieDataDto)
 
         whenever(apiService.getVodInfo("username", "password", 999)).thenReturn(remoteResponse)
-        whenever(vodDao.getPlaybackPosition(999, activeProfileId)).thenReturn(null)
+        whenever(vodDao.getPlaybackPosition(activeProfileId, accountKey, "movie", 999)).thenReturn(null)
 
         val result = repository.getVodDetails(999)
 
@@ -359,116 +367,39 @@ class VodRepositoryImplTest {
         assertEquals("1h 42min", result3.duration)
     }
 
+    // T20: title/cover/type/containerExtension/series info/plot/duration/releaseDate/categoryId
+    // are no longer accepted or persisted by savePlaybackPosition -- they are resolved from the
+    // catalogue at display time (`VodDao.PLAYBACK_LIST_QUERY`). The old category-resolution
+    // fallback logic these tests exercised no longer exists.
     @Test
-    fun test_savePlaybackPosition_preservesExistingData_whenNewValuesAreNull() = runTest {
-        // Mock existing entity in DB
-        val existingEntity = PlaybackPositionEntity(
-            streamId = 123,
-            profileId = activeProfileId,
-            positionMs = 1000L,
-            durationMs = 5000L,
-            lastAccessedAt = 100L,
-            title = "Breaking Bad S1E1",
-            coverUrl = "bb_cover.jpg",
-            type = "series"
-        )
-        whenever(vodDao.getPlaybackPosition(123, activeProfileId)).thenReturn(existingEntity)
+    fun test_savePlaybackPosition_resolvesIdentityAndSaves() = runTest {
+        whenever(mediaRefDao.resolve(accountKey, "movie", 123)).thenReturn(42L)
 
-        // Save position with nulls (resuming from Home)
-        repository.savePlaybackPosition(
-            streamId = 123,
-            positionMs = 2000L,
-            durationMs = 5000L,
-            title = null,
-            coverUrl = null,
-            type = null,
-            containerExtension = null,
-            seriesId = null,
-            episodeNum = null,
-            seasonNum = null,
-            plot = null,
-            duration = null,
-            releaseDate = null
-        )
+        repository.savePlaybackPosition("movie", 123, 2_000L, 5_000L)
 
-        // Sensationally verify that it loaded existing, merged them, and saved correctly!
-        verify(vodDao).getPlaybackPosition(123, activeProfileId)
         verify(vodDao).savePlaybackPosition(argThat {
-            streamId == 123 &&
-            profileId == activeProfileId &&
-            positionMs == 2000L &&
-            durationMs == 5000L &&
-            title == "Breaking Bad S1E1" &&
-            coverUrl == "bb_cover.jpg" &&
-            type == "series"
+            mediaUid == 42L && profileId == activeProfileId && positionMs == 2_000L && durationMs == 5_000L
         })
     }
 
     @Test
-    fun test_savePlaybackPosition_resolvesMovieCategoryOnlyOnce() = runTest {
-        whenever(vodDao.getPlaybackPosition(123, activeProfileId)).thenReturn(null)
-        whenever(vodDao.getCategoryIdForStream(123)).thenReturn("action")
+    fun test_savePlaybackPosition_resolvesEpisodeIdentity() = runTest {
+        whenever(mediaRefDao.resolve(accountKey, "episode", 999)).thenReturn(7L)
 
-        repository.savePlaybackPosition(123, 2_000L, 5_000L)
+        repository.savePlaybackPosition("episode", 999, 1_000L, 4_000L)
 
-        verify(vodDao).getCategoryIdForStream(123)
-        verify(seriesDao, never()).getCategoryIdForSeries(any())
-        verify(vodDao).savePlaybackPosition(argThat { categoryId == "action" })
-    }
-
-    @Test
-    fun test_savePlaybackPosition_usesExistingCategoryWithoutResolutionQuery() = runTest {
-        whenever(vodDao.getPlaybackPosition(123, activeProfileId)).thenReturn(
-            PlaybackPositionEntity(123, activeProfileId, 1_000L, 5_000L, 1L, categoryId = "action")
-        )
-
-        repository.savePlaybackPosition(123, 2_000L, 5_000L)
-
-        verify(vodDao, never()).getCategoryIdForStream(any())
-        verify(seriesDao, never()).getCategoryIdForSeries(any())
-        verify(vodDao).savePlaybackPosition(argThat { categoryId == "action" })
-    }
-
-    @Test
-    fun test_savePlaybackPosition_resolvesSeriesCategoryWithoutVodLookup() = runTest {
-        whenever(vodDao.getPlaybackPosition(123, activeProfileId)).thenReturn(null)
-        whenever(seriesDao.getCategoryIdForSeries(9)).thenReturn("drama")
-
-        repository.savePlaybackPosition(123, 2_000L, 5_000L, seriesId = 9)
-
-        verify(seriesDao).getCategoryIdForSeries(9)
-        verify(vodDao, never()).getCategoryIdForStream(any())
-        verify(vodDao).savePlaybackPosition(argThat { categoryId == "drama" })
-    }
-
-    @Test
-    fun test_savePlaybackPosition_explicitCategorySkipsResolution() = runTest {
-        whenever(vodDao.getPlaybackPosition(123, activeProfileId)).thenReturn(null)
-
-        repository.savePlaybackPosition(123, 2_000L, 5_000L, categoryId = "action")
-
-        verify(vodDao, never()).getCategoryIdForStream(any())
-        verify(seriesDao, never()).getCategoryIdForSeries(any())
-        verify(vodDao).savePlaybackPosition(argThat { categoryId == "action" })
-    }
-
-    @Test
-    fun test_savePlaybackPosition_existingUnknownCategoryDoesNotResolveAgain() = runTest {
-        whenever(vodDao.getPlaybackPosition(123, activeProfileId)).thenReturn(
-            PlaybackPositionEntity(123, activeProfileId, 1_000L, 5_000L, 1L)
-        )
-
-        repository.savePlaybackPosition(123, 2_000L, 5_000L)
-
-        verify(vodDao, never()).getCategoryIdForStream(any())
-        verify(seriesDao, never()).getCategoryIdForSeries(any())
+        verify(vodDao).savePlaybackPosition(argThat { mediaUid == 7L && positionMs == 1_000L && durationMs == 4_000L })
     }
 
     @Test
     fun test_playbackPositionCategoryIsMappedForListAndFlow() = runTest {
-        val entity = PlaybackPositionEntity(123, activeProfileId, 1_000L, 5_000L, 1L, categoryId = "action")
-        whenever(vodDao.getAllPlaybackPositions(activeProfileId)).thenReturn(listOf(entity))
-        whenever(vodDao.observeAllPlaybackPositions(activeProfileId)).thenReturn(flowOf(listOf(entity)))
+        val row = com.cstv.app.data.local.dao.PlaybackListRow(
+            providerId = 123, kind = "movie", positionMs = 1_000L, durationMs = 5_000L, lastAccessedAt = 1L,
+            title = "Film", coverUrl = null, containerExtension = null, seriesId = null, episodeNum = null,
+            seasonNum = null, plot = null, duration = null, releaseDate = null, categoryId = "action"
+        )
+        whenever(vodDao.getAllPlaybackPositions(activeProfileId, accountKey)).thenReturn(listOf(row))
+        whenever(vodDao.observeAllPlaybackPositions(activeProfileId, accountKey)).thenReturn(flowOf(listOf(row)))
         doReturn(kotlinx.coroutines.flow.MutableStateFlow(activeProfileId)).whenever(profileManager).activeProfileId
 
         assertEquals("action", repository.getAllPlaybackPositions().single().categoryId)
@@ -478,7 +409,7 @@ class VodRepositoryImplTest {
     @Test
     fun test_backgroundEnrichment_triggersAndSavesDetails() = runTest {
         val testDispatcher = kotlinx.coroutines.test.UnconfinedTestDispatcher(testScheduler)
-        val localRepository = VodRepositoryImpl(apiService, vodDao, seriesDao, credentialsManager, profileManager, com.cstv.app.data.remote.api.XtreamRequestGate(), networkMonitor, testDispatcher)
+        val localRepository = VodRepositoryImpl(apiService, vodDao, seriesDao, credentialsManager, profileManager, com.cstv.app.data.remote.api.XtreamRequestGate(), networkMonitor, mediaRefDao, accountKeyProvider, testDispatcher)
 
         val remoteStreams = listOf(
             VodStreamDto(12, "Star Wars", "icon.png", "8.0", "added", "5")
@@ -519,7 +450,7 @@ class VodRepositoryImplTest {
     @Test
     fun test_backgroundEnrichment_requestsBoundedBatch() = runTest {
         val testDispatcher = kotlinx.coroutines.test.UnconfinedTestDispatcher(testScheduler)
-        val localRepository = VodRepositoryImpl(apiService, vodDao, seriesDao, credentialsManager, profileManager, com.cstv.app.data.remote.api.XtreamRequestGate(), networkMonitor, testDispatcher)
+        val localRepository = VodRepositoryImpl(apiService, vodDao, seriesDao, credentialsManager, profileManager, com.cstv.app.data.remote.api.XtreamRequestGate(), networkMonitor, mediaRefDao, accountKeyProvider, testDispatcher)
 
         whenever(apiService.getVodStreams("username", "password", "5")).thenReturn(emptyList())
         whenever(vodDao.getStreamsByCategory("5")).thenReturn(emptyList())

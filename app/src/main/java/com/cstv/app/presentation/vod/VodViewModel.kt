@@ -542,21 +542,15 @@ class VodViewModel @Inject constructor(
 
     fun savePosition(streamId: Int, positionMs: Long, durationMs: Long, details: VodDetails) {
         viewModelScope.launch {
-            val title = details.name
-            val coverUrl = details.coverBig
-            val type = "movie"
-            val containerExtension = details.containerExtension
-
+            // T20: title/cover/extension are resolved from the catalogue (vod_streams) at display
+            // time -- no longer passed here.
             savePlaybackPositionUseCase(
-                streamId = streamId,
+                kind = com.cstv.app.domain.model.MediaKind.MOVIE.storageValue,
+                providerId = streamId,
                 positionMs = positionMs,
-                durationMs = durationMs,
-                title = title,
-                coverUrl = coverUrl,
-                type = type,
-                containerExtension = containerExtension
+                durationMs = durationMs
             )
-            _state.update { 
+            _state.update {
                 val currentDetails = it.selectedVodDetails
                 if (currentDetails != null && currentDetails.streamId == streamId) {
                     it.copy(selectedVodDetails = currentDetails.copy(resumePositionMs = positionMs, durationMs = durationMs))
@@ -567,7 +561,7 @@ class VodViewModel @Inject constructor(
 
     fun clearPosition(streamId: Int) {
         viewModelScope.launch {
-            savePlaybackPositionUseCase(streamId, 0L, 0L)
+            savePlaybackPositionUseCase(com.cstv.app.domain.model.MediaKind.MOVIE.storageValue, streamId, 0L, 0L)
             _state.value.selectedVodDetails?.let { currentDetails ->
                 if (currentDetails.streamId == streamId) {
                     _state.update { 

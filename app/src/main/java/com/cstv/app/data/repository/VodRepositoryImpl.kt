@@ -44,6 +44,8 @@ class VodRepositoryImpl @Inject constructor(
     private val profileManager: com.cstv.app.data.local.storage.ProfileManager,
     private val requestGate: XtreamRequestGate,
     private val networkMonitor: NetworkMonitor,
+    private val mediaRefDao: com.cstv.app.data.local.dao.MediaRefDao,
+    private val accountKeyProvider: com.cstv.app.data.local.storage.CurrentAccountKeyProvider,
     private val cloudSyncManager: CloudSyncManager? = null
 ) : VodRepository {
 
@@ -65,8 +67,10 @@ class VodRepositoryImpl @Inject constructor(
         profileManager: com.cstv.app.data.local.storage.ProfileManager,
         requestGate: XtreamRequestGate,
         networkMonitor: NetworkMonitor,
+        mediaRefDao: com.cstv.app.data.local.dao.MediaRefDao,
+        accountKeyProvider: com.cstv.app.data.local.storage.CurrentAccountKeyProvider,
         dispatcher: CoroutineDispatcher
-    ) : this(apiService, vodDao, seriesDao, credentialsManager, profileManager, requestGate, networkMonitor) {
+    ) : this(apiService, vodDao, seriesDao, credentialsManager, profileManager, requestGate, networkMonitor, mediaRefDao, accountKeyProvider) {
         this.enrichmentDispatcher = dispatcher
     }
 
@@ -150,6 +154,9 @@ class VodRepositoryImpl @Inject constructor(
         private const val ENRICHMENT_BATCH_SIZE = 50
         private const val ENRICHMENT_REQUEST_SPACING_MS = 500L
         private const val DEFAULT_CONTAINER_EXTENSION = "mp4"
+        /** [com.cstv.app.domain.model.MediaKind.MOVIE.storageValue] — this repository only ever
+         *  resolves movie playback positions; episodes go through `SeriesRepositoryImpl`. */
+        private const val MOVIE_KIND = "movie"
 
         /**
          * Taille de page de l'appariement TMDB par année. Une page doit tenir
@@ -498,7 +505,7 @@ class VodRepositoryImpl @Inject constructor(
         cached: com.cstv.app.data.local.entity.VodStreamEntity,
         streamId: Int
     ): VodDetails {
-        val savedPosition = vodDao.getPlaybackPosition(streamId, profileManager.currentProfileId())
+        val savedPosition = vodDao.getPlaybackPosition(profileManager.currentProfileId(), accountKeyProvider.current(), MOVIE_KIND, streamId)
         return VodDetails(
             streamId = streamId,
             name = cached.name,
@@ -565,7 +572,7 @@ class VodRepositoryImpl @Inject constructor(
         val duration = formatDuration(infoDto?.duration)
 
         // Fetch resume position from local DB if exists
-        val savedPosition = vodDao.getPlaybackPosition(streamId, profileManager.currentProfileId())
+        val savedPosition = vodDao.getPlaybackPosition(profileManager.currentProfileId(), accountKeyProvider.current(), MOVIE_KIND, streamId)
 
         // Sensationally enrich cached stream entity with actors, director, and genre details
         if (cachedStream != null) {
@@ -600,100 +607,58 @@ class VodRepositoryImpl @Inject constructor(
         )
     }
 
-    override suspend fun savePlaybackPosition(
-        streamId: Int,
-        positionMs: Long,
-        durationMs: Long,
-        title: String?,
-        coverUrl: String?,
-        type: String?,
-        containerExtension: String?,
-        seriesId: Int?,
-        episodeNum: Int?,
-        seasonNum: Int?,
-        plot: String?,
-        duration: String?,
-        releaseDate: String?,
-        categoryId: String?
-    ) {
+    /** T20: title/cover/etc. are no longer persisted here -- the catalogue is the source of that
+     *  metadata (see `VodDao.PLAYBACK_LIST_QUERY`). Called on every player tick; cloud sync stays
+     *  triggered only by the player's start/pause/end events (F34 §5.7). Shared entry point for
+     *  both movie (`kind="movie"`) and episode (`kind="episode"`, from `SeriesViewModel`) resume. */
+    override suspend fun savePlaybackPosition(kind: String, providerId: Int, positionMs: Long, durationMs: Long) {
         val profileId = profileManager.currentProfileId()
-        val existing = vodDao.getPlaybackPosition(streamId, profileId)
-
-        val finalTitle = if (title.isNullOrBlank()) existing?.title else title
-        val finalCoverUrl = if (coverUrl.isNullOrBlank()) existing?.coverUrl else coverUrl
-        val finalType = if (type.isNullOrBlank()) existing?.type else type
-        val finalContainerExtension = if (containerExtension.isNullOrBlank()) existing?.containerExtension else containerExtension
-        val finalSeriesId = seriesId ?: existing?.seriesId
-        val finalEpisodeNum = episodeNum ?: existing?.episodeNum
-        val finalSeasonNum = seasonNum ?: existing?.seasonNum
-        val finalPlot = if (plot.isNullOrBlank()) existing?.plot else plot
-        val finalDuration = if (duration.isNullOrBlank()) existing?.duration else duration
-        val finalReleaseDate = if (releaseDate.isNullOrBlank()) existing?.releaseDate else releaseDate
-        // Une position existante sans catégorie représente aussi une résolution
-        // déjà tentée : ne pas rejouer la requête DAO à chaque tick du player.
-        val finalCategoryId = categoryId ?: if (existing != null) {
-            existing.categoryId
-        } else if (finalSeriesId != null) {
-            seriesDao.getCategoryIdForSeries(finalSeriesId)
-        } else {
-            vodDao.getCategoryIdForStream(streamId)
-        }
-
-        val entity = PlaybackPositionEntity(
-            streamId = streamId,
-            profileId = profileId,
-            positionMs = positionMs,
-            durationMs = durationMs,
-            lastAccessedAt = System.currentTimeMillis(),
-            title = finalTitle,
-            coverUrl = finalCoverUrl,
-            type = finalType,
-            containerExtension = finalContainerExtension,
-            seriesId = finalSeriesId,
-            episodeNum = finalEpisodeNum,
-            seasonNum = finalSeasonNum,
-            plot = finalPlot,
-            duration = finalDuration,
-            releaseDate = finalReleaseDate,
-            categoryId = finalCategoryId
+        val mediaUid = mediaRefDao.resolve(accountKeyProvider.current(), kind, providerId)
+        vodDao.savePlaybackPosition(
+            PlaybackPositionEntity(
+                profileId = profileId,
+                mediaUid = mediaUid,
+                positionMs = positionMs,
+                durationMs = durationMs,
+                lastAccessedAt = System.currentTimeMillis()
+            )
         )
-        // This method is called on player ticks. Cloud sync is deliberately
-        // triggered only by the player's start/pause/end events (F34 §5.7).
-        vodDao.savePlaybackPosition(entity)
     }
 
     override suspend fun getPlaybackPosition(streamId: Int): Pair<Long, Long>? {
-        val entity = vodDao.getPlaybackPosition(streamId, profileManager.currentProfileId()) ?: return null
-        return Pair(entity.positionMs, entity.durationMs)
+        val values = vodDao.getPlaybackPosition(profileManager.currentProfileId(), accountKeyProvider.current(), MOVIE_KIND, streamId)
+            ?: return null
+        return Pair(values.positionMs, values.durationMs)
     }
 
     override suspend fun clearPlaybackPosition(streamId: Int) {
         val profileId = profileManager.currentProfileId()
-        vodDao.deletePlaybackPosition(streamId, profileId)
+        vodDao.deletePlaybackPosition(profileId, accountKeyProvider.current(), MOVIE_KIND, streamId)
+        mediaRefDao.purgeUnreferenced()
         cloudSyncManager?.markDirty(profileId, SyncNamespace.PLAYBACK)
     }
 
     override suspend fun getAllPlaybackPositions(): List<PlaybackPosition> {
-        return vodDao.getAllPlaybackPositions(profileManager.currentProfileId()).map { it.toDomain() }
+        return vodDao.getAllPlaybackPositions(profileManager.currentProfileId(), accountKeyProvider.current()).map { it.toDomain() }
     }
 
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     override fun observeAllPlaybackPositions(): Flow<List<PlaybackPosition>> {
         return profileManager.activeProfileId.flatMapLatest { profileId ->
-            vodDao.observeAllPlaybackPositions(profileId)
-        }.map { entities ->
-            entities.map { it.toDomain() }
+            vodDao.observeAllPlaybackPositions(profileId, accountKeyProvider.current())
+        }.map { rows ->
+            rows.map { it.toDomain() }
         }
     }
 
-    private fun PlaybackPositionEntity.toDomain() = PlaybackPosition(
-        streamId = streamId,
+    private fun com.cstv.app.data.local.dao.PlaybackListRow.toDomain() = PlaybackPosition(
+        streamId = providerId,
         positionMs = positionMs,
         durationMs = durationMs,
         lastAccessedAt = lastAccessedAt,
         title = title,
         coverUrl = coverUrl,
-        type = type,
+        type = kind,
         containerExtension = containerExtension,
         seriesId = seriesId,
         episodeNum = episodeNum,

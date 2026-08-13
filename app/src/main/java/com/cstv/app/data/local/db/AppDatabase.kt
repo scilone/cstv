@@ -36,6 +36,12 @@ import com.cstv.app.data.local.entity.SeriesEpisodeEntity
 import com.cstv.app.data.local.entity.TrailerCacheEntity
 import com.cstv.app.data.local.dao.TrailerCacheDao
 import com.cstv.app.data.local.entity.SeriesWatchStateEntity
+import com.cstv.app.data.local.entity.MediaRefEntity
+import com.cstv.app.data.local.entity.CategoryRefEntity
+import com.cstv.app.data.local.entity.DbMaintenanceEntity
+import com.cstv.app.data.local.dao.MediaRefDao
+import com.cstv.app.data.local.dao.CategoryRefDao
+import com.cstv.app.data.local.dao.DbMaintenanceDao
 
 @Database(
     entities = [
@@ -59,9 +65,12 @@ import com.cstv.app.data.local.entity.SeriesWatchStateEntity
         SeriesEpisodeEntity::class,
         TrailerCacheEntity::class,
         SeriesWatchStateEntity::class,
-        ProfileSyncStateEntity::class
+        ProfileSyncStateEntity::class,
+        MediaRefEntity::class,
+        CategoryRefEntity::class,
+        DbMaintenanceEntity::class
     ],
-    version = 27,
+    version = 28,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -78,4 +87,12 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun trailerCacheDao(): TrailerCacheDao
     abstract fun seriesWatchStateDao(): SeriesWatchStateDao
     abstract fun profileSyncStateDao(): ProfileSyncStateDao
+    abstract fun mediaRefDao(): MediaRefDao
+    abstract fun categoryRefDao(): CategoryRefDao
+    abstract fun dbMaintenanceDao(): DbMaintenanceDao
+
+    companion object {
+        /** Nom de fichier `.db` — partagé entre `AppModule` (ouverture) et [com.cstv.app.data.local.db.DatabaseMaintenanceRunner] (`StatFs`). */
+        const val DATABASE_NAME = "iptv_xtream_cache.db"
+    }
 }

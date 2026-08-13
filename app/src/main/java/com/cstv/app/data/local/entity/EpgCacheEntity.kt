@@ -1,16 +1,24 @@
 package com.cstv.app.data.local.entity
 
 import androidx.room.Entity
+import androidx.room.ForeignKey
 import androidx.room.Index
 
 /**
  * Fenêtre EPG par chaîne. La clé primaire composite remplace l'ancienne clé
  * `streamId` seule, qui ne mémorisait qu'un unique programme et rendait tout
  * EPG hors ligne impossible.
+ *
+ * T20 : clé étrangère vers `live_streams(streamId)` en cascade — une chaîne retirée du bouquet ne
+ * doit plus laisser son EPG orphelin. L'index existant `(streamId, endTimestamp)` couvre déjà
+ * l'index requis par la clé étrangère.
  */
 @Entity(
     tableName = "epg_cache",
     primaryKeys = ["streamId", "startTimestamp"],
+    foreignKeys = [
+        ForeignKey(entity = LiveStreamEntity::class, parentColumns = ["streamId"], childColumns = ["streamId"], onDelete = ForeignKey.CASCADE),
+    ],
     indices = [Index(value = ["streamId", "endTimestamp"])]
 )
 data class EpgCacheEntity(

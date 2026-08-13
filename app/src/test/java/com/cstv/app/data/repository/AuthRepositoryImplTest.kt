@@ -65,6 +65,9 @@ class AuthRepositoryImplTest {
     @Mock
     private lateinit var catalogSyncManager: com.cstv.app.domain.sync.CatalogSyncManager
 
+    @Mock
+    private lateinit var mediaRefAccountBinder: com.cstv.app.data.sync.MediaRefAccountBinder
+
     private lateinit var syncStateInitializer: com.cstv.app.data.sync.CatalogSyncStateInitializer
 
     private lateinit var authRepository: AuthRepositoryImpl
@@ -89,7 +92,8 @@ class AuthRepositoryImplTest {
             networkMonitor,
             syncStateDao,
             syncStateInitializer,
-            catalogSyncManager
+            catalogSyncManager,
+            mediaRefAccountBinder
         )
     }
 

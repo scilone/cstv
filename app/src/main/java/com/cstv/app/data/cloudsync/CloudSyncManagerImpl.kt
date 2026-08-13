@@ -83,8 +83,13 @@ class CloudSyncManagerImpl @Inject constructor(
                     if (!response.isSuccessful) return recordFailure(profileId, namespace, state, errors.from(response))
                     val remoteBytes = response.body()?.bytes() ?: byteArrayOf()
                     val decoded = codec.decode(remoteBytes)
-                    val remote = (decoded as? SnapshotDecodeResult.Success)?.snapshot ?: return recordDecodeFailure(profileId, namespace, state, decoded)
+                    val remote = ((decoded as? SnapshotDecodeResult.Success)?.snapshot ?: return recordDecodeFailure(profileId, namespace, state, decoded))
+                        .let(SnapshotUpgrader::upgrade)
+                    // T20: the stored merge base can itself predate the v1->v2 format switch; it
+                    // must be upgraded the same way the remote document is, or the merger compares
+                    // a v1 key against a v2 key and duplicates every item.
                     val base = state.baseSnapshot?.let { bytes -> (codec.decode(bytes) as? SnapshotDecodeResult.Success)?.snapshot }
+                        ?.let(SnapshotUpgrader::upgrade)
                     // T19-R1: the three-way merge is not itself bounded -- two disjoint local/remote
                     // sets can total up to 2N objects, and a remote object from an older client can
                     // still carry a stripped field (e.g. playback's `plot`). Re-apply the T19 cap and

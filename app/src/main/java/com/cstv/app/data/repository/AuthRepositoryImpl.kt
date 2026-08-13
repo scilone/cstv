@@ -9,6 +9,7 @@ import com.cstv.app.data.remote.api.XtreamRequestGate
 import com.cstv.app.data.sync.AccountKey
 import com.cstv.app.data.sync.CatalogServerKey
 import com.cstv.app.data.sync.CatalogSyncStateInitializer
+import com.cstv.app.data.sync.MediaRefAccountBinder
 import com.cstv.app.domain.model.*
 import com.cstv.app.domain.network.NetworkMonitor
 import com.cstv.app.domain.repository.AuthRepository
@@ -31,7 +32,8 @@ class AuthRepositoryImpl @Inject constructor(
     private val networkMonitor: NetworkMonitor,
     private val syncStateDao: CatalogSyncStateDao,
     private val syncStateInitializer: CatalogSyncStateInitializer,
-    private val catalogSyncManager: CatalogSyncManager
+    private val catalogSyncManager: CatalogSyncManager,
+    private val mediaRefAccountBinder: MediaRefAccountBinder
 ) : AuthRepository {
 
     override suspend fun login(credentials: Credentials): UserInfo {
@@ -74,6 +76,11 @@ class AuthRepositoryImpl @Inject constructor(
             credentialsManager.setLastSuccessfulLoginAt(System.currentTimeMillis())
             credentialsManager.setLastValidatedAccountKey(AccountKey.from(credentials))
             credentialsManager.saveLastUserInfo(userInfo)
+
+            // T20-6 : rattache les identités héritées (sentinelle accountKey='')
+            // au premier compte authentifié — idempotent, sans effet dès que le
+            // rattachement a déjà eu lieu.
+            mediaRefAccountBinder.bindTo(AccountKey.from(credentials))
 
             // Purge à la connexion si le compte a changé, avant que le moindre
             // écran ne lise le catalogue du compte précédent.

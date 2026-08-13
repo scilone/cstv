@@ -3,6 +3,7 @@ package com.cstv.app.domain.usecase
 import com.cstv.app.data.local.dao.DownloadDao
 import com.cstv.app.data.local.entity.DownloadedMediaEntity
 import com.cstv.app.data.local.storage.CredentialsManager
+import com.cstv.app.data.local.storage.CurrentAccountKeyProvider
 import com.cstv.app.domain.model.Credentials
 import com.cstv.app.domain.model.DownloadStatus
 import com.cstv.app.domain.network.NetworkMonitor
@@ -31,25 +32,25 @@ class CanPlayContentUseCaseTest {
     @Mock private lateinit var downloadDao: DownloadDao
     @Mock private lateinit var networkMonitor: NetworkMonitor
     @Mock private lateinit var credentialsManager: CredentialsManager
+    @Mock private lateinit var accountKeyProvider: CurrentAccountKeyProvider
 
     private lateinit var useCase: CanPlayContentUseCase
 
     private val credentials = Credentials("panel.example.com", 8080, "user", "secret", true)
+    private val accountKey = "account-key"
 
     @Before
     fun setUp() {
         MockitoAnnotations.openMocks(this)
         whenever(credentialsManager.getCredentials()).thenReturn(credentials)
-        useCase = CanPlayContentUseCase(downloadDao, networkMonitor, credentialsManager)
+        whenever(accountKeyProvider.current()).thenReturn(accountKey)
+        useCase = CanPlayContentUseCase(downloadDao, networkMonitor, credentialsManager, accountKeyProvider)
     }
 
-    private fun downloaded(contentId: String, status: DownloadStatus) = DownloadedMediaEntity(
-        contentId = contentId,
-        type = "movie",
-        streamId = 1,
-        title = "Film",
-        coverUrl = null,
-        containerExtension = "mkv",
+    // T20: contentId is derived from `(kind, providerId)`, not stored -- the entity only carries
+    // the resolved `mediaUid` plus status/progress.
+    private fun downloaded(status: DownloadStatus) = DownloadedMediaEntity(
+        mediaUid = 1L,
         status = status.name,
         percent = 100,
         bytesDownloaded = 1L,
@@ -60,7 +61,7 @@ class CanPlayContentUseCaseTest {
     @Test
     fun onlineContentIsAllowed() = runTest {
         whenever(networkMonitor.isCurrentlyOnline()).thenReturn(true)
-        whenever(downloadDao.getByContentId("movie_1")).thenReturn(null)
+        whenever(downloadDao.getByRef(accountKey, "movie", 1)).thenReturn(null)
 
         assertEquals(PlaybackAvailability.Allowed, useCase("movie_1"))
     }
@@ -72,8 +73,7 @@ class CanPlayContentUseCaseTest {
     @Test
     fun downloadedContentIsAllowedEvenOffline() = runTest {
         whenever(networkMonitor.isCurrentlyOnline()).thenReturn(false)
-        whenever(downloadDao.getByContentId("movie_1"))
-            .thenReturn(downloaded("movie_1", DownloadStatus.COMPLETED))
+        whenever(downloadDao.getByRef(accountKey, "movie", 1)).thenReturn(downloaded(DownloadStatus.COMPLETED))
 
         assertEquals(PlaybackAvailability.Allowed, useCase("movie_1"))
     }
@@ -82,8 +82,7 @@ class CanPlayContentUseCaseTest {
     @Test
     fun partiallyDownloadedContentRequiresConnectionOffline() = runTest {
         whenever(networkMonitor.isCurrentlyOnline()).thenReturn(false)
-        whenever(downloadDao.getByContentId("movie_1"))
-            .thenReturn(downloaded("movie_1", DownloadStatus.DOWNLOADING))
+        whenever(downloadDao.getByRef(accountKey, "movie", 1)).thenReturn(downloaded(DownloadStatus.DOWNLOADING))
 
         assertEquals(PlaybackAvailability.RequiresConnection, useCase("movie_1"))
     }
@@ -91,7 +90,7 @@ class CanPlayContentUseCaseTest {
     @Test
     fun offlineAndNotDownloadedRequiresConnection() = runTest {
         whenever(networkMonitor.isCurrentlyOnline()).thenReturn(false)
-        whenever(downloadDao.getByContentId("movie_1")).thenReturn(null)
+        whenever(downloadDao.getByRef(accountKey, "movie", 1)).thenReturn(null)
 
         assertEquals(PlaybackAvailability.RequiresConnection, useCase("movie_1"))
     }
@@ -112,7 +111,7 @@ class CanPlayContentUseCaseTest {
     fun missingCredentialsRequiresReauthentication() = runTest {
         whenever(networkMonitor.isCurrentlyOnline()).thenReturn(true)
         whenever(credentialsManager.getCredentials()).thenReturn(null)
-        whenever(downloadDao.getByContentId("movie_1")).thenReturn(null)
+        whenever(downloadDao.getByRef(accountKey, "movie", 1)).thenReturn(null)
 
         assertEquals(PlaybackAvailability.RequiresReauthentication, useCase("movie_1"))
     }

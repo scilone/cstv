@@ -9,10 +9,15 @@ import androidx.media3.exoplayer.offline.DownloadService
 import com.cstv.app.data.download.IptvDownloadService
 import com.cstv.app.data.download.OfflineDownloadUtil
 import com.cstv.app.data.local.dao.DownloadDao
+import com.cstv.app.data.local.dao.DownloadListRow
+import com.cstv.app.data.local.dao.MediaRefDao
 import com.cstv.app.data.local.entity.DownloadedMediaEntity
+import com.cstv.app.data.local.storage.CurrentAccountKeyProvider
+import com.cstv.app.domain.model.DownloadContentId
 import com.cstv.app.domain.model.DownloadRequestData
 import com.cstv.app.domain.model.DownloadStatus
 import com.cstv.app.domain.model.DownloadedItem
+import com.cstv.app.domain.model.EpisodeLabel
 import com.cstv.app.domain.repository.DownloadRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -29,11 +34,18 @@ import kotlinx.coroutines.launch
  * changement d'état media3 (listener) et à intervalle régulier (poll de
  * progression, media3 ne pousse pas la progression octet par octet), les lignes
  * Room sont mises à jour. La couche présentation n'observe que Room.
+ *
+ * T20 : `contentId` ("movie_123" / "episode_456", clé media3) n'est plus stocké ; il est retrouvé
+ * via [DownloadContentId.parse] pour router chaque événement media3 vers son `(kind, providerId)`,
+ * et reconstruit via [DownloadContentId.of] pour l'affichage. Titre/jaquette/extension viennent du
+ * catalogue courant.
  */
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 class DownloadRepositoryImpl(
     private val context: Context,
-    private val downloadDao: DownloadDao
+    private val downloadDao: DownloadDao,
+    private val mediaRefDao: MediaRefDao,
+    private val accountKeyProvider: CurrentAccountKeyProvider
 ) : DownloadRepository {
 
     private val appContext = context.applicationContext
@@ -51,7 +63,11 @@ class DownloadRepositoryImpl(
             }
 
             override fun onDownloadRemoved(downloadManager: DownloadManager, download: Download) {
-                scope.launch { downloadDao.delete(download.request.id) }
+                scope.launch {
+                    val (kind, providerId) = DownloadContentId.parse(download.request.id) ?: return@launch
+                    downloadDao.delete(accountKeyProvider.current(), kind.storageValue, providerId)
+                    mediaRefDao.purgeUnreferenced()
+                }
             }
         })
         startProgressPoller()
@@ -70,6 +86,7 @@ class DownloadRepositoryImpl(
     }
 
     private suspend fun syncDownload(download: Download) {
+        val (kind, providerId) = DownloadContentId.parse(download.request.id) ?: return
         val status = mapStatus(download.state)
         val percent = download.percentDownloaded.let {
             if (it.isNaN() || it < 0f) 0 else it.toInt().coerceIn(0, 100)
@@ -82,9 +99,10 @@ class DownloadRepositoryImpl(
         } else {
             bytes
         }
+        val accountKey = accountKeyProvider.current()
         // N'écrit que si la ligne existe déjà (métadonnées créées au démarrage).
-        if (downloadDao.getByContentId(download.request.id) != null) {
-            downloadDao.updateProgress(download.request.id, status.name, percent, bytes, total)
+        if (downloadDao.getByRef(accountKey, kind.storageValue, providerId) != null) {
+            downloadDao.updateProgress(accountKey, kind.storageValue, providerId, status.name, percent, bytes, total)
         }
     }
 
@@ -100,23 +118,16 @@ class DownloadRepositoryImpl(
     }
 
     override fun observeDownloads(): Flow<List<DownloadedItem>> {
-        return downloadDao.observeAll().map { list -> list.map { it.toDomain() } }
+        return downloadDao.observeAll(accountKeyProvider.current()).map { list -> list.map { it.toDomain() } }
     }
 
     override suspend fun startDownload(data: DownloadRequestData) {
+        val accountKey = accountKeyProvider.current()
+        val mediaUid = mediaRefDao.resolve(accountKey, data.type, data.streamId)
         // Métadonnées d'abord (source de vérité UI), puis lancement media3.
         downloadDao.upsert(
             DownloadedMediaEntity(
-                contentId = data.contentId,
-                type = data.type,
-                streamId = data.streamId,
-                seriesId = data.seriesId,
-                seasonNum = data.seasonNum,
-                episodeNum = data.episodeNum,
-                title = data.title,
-                subtitle = data.subtitle,
-                coverUrl = data.coverUrl,
-                containerExtension = data.containerExtension,
+                mediaUid = mediaUid,
                 status = DownloadStatus.QUEUED.name,
                 percent = 0,
                 bytesDownloaded = 0L,
@@ -142,25 +153,39 @@ class DownloadRepositoryImpl(
             contentId,
             /* foreground= */ false
         )
-        downloadDao.delete(contentId)
+        val (kind, providerId) = DownloadContentId.parse(contentId) ?: return
+        downloadDao.delete(accountKeyProvider.current(), kind.storageValue, providerId)
+        mediaRefDao.purgeUnreferenced()
     }
 
     override suspend fun getUsedBytes(): Long = downloadDao.getTotalBytesDownloaded()
 
-    private fun DownloadedMediaEntity.toDomain() = DownloadedItem(
-        contentId = contentId,
-        type = type,
-        streamId = streamId,
-        seriesId = seriesId,
-        seasonNum = seasonNum,
-        episodeNum = episodeNum,
-        title = title,
-        subtitle = subtitle,
-        coverUrl = coverUrl,
-        containerExtension = containerExtension,
-        status = runCatching { DownloadStatus.valueOf(status) }.getOrDefault(DownloadStatus.QUEUED),
-        percent = percent,
-        bytesDownloaded = bytesDownloaded,
-        totalBytes = totalBytes
-    )
+    private fun DownloadListRow.toDomain(): DownloadedItem {
+        val isEpisode = kind == com.cstv.app.domain.model.MediaKind.EPISODE.storageValue
+        val label = if (isEpisode) EpisodeLabel.format(seasonNum, episodeNum) else null
+        val displayTitle = if (isEpisode && label != null) "${title.orEmpty()} — $label" else title.orEmpty()
+        return DownloadedItem(
+            contentId = DownloadContentId.of(
+                if (isEpisode) com.cstv.app.domain.model.MediaKind.EPISODE else com.cstv.app.domain.model.MediaKind.MOVIE,
+                providerId
+            ),
+            type = kind,
+            streamId = providerId,
+            seriesId = seriesId,
+            seasonNum = seasonNum,
+            episodeNum = episodeNum,
+            title = displayTitle,
+            subtitle = if (isEpisode) episodeTitle else null,
+            coverUrl = coverUrl,
+            containerExtension = containerExtension ?: DEFAULT_CONTAINER_EXTENSION,
+            status = runCatching { DownloadStatus.valueOf(status) }.getOrDefault(DownloadStatus.QUEUED),
+            percent = percent,
+            bytesDownloaded = bytesDownloaded,
+            totalBytes = totalBytes
+        )
+    }
+
+    private companion object {
+        const val DEFAULT_CONTAINER_EXTENSION = "mp4"
+    }
 }

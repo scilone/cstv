@@ -7,28 +7,98 @@ import androidx.room.Query
 import com.cstv.app.data.local.entity.DownloadedMediaEntity
 import kotlinx.coroutines.flow.Flow
 
+/**
+ * T20: download joined to its media identity and current catalogue entry. `title`/`coverUrl`/
+ * `containerExtension` come from `vod_streams` for a movie; from `series_episodes` +
+ * `series_streams` for an episode (whose display title -- "Série — SxxEyy" -- and subtitle --
+ * episode name -- are built by [com.cstv.app.data.repository.DownloadRepositoryImpl] from the raw
+ * parts here via the existing pure `EpisodeLabel.format`, not duplicated as SQL string formatting).
+ */
+data class DownloadListRow(
+    val mediaUid: Long,
+    val providerId: Int,
+    val kind: String,
+    val status: String,
+    val percent: Int,
+    val bytesDownloaded: Long,
+    val totalBytes: Long,
+    val createdAt: Long,
+    val title: String?,
+    val episodeTitle: String?,
+    val coverUrl: String?,
+    val containerExtension: String?,
+    val seriesId: Int?,
+    val seasonNum: Int?,
+    val episodeNum: Int?,
+)
+
+private const val DOWNLOAD_LIST_QUERY = """
+    SELECT dm.mediaUid AS mediaUid, r.providerId AS providerId, r.kind AS kind, dm.status AS status,
+           dm.percent AS percent, dm.bytesDownloaded AS bytesDownloaded, dm.totalBytes AS totalBytes, dm.createdAt AS createdAt,
+           s.name AS title, NULL AS episodeTitle, s.streamIcon AS coverUrl, s.containerExtension AS containerExtension,
+           NULL AS seriesId, NULL AS seasonNum, NULL AS episodeNum
+      FROM downloaded_media dm JOIN media_refs r ON r.mediaUid = dm.mediaUid
+      JOIN vod_streams s ON s.streamId = r.providerId
+     WHERE r.accountKey = :accountKey AND r.kind = 'movie'
+    UNION ALL
+    SELECT dm.mediaUid, r.providerId, r.kind, dm.status, dm.percent, dm.bytesDownloaded, dm.totalBytes, dm.createdAt,
+           ss.name, e.title, e.movieImage, e.containerExtension, e.seriesId, e.seasonNum, e.episodeNum
+      FROM downloaded_media dm JOIN media_refs r ON r.mediaUid = dm.mediaUid
+      JOIN series_episodes e ON e.episodeId = r.providerId
+      JOIN series_streams ss ON ss.seriesId = e.seriesId
+     WHERE r.accountKey = :accountKey AND r.kind = 'episode'
+     ORDER BY createdAt DESC
+"""
+
 @Dao
 interface DownloadDao {
 
     // Observe la liste complète (écran Téléchargements + état des boutons dans
-    // les détails). Réémet à chaque upsert de progression/statut.
-    @Query("SELECT * FROM downloaded_media ORDER BY createdAt DESC")
-    fun observeAll(): Flow<List<DownloadedMediaEntity>>
+    // les détails). Réémet à chaque upsert de progression/statut ou changement du catalogue joint.
+    @Query(DOWNLOAD_LIST_QUERY)
+    fun observeAll(accountKey: String): Flow<List<DownloadListRow>>
 
-    @Query("SELECT * FROM downloaded_media ORDER BY createdAt DESC")
-    suspend fun getAll(): List<DownloadedMediaEntity>
+    @Query(DOWNLOAD_LIST_QUERY)
+    suspend fun getAll(accountKey: String): List<DownloadListRow>
 
-    @Query("SELECT * FROM downloaded_media WHERE contentId = :contentId LIMIT 1")
-    suspend fun getByContentId(contentId: String): DownloadedMediaEntity?
+    @Query(
+        "SELECT dm.* FROM downloaded_media dm JOIN media_refs r ON r.mediaUid = dm.mediaUid " +
+            "WHERE r.accountKey = :accountKey AND r.kind = :kind AND r.providerId = :providerId LIMIT 1"
+    )
+    suspend fun getByRef(accountKey: String, kind: String, providerId: Int): DownloadedMediaEntity?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(entity: DownloadedMediaEntity)
 
-    @Query("UPDATE downloaded_media SET status = :status, percent = :percent, bytesDownloaded = :bytesDownloaded, totalBytes = :totalBytes WHERE contentId = :contentId")
-    suspend fun updateProgress(contentId: String, status: String, percent: Int, bytesDownloaded: Long, totalBytes: Long)
+    @Query(
+        "UPDATE downloaded_media SET status = :status, percent = :percent, bytesDownloaded = :bytesDownloaded, totalBytes = :totalBytes " +
+            "WHERE mediaUid = (SELECT mediaUid FROM media_refs WHERE accountKey = :accountKey AND kind = :kind AND providerId = :providerId LIMIT 1)"
+    )
+    suspend fun updateProgress(accountKey: String, kind: String, providerId: Int, status: String, percent: Int, bytesDownloaded: Long, totalBytes: Long)
 
-    @Query("DELETE FROM downloaded_media WHERE contentId = :contentId")
-    suspend fun delete(contentId: String)
+    @Query(
+        "DELETE FROM downloaded_media WHERE mediaUid = (" +
+            "SELECT mediaUid FROM media_refs WHERE accountKey = :accountKey AND kind = :kind AND providerId = :providerId LIMIT 1)"
+    )
+    suspend fun delete(accountKey: String, kind: String, providerId: Int)
+
+    /** T20 (§4.5): réconciliation — téléchargements du compte courant dont le média n'existe plus
+     *  au catalogue (ni movie ni episode). Cascade impossible ici : `media_refs` conserve
+     *  l'identité tant qu'un état la référence, donc `ON DELETE CASCADE` ne se déclenche jamais
+     *  pour un média simplement absent du bouquet — le nettoyage doit rester applicatif. */
+    @Query(
+        "SELECT dm.* FROM downloaded_media dm JOIN media_refs r ON r.mediaUid = dm.mediaUid " +
+            "WHERE r.accountKey = :accountKey AND status != 'ORPHANED' AND (" +
+            "(r.kind = 'movie' AND NOT EXISTS (SELECT 1 FROM vod_streams s WHERE s.streamId = r.providerId)) OR " +
+            "(r.kind = 'episode' AND NOT EXISTS (SELECT 1 FROM series_episodes e WHERE e.episodeId = r.providerId)))"
+    )
+    suspend fun findOrphaned(accountKey: String): List<DownloadedMediaEntity>
+
+    @Query("UPDATE downloaded_media SET status = 'ORPHANED' WHERE mediaUid = :mediaUid")
+    suspend fun markOrphaned(mediaUid: Long)
+
+    @Query("DELETE FROM downloaded_media WHERE mediaUid = :mediaUid")
+    suspend fun deleteByMediaUid(mediaUid: Long)
 
     @Query("SELECT COALESCE(SUM(bytesDownloaded), 0) FROM downloaded_media")
     suspend fun getTotalBytesDownloaded(): Long

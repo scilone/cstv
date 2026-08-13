@@ -5,12 +5,34 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
+import androidx.room.Upsert
 import com.cstv.app.data.local.entity.EpgCacheEntity
 import com.cstv.app.data.local.entity.LiveCategoryEntity
 import com.cstv.app.data.local.entity.LiveStreamEntity
 import com.cstv.app.data.local.entity.RecentlyWatchedLiveEntity
 import com.cstv.app.domain.model.LocalSearchQuery
 import kotlinx.coroutines.flow.Flow
+
+/** T20: display projection — recently-watched joined to the current live catalogue. */
+data class RecentlyWatchedListRow(
+    val providerId: Int,
+    val watchedAt: Long,
+    val name: String,
+    val streamIcon: String?,
+    val categoryId: String?,
+    val num: Int?,
+)
+
+data class RecentlyWatchedWireRow(val providerId: Int, val watchedAt: Long)
+
+internal const val RECENTLY_WATCHED_LIST_QUERY = """
+    SELECT r.providerId AS providerId, rw.watchedAt AS watchedAt, s.name AS name, s.streamIcon AS streamIcon,
+           s.categoryId AS categoryId, s.num AS num
+      FROM recently_watched_live rw JOIN media_refs r ON r.mediaUid = rw.mediaUid
+      JOIN live_streams s ON s.streamId = r.providerId
+     WHERE rw.profileId = :profileId AND r.accountKey = :accountKey
+     ORDER BY watchedAt DESC LIMIT :limit
+"""
 
 @Dao
 interface LiveTvDao {
@@ -85,8 +107,15 @@ interface LiveTvDao {
         })
     }
 
-    /** Ne jamais appeler directement : contourne le calcul de [LiveStreamEntity.searchText]. */
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    /**
+     * Ne jamais appeler directement : contourne le calcul de [LiveStreamEntity.searchText].
+     *
+     * T20 : `@Upsert` (`INSERT … ON CONFLICT DO UPDATE`), pas `@Insert(REPLACE)`. `REPLACE`
+     * compile en `INSERT OR REPLACE`, qui supprime la ligne en conflit avant de la réinsérer et
+     * déclencherait donc `ON DELETE CASCADE` sur `epg_cache` à chaque synchronisation — voir
+     * `CatalogUpsertSqlTest` et T20 §4.3.
+     */
+    @Upsert
     suspend fun insertStreamsRaw(streams: List<LiveStreamEntity>)
 
     /**
@@ -100,31 +129,50 @@ interface LiveTvDao {
         insertCategories(categories)
     }
 
+    /**
+     * T20 §4.3 : différentiel horodaté, pas purge totale. `epg_cache` porte désormais une clé
+     * étrangère en cascade vers `streamId` (§4.2) : un `clearAllStreams()` préalable la viderait
+     * intégralement à chaque synchronisation. Chaque appelant stampe son lot avec le même
+     * `cachedAt` (déjà le cas dans `LiveTvRepositoryImpl.syncLiveStreams`) ; upsert du lot puis
+     * suppression des seules lignes non revues laisse les chaînes maintenues, et leur EPG, intactes
+     * — la cascade ne se déclenche que pour une chaîne réellement disparue du bouquet.
+     */
     @Transaction
     suspend fun replaceAllStreams(streams: List<LiveStreamEntity>) {
         if (streams.isEmpty()) return
-        clearAllStreams()
+        val batchTs = streams.first().cachedAt
         streams.chunked(VodDao.INSERT_CHUNK_SIZE).forEach { insertStreams(it) }
+        deleteStreamsCachedBefore(batchTs)
     }
 
     @Transaction
     suspend fun replaceStreamsByCategory(categoryId: String, streams: List<LiveStreamEntity>) {
         if (streams.isEmpty()) return
-        clearStreamsByCategory(categoryId)
+        val batchTs = streams.first().cachedAt
         streams.chunked(VodDao.INSERT_CHUNK_SIZE).forEach { insertStreams(it) }
+        deleteStreamsCachedBefore(batchTs, categoryId)
     }
+
+    @Query("DELETE FROM live_streams WHERE cachedAt < :batchTs")
+    suspend fun deleteStreamsCachedBefore(batchTs: Long)
+
+    @Query("DELETE FROM live_streams WHERE cachedAt < :batchTs AND categoryId = :categoryId")
+    suspend fun deleteStreamsCachedBefore(batchTs: Long, categoryId: String)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertRecentlyWatched(recentlyWatched: RecentlyWatchedLiveEntity)
 
-    @Query("SELECT * FROM recently_watched_live WHERE profileId = :profileId ORDER BY watchedAt DESC LIMIT :limit")
-    suspend fun getRecentlyWatched(profileId: Int, limit: Int): List<RecentlyWatchedLiveEntity>
+    @Query(RECENTLY_WATCHED_LIST_QUERY)
+    suspend fun getRecentlyWatched(profileId: Int, accountKey: String, limit: Int): List<RecentlyWatchedListRow>
 
-    @Query("SELECT * FROM recently_watched_live WHERE profileId = :profileId ORDER BY watchedAt DESC LIMIT :limit")
-    fun observeRecentlyWatched(profileId: Int, limit: Int): Flow<List<RecentlyWatchedLiveEntity>>
+    @Query(RECENTLY_WATCHED_LIST_QUERY)
+    fun observeRecentlyWatched(profileId: Int, accountKey: String, limit: Int): Flow<List<RecentlyWatchedListRow>>
 
-    @Query("DELETE FROM recently_watched_live WHERE streamId = :streamId AND profileId = :profileId")
-    suspend fun deleteRecentlyWatched(streamId: Int, profileId: Int)
+    @Query(
+        "DELETE FROM recently_watched_live WHERE profileId = :profileId AND mediaUid = (" +
+            "SELECT mediaUid FROM media_refs WHERE accountKey = :accountKey AND kind = 'live' AND providerId = :streamId LIMIT 1)"
+    )
+    suspend fun deleteRecentlyWatched(profileId: Int, accountKey: String, streamId: Int)
 
     @Query("DELETE FROM recently_watched_live WHERE profileId = :profileId")
     suspend fun deleteRecentlyWatchedForProfile(profileId: Int)
@@ -137,6 +185,14 @@ interface LiveTvDao {
             "SELECT rowid FROM recently_watched_live WHERE profileId = :profileId ORDER BY watchedAt DESC LIMIT :limit)"
     )
     suspend fun pruneRecentlyWatchedToMostRecent(profileId: Int, limit: Int)
+
+    /** T20 (§4.6): cloud sync reads a projection — providerId + watchedAt only, no catalogue metadata. */
+    @Query(
+        "SELECT r.providerId AS providerId, rw.watchedAt AS watchedAt FROM recently_watched_live rw " +
+            "JOIN media_refs r ON r.mediaUid = rw.mediaUid " +
+            "WHERE rw.profileId = :profileId AND r.accountKey = :accountKey"
+    )
+    suspend fun wireRows(profileId: Int, accountKey: String): List<RecentlyWatchedWireRow>
 
     // --- EPG (T4 : fenêtre par chaîne, consultable hors ligne) ---
     @Insert(onConflict = OnConflictStrategy.REPLACE)

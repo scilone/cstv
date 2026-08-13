@@ -92,7 +92,7 @@ object AppModule {
         return Room.databaseBuilder(
             context,
             AppDatabase::class.java,
-            "iptv_xtream_cache.db"
+            AppDatabase.DATABASE_NAME
         )
         // Pas de fallbackToDestructiveMigration() : toute évolution de schéma doit
         // fournir une Migration réelle (voir Migrations.kt) pour préserver le cache
@@ -144,8 +144,33 @@ object AppModule {
         return database.profileDao()
     }
 
+    // --- T20 : identités relationnelles partagées (media_refs / category_refs) ---
+
+    @Provides
+    @Singleton
+    fun provideMediaRefDao(database: AppDatabase): com.cstv.app.data.local.dao.MediaRefDao = database.mediaRefDao()
+
+    @Provides
+    @Singleton
+    fun provideCategoryRefDao(database: AppDatabase): com.cstv.app.data.local.dao.CategoryRefDao = database.categoryRefDao()
+
+    @Provides
+    @Singleton
+    fun provideDbMaintenanceDao(database: AppDatabase): com.cstv.app.data.local.dao.DbMaintenanceDao = database.dbMaintenanceDao()
+
+    @Provides
+    @Singleton
+    fun provideCurrentAccountKeyProvider(
+        impl: com.cstv.app.data.local.storage.CurrentAccountKeyProviderImpl
+    ): com.cstv.app.data.local.storage.CurrentAccountKeyProvider = impl
+
     @Provides @Singleton
     fun provideProfileSyncStateDao(database: AppDatabase): ProfileSyncStateDao = database.profileSyncStateDao()
+
+    @Provides
+    @Singleton
+    fun provideDiskSpaceProbe(): com.cstv.app.data.local.db.DiskSpaceProbe =
+        com.cstv.app.data.local.db.DiskSpaceProbe { path -> android.os.StatFs(path).availableBytes }
 
     @Provides @Singleton
     fun provideCstvSessionManager(@ApplicationContext context: Context): CstvSessionManager = CstvSessionManagerImpl(context)
@@ -221,9 +246,11 @@ object AppModule {
     fun provideTrackPreferenceRepository(
         dao: com.cstv.app.data.local.dao.TrackPreferenceDao,
         profileManager: ProfileManager,
+        mediaRefDao: com.cstv.app.data.local.dao.MediaRefDao,
+        accountKeyProvider: com.cstv.app.data.local.storage.CurrentAccountKeyProvider,
         sync: com.cstv.app.domain.sync.CloudSyncManager
     ): com.cstv.app.domain.repository.TrackPreferenceRepository {
-        return com.cstv.app.data.repository.TrackPreferenceRepositoryImpl(dao, profileManager, sync)
+        return com.cstv.app.data.repository.TrackPreferenceRepositoryImpl(dao, profileManager, mediaRefDao, accountKeyProvider, sync)
     }
 
     @Provides
@@ -237,9 +264,11 @@ object AppModule {
     fun provideCategoryPreferenceRepository(
         dao: com.cstv.app.data.local.dao.CategoryPreferenceDao,
         profileManager: ProfileManager,
+        categoryRefDao: com.cstv.app.data.local.dao.CategoryRefDao,
+        accountKeyProvider: com.cstv.app.data.local.storage.CurrentAccountKeyProvider,
         sync: com.cstv.app.domain.sync.CloudSyncManager
     ): com.cstv.app.domain.repository.CategoryPreferenceRepository {
-        return com.cstv.app.data.repository.CategoryPreferenceRepositoryImpl(dao, profileManager, sync)
+        return com.cstv.app.data.repository.CategoryPreferenceRepositoryImpl(dao, profileManager, categoryRefDao, accountKeyProvider, sync)
     }
 
     @Provides
@@ -277,9 +306,11 @@ object AppModule {
         favoritesDao: FavoritesDao,
         vodDao: VodDao,
         profileManager: ProfileManager,
+        mediaRefDao: com.cstv.app.data.local.dao.MediaRefDao,
+        accountKeyProvider: com.cstv.app.data.local.storage.CurrentAccountKeyProvider,
         sync: com.cstv.app.domain.sync.CloudSyncManager
     ): com.cstv.app.domain.repository.MediaRatingRepository =
-        com.cstv.app.data.repository.MediaRatingRepositoryImpl(database, mediaRatingDao, favoritesDao, vodDao, profileManager, sync)
+        com.cstv.app.data.repository.MediaRatingRepositoryImpl(database, mediaRatingDao, favoritesDao, vodDao, profileManager, mediaRefDao, accountKeyProvider, sync)
 
     @Provides
     @Singleton
@@ -287,8 +318,10 @@ object AppModule {
         vodDao: VodDao,
         liveTvDao: LiveTvDao,
         profileManager: ProfileManager,
+        mediaRefDao: com.cstv.app.data.local.dao.MediaRefDao,
+        accountKeyProvider: com.cstv.app.data.local.storage.CurrentAccountKeyProvider,
         sync: com.cstv.app.domain.sync.CloudSyncManager
-    ): ViewingHistoryRepository = ViewingHistoryRepositoryImpl(vodDao, liveTvDao, profileManager, sync)
+    ): ViewingHistoryRepository = ViewingHistoryRepositoryImpl(vodDao, liveTvDao, profileManager, mediaRefDao, accountKeyProvider, sync)
 
     @Provides
     @Singleton
@@ -428,7 +461,8 @@ object AppModule {
         networkMonitor: com.cstv.app.domain.network.NetworkMonitor,
         syncStateDao: com.cstv.app.data.local.dao.CatalogSyncStateDao,
         syncStateInitializer: com.cstv.app.data.sync.CatalogSyncStateInitializer,
-        catalogSyncManager: com.cstv.app.domain.sync.CatalogSyncManager
+        catalogSyncManager: com.cstv.app.domain.sync.CatalogSyncManager,
+        mediaRefAccountBinder: com.cstv.app.data.sync.MediaRefAccountBinder
     ): AuthRepository {
         return AuthRepositoryImpl(
             apiService,
@@ -439,7 +473,8 @@ object AppModule {
             networkMonitor,
             syncStateDao,
             syncStateInitializer,
-            catalogSyncManager
+            catalogSyncManager,
+            mediaRefAccountBinder
         )
     }
 
@@ -452,9 +487,11 @@ object AppModule {
         profileManager: ProfileManager,
         requestGate: XtreamRequestGate,
         networkMonitor: com.cstv.app.domain.network.NetworkMonitor,
+        mediaRefDao: com.cstv.app.data.local.dao.MediaRefDao,
+        accountKeyProvider: com.cstv.app.data.local.storage.CurrentAccountKeyProvider,
         cloudSyncManager: com.cstv.app.domain.sync.CloudSyncManager
     ): LiveTvRepository {
-        return LiveTvRepositoryImpl(apiService, liveTvDao, credentialsManager, profileManager, requestGate, networkMonitor, cloudSyncManager)
+        return LiveTvRepositoryImpl(apiService, liveTvDao, credentialsManager, profileManager, requestGate, networkMonitor, mediaRefDao, accountKeyProvider, cloudSyncManager)
     }
 
     @Provides
@@ -467,9 +504,11 @@ object AppModule {
         profileManager: ProfileManager,
         requestGate: XtreamRequestGate,
         networkMonitor: com.cstv.app.domain.network.NetworkMonitor,
+        mediaRefDao: com.cstv.app.data.local.dao.MediaRefDao,
+        accountKeyProvider: com.cstv.app.data.local.storage.CurrentAccountKeyProvider,
         cloudSyncManager: com.cstv.app.domain.sync.CloudSyncManager
     ): VodRepository {
-        return VodRepositoryImpl(apiService, vodDao, seriesDao, credentialsManager, profileManager, requestGate, networkMonitor, cloudSyncManager)
+        return VodRepositoryImpl(apiService, vodDao, seriesDao, credentialsManager, profileManager, requestGate, networkMonitor, mediaRefDao, accountKeyProvider, cloudSyncManager)
     }
 
     @Provides
@@ -481,19 +520,22 @@ object AppModule {
         credentialsManager: CredentialsManager,
         profileManager: ProfileManager,
         requestGate: XtreamRequestGate,
-        networkMonitor: com.cstv.app.domain.network.NetworkMonitor
+        networkMonitor: com.cstv.app.domain.network.NetworkMonitor,
+        accountKeyProvider: com.cstv.app.data.local.storage.CurrentAccountKeyProvider
     ): SeriesRepository {
-        return SeriesRepositoryImpl(apiService, seriesDao, vodDao, credentialsManager, profileManager, requestGate, networkMonitor)
+        return SeriesRepositoryImpl(apiService, seriesDao, vodDao, credentialsManager, profileManager, requestGate, networkMonitor, accountKeyProvider)
     }
 
     @Provides
     @Singleton
     fun provideFavoritesRepository(
         favoritesDao: FavoritesDao,
+        mediaRefDao: com.cstv.app.data.local.dao.MediaRefDao,
         profileManager: ProfileManager,
+        accountKeyProvider: com.cstv.app.data.local.storage.CurrentAccountKeyProvider,
         sync: com.cstv.app.domain.sync.CloudSyncManager
     ): FavoritesRepository {
-        return FavoritesRepositoryImpl(favoritesDao, profileManager, sync)
+        return FavoritesRepositoryImpl(favoritesDao, mediaRefDao, profileManager, accountKeyProvider, sync)
     }
 
     @Provides
@@ -506,9 +548,11 @@ object AppModule {
     @Singleton
     fun provideDownloadRepository(
         @ApplicationContext context: Context,
-        downloadDao: com.cstv.app.data.local.dao.DownloadDao
+        downloadDao: com.cstv.app.data.local.dao.DownloadDao,
+        mediaRefDao: com.cstv.app.data.local.dao.MediaRefDao,
+        accountKeyProvider: com.cstv.app.data.local.storage.CurrentAccountKeyProvider
     ): com.cstv.app.domain.repository.DownloadRepository {
-        return com.cstv.app.data.repository.DownloadRepositoryImpl(context, downloadDao)
+        return com.cstv.app.data.repository.DownloadRepositoryImpl(context, downloadDao, mediaRefDao, accountKeyProvider)
     }
 
     @Provides
@@ -593,9 +637,11 @@ object AppModule {
         favoritesDao: FavoritesDao,
         vodDao: VodDao,
         timeProvider: com.cstv.app.domain.util.TimeProvider,
+        mediaRefDao: com.cstv.app.data.local.dao.MediaRefDao,
+        accountKeyProvider: com.cstv.app.data.local.storage.CurrentAccountKeyProvider,
         sync: com.cstv.app.domain.sync.CloudSyncManager
     ): com.cstv.app.domain.repository.SeriesWatchStateRepository =
-        com.cstv.app.data.repository.SeriesWatchStateRepositoryImpl(dao, favoritesDao, vodDao, timeProvider, sync)
+        com.cstv.app.data.repository.SeriesWatchStateRepositoryImpl(dao, favoritesDao, vodDao, timeProvider, mediaRefDao, accountKeyProvider, sync)
 
     @Provides
     @Singleton

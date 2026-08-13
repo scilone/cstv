@@ -1,9 +1,11 @@
 package com.cstv.app.data.repository
 
 import com.cstv.app.data.local.dao.FavoritesDao
+import com.cstv.app.data.local.dao.MediaRefDao
 import com.cstv.app.data.local.dao.SeriesWatchStateDao
 import com.cstv.app.data.local.dao.VodDao
 import com.cstv.app.data.local.entity.SeriesWatchStateEntity
+import com.cstv.app.data.local.storage.CurrentAccountKeyProvider
 import com.cstv.app.domain.model.EpisodeRef
 import com.cstv.app.domain.model.SeriesWatchState
 import com.cstv.app.domain.repository.SeriesWatchStateRepository
@@ -14,6 +16,7 @@ import com.cstv.app.domain.sync.CloudSyncManager
 import com.cstv.app.domain.sync.SyncNamespace
 
 private const val NEVER_NOTIFIED = -1
+private const val SERIES_KIND = "series"
 
 @Singleton
 class SeriesWatchStateRepositoryImpl @Inject constructor(
@@ -21,26 +24,31 @@ class SeriesWatchStateRepositoryImpl @Inject constructor(
     private val favoritesDao: FavoritesDao,
     private val vodDao: VodDao,
     private val timeProvider: TimeProvider,
+    private val mediaRefDao: MediaRefDao,
+    private val accountKeyProvider: CurrentAccountKeyProvider,
     private val sync: CloudSyncManager? = null
 ) : SeriesWatchStateRepository {
 
     override suspend fun eligibleSeriesIds(profileId: Int): Set<Int> {
-        val favorites = favoritesDao.getFavoritesByType("series", profileId).map { it.id }
-        val watched = vodDao.getWatchedSeriesIds(profileId)
+        val accountKey = accountKeyProvider.current()
+        val favorites = favoritesDao.getFavoriteSeriesProviderIds(profileId, accountKey)
+        val watched = vodDao.getWatchedSeriesIds(profileId, accountKey)
         return (favorites + watched).toSet()
     }
 
     override suspend fun getStates(profileId: Int): Map<Int, SeriesWatchState> =
-        dao.getAllForProfile(profileId).associate { it.seriesId to it.toDomain() }
+        dao.getAllForProfile(profileId, accountKeyProvider.current()).associate { it.providerId to it.toDomain(profileId) }
 
     override suspend fun upsert(state: SeriesWatchState) {
-        dao.upsert(state.toEntity(timeProvider.nowMillis()))
+        val accountKey = accountKeyProvider.current()
+        val mediaUid = mediaRefDao.resolve(accountKey, SERIES_KIND, state.seriesId)
+        dao.upsert(state.toEntity(mediaUid, timeProvider.nowMillis()))
         sync?.markDirty(state.profileId, SyncNamespace.SERIES_WATCH_STATE)
     }
 
-    private fun SeriesWatchStateEntity.toDomain() = SeriesWatchState(
+    private fun com.cstv.app.data.local.dao.SeriesWatchStateRow.toDomain(profileId: Int) = SeriesWatchState(
         profileId = profileId,
-        seriesId = seriesId,
+        seriesId = providerId,
         lastKnown = EpisodeRef(lastKnownSeason, lastKnownEpisode),
         lastNotified = if (lastNotifiedSeason == NEVER_NOTIFIED && lastNotifiedEpisode == NEVER_NOTIFIED) {
             null
@@ -49,9 +57,9 @@ class SeriesWatchStateRepositoryImpl @Inject constructor(
         }
     )
 
-    private fun SeriesWatchState.toEntity(now: Long) = SeriesWatchStateEntity(
+    private fun SeriesWatchState.toEntity(mediaUid: Long, now: Long) = SeriesWatchStateEntity(
         profileId = profileId,
-        seriesId = seriesId,
+        mediaUid = mediaUid,
         lastKnownSeason = lastKnown.season,
         lastKnownEpisode = lastKnown.episode,
         lastNotifiedSeason = lastNotified?.season ?: NEVER_NOTIFIED,

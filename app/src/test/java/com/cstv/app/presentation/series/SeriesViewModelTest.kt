@@ -217,21 +217,13 @@ class SeriesViewModelTest {
         )
         runCurrent()
 
+        // T20: title/cover/type/containerExtension/series info/plot/duration/releaseDate/categoryId
+        // are resolved from the catalogue at display time -- no longer passed to the use case.
         verify(savePlaybackPositionUseCase).invoke(
-            streamId = eq(501),
+            kind = eq("episode"),
+            providerId = eq(501),
             positionMs = eq(1_000L),
-            durationMs = eq(10_000L),
-            title = any(),
-            coverUrl = isNull(),
-            type = eq("series"),
-            containerExtension = eq("mp4"),
-            seriesId = eq(42),
-            episodeNum = eq(2),
-            seasonNum = eq(1),
-            plot = eq(""),
-            duration = eq(""),
-            releaseDate = eq(""),
-            categoryId = isNull()
+            durationMs = eq(10_000L)
         )
     }
 
@@ -270,21 +262,13 @@ class SeriesViewModelTest {
         )
         runCurrent()
 
+        // T20: title/cover/type/containerExtension/series info/plot/duration/releaseDate/categoryId
+        // are resolved from the catalogue at display time -- no longer passed to the use case.
         verify(savePlaybackPositionUseCase).invoke(
-            streamId = eq(501),
+            kind = eq("episode"),
+            providerId = eq(501),
             positionMs = eq(1_000L),
-            durationMs = eq(10_000L),
-            title = any(),
-            coverUrl = isNull(),
-            type = eq("series"),
-            containerExtension = eq("mp4"),
-            seriesId = eq(42),
-            episodeNum = eq(2),
-            seasonNum = eq(1),
-            plot = eq(""),
-            duration = eq(""),
-            releaseDate = eq(""),
-            categoryId = isNull()
+            durationMs = eq(10_000L)
         )
     }
 

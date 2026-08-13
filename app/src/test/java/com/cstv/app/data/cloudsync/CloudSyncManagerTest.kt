@@ -95,7 +95,7 @@ class CloudSyncManagerTest {
 
     private fun entry(obj: String, value: String) = obj to JsonPrimitive(value)
     private fun snapshotOf(vararg entries: Pair<String, JsonPrimitive>) =
-        NamespaceSnapshot(SnapshotCodec.SCHEMA_VERSION, namespace.wireName, entries.toMap())
+        NamespaceSnapshot(namespace.schemaVersion, namespace.wireName, entries.toMap())
 
     /** Sets the FAVORITES metadata under test; the other six stay "idle" (see [otherNamespaces]). */
     private suspend fun stubListing(metadata: ObjectMetadataDto?) {
@@ -302,7 +302,7 @@ private class FakeSnapshotSerializer : SnapshotSerializer {
     val snapshots = mutableMapOf<SyncNamespace, NamespaceSnapshot>()
     val applied = mutableMapOf<SyncNamespace, NamespaceSnapshot>()
     override suspend fun snapshot(profileId: Int, namespace: SyncNamespace): NamespaceSnapshot =
-        snapshots[namespace] ?: NamespaceSnapshot(SnapshotCodec.SCHEMA_VERSION, namespace.wireName, emptyMap())
+        snapshots[namespace] ?: NamespaceSnapshot(namespace.schemaVersion, namespace.wireName, emptyMap())
     override suspend fun apply(profileId: Int, snapshot: NamespaceSnapshot) {
         applied[SyncNamespace.fromWireName(snapshot.namespace)!!] = snapshot
     }

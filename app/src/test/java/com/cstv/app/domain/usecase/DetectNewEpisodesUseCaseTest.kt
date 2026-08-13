@@ -1,7 +1,8 @@
 package com.cstv.app.domain.usecase
 
+import com.cstv.app.data.local.dao.PlaybackListRow
 import com.cstv.app.data.local.dao.VodDao
-import com.cstv.app.data.local.entity.PlaybackPositionEntity
+import com.cstv.app.data.local.storage.CurrentAccountKeyProvider
 import com.cstv.app.data.local.storage.SettingsManager
 import com.cstv.app.domain.model.EpisodeRef
 import com.cstv.app.domain.model.Profile
@@ -40,8 +41,10 @@ class DetectNewEpisodesUseCaseTest {
     @Mock private lateinit var seriesRepository: SeriesRepository
     @Mock private lateinit var notifier: NewEpisodeNotifier
     @Mock private lateinit var settingsManager: SettingsManager
+    @Mock private lateinit var accountKeyProvider: CurrentAccountKeyProvider
 
     private lateinit var useCase: DetectNewEpisodesUseCase
+    private val accountKey = "account-key"
 
     private fun profile(id: Int) = Profile(id, "P$id", 0, 0L)
 
@@ -60,29 +63,33 @@ class DetectNewEpisodesUseCaseTest {
         SeriesDetails(seriesId, name, null, null, emptyList(), episodes, isMetadataIncomplete = incomplete)
 
     private fun completedPosition(seriesId: Int, season: Int, episodeNum: Int, lastAccessedAt: Long = 0L) =
-        PlaybackPositionEntity(
-            streamId = seriesId * 1000 + episodeNum,
-            profileId = 1,
+        PlaybackListRow(
+            providerId = seriesId * 1000 + episodeNum,
+            kind = "episode",
             positionMs = 100_000L,
             durationMs = 100_000L,
             lastAccessedAt = lastAccessedAt,
+            title = null, coverUrl = null, containerExtension = null,
             seriesId = seriesId,
             episodeNum = episodeNum,
-            seasonNum = season
+            seasonNum = season,
+            plot = null, duration = null, releaseDate = null, categoryId = null
         )
 
     @Before
     fun setUp() {
         MockitoAnnotations.openMocks(this)
+        whenever(accountKeyProvider.current()).thenReturn(accountKey)
         useCase = DetectNewEpisodesUseCase(
             profileRepository,
             seriesWatchStateRepository,
             vodDao,
             seriesRepository,
             notifier,
-            settingsManager
+            settingsManager,
+            accountKeyProvider
         )
-        runTest { whenever(vodDao.getAllPlaybackPositions(any())).thenReturn(emptyList()) }
+        runTest { whenever(vodDao.getAllPlaybackPositions(any(), any())).thenReturn(emptyList()) }
     }
 
     @Test
@@ -96,8 +103,8 @@ class DetectNewEpisodesUseCaseTest {
         )
         whenever(seriesWatchStateRepository.getStates(2)).thenReturn(emptyMap())
 
-        whenever(vodDao.getAllPlaybackPositions(1)).thenReturn(listOf(completedPosition(10, 1, 5)))
-        whenever(vodDao.getAllPlaybackPositions(2)).thenReturn(emptyList())
+        whenever(vodDao.getAllPlaybackPositions(1, accountKey)).thenReturn(listOf(completedPosition(10, 1, 5)))
+        whenever(vodDao.getAllPlaybackPositions(2, accountKey)).thenReturn(emptyList())
 
         whenever(seriesRepository.getSeriesDetails(10)).thenReturn(
             details(10, episodes = mapOf(1 to listOf(episode(1, 5), episode(1, 6))))
@@ -119,7 +126,7 @@ class DetectNewEpisodesUseCaseTest {
             mapOf(10 to SeriesWatchState(1, 10, EpisodeRef(1, 5), null))
         )
         // Aucune position enregistrée -> latestCompleted == null -> pas terminé.
-        whenever(vodDao.getAllPlaybackPositions(1)).thenReturn(emptyList())
+        whenever(vodDao.getAllPlaybackPositions(1, accountKey)).thenReturn(emptyList())
 
         useCase()
 
@@ -136,7 +143,7 @@ class DetectNewEpisodesUseCaseTest {
                 20 to SeriesWatchState(1, 20, EpisodeRef(1, 5), null)
             )
         )
-        whenever(vodDao.getAllPlaybackPositions(1)).thenReturn(
+        whenever(vodDao.getAllPlaybackPositions(1, accountKey)).thenReturn(
             listOf(completedPosition(10, 1, 5), completedPosition(20, 1, 5))
         )
         whenever(seriesRepository.getSeriesDetails(10)).thenThrow(RuntimeException("timeout"))
@@ -158,7 +165,7 @@ class DetectNewEpisodesUseCaseTest {
         whenever(seriesWatchStateRepository.getStates(1)).thenReturn(
             mapOf(10 to SeriesWatchState(1, 10, EpisodeRef(1, 5), null))
         )
-        whenever(vodDao.getAllPlaybackPositions(1)).thenReturn(listOf(completedPosition(10, 1, 5)))
+        whenever(vodDao.getAllPlaybackPositions(1, accountKey)).thenReturn(listOf(completedPosition(10, 1, 5)))
         whenever(seriesRepository.getSeriesDetails(10)).thenReturn(
             details(10, episodes = mapOf(1 to listOf(episode(1, 5), episode(1, 6))))
         )
@@ -183,7 +190,7 @@ class DetectNewEpisodesUseCaseTest {
         whenever(seriesWatchStateRepository.eligibleSeriesIds(2)).thenReturn(manySeriesProfile2)
         whenever(seriesWatchStateRepository.getStates(1)).thenReturn(emptyMap())
         whenever(seriesWatchStateRepository.getStates(2)).thenReturn(emptyMap())
-        whenever(vodDao.getAllPlaybackPositions(any())).thenReturn(emptyList())
+        whenever(vodDao.getAllPlaybackPositions(any(), any())).thenReturn(emptyList())
         whenever(settingsManager.getNewEpisodesCheckCursor()).thenReturn(0)
 
         useCase()
@@ -207,7 +214,7 @@ class DetectNewEpisodesUseCaseTest {
         whenever(profileRepository.getProfiles()).thenReturn(listOf(profile(1)))
         whenever(seriesWatchStateRepository.eligibleSeriesIds(1)).thenReturn(allSeries)
         whenever(seriesWatchStateRepository.getStates(1)).thenReturn(emptyMap())
-        whenever(vodDao.getAllPlaybackPositions(1)).thenReturn(emptyList())
+        whenever(vodDao.getAllPlaybackPositions(1, accountKey)).thenReturn(emptyList())
         whenever(settingsManager.getNewEpisodesCheckCursor()).thenReturn(0)
 
         var storedSeriesCursor = 0

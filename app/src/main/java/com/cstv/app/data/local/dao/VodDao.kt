@@ -11,6 +11,51 @@ import com.cstv.app.data.local.entity.VodStreamEntity
 import com.cstv.app.domain.model.LocalSearchQuery
 import kotlinx.coroutines.flow.Flow
 
+/** T20: display projection for "Continuer à regarder" — resume state joined to the current
+ *  catalogue (`vod_streams` for movies, `series_episodes` + `series_streams` for episodes). */
+data class PlaybackListRow(
+    val providerId: Int,
+    val kind: String,
+    val positionMs: Long,
+    val durationMs: Long,
+    val lastAccessedAt: Long,
+    val title: String?,
+    val coverUrl: String?,
+    val containerExtension: String?,
+    val seriesId: Int?,
+    val episodeNum: Int?,
+    val seasonNum: Int?,
+    val plot: String?,
+    val duration: String?,
+    val releaseDate: String?,
+    val categoryId: String?,
+)
+
+data class PlaybackPositionValues(val positionMs: Long, val durationMs: Long)
+
+/** T20 (§4.6): lean cloud sync projection -- no catalogue join, unlike [PlaybackListRow]. A
+ *  position syncs fine even for a media not yet present in the local catalogue. */
+data class PlaybackWireRow(val providerId: Int, val kind: String, val positionMs: Long, val durationMs: Long, val lastAccessedAt: Long)
+
+internal const val PLAYBACK_LIST_QUERY = """
+    SELECT r.providerId AS providerId, r.kind AS kind, pp.positionMs AS positionMs, pp.durationMs AS durationMs,
+           pp.lastAccessedAt AS lastAccessedAt, s.name AS title, s.streamIcon AS coverUrl, s.containerExtension AS containerExtension,
+           NULL AS seriesId, NULL AS episodeNum, NULL AS seasonNum, s.plot AS plot, s.duration AS duration,
+           CAST(s.releaseYear AS TEXT) AS releaseDate, s.categoryId AS categoryId
+      FROM playback_positions pp JOIN media_refs r ON r.mediaUid = pp.mediaUid
+      JOIN vod_streams s ON s.streamId = r.providerId
+     WHERE pp.profileId = :profileId AND r.accountKey = :accountKey AND r.kind = 'movie'
+    UNION ALL
+    SELECT r.providerId, r.kind, pp.positionMs, pp.durationMs, pp.lastAccessedAt,
+           e.title, e.movieImage, e.containerExtension,
+           e.seriesId, e.episodeNum, e.seasonNum, e.plot, e.duration, e.releaseDate, ss.categoryId
+      FROM playback_positions pp JOIN media_refs r ON r.mediaUid = pp.mediaUid
+      JOIN series_episodes e ON e.episodeId = r.providerId
+      JOIN series_streams ss ON ss.seriesId = e.seriesId
+     WHERE pp.profileId = :profileId AND r.accountKey = :accountKey AND r.kind = 'episode'
+     ORDER BY lastAccessedAt DESC
+"""
+
 @Dao
 interface VodDao {
 
@@ -169,23 +214,31 @@ interface VodDao {
     @Query("SELECT MAX(releaseYear) FROM vod_streams WHERE releaseYear IS NOT NULL AND releaseYear > 0")
     suspend fun getMaxReleaseYear(): Int?
 
-    // --- Playback Positions (Resume) ---
-    @Query("SELECT * FROM playback_positions WHERE profileId = :profileId ORDER BY lastAccessedAt DESC")
-    suspend fun getAllPlaybackPositions(profileId: Int): List<PlaybackPositionEntity>
+    // --- Playback Positions (Resume) : T20, pure state joined to the current catalogue ---
+
+    @Query(PLAYBACK_LIST_QUERY)
+    suspend fun getAllPlaybackPositions(profileId: Int, accountKey: String): List<PlaybackListRow>
 
     // Phase 41 : ré-émet automatiquement à chaque écriture (savePlaybackPosition/
-    // deletePlaybackPosition), sans reload manuel depuis les ViewModels.
-    @Query("SELECT * FROM playback_positions WHERE profileId = :profileId ORDER BY lastAccessedAt DESC")
-    fun observeAllPlaybackPositions(profileId: Int): Flow<List<PlaybackPositionEntity>>
+    // deletePlaybackPosition) ou changement du catalogue joint, sans reload manuel.
+    @Query(PLAYBACK_LIST_QUERY)
+    fun observeAllPlaybackPositions(profileId: Int, accountKey: String): Flow<List<PlaybackListRow>>
 
-    @Query("SELECT * FROM playback_positions WHERE streamId = :streamId AND profileId = :profileId LIMIT 1")
-    suspend fun getPlaybackPosition(streamId: Int, profileId: Int): PlaybackPositionEntity?
+    @Query(
+        "SELECT pp.positionMs AS positionMs, pp.durationMs AS durationMs FROM playback_positions pp " +
+            "JOIN media_refs r ON r.mediaUid = pp.mediaUid " +
+            "WHERE pp.profileId = :profileId AND r.accountKey = :accountKey AND r.kind = :kind AND r.providerId = :providerId LIMIT 1"
+    )
+    suspend fun getPlaybackPosition(profileId: Int, accountKey: String, kind: String, providerId: Int): PlaybackPositionValues?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun savePlaybackPosition(position: PlaybackPositionEntity)
 
-    @Query("DELETE FROM playback_positions WHERE streamId = :streamId AND profileId = :profileId")
-    suspend fun deletePlaybackPosition(streamId: Int, profileId: Int)
+    @Query(
+        "DELETE FROM playback_positions WHERE profileId = :profileId AND mediaUid = (" +
+            "SELECT mediaUid FROM media_refs WHERE accountKey = :accountKey AND kind = :kind AND providerId = :providerId LIMIT 1)"
+    )
+    suspend fun deletePlaybackPosition(profileId: Int, accountKey: String, kind: String, providerId: Int)
 
     @Query("DELETE FROM playback_positions WHERE profileId = :profileId")
     suspend fun deleteAllPlaybackForProfile(profileId: Int)
@@ -198,15 +251,36 @@ interface VodDao {
     )
     suspend fun prunePlaybackToMostRecent(profileId: Int, limit: Int)
 
-    @Query("DELETE FROM playback_positions WHERE seriesId = :seriesId AND profileId = :profileId")
-    suspend fun deletePlaybackPositionsBySeriesId(seriesId: Int, profileId: Int)
+    /** Toutes les positions d'épisode d'une série (retrait forcé après note « je n'aime pas »). */
+    @Query(
+        "DELETE FROM playback_positions WHERE profileId = :profileId AND mediaUid IN (" +
+            "SELECT r.mediaUid FROM media_refs r JOIN series_episodes e ON e.episodeId = r.providerId " +
+            "WHERE r.accountKey = :accountKey AND r.kind = 'episode' AND e.seriesId = :seriesId)"
+    )
+    suspend fun deletePlaybackPositionsBySeriesId(profileId: Int, accountKey: String, seriesId: Int)
 
-    @Query("DELETE FROM playback_positions WHERE streamId IN (:streamIds) AND profileId = :profileId")
-    suspend fun deletePlaybackPositionsByStreamIds(streamIds: Set<Int>, profileId: Int)
+    @Query(
+        "DELETE FROM playback_positions WHERE profileId = :profileId AND mediaUid IN (" +
+            "SELECT mediaUid FROM media_refs WHERE accountKey = :accountKey AND kind = 'episode' AND providerId IN (:episodeIds))"
+    )
+    suspend fun deletePlaybackPositionsByStreamIds(profileId: Int, accountKey: String, episodeIds: Set<Int>)
 
     /** Séries présentes dans « Continuer à regarder » du profil (F12 : séries éligibles à la détection de nouveaux épisodes). */
-    @Query("SELECT DISTINCT seriesId FROM playback_positions WHERE profileId = :profileId AND seriesId IS NOT NULL")
-    suspend fun getWatchedSeriesIds(profileId: Int): List<Int>
+    @Query(
+        "SELECT DISTINCT e.seriesId FROM playback_positions pp " +
+            "JOIN media_refs r ON r.mediaUid = pp.mediaUid " +
+            "JOIN series_episodes e ON e.episodeId = r.providerId " +
+            "WHERE pp.profileId = :profileId AND r.accountKey = :accountKey AND r.kind = 'episode'"
+    )
+    suspend fun getWatchedSeriesIds(profileId: Int, accountKey: String): List<Int>
+
+    /** T20 (§4.6): cloud sync projection, no catalogue metadata. */
+    @Query(
+        "SELECT r.providerId AS providerId, r.kind AS kind, pp.positionMs AS positionMs, pp.durationMs AS durationMs, pp.lastAccessedAt AS lastAccessedAt " +
+            "FROM playback_positions pp JOIN media_refs r ON r.mediaUid = pp.mediaUid " +
+            "WHERE pp.profileId = :profileId AND r.accountKey = :accountKey"
+    )
+    suspend fun wireRows(profileId: Int, accountKey: String): List<PlaybackWireRow>
 
     companion object {
         /** Borne le pic mémoire d'une transaction sur un catalogue de dizaines de milliers d'entrées. */

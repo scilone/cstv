@@ -35,7 +35,7 @@ import javax.inject.Singleton
  * Fonction pure, sans dépendance Room au-delà du type d'entité, pour rester
  * testable en JVM.
  */
-internal fun isEpisodeWatched(savedPosition: com.cstv.app.data.local.entity.PlaybackPositionEntity?): Boolean =
+internal fun isEpisodeWatched(savedPosition: com.cstv.app.data.local.dao.PlaybackListRow?): Boolean =
     savedPosition != null && savedPosition.positionMs <= 0L
 
 @Singleton
@@ -46,7 +46,8 @@ class SeriesRepositoryImpl @Inject constructor(
     private val credentialsManager: CredentialsManager,
     private val profileManager: com.cstv.app.data.local.storage.ProfileManager,
     private val requestGate: XtreamRequestGate,
-    private val networkMonitor: NetworkMonitor
+    private val networkMonitor: NetworkMonitor,
+    private val accountKeyProvider: com.cstv.app.data.local.storage.CurrentAccountKeyProvider
 ) : SeriesRepository {
 
     private var enrichmentDispatcher: CoroutineDispatcher = Dispatchers.IO
@@ -67,8 +68,9 @@ class SeriesRepositoryImpl @Inject constructor(
         profileManager: com.cstv.app.data.local.storage.ProfileManager,
         requestGate: XtreamRequestGate,
         networkMonitor: NetworkMonitor,
+        accountKeyProvider: com.cstv.app.data.local.storage.CurrentAccountKeyProvider,
         dispatcher: CoroutineDispatcher
-    ) : this(apiService, seriesDao, vodDao, credentialsManager, profileManager, requestGate, networkMonitor) {
+    ) : this(apiService, seriesDao, vodDao, credentialsManager, profileManager, requestGate, networkMonitor, accountKeyProvider) {
         this.enrichmentDispatcher = dispatcher
     }
 
@@ -447,8 +449,8 @@ class SeriesRepositoryImpl @Inject constructor(
 
         val seasonEntities = seriesDao.getSeasons(seriesId)
         val episodeEntities = seriesDao.getEpisodes(seriesId)
-        val savedPositions = vodDao.getAllPlaybackPositions(profileManager.currentProfileId())
-            .associateBy { it.streamId }
+        val savedPositions = vodDao.getAllPlaybackPositions(profileManager.currentProfileId(), accountKeyProvider.current())
+            .associateBy { it.providerId }
 
         val episodesMap = episodeEntities
             .groupBy { it.seasonNum }
@@ -543,8 +545,8 @@ class SeriesRepositoryImpl @Inject constructor(
 
         // Une seule lecture pour toute la série : interroger la table épisode par
         // épisode faisait autant d'allers-retours Room que la série a d'épisodes.
-        val savedPositions = vodDao.getAllPlaybackPositions(profileManager.currentProfileId())
-            .associateBy { it.streamId }
+        val savedPositions = vodDao.getAllPlaybackPositions(profileManager.currentProfileId(), accountKeyProvider.current())
+            .associateBy { it.providerId }
 
         response.episodes?.forEach { (seasonStr, dtoList) ->
             val seasonNum = seasonStr.toIntOrNull() ?: 1

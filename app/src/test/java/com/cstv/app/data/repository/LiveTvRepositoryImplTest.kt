@@ -54,9 +54,16 @@ class LiveTvRepositoryImplTest {
     @Mock
     private lateinit var networkMonitor: com.cstv.app.domain.network.NetworkMonitor
 
+    @Mock
+    private lateinit var mediaRefDao: com.cstv.app.data.local.dao.MediaRefDao
+
+    @Mock
+    private lateinit var accountKeyProvider: com.cstv.app.data.local.storage.CurrentAccountKeyProvider
+
     private lateinit var repository: LiveTvRepositoryImpl
 
     private val credentials = Credentials("test.com", 80, "username", "password", true)
+    private val accountKey = "account-key"
 
     @Before
     fun setUp() {
@@ -64,7 +71,8 @@ class LiveTvRepositoryImplTest {
         whenever(credentialsManager.getCredentials()).thenReturn(credentials)
         doReturn(1).whenever(profileManager).currentProfileId()
         whenever(networkMonitor.isCurrentlyOnline()).thenReturn(true)
-        repository = LiveTvRepositoryImpl(apiService, liveTvDao, credentialsManager, profileManager, com.cstv.app.data.remote.api.XtreamRequestGate(), networkMonitor)
+        doReturn(accountKey).whenever(accountKeyProvider).current()
+        repository = LiveTvRepositoryImpl(apiService, liveTvDao, credentialsManager, profileManager, com.cstv.app.data.remote.api.XtreamRequestGate(), networkMonitor, mediaRefDao, accountKeyProvider)
     }
 
     // --- 1. PLAY URL CONSTRUCTION TESTS ---
@@ -222,22 +230,22 @@ class LiveTvRepositoryImplTest {
         )
 
         // Verify save
+        whenever(mediaRefDao.resolve(accountKey, "live", 12345)).thenReturn(99L)
         repository.saveRecentlyWatched(stream)
-        verify(liveTvDao).insertRecentlyWatched(any())
+        verify(liveTvDao).insertRecentlyWatched(argThat { mediaUid == 99L && profileId == 1 })
 
         // Verify retrieve
         val mockedRecentlyWatched = listOf(
-            com.cstv.app.data.local.entity.RecentlyWatchedLiveEntity(
-                streamId = 12345,
-                profileId = 1,
+            com.cstv.app.data.local.dao.RecentlyWatchedListRow(
+                providerId = 12345,
+                watchedAt = System.currentTimeMillis(),
                 name = "TF1 HD",
                 streamIcon = "icon.png",
                 categoryId = "10",
-                num = 1,
-                watchedAt = System.currentTimeMillis()
+                num = 1
             )
         )
-        whenever(liveTvDao.getRecentlyWatched(any(), any())).thenReturn(mockedRecentlyWatched)
+        whenever(liveTvDao.getRecentlyWatched(any(), any(), any())).thenReturn(mockedRecentlyWatched)
 
         val result = repository.getRecentlyWatched()
         assertEquals(1, result.size)

@@ -1,10 +1,12 @@
 package com.cstv.app.data.repository
 
 import com.cstv.app.data.local.dao.FavoritesDao
+import com.cstv.app.data.local.dao.MediaRefDao
 import com.cstv.app.data.local.entity.FavoriteEntity
 import com.cstv.app.data.local.entity.LiveStreamEntity
 import com.cstv.app.data.local.entity.SeriesStreamEntity
 import com.cstv.app.data.local.entity.VodStreamEntity
+import com.cstv.app.data.local.storage.CurrentAccountKeyProvider
 import com.cstv.app.data.local.storage.ProfileManager
 import com.cstv.app.domain.model.FavoriteItem
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -33,54 +35,61 @@ class FavoritesRepositoryImplTest {
     private lateinit var favoritesDao: FavoritesDao
 
     @Mock
+    private lateinit var mediaRefDao: MediaRefDao
+
+    @Mock
     private lateinit var profileManager: ProfileManager
+
+    @Mock
+    private lateinit var accountKeyProvider: CurrentAccountKeyProvider
 
     private lateinit var repository: FavoritesRepositoryImpl
 
     private val activeProfileId = 1
+    private val accountKey = "account-key"
 
     @Before
     fun setUp() {
         MockitoAnnotations.openMocks(this)
         doReturn(activeProfileId).whenever(profileManager).currentProfileId()
-        repository = FavoritesRepositoryImpl(favoritesDao, profileManager)
+        doReturn(accountKey).whenever(accountKeyProvider).current()
+        repository = FavoritesRepositoryImpl(favoritesDao, mediaRefDao, profileManager, accountKeyProvider)
     }
 
     // --- 1. FAVORITES ADD & REMOVE TESTS ---
     @Test
-    fun test_addFavorite_savesEntityToDatabase() = runTest {
+    fun test_addFavorite_resolvesIdentityAndSavesEntityToDatabase() = runTest {
         val favorite = FavoriteItem(123, "movie", "Inception", "cover.jpg", "5")
+        whenever(mediaRefDao.resolve(accountKey, "movie", 123)).thenReturn(42L)
 
         repository.addFavorite(favorite)
 
-        // Capture saved entity and verify mapping
+        // T20: name/cover/categoryId are no longer part of the state row -- only the resolved
+        // identity and the business value (addedAt) are persisted.
         argumentCaptor<FavoriteEntity>().apply {
             verify(favoritesDao).addFavorite(capture())
-            assertEquals(123, firstValue.id)
-            assertEquals("movie", firstValue.type)
-            assertEquals("Inception", firstValue.name)
-            assertEquals("cover.jpg", firstValue.cover)
-            assertEquals("5", firstValue.categoryId)
-            assertTrue(firstValue.addedAt > 0L)
+            assertEquals(42L, firstValue.mediaUid)
             assertEquals(activeProfileId, firstValue.profileId)
+            assertTrue(firstValue.addedAt > 0L)
         }
     }
 
     @Test
-    fun test_removeFavorite_removesEntityFromDatabase() = runTest {
+    fun test_removeFavorite_removesEntityFromDatabaseAndPurgesUnreferencedIdentity() = runTest {
         repository.removeFavorite(123, "movie")
 
-        verify(favoritesDao).removeFavorite(123, "movie", activeProfileId)
+        verify(favoritesDao).removeFavorite(activeProfileId, accountKey, "movie", 123)
+        verify(mediaRefDao).purgeUnreferenced()
     }
 
     @Test
     fun test_isFavorite_returnsTrue_whenEntityExists() = runTest {
-        whenever(favoritesDao.isFavorite(123, "movie", activeProfileId)).thenReturn(true)
+        whenever(favoritesDao.isFavorite(activeProfileId, accountKey, "movie", 123)).thenReturn(true)
 
         val result = repository.isFavorite(123, "movie")
 
         assertTrue(result)
-        verify(favoritesDao).isFavorite(123, "movie", activeProfileId)
+        verify(favoritesDao).isFavorite(activeProfileId, accountKey, "movie", 123)
     }
 
     // --- 2. UNIFIED SEARCH FILTERING TESTS ---

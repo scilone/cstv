@@ -29,22 +29,11 @@ interface VodRepository {
     suspend fun syncVodCategories(): List<VodCategory>
     suspend fun syncVodStreams(categoryId: String = "all"): List<VodStream>
     suspend fun getVodDetails(streamId: Int): VodDetails
-    suspend fun savePlaybackPosition(
-        streamId: Int,
-        positionMs: Long,
-        durationMs: Long,
-        title: String? = null,
-        coverUrl: String? = null,
-        type: String? = null,
-        containerExtension: String? = null,
-        seriesId: Int? = null,
-        episodeNum: Int? = null,
-        seasonNum: Int? = null,
-        plot: String? = null,
-        duration: String? = null,
-        releaseDate: String? = null,
-        categoryId: String? = null
-    )
+    /** T20: title/cover/etc. are no longer stored here — they are resolved from the catalogue at
+     *  display time (`VodDao.getAllPlaybackPositions` projection). [kind] is
+     *  [com.cstv.app.domain.model.MediaKind.storageValue] ("movie" or "episode") — this single
+     *  entry point is shared by `SavePlaybackPositionUseCase` for both VOD and series playback. */
+    suspend fun savePlaybackPosition(kind: String, providerId: Int, positionMs: Long, durationMs: Long)
     suspend fun getPlaybackPosition(streamId: Int): Pair<Long, Long>?
     suspend fun clearPlaybackPosition(streamId: Int)
     suspend fun getAllPlaybackPositions(): List<PlaybackPosition>

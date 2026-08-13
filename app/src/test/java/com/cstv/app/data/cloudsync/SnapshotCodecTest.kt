@@ -1,5 +1,6 @@
 package com.cstv.app.data.cloudsync
 
+import com.cstv.app.domain.sync.SyncNamespace
 import com.google.gson.Gson
 import com.google.gson.JsonParser
 import org.junit.Assert.assertEquals
@@ -23,8 +24,15 @@ class SnapshotCodecTest {
         assertTrue(codec.decode(byteArrayOf(1, 2, 3)) is SnapshotDecodeResult.Malformed)
     }
 
+    // T20: the ceiling is per-namespace (SyncNamespace.schemaVersion), not the global constant --
+    // favorites is at v2, so a v3 document (not v2) is what actually exceeds it now.
     @Test fun `newer schema is incompatible without throwing`() {
-        val snapshot = NamespaceSnapshot(SnapshotCodec.SCHEMA_VERSION + 1, "favorites", emptyMap())
+        val snapshot = NamespaceSnapshot(SyncNamespace.FAVORITES.schemaVersion + 1, "favorites", emptyMap())
+        assertTrue(codec.decode((codec.encode(snapshot) as SnapshotEncodeResult.Success).bytes) is SnapshotDecodeResult.Incompatible)
+    }
+
+    @Test fun `an unrecognized namespace name falls back to the legacy global ceiling`() {
+        val snapshot = NamespaceSnapshot(SnapshotCodec.SCHEMA_VERSION + 1, "unknown-namespace", emptyMap())
         assertTrue(codec.decode((codec.encode(snapshot) as SnapshotEncodeResult.Success).bytes) is SnapshotDecodeResult.Incompatible)
     }
 

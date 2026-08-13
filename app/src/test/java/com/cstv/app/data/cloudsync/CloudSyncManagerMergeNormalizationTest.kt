@@ -100,11 +100,11 @@ class CloudSyncManagerMergeNormalizationTest {
         whenever(states.get(profileId, namespace.wireName))
             .thenReturn(ProfileSyncStateEntity(profileId, namespace.wireName, etag = null, pending = false))
         val remote = NamespaceSnapshot(
-            SnapshotCodec.SCHEMA_VERSION, namespace.wireName,
+            namespace.schemaVersion, namespace.wireName,
             mapOf("1" to playbackItem(1, lastAccessedAt = 100, plot = "an old client still sent this")),
         )
         whenever(objects.getObject(remoteId, namespace.wireName)).thenReturn(Response.success(bodyOf(remote)))
-        serializer.snapshot = NamespaceSnapshot(SnapshotCodec.SCHEMA_VERSION, namespace.wireName, emptyMap())
+        serializer.snapshot = NamespaceSnapshot(namespace.schemaVersion, namespace.wireName, emptyMap())
 
         var pushedBody: okio.Buffer? = null
         whenever(objects.putObject(eq(remoteId), eq(namespace.wireName), any(), any(), any())).thenAnswer { invocation ->
@@ -134,7 +134,7 @@ private class FakePlaybackSerializer : SnapshotSerializer {
     var snapshot: NamespaceSnapshot? = null
     var applied: NamespaceSnapshot? = null
     override suspend fun snapshot(profileId: Int, namespace: SyncNamespace): NamespaceSnapshot =
-        snapshot ?: NamespaceSnapshot(SnapshotCodec.SCHEMA_VERSION, namespace.wireName, emptyMap())
+        snapshot ?: NamespaceSnapshot(namespace.schemaVersion, namespace.wireName, emptyMap())
     override suspend fun apply(profileId: Int, snapshot: NamespaceSnapshot) {
         applied = snapshot
     }

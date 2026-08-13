@@ -641,4 +641,249 @@ val MIGRATION_26_27 = object : Migration(26, 27) {
     }
 }
 
-val ALL_MIGRATIONS = arrayOf(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27)
+/**
+ * T20 — normalisation relationnelle. Reconstruit les huit tables d'état autour d'identités
+ * partagées (`media_refs` / `category_refs`), pose de vraies clés étrangères vers `profiles` et
+ * vers ces identités, ajoute les cascades catalogue (`series_seasons`, `series_episodes`,
+ * `epg_cache`) et celle de `profile_sync_state`, retire les métadonnées dupliquées et supprime les
+ * lignes déjà orphelines de Room 27. Migration unique, non destructive : `defer_foreign_keys`
+ * repousse la vérification des clés étrangères à la fin de la transaction, et un
+ * `PRAGMA foreign_key_check` explicite fait échouer la migration (sans rien écrire, Room 27 reste
+ * ouvrable) au moindre résidu incohérent plutôt que de laisser SQLite l'accepter silencieusement.
+ *
+ * Sentinelle `accountKey = ''` : le compte Xtream vit dans des préférences chiffrées hors de Room,
+ * illisible depuis une migration SQL. Les identités héritées sont rattachées au premier compte
+ * authentifié après la mise à jour par [com.cstv.app.data.sync.MediaRefAccountBinder] — jusque-là
+ * elles restent invisibles (accord "cloud restauré avant le catalogue", § 4.6/4.7 du ticket).
+ */
+val MIGRATION_27_28 = object : Migration(27, 28) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        migration27To28Statements().forEach(db::execSQL)
+
+        db.query("PRAGMA foreign_key_check").use { cursor ->
+            if (cursor.moveToFirst()) {
+                error("T20 migration 27->28 left a foreign key violation: PRAGMA foreign_key_check returned rows.")
+            }
+        }
+    }
+}
+
+/**
+ * Instructions de la migration 27→28, renvoyées plutôt qu'exécutées ici pour que
+ * `Migration27To28SqlTest` puisse les rejouer sur un SQLite en mémoire via sqlite-jdbc — motif déjà
+ * utilisé par [categoryRankBackfillStatements] (le projet n'a pas d'infrastructure de test
+ * instrumenté, voir AGENTS.md).
+ */
+internal fun migration27To28Statements(): List<String> = listOf(
+    "PRAGMA defer_foreign_keys = TRUE",
+
+    // --- Tables d'identité (idempotentes : peuvent déjà exister, cf. AppModule) ---
+    "CREATE TABLE IF NOT EXISTS media_refs (mediaUid INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, accountKey TEXT NOT NULL, kind TEXT NOT NULL, providerId INTEGER NOT NULL)",
+    "CREATE UNIQUE INDEX IF NOT EXISTS index_media_refs_accountKey_kind_providerId ON media_refs(accountKey, kind, providerId)",
+    "CREATE TABLE IF NOT EXISTS category_refs (catUid INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, accountKey TEXT NOT NULL, kind TEXT NOT NULL, providerCategoryId TEXT NOT NULL)",
+    "CREATE UNIQUE INDEX IF NOT EXISTS index_category_refs_accountKey_kind_providerCategoryId ON category_refs(accountKey, kind, providerCategoryId)",
+    "CREATE TABLE IF NOT EXISTS db_maintenance (task TEXT NOT NULL, requestedAt INTEGER NOT NULL, PRIMARY KEY(task))",
+
+    // --- Peuplement des identités depuis les états existants (accountKey = '', rattachée plus tard) ---
+    "INSERT OR IGNORE INTO media_refs (accountKey, kind, providerId) SELECT '', type, id FROM favorites",
+    "INSERT OR IGNORE INTO media_refs (accountKey, kind, providerId) SELECT '', " +
+        "CASE WHEN seriesId IS NOT NULL OR type = 'series' THEN 'episode' " +
+        "WHEN EXISTS (SELECT 1 FROM series_episodes e WHERE e.episodeId = playback_positions.streamId) THEN 'episode' " +
+        "ELSE 'movie' END, streamId FROM playback_positions",
+    "INSERT OR IGNORE INTO media_refs (accountKey, kind, providerId) SELECT '', 'live', streamId FROM recently_watched_live",
+    "INSERT OR IGNORE INTO media_refs (accountKey, kind, providerId) SELECT '', mediaType, mediaId FROM media_ratings",
+    "INSERT OR IGNORE INTO media_refs (accountKey, kind, providerId) SELECT '', mediaType, mediaId FROM track_preferences",
+    "INSERT OR IGNORE INTO media_refs (accountKey, kind, providerId) SELECT '', 'series', seriesId FROM series_watch_state",
+    "INSERT OR IGNORE INTO media_refs (accountKey, kind, providerId) SELECT '', type, streamId FROM downloaded_media",
+    "INSERT OR IGNORE INTO category_refs (accountKey, kind, providerCategoryId) SELECT '', type, categoryId FROM category_preferences",
+
+    // --- favorites: (id, type, name, cover, categoryId, addedAt, profileId) -> (profileId, mediaUid, addedAt) ---
+    "CREATE TABLE favorites_new (" +
+        "profileId INTEGER NOT NULL, mediaUid INTEGER NOT NULL, addedAt INTEGER NOT NULL, " +
+        "PRIMARY KEY(profileId, mediaUid), " +
+        "FOREIGN KEY(profileId) REFERENCES profiles(id) ON DELETE CASCADE, " +
+        "FOREIGN KEY(mediaUid) REFERENCES media_refs(mediaUid) ON DELETE CASCADE)",
+    "INSERT INTO favorites_new (profileId, mediaUid, addedAt) " +
+        "SELECT f.profileId, r.mediaUid, f.addedAt FROM favorites f " +
+        "JOIN profiles p ON p.id = f.profileId " +
+        "JOIN media_refs r ON r.accountKey = '' AND r.kind = f.type AND r.providerId = f.id",
+    "DROP TABLE favorites",
+    "ALTER TABLE favorites_new RENAME TO favorites",
+    "CREATE INDEX index_favorites_mediaUid ON favorites(mediaUid)",
+    "CREATE INDEX index_favorites_profileId_addedAt ON favorites(profileId, addedAt)",
+
+    // --- playback_positions: strips every catalogue field, keeps only resume state ---
+    "CREATE TABLE playback_positions_new (" +
+        "profileId INTEGER NOT NULL, mediaUid INTEGER NOT NULL, positionMs INTEGER NOT NULL, " +
+        "durationMs INTEGER NOT NULL, lastAccessedAt INTEGER NOT NULL, " +
+        "PRIMARY KEY(profileId, mediaUid), " +
+        "FOREIGN KEY(profileId) REFERENCES profiles(id) ON DELETE CASCADE, " +
+        "FOREIGN KEY(mediaUid) REFERENCES media_refs(mediaUid) ON DELETE CASCADE)",
+    "INSERT INTO playback_positions_new (profileId, mediaUid, positionMs, durationMs, lastAccessedAt) " +
+        "SELECT pp.profileId, r.mediaUid, pp.positionMs, pp.durationMs, pp.lastAccessedAt FROM playback_positions pp " +
+        "JOIN profiles p ON p.id = pp.profileId " +
+        "JOIN media_refs r ON r.accountKey = '' AND r.providerId = pp.streamId AND r.kind = " +
+        "(CASE WHEN pp.seriesId IS NOT NULL OR pp.type = 'series' THEN 'episode' " +
+        "WHEN EXISTS (SELECT 1 FROM series_episodes e WHERE e.episodeId = pp.streamId) THEN 'episode' " +
+        "ELSE 'movie' END)",
+    "DROP TABLE playback_positions",
+    "ALTER TABLE playback_positions_new RENAME TO playback_positions",
+    "CREATE INDEX index_playback_positions_mediaUid ON playback_positions(mediaUid)",
+    "CREATE INDEX index_playback_positions_profileId_lastAccessedAt ON playback_positions(profileId, lastAccessedAt)",
+
+    // --- recently_watched_live ---
+    "CREATE TABLE recently_watched_live_new (" +
+        "profileId INTEGER NOT NULL, mediaUid INTEGER NOT NULL, watchedAt INTEGER NOT NULL, " +
+        "PRIMARY KEY(profileId, mediaUid), " +
+        "FOREIGN KEY(profileId) REFERENCES profiles(id) ON DELETE CASCADE, " +
+        "FOREIGN KEY(mediaUid) REFERENCES media_refs(mediaUid) ON DELETE CASCADE)",
+    "INSERT INTO recently_watched_live_new (profileId, mediaUid, watchedAt) " +
+        "SELECT rw.profileId, r.mediaUid, rw.watchedAt FROM recently_watched_live rw " +
+        "JOIN profiles p ON p.id = rw.profileId " +
+        "JOIN media_refs r ON r.accountKey = '' AND r.kind = 'live' AND r.providerId = rw.streamId",
+    "DROP TABLE recently_watched_live",
+    "ALTER TABLE recently_watched_live_new RENAME TO recently_watched_live",
+    "CREATE INDEX index_recently_watched_live_mediaUid ON recently_watched_live(mediaUid)",
+    "CREATE INDEX index_recently_watched_live_profileId_watchedAt ON recently_watched_live(profileId, watchedAt)",
+
+    // --- media_ratings ---
+    "CREATE TABLE media_ratings_new (" +
+        "profileId INTEGER NOT NULL, mediaUid INTEGER NOT NULL, value INTEGER NOT NULL, " +
+        "PRIMARY KEY(profileId, mediaUid), " +
+        "FOREIGN KEY(profileId) REFERENCES profiles(id) ON DELETE CASCADE, " +
+        "FOREIGN KEY(mediaUid) REFERENCES media_refs(mediaUid) ON DELETE CASCADE)",
+    "INSERT INTO media_ratings_new (profileId, mediaUid, value) " +
+        "SELECT mr.profileId, r.mediaUid, mr.value FROM media_ratings mr " +
+        "JOIN profiles p ON p.id = mr.profileId " +
+        "JOIN media_refs r ON r.accountKey = '' AND r.kind = mr.mediaType AND r.providerId = mr.mediaId",
+    "DROP TABLE media_ratings",
+    "ALTER TABLE media_ratings_new RENAME TO media_ratings",
+    "CREATE INDEX index_media_ratings_mediaUid ON media_ratings(mediaUid)",
+
+    // --- track_preferences ---
+    "CREATE TABLE track_preferences_new (" +
+        "profileId INTEGER NOT NULL, mediaUid INTEGER NOT NULL, audioLang TEXT, subtitleLang TEXT, " +
+        "PRIMARY KEY(profileId, mediaUid), " +
+        "FOREIGN KEY(profileId) REFERENCES profiles(id) ON DELETE CASCADE, " +
+        "FOREIGN KEY(mediaUid) REFERENCES media_refs(mediaUid) ON DELETE CASCADE)",
+    "INSERT INTO track_preferences_new (profileId, mediaUid, audioLang, subtitleLang) " +
+        "SELECT tp.profileId, r.mediaUid, tp.audioLang, tp.subtitleLang FROM track_preferences tp " +
+        "JOIN profiles p ON p.id = tp.profileId " +
+        "JOIN media_refs r ON r.accountKey = '' AND r.kind = tp.mediaType AND r.providerId = tp.mediaId",
+    "DROP TABLE track_preferences",
+    "ALTER TABLE track_preferences_new RENAME TO track_preferences",
+    "CREATE INDEX index_track_preferences_mediaUid ON track_preferences(mediaUid)",
+
+    // --- series_watch_state ---
+    "CREATE TABLE series_watch_state_new (" +
+        "profileId INTEGER NOT NULL, mediaUid INTEGER NOT NULL, lastKnownSeason INTEGER NOT NULL, " +
+        "lastKnownEpisode INTEGER NOT NULL, lastNotifiedSeason INTEGER NOT NULL, " +
+        "lastNotifiedEpisode INTEGER NOT NULL, updatedAt INTEGER NOT NULL, " +
+        "PRIMARY KEY(profileId, mediaUid), " +
+        "FOREIGN KEY(profileId) REFERENCES profiles(id) ON DELETE CASCADE, " +
+        "FOREIGN KEY(mediaUid) REFERENCES media_refs(mediaUid) ON DELETE CASCADE)",
+    "INSERT INTO series_watch_state_new (" +
+        "profileId, mediaUid, lastKnownSeason, lastKnownEpisode, lastNotifiedSeason, lastNotifiedEpisode, updatedAt) " +
+        "SELECT sw.profileId, r.mediaUid, sw.lastKnownSeason, sw.lastKnownEpisode, sw.lastNotifiedSeason, " +
+        "sw.lastNotifiedEpisode, sw.updatedAt FROM series_watch_state sw " +
+        "JOIN profiles p ON p.id = sw.profileId " +
+        "JOIN media_refs r ON r.accountKey = '' AND r.kind = 'series' AND r.providerId = sw.seriesId",
+    "DROP TABLE series_watch_state",
+    "ALTER TABLE series_watch_state_new RENAME TO series_watch_state",
+    "CREATE INDEX index_series_watch_state_mediaUid ON series_watch_state(mediaUid)",
+
+    // --- category_preferences ---
+    "CREATE TABLE category_preferences_new (" +
+        "profileId INTEGER NOT NULL, catUid INTEGER NOT NULL, hidden INTEGER NOT NULL, sortOrder INTEGER, " +
+        "PRIMARY KEY(profileId, catUid), " +
+        "FOREIGN KEY(profileId) REFERENCES profiles(id) ON DELETE CASCADE, " +
+        "FOREIGN KEY(catUid) REFERENCES category_refs(catUid) ON DELETE CASCADE)",
+    "INSERT INTO category_preferences_new (profileId, catUid, hidden, sortOrder) " +
+        "SELECT cp.profileId, cr.catUid, cp.hidden, cp.sortOrder FROM category_preferences cp " +
+        "JOIN profiles p ON p.id = cp.profileId " +
+        "JOIN category_refs cr ON cr.accountKey = '' AND cr.kind = cp.type AND cr.providerCategoryId = cp.categoryId",
+    "DROP TABLE category_preferences",
+    "ALTER TABLE category_preferences_new RENAME TO category_preferences",
+    "CREATE INDEX index_category_preferences_catUid ON category_preferences(catUid)",
+
+    // --- downloaded_media: global (no profileId), contentId becomes derived (DownloadContentId) ---
+    "CREATE TABLE downloaded_media_new (" +
+        "mediaUid INTEGER NOT NULL PRIMARY KEY, status TEXT NOT NULL, percent INTEGER NOT NULL, " +
+        "bytesDownloaded INTEGER NOT NULL, totalBytes INTEGER NOT NULL, createdAt INTEGER NOT NULL, " +
+        "FOREIGN KEY(mediaUid) REFERENCES media_refs(mediaUid) ON DELETE CASCADE)",
+    "INSERT INTO downloaded_media_new (mediaUid, status, percent, bytesDownloaded, totalBytes, createdAt) " +
+        "SELECT r.mediaUid, dm.status, dm.percent, dm.bytesDownloaded, dm.totalBytes, dm.createdAt " +
+        "FROM downloaded_media dm " +
+        "JOIN media_refs r ON r.accountKey = '' AND r.kind = dm.type AND r.providerId = dm.streamId",
+    "DROP TABLE downloaded_media",
+    "ALTER TABLE downloaded_media_new RENAME TO downloaded_media",
+    "CREATE UNIQUE INDEX index_downloaded_media_mediaUid ON downloaded_media(mediaUid)",
+
+    // --- Cascades catalogue : une série/chaîne retirée du bouquet nettoie désormais ses enfants ---
+    "CREATE TABLE series_seasons_new (" +
+        "seriesId INTEGER NOT NULL, seasonNumber INTEGER NOT NULL, name TEXT NOT NULL, " +
+        "episodeCount INTEGER NOT NULL, cover TEXT, cachedAt INTEGER NOT NULL, " +
+        "PRIMARY KEY(seriesId, seasonNumber), " +
+        "FOREIGN KEY(seriesId) REFERENCES series_streams(seriesId) ON DELETE CASCADE)",
+    "INSERT INTO series_seasons_new (seriesId, seasonNumber, name, episodeCount, cover, cachedAt) " +
+        "SELECT ss.seriesId, ss.seasonNumber, ss.name, ss.episodeCount, ss.cover, ss.cachedAt " +
+        "FROM series_seasons ss JOIN series_streams s ON s.seriesId = ss.seriesId",
+    "DROP TABLE series_seasons",
+    "ALTER TABLE series_seasons_new RENAME TO series_seasons",
+    "CREATE INDEX index_series_seasons_seriesId ON series_seasons(seriesId)",
+
+    "CREATE TABLE series_episodes_new (" +
+        "episodeId INTEGER NOT NULL PRIMARY KEY, seriesId INTEGER NOT NULL, seasonNum INTEGER NOT NULL, " +
+        "episodeNum INTEGER NOT NULL, title TEXT NOT NULL, containerExtension TEXT NOT NULL, plot TEXT, " +
+        "duration TEXT, releaseDate TEXT, movieImage TEXT, orderIndex INTEGER NOT NULL, cachedAt INTEGER NOT NULL, " +
+        "FOREIGN KEY(seriesId) REFERENCES series_streams(seriesId) ON DELETE CASCADE)",
+    "INSERT INTO series_episodes_new (episodeId, seriesId, seasonNum, episodeNum, title, containerExtension, " +
+        "plot, duration, releaseDate, movieImage, orderIndex, cachedAt) " +
+        "SELECT se.episodeId, se.seriesId, se.seasonNum, se.episodeNum, se.title, se.containerExtension, " +
+        "se.plot, se.duration, se.releaseDate, se.movieImage, se.orderIndex, se.cachedAt " +
+        "FROM series_episodes se JOIN series_streams s ON s.seriesId = se.seriesId",
+    "DROP TABLE series_episodes",
+    "ALTER TABLE series_episodes_new RENAME TO series_episodes",
+    "CREATE INDEX index_series_episodes_seriesId_seasonNum ON series_episodes(seriesId, seasonNum)",
+
+    "CREATE TABLE epg_cache_new (" +
+        "streamId INTEGER NOT NULL, startTimestamp INTEGER NOT NULL, endTimestamp INTEGER NOT NULL, " +
+        "title TEXT NOT NULL, description TEXT, cachedAt INTEGER NOT NULL, " +
+        "PRIMARY KEY(streamId, startTimestamp), " +
+        "FOREIGN KEY(streamId) REFERENCES live_streams(streamId) ON DELETE CASCADE)",
+    "INSERT INTO epg_cache_new (streamId, startTimestamp, endTimestamp, title, description, cachedAt) " +
+        "SELECT ec.streamId, ec.startTimestamp, ec.endTimestamp, ec.title, ec.description, ec.cachedAt " +
+        "FROM epg_cache ec JOIN live_streams s ON s.streamId = ec.streamId",
+    "DROP TABLE epg_cache",
+    "ALTER TABLE epg_cache_new RENAME TO epg_cache",
+    "CREATE INDEX index_epg_cache_streamId_endTimestamp ON epg_cache(streamId, endTimestamp)",
+
+    // --- profile_sync_state: gains its profiles(id) cascade ---
+    "CREATE TABLE profile_sync_state_new (" +
+        "profileId INTEGER NOT NULL, namespace TEXT NOT NULL, etag TEXT, schemaVersion INTEGER NOT NULL, " +
+        "baseSnapshot BLOB, pending INTEGER NOT NULL, lastSyncedAt INTEGER NOT NULL, lastAttemptAt INTEGER NOT NULL, " +
+        "failureCode TEXT, retryCount INTEGER NOT NULL, " +
+        "PRIMARY KEY(profileId, namespace), " +
+        "FOREIGN KEY(profileId) REFERENCES profiles(id) ON DELETE CASCADE)",
+    "INSERT INTO profile_sync_state_new (profileId, namespace, etag, schemaVersion, baseSnapshot, pending, " +
+        "lastSyncedAt, lastAttemptAt, failureCode, retryCount) " +
+        "SELECT pss.profileId, pss.namespace, pss.etag, pss.schemaVersion, pss.baseSnapshot, pss.pending, " +
+        "pss.lastSyncedAt, pss.lastAttemptAt, pss.failureCode, pss.retryCount " +
+        "FROM profile_sync_state pss JOIN profiles p ON p.id = pss.profileId",
+    "DROP TABLE profile_sync_state",
+    "ALTER TABLE profile_sync_state_new RENAME TO profile_sync_state",
+    "CREATE INDEX index_profile_sync_state_profileId ON profile_sync_state(profileId)",
+
+    // --- Identités sans aucun état référent : aucune raison de survivre ---
+    "DELETE FROM media_refs WHERE mediaUid NOT IN (" +
+        "SELECT mediaUid FROM favorites UNION SELECT mediaUid FROM playback_positions " +
+        "UNION SELECT mediaUid FROM recently_watched_live UNION SELECT mediaUid FROM media_ratings " +
+        "UNION SELECT mediaUid FROM track_preferences UNION SELECT mediaUid FROM series_watch_state " +
+        "UNION SELECT mediaUid FROM downloaded_media)",
+    "DELETE FROM category_refs WHERE catUid NOT IN (SELECT catUid FROM category_preferences)",
+
+    // --- Compactage différé : VACUUM ne peut pas s'exécuter dans cette transaction ---
+    "INSERT OR REPLACE INTO db_maintenance (task, requestedAt) VALUES ('vacuum', ${System.currentTimeMillis()})",
+)
+
+val ALL_MIGRATIONS = arrayOf(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28)

@@ -506,30 +506,13 @@ class SeriesViewModel @Inject constructor(
         seriesId: Int? = null
     ) {
         viewModelScope.launch {
-            // Format the title as: Series Name - S01E03 Episode Title
-            val episodeLabel = com.cstv.app.domain.model.EpisodeLabel
-                .format(episode.seasonNum, episode.episodeNum)
-                ?.plus(" ")
-                .orEmpty()
-            val title = "$seriesName - $episodeLabel${episode.title}"
-            val coverUrl = seriesCover
-            val type = "series"
-            val containerExtension = episode.containerExtension
-
+            // T20: title/cover/extension/season/episode are resolved from the catalogue at
+            // display time (series_episodes + series_streams) -- no longer passed here.
             savePlaybackPositionUseCase(
-                streamId = episode.id,
+                kind = com.cstv.app.domain.model.MediaKind.EPISODE.storageValue,
+                providerId = episode.id,
                 positionMs = positionMs,
-                durationMs = durationMs,
-                title = title,
-                coverUrl = coverUrl,
-                type = type,
-                containerExtension = containerExtension,
-                seriesId = seriesId ?: _state.value.selectedSeriesDetails?.seriesId,
-                episodeNum = episode.episodeNum,
-                seasonNum = episode.seasonNum,
-                plot = episode.plot,
-                duration = episode.duration,
-                releaseDate = episode.releaseDate
+                durationMs = durationMs
             )
             _state.value.selectedSeriesDetails?.let { currentDetails ->
                 loadSeriesDetails(currentDetails.seriesId)
@@ -548,7 +531,7 @@ class SeriesViewModel @Inject constructor(
 
     fun clearPosition(episodeId: Int) {
         viewModelScope.launch {
-            savePlaybackPositionUseCase(episodeId, 0L, 0L)
+            savePlaybackPositionUseCase(com.cstv.app.domain.model.MediaKind.EPISODE.storageValue, episodeId, 0L, 0L)
             _state.value.selectedSeriesDetails?.let { currentDetails ->
                 loadSeriesDetails(currentDetails.seriesId)
             }

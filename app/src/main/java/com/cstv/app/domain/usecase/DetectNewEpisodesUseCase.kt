@@ -1,7 +1,8 @@
 package com.cstv.app.domain.usecase
 
+import com.cstv.app.data.local.dao.PlaybackListRow
 import com.cstv.app.data.local.dao.VodDao
-import com.cstv.app.data.local.entity.PlaybackPositionEntity
+import com.cstv.app.data.local.storage.CurrentAccountKeyProvider
 import com.cstv.app.data.local.storage.SettingsManager
 import com.cstv.app.di.IptvLog
 import com.cstv.app.domain.model.EpisodeRef
@@ -33,7 +34,8 @@ class DetectNewEpisodesUseCase @Inject constructor(
     private val vodDao: VodDao,
     private val seriesRepository: SeriesRepository,
     private val notifier: NewEpisodeNotifier,
-    private val settingsManager: SettingsManager
+    private val settingsManager: SettingsManager,
+    private val accountKeyProvider: CurrentAccountKeyProvider
 ) {
     suspend operator fun invoke() {
         val profiles = profileRepository.getProfiles()
@@ -57,7 +59,7 @@ class DetectNewEpisodesUseCase @Inject constructor(
         if (eligible.isEmpty()) return 0
 
         val states = seriesWatchStateRepository.getStates(profileId)
-        val positionsBySeriesId = vodDao.getAllPlaybackPositions(profileId)
+        val positionsBySeriesId = vodDao.getAllPlaybackPositions(profileId, accountKeyProvider.current())
             .filter { it.seriesId != null }
             .groupBy { it.seriesId!! }
 
@@ -142,10 +144,10 @@ class DetectNewEpisodesUseCase @Inject constructor(
         }
     }
 
-    private fun positionsFor(byId: Map<Int, List<PlaybackPositionEntity>>, seriesId: Int): List<PlaybackPosition> =
+    private fun positionsFor(byId: Map<Int, List<PlaybackListRow>>, seriesId: Int): List<PlaybackPosition> =
         byId[seriesId].orEmpty().map {
             PlaybackPosition(
-                streamId = it.streamId,
+                streamId = it.providerId,
                 positionMs = it.positionMs,
                 durationMs = it.durationMs,
                 lastAccessedAt = it.lastAccessedAt,

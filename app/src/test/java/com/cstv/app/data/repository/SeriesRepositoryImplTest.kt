@@ -4,7 +4,6 @@ import com.google.gson.JsonPrimitive
 import com.google.gson.JsonArray
 import com.cstv.app.data.local.dao.SeriesDao
 import com.cstv.app.data.local.dao.VodDao
-import com.cstv.app.data.local.entity.PlaybackPositionEntity
 import com.cstv.app.data.local.entity.SeriesCategoryEntity
 import com.cstv.app.data.local.entity.SeriesStreamEntity
 import com.cstv.app.data.local.storage.CredentialsManager
@@ -56,10 +55,14 @@ class SeriesRepositoryImplTest {
     @Mock
     private lateinit var networkMonitor: com.cstv.app.domain.network.NetworkMonitor
 
+    @Mock
+    private lateinit var accountKeyProvider: com.cstv.app.data.local.storage.CurrentAccountKeyProvider
+
     private lateinit var repository: SeriesRepositoryImpl
 
     private val credentials = Credentials("test.com", 80, "username", "password", true)
     private val activeProfileId = 1
+    private val accountKey = "account-key"
 
     @Before
     fun setUp() {
@@ -67,7 +70,8 @@ class SeriesRepositoryImplTest {
         whenever(credentialsManager.getCredentials()).thenReturn(credentials)
         doReturn(activeProfileId).whenever(profileManager).currentProfileId()
         whenever(networkMonitor.isCurrentlyOnline()).thenReturn(true)
-        repository = SeriesRepositoryImpl(apiService, seriesDao, vodDao, credentialsManager, profileManager, com.cstv.app.data.remote.api.XtreamRequestGate(), networkMonitor)
+        doReturn(accountKey).whenever(accountKeyProvider).current()
+        repository = SeriesRepositoryImpl(apiService, seriesDao, vodDao, credentialsManager, profileManager, com.cstv.app.data.remote.api.XtreamRequestGate(), networkMonitor, accountKeyProvider)
     }
 
     // --- 1. PLAY URL CONSTRUCTION TESTS ---
@@ -195,7 +199,7 @@ class SeriesRepositoryImplTest {
         val remoteResponse = SeriesInfoResponseDto(seasonsDto, episodesMapDto, null)
 
         whenever(apiService.getSeriesInfo("username", "password", 123)).thenReturn(remoteResponse)
-        whenever(vodDao.getAllPlaybackPositions(any())).thenReturn(emptyList())
+        whenever(vodDao.getAllPlaybackPositions(any(), any())).thenReturn(emptyList())
 
         val result = repository.getSeriesDetails(123)
 
@@ -252,14 +256,12 @@ class SeriesRepositoryImplTest {
         whenever(apiService.getSeriesInfo("username", "password", 123)).thenReturn(remoteResponse)
 
         // Mock saved progress for episode
-        val savedPosition = PlaybackPositionEntity(
-            streamId = 555,
-            profileId = activeProfileId,
-            positionMs = 1200000L,
-            durationMs = 2700000L,
-            lastAccessedAt = 999999999L
+        val savedPosition = com.cstv.app.data.local.dao.PlaybackListRow(
+            providerId = 555, kind = "episode", positionMs = 1200000L, durationMs = 2700000L,
+            lastAccessedAt = 999999999L, title = null, coverUrl = null, containerExtension = null,
+            seriesId = 123, episodeNum = 1, seasonNum = 1, plot = null, duration = null, releaseDate = null, categoryId = null
         )
-        whenever(vodDao.getAllPlaybackPositions(activeProfileId)).thenReturn(listOf(savedPosition))
+        whenever(vodDao.getAllPlaybackPositions(activeProfileId, accountKey)).thenReturn(listOf(savedPosition))
 
         val result = repository.getSeriesDetails(123)
 
@@ -288,7 +290,7 @@ class SeriesRepositoryImplTest {
     @Test
     fun test_backgroundEnrichment_triggersAndSavesDetails() = runTest {
         val testDispatcher = kotlinx.coroutines.test.UnconfinedTestDispatcher(testScheduler)
-        val localRepository = SeriesRepositoryImpl(apiService, seriesDao, vodDao, credentialsManager, profileManager, com.cstv.app.data.remote.api.XtreamRequestGate(), networkMonitor, testDispatcher)
+        val localRepository = SeriesRepositoryImpl(apiService, seriesDao, vodDao, credentialsManager, profileManager, com.cstv.app.data.remote.api.XtreamRequestGate(), networkMonitor, accountKeyProvider, testDispatcher)
 
         val remoteStreams = listOf(
             SeriesStreamDto(12, "Game of Thrones", "cover.png", "9.0", "added", "5")
@@ -329,7 +331,7 @@ class SeriesRepositoryImplTest {
     @Test
     fun test_backgroundEnrichment_requestsBoundedBatch() = runTest {
         val testDispatcher = kotlinx.coroutines.test.UnconfinedTestDispatcher(testScheduler)
-        val localRepository = SeriesRepositoryImpl(apiService, seriesDao, vodDao, credentialsManager, profileManager, com.cstv.app.data.remote.api.XtreamRequestGate(), networkMonitor, testDispatcher)
+        val localRepository = SeriesRepositoryImpl(apiService, seriesDao, vodDao, credentialsManager, profileManager, com.cstv.app.data.remote.api.XtreamRequestGate(), networkMonitor, accountKeyProvider, testDispatcher)
 
         whenever(apiService.getSeriesStreams("username", "password", "5")).thenReturn(emptyList())
         whenever(seriesDao.getStreamsByCategory("5")).thenReturn(emptyList())
@@ -467,7 +469,7 @@ class SeriesRepositoryImplTest {
         )
         whenever(seriesDao.getSeasons(12)).thenReturn(emptyList())
         whenever(seriesDao.getEpisodes(12)).thenReturn(emptyList())
-        whenever(vodDao.getAllPlaybackPositions(any())).thenReturn(emptyList())
+        whenever(vodDao.getAllPlaybackPositions(any(), any())).thenReturn(emptyList())
 
         val details = repository.getSeriesDetails(12)
 
@@ -495,7 +497,7 @@ class SeriesRepositoryImplTest {
                 com.cstv.app.data.local.entity.SeriesEpisodeEntity(102, 12, 1, 2, "E2", "mkv", cachedAt = 0L)
             )
         )
-        whenever(vodDao.getAllPlaybackPositions(any())).thenReturn(emptyList())
+        whenever(vodDao.getAllPlaybackPositions(any(), any())).thenReturn(emptyList())
 
         val details = repository.getSeriesDetails(12)
 
@@ -515,7 +517,7 @@ class SeriesRepositoryImplTest {
         whenever(seriesDao.getStreamById(12)).thenReturn(
             SeriesStreamEntity(12, "Série", null, "9.0", null, "1", 0L)
         )
-        whenever(vodDao.getAllPlaybackPositions(any())).thenReturn(emptyList())
+        whenever(vodDao.getAllPlaybackPositions(any(), any())).thenReturn(emptyList())
         whenever(apiService.getSeriesInfo("username", "password", 12)).thenReturn(
             SeriesInfoResponseDto(
                 seasons = listOf(SeriesSeasonDto(null, "Saison 1", 1, 1, null)),
@@ -548,7 +550,7 @@ class SeriesRepositoryImplTest {
         )
         whenever(seriesDao.getSeasons(12)).thenReturn(emptyList())
         whenever(seriesDao.getEpisodes(12)).thenReturn(emptyList())
-        whenever(vodDao.getAllPlaybackPositions(any())).thenReturn(emptyList())
+        whenever(vodDao.getAllPlaybackPositions(any(), any())).thenReturn(emptyList())
         whenever(apiService.getSeriesInfo("username", "password", 12))
             .thenAnswer { throw java.io.IOException("panel injoignable") }
 
@@ -607,11 +609,9 @@ class SeriesRepositoryImplTest {
         assertFalse(isEpisodeWatched(playbackRow(positionMs = 12_000L, durationMs = 60_000L)))
     }
 
-    private fun playbackRow(positionMs: Long, durationMs: Long) = PlaybackPositionEntity(
-        streamId = 1,
-        profileId = 1,
-        positionMs = positionMs,
-        durationMs = durationMs,
-        lastAccessedAt = 1L
+    private fun playbackRow(positionMs: Long, durationMs: Long) = com.cstv.app.data.local.dao.PlaybackListRow(
+        providerId = 1, kind = "episode", positionMs = positionMs, durationMs = durationMs, lastAccessedAt = 1L,
+        title = null, coverUrl = null, containerExtension = null, seriesId = null, episodeNum = null,
+        seasonNum = null, plot = null, duration = null, releaseDate = null, categoryId = null
     )
 }

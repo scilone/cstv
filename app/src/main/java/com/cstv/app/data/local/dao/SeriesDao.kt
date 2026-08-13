@@ -5,6 +5,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
+import androidx.room.Upsert
 import com.cstv.app.data.local.entity.SeriesCategoryEntity
 import com.cstv.app.data.local.entity.SeriesEpisodeEntity
 import com.cstv.app.data.local.entity.SeriesSeasonEntity
@@ -97,8 +98,13 @@ interface SeriesDao {
         })
     }
 
-    /** Ne jamais appeler directement : contourne le calcul de [SeriesStreamEntity.searchText]. */
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    /**
+     * Ne jamais appeler directement : contourne le calcul de [SeriesStreamEntity.searchText].
+     *
+     * T20 : `@Upsert`, pas `@Insert(REPLACE)` — `series_seasons`/`series_episodes` portent
+     * désormais une cascade vers `seriesId` (§4.2) ; `REPLACE` la déclencherait à chaque sync.
+     */
+    @Upsert
     suspend fun insertStreamsRaw(streams: List<SeriesStreamEntity>)
 
     /**
@@ -112,19 +118,29 @@ interface SeriesDao {
         insertCategories(categories)
     }
 
+    /** T20 §4.3 : différentiel horodaté — voir `LiveTvDao.replaceAllStreams`, même raison
+     *  (`series_seasons`/`series_episodes` en cascade sur `seriesId`). */
     @Transaction
     suspend fun replaceAllStreams(streams: List<SeriesStreamEntity>) {
         if (streams.isEmpty()) return
-        clearAllStreams()
+        val batchTs = streams.first().cachedAt
         streams.chunked(VodDao.INSERT_CHUNK_SIZE).forEach { insertStreams(it) }
+        deleteStreamsCachedBefore(batchTs)
     }
 
     @Transaction
     suspend fun replaceStreamsByCategory(categoryId: String, streams: List<SeriesStreamEntity>) {
         if (streams.isEmpty()) return
-        clearStreamsByCategory(categoryId)
+        val batchTs = streams.first().cachedAt
         streams.chunked(VodDao.INSERT_CHUNK_SIZE).forEach { insertStreams(it) }
+        deleteStreamsCachedBefore(batchTs, categoryId)
     }
+
+    @Query("DELETE FROM series_streams WHERE cachedAt < :batchTs")
+    suspend fun deleteStreamsCachedBefore(batchTs: Long)
+
+    @Query("DELETE FROM series_streams WHERE cachedAt < :batchTs AND categoryId = :categoryId")
+    suspend fun deleteStreamsCachedBefore(batchTs: Long, categoryId: String)
 
     @Query("SELECT * FROM series_streams WHERE seriesId = :seriesId LIMIT 1")
     suspend fun getStreamById(seriesId: Int): SeriesStreamEntity?

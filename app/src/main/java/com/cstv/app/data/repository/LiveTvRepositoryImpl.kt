@@ -36,6 +36,8 @@ class LiveTvRepositoryImpl @Inject constructor(
     private val profileManager: com.cstv.app.data.local.storage.ProfileManager,
     private val requestGate: XtreamRequestGate,
     private val networkMonitor: NetworkMonitor,
+    private val mediaRefDao: com.cstv.app.data.local.dao.MediaRefDao,
+    private val accountKeyProvider: com.cstv.app.data.local.storage.CurrentAccountKeyProvider,
     private val cloudSyncManager: CloudSyncManager? = null
 ) : LiveTvRepository {
 
@@ -191,24 +193,21 @@ class LiveTvRepositoryImpl @Inject constructor(
     }
 
     override suspend fun saveRecentlyWatched(stream: LiveStream) {
-        val entity = com.cstv.app.data.local.entity.RecentlyWatchedLiveEntity(
-            streamId = stream.streamId,
-            profileId = profileManager.currentProfileId(),
-            name = stream.name,
-            streamIcon = stream.streamIcon,
-            categoryId = stream.categoryId,
-            num = stream.num,
-            watchedAt = System.currentTimeMillis()
+        val profileId = profileManager.currentProfileId()
+        val mediaUid = mediaRefDao.resolve(accountKeyProvider.current(), LIVE_KIND, stream.streamId)
+        liveTvDao.insertRecentlyWatched(
+            com.cstv.app.data.local.entity.RecentlyWatchedLiveEntity(
+                profileId = profileId, mediaUid = mediaUid, watchedAt = System.currentTimeMillis()
+            )
         )
-        liveTvDao.insertRecentlyWatched(entity)
-        cloudSyncManager?.markDirty(entity.profileId, SyncNamespace.RECENTLY_WATCHED_LIVE)
+        cloudSyncManager?.markDirty(profileId, SyncNamespace.RECENTLY_WATCHED_LIVE)
     }
 
     override suspend fun getRecentlyWatched(): List<LiveStream> {
-        val entities = liveTvDao.getRecentlyWatched(profileManager.currentProfileId(), limit = 10)
-        return entities.map {
+        val rows = liveTvDao.getRecentlyWatched(profileManager.currentProfileId(), accountKeyProvider.current(), limit = 10)
+        return rows.map {
             LiveStream(
-                streamId = it.streamId,
+                streamId = it.providerId,
                 name = it.name,
                 streamIcon = it.streamIcon,
                 epgChannelId = null,
@@ -376,5 +375,7 @@ class LiveTvRepositoryImpl @Inject constructor(
 
     companion object {
         const val ALL_CATEGORIES = "all"
+        /** [com.cstv.app.domain.model.MediaKind.LIVE.storageValue]. */
+        private const val LIVE_KIND = "live"
     }
 }
