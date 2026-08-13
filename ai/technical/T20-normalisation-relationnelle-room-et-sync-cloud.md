@@ -1143,7 +1143,7 @@ apparaît avec les métadonnées courantes.
   états rattachables, suppression des seuls orphelins et absence de fallback
   destructif.
 
-- [ ] **T20-3 — Passer le catalogue à la réconciliation différentielle** _(partiel — voir notes)_
+- [x] **T20-3 — Passer le catalogue à la réconciliation différentielle**
 
   **Objectif :** remplacer chaque séquence purge/réinsertion par un upsert
   horodaté puis suppression des lignes non revues, avec `@Upsert` sur les
@@ -1202,7 +1202,7 @@ apparaît avec les métadonnées courantes.
   **Validation :** aucune identité d'un autre compte n'est modifiée ; un échec
   de compactage laisse une base valide et une demande rejouable.
 
-- [ ] **T20-7 — Couvrir les invariants et la non-régression** _(partiel — voir notes)_
+- [x] **T20-7 — Couvrir les invariants et la non-régression**
 
   **Objectif :** compléter les tests de migration, jointures, cloud,
   réconciliation et repositories, puis adapter seulement les tests cassés par
@@ -1360,6 +1360,49 @@ et `CatalogUpsertSqlTest`/`CatalogReconcilerTest` n'existent pas. `git diff
 Statut conservé à `IMPLEMENTATION` : T20-3/T20-7 ne sont pas clos tant que
 `CatalogReconciler` et ses tests SQL dédiés ne sont pas traités, en lot séparé
 ou en poursuite de celui-ci selon arbitrage PO.
+
+**T20-3/T20-7 complétés le 2026-08-13, sur demande explicite de finir
+l'implémentation.** Écarts précédents comblés :
+
+- **`CatalogReconciler`** (nouveau, `data/sync/CatalogReconciler.kt`) : purge
+  `trailer_cache` orpheline (cache global, sans lien de compte) et
+  téléchargements orphelins du compte courant, dans l'ordre imposé
+  (`ORPHANED` → retrait media3 via `DownloadContentRemover` → suppression de
+  la ligne), échec = ligne laissée en `ORPHANED`, reprise au cycle suivant.
+  `DownloadService.sendRemoveDownload` isolé derrière `DownloadContentRemover`
+  (nouvelle indirection, même motif que `DiskSpaceProbe` en T20-6) pour rester
+  testable JVM. Câblé dans `CatalogSyncManagerImpl.runSync()`, déclenché
+  seulement si les six `CatalogSection.CATALOG_SECTIONS` ont réussi (capturé
+  avant l'enrichissement, qui ne bloque donc jamais la réconciliation).
+  `DownloadDao.findOrphaned` renvoie désormais une projection
+  `OrphanedDownloadRow(mediaUid, kind, providerId)` (le `(kind, providerId)`
+  est nécessaire pour reconstruire le `DownloadContentId` media3).
+  `TrailerCacheDao.deleteOrphaned()` ajouté.
+- **Tests SQL dédiés** (nouveaux, JVM, sqlite-jdbc) :
+  `CatalogUpsertSqlTest` (preuve que `INSERT OR REPLACE` détruit `epg_cache`
+  même pour un flux maintenu, que `ON CONFLICT DO UPDATE` ne le fait jamais,
+  et que la suppression différentielle par `batchTs` ne supprime que le flux
+  réellement absent — live et séries), `CatalogReconcilerTest` (ordre
+  marquer/retirer/supprimer, reprise sur échec media3, kind non résolvable
+  ignoré, purge trailer_cache indépendante), `StateDisplayJoinSqlTest`
+  (rejoue les vraies requêtes `FAVORITE_LIST_QUERY`/`PLAYBACK_LIST_QUERY`/
+  `RECENTLY_WATCHED_LIST_QUERY` importées des DAO — masquage d'une cible
+  absente, réapparition à son retour, étanchéité entre deux `accountKey`
+  partageant le même `providerId` numérique), `SnapshotUpgraderTest` (les
+  trois règles de normalisation v1→v2 nommées individuellement, y compris
+  « référence impossible à comprendre jamais appliquée »). `FAVORITE_LIST_QUERY`
+  passé de `private` à `internal` pour permettre au test de rejouer le SQL
+  réel plutôt qu'une copie.
+- 4 nouveaux tests sur `CatalogSyncManagerImplTest` couvrant le déclenchement
+  conditionnel de la réconciliation (succès complet, échec partiel, AUTH,
+  échec d'enrichissement sans effet).
+
+`./gradlew testDebugUnitTest assembleDebug lintDebug` → `BUILD SUCCESSFUL`
+(ensemble du projet, T20 et hors-T20). `git diff --check` propre.
+
+Implémentation (étape 5) de T20 considérée complète : T20-1 à T20-7 tous
+cochés. Statut laissé à `IMPLEMENTATION` — le passage à `REVIEW` (étape 6)
+n'a pas été demandé dans ce tour et n'a donc pas été engagé.
 
 ---
 

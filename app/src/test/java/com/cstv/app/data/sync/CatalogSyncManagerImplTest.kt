@@ -63,11 +63,15 @@ class CatalogSyncManagerImplTest {
     @Mock private lateinit var networkMonitor: NetworkMonitor
     @Mock private lateinit var clearCatalogCacheUseCase: ClearCatalogCacheUseCase
     @Mock private lateinit var categoryPreferenceRepository: CategoryPreferenceRepository
+    @Mock private lateinit var catalogReconciler: CatalogReconciler
 
     private lateinit var manager: CatalogSyncManagerImpl
 
     private val credentials = Credentials("panel.example.com", 8080, "user", "secret", true)
     private val accountKey get() = CatalogServerKey.from(credentials)
+    // Distincte de `accountKey` (serveur seul) : la réconciliation opère sur les
+    // identités `media_refs`, clées par AccountKey (host:port:username).
+    private val mediaAccountKey get() = AccountKey.from(credentials)
 
     // `catalogStatus` appelle `syncStateDao.observeAll()` une seule fois, à la
     // construction du manager (propriété initialisée dans le corps de classe) :
@@ -99,7 +103,8 @@ class CatalogSyncManagerImplTest {
             networkMonitor,
             CatalogSyncStateInitializer(syncStateDao, settingsManager, credentialsManager),
             clearCatalogCacheUseCase,
-            categoryPreferenceRepository
+            categoryPreferenceRepository,
+            catalogReconciler
         )
     }
 
@@ -416,5 +421,63 @@ class CatalogSyncManagerImplTest {
 
         assertFalse(manager.onAccountAuthenticated(accountKey))
         verify(clearCatalogCacheUseCase).invoke()
+    }
+
+    // --- Réconciliation post-synchronisation (T20 §4.5) ---
+
+    /**
+     * Garde centrale du §4.5 : la réconciliation ne part que si les six
+     * sections catalogue ont réellement réussi pour ce compte.
+     */
+    @Test
+    fun fullCatalogSuccessTriggersReconciliationForTheCurrentAccount() = runTest {
+        stubAllSectionsSucceeding()
+
+        val outcome = manager.syncNow(SyncTrigger.MANUAL)
+
+        assertTrue(outcome is SyncOutcome.Success)
+        verify(catalogReconciler).reconcile(mediaAccountKey)
+    }
+
+    /**
+     * Une réponse partielle de panel (une section en échec) ne doit jamais
+     * déclencher une destruction de fichiers — même quand cinq sections sur
+     * six ont réussi.
+     */
+    @Test
+    fun partialCatalogFailureNeverTriggersReconciliation() = runTest {
+        stubAllSectionsSucceeding()
+        whenever(vodRepository.syncVodStreams(any())).doSuspendableAnswer { throw SocketTimeoutException("timeout") }
+
+        val outcome = manager.syncNow(SyncTrigger.SCHEDULED)
+
+        assertTrue(outcome is SyncOutcome.Failure)
+        verifyNoInteractions(catalogReconciler)
+    }
+
+    /** L'arrêt immédiat sur AUTH ne laisse même pas les six sections s'exécuter. */
+    @Test
+    fun authFailureNeverTriggersReconciliation() = runTest {
+        stubAllSectionsSucceeding()
+        whenever(liveTvRepository.syncLiveCategories()).doSuspendableAnswer { throw InvalidCredentialsException("rejeté") }
+
+        manager.syncNow(SyncTrigger.STARTUP)
+
+        verifyNoInteractions(catalogReconciler)
+    }
+
+    /**
+     * L'enrichissement (septième section, hors `CATALOG_SECTIONS`) est
+     * volontairement hors du calcul : son échec ne doit pas bloquer un
+     * nettoyage dont la légitimité ne dépend que du catalogue lui-même.
+     */
+    @Test
+    fun enrichmentFailureStillTriggersReconciliation() = runTest {
+        stubAllSectionsSucceeding()
+        whenever(vodRepository.enrichPendingMovies(any())).doSuspendableAnswer { throw RuntimeException("enrichissement en échec") }
+
+        manager.syncNow(SyncTrigger.MANUAL)
+
+        verify(catalogReconciler).reconcile(mediaAccountKey)
     }
 }

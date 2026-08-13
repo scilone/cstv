@@ -32,6 +32,9 @@ data class DownloadListRow(
     val episodeNum: Int?,
 )
 
+/** T20 (§4.5) : projection minimale pour la réconciliation, cf. [DownloadDao.findOrphaned]. */
+data class OrphanedDownloadRow(val mediaUid: Long, val kind: String, val providerId: Int)
+
 private const val DOWNLOAD_LIST_QUERY = """
     SELECT dm.mediaUid AS mediaUid, r.providerId AS providerId, r.kind AS kind, dm.status AS status,
            dm.percent AS percent, dm.bytesDownloaded AS bytesDownloaded, dm.totalBytes AS totalBytes, dm.createdAt AS createdAt,
@@ -82,17 +85,16 @@ interface DownloadDao {
     )
     suspend fun delete(accountKey: String, kind: String, providerId: Int)
 
-    /** T20 (§4.5): réconciliation — téléchargements du compte courant dont le média n'existe plus
-     *  au catalogue (ni movie ni episode). Cascade impossible ici : `media_refs` conserve
-     *  l'identité tant qu'un état la référence, donc `ON DELETE CASCADE` ne se déclenche jamais
-     *  pour un média simplement absent du bouquet — le nettoyage doit rester applicatif. */
+    /** T20 (§4.5): réconciliation — le `(kind, providerId)` de l'identité est nécessaire pour
+     *  reconstruire le `DownloadContentId` media3 (`CatalogReconciler`) avant suppression. */
     @Query(
-        "SELECT dm.* FROM downloaded_media dm JOIN media_refs r ON r.mediaUid = dm.mediaUid " +
+        "SELECT dm.mediaUid AS mediaUid, r.kind AS kind, r.providerId AS providerId " +
+            "FROM downloaded_media dm JOIN media_refs r ON r.mediaUid = dm.mediaUid " +
             "WHERE r.accountKey = :accountKey AND status != 'ORPHANED' AND (" +
             "(r.kind = 'movie' AND NOT EXISTS (SELECT 1 FROM vod_streams s WHERE s.streamId = r.providerId)) OR " +
             "(r.kind = 'episode' AND NOT EXISTS (SELECT 1 FROM series_episodes e WHERE e.episodeId = r.providerId)))"
     )
-    suspend fun findOrphaned(accountKey: String): List<DownloadedMediaEntity>
+    suspend fun findOrphaned(accountKey: String): List<OrphanedDownloadRow>
 
     @Query("UPDATE downloaded_media SET status = 'ORPHANED' WHERE mediaUid = :mediaUid")
     suspend fun markOrphaned(mediaUid: Long)

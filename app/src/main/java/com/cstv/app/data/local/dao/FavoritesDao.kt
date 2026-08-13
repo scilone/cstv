@@ -22,7 +22,9 @@ data class FavoriteListRow(
 /** T20: wire projection for cloud sync — no catalogue metadata, see [FavoritesDao.wireRows]. */
 data class FavoriteWireRow(val providerId: Int, val kind: String, val addedAt: Long)
 
-private const val FAVORITE_LIST_QUERY = """
+/** Visibilité élargie pour [com.cstv.app.data.local.db.StateDisplayJoinSqlTest], qui rejoue le SQL
+ *  réel plutôt qu'une copie qui pourrait diverger silencieusement. */
+internal const val FAVORITE_LIST_QUERY = """
     SELECT r.providerId AS providerId, r.kind AS kind, f.addedAt AS addedAt, s.name AS name, s.streamIcon AS cover, s.categoryId AS categoryId
       FROM favorites f JOIN media_refs r ON r.mediaUid = f.mediaUid
       JOIN live_streams s ON s.streamId = r.providerId

@@ -172,6 +172,21 @@ object AppModule {
     fun provideDiskSpaceProbe(): com.cstv.app.data.local.db.DiskSpaceProbe =
         com.cstv.app.data.local.db.DiskSpaceProbe { path -> android.os.StatFs(path).availableBytes }
 
+    @Provides
+    @Singleton
+    @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+    fun provideDownloadContentRemover(
+        @ApplicationContext context: Context
+    ): com.cstv.app.data.sync.DownloadContentRemover =
+        com.cstv.app.data.sync.DownloadContentRemover { contentId ->
+            androidx.media3.exoplayer.offline.DownloadService.sendRemoveDownload(
+                context,
+                com.cstv.app.data.download.IptvDownloadService::class.java,
+                contentId,
+                /* foreground= */ false
+            )
+        }
+
     @Provides @Singleton
     fun provideCstvSessionManager(@ApplicationContext context: Context): CstvSessionManager = CstvSessionManagerImpl(context)
 
@@ -220,7 +235,8 @@ object AppModule {
         networkMonitor: com.cstv.app.domain.network.NetworkMonitor,
         syncStateInitializer: com.cstv.app.data.sync.CatalogSyncStateInitializer,
         clearCatalogCacheUseCase: com.cstv.app.domain.usecase.ClearCatalogCacheUseCase,
-        categoryPreferenceRepository: com.cstv.app.domain.repository.CategoryPreferenceRepository
+        categoryPreferenceRepository: com.cstv.app.domain.repository.CategoryPreferenceRepository,
+        catalogReconciler: com.cstv.app.data.sync.CatalogReconciler
     ): com.cstv.app.domain.sync.CatalogSyncManager =
         com.cstv.app.data.sync.CatalogSyncManagerImpl(
             liveTvRepository,
@@ -232,7 +248,8 @@ object AppModule {
             networkMonitor,
             syncStateInitializer,
             clearCatalogCacheUseCase,
-            categoryPreferenceRepository
+            categoryPreferenceRepository,
+            catalogReconciler
         )
 
     @Provides

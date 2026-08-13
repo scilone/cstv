@@ -57,7 +57,8 @@ class CatalogSyncManagerImpl @Inject constructor(
     private val networkMonitor: NetworkMonitor,
     private val syncStateInitializer: CatalogSyncStateInitializer,
     private val clearCatalogCacheUseCase: ClearCatalogCacheUseCase,
-    private val categoryPreferenceRepository: CategoryPreferenceRepository
+    private val categoryPreferenceRepository: CategoryPreferenceRepository,
+    private val catalogReconciler: CatalogReconciler
 ) : CatalogSyncManager {
 
     /**
@@ -257,6 +258,11 @@ class CatalogSyncManagerImpl @Inject constructor(
             }
         }
 
+        // T20 §4.5 : capturé ici, avant l'enrichissement — la réconciliation ne
+        // dépend que des six sections catalogue, jamais de l'enrichissement (qui
+        // peut échouer sans qu'aucune ligne catalogue ne soit réellement absente).
+        val catalogSectionsSucceeded = firstFailure == null
+
         // Enrichissement en dernier et borné : les sections catalogue sont déjà
         // committées quand il démarre, une fenêtre de worker tuée ne les perd pas.
         _syncState.value = SyncState.Running(CatalogSection.ENRICHMENT, sections.size, sections.size + 1)
@@ -268,6 +274,13 @@ class CatalogSyncManagerImpl @Inject constructor(
         }
 
         runCatching { liveTvRepository.purgeExpiredEpg() }
+
+        // Garde du §4.5 : une réponse partielle de panel (une des six sections
+        // en échec) ne doit jamais déclencher une destruction de fichiers.
+        if (catalogSectionsSucceeded) {
+            runCatching { catalogReconciler.reconcile(AccountKey.from(credentials)) }
+                .onFailure { IptvLog.e("RECONCILE", "Réconciliation post-synchronisation impossible", it) }
+        }
 
         val at = System.currentTimeMillis()
         val failure = firstFailure
