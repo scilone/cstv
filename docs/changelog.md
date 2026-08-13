@@ -1,5 +1,13 @@
 # Journal des Modifications (Changelog) - CSTV IPTV
 
+## [v1.79.0] - 2026-08-13
+### 🔒 Durcissement sécurité backend et hygiène de la synchronisation cloud (T14/T16/T17/T18/T19)
+* **Quotas de compte (T14)** : un compte est désormais limité à 10 profils, 32 namespaces par profil et 20 Mio de stockage synchronisé, appliqués sous verrou pour rester corrects même en cas de créations simultanées.
+* **Limitation de débit sur la vérification OTP (T16)** : `POST /v1/auth/otp/verify` est maintenant plafonné par adresse IP, comme l'était déjà la demande de code — empêche un flot de vérifications de saturer la base de données.
+* **En-têtes de sécurité HTTP (T17)** : toutes les réponses de l'API (y compris les erreurs) portent désormais HSTS, `X-Content-Type-Options: nosniff` et `Referrer-Policy` ; les réponses de synchronisation ne sont plus mises en cache par un intermédiaire.
+* **Validation d'entrée renforcée (T18)** : les champs validés par expression régulière (code OTP, identifiants, namespaces) rejettent maintenant un saut de ligne final au lieu de l'accepter silencieusement.
+* **Hygiène des données synchronisées (T19)** : les listes synchronisées (favoris, reprises de lecture, chaînes récemment regardées) sont bornées et allégées avant chaque envoi au cloud, y compris après une fusion entre appareils — évite que la synchronisation ne pousse indéfiniment plus de données que nécessaire.
+
 ## [v1.78.0] - 2026-08-10
 ### ✨ Connexion automatique au profil au démarrage (F31)
 * **Contournement du sélecteur de profils ("Qui regarde ?")** : Si un profil est désigné comme profil de démarrage automatique, l'application s'y connecte directement et ouvre l'Accueil au démarrage, évitant l'écran de sélection de profils.
