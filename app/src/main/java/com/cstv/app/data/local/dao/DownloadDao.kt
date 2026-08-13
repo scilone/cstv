@@ -85,12 +85,22 @@ interface DownloadDao {
     )
     suspend fun delete(accountKey: String, kind: String, providerId: Int)
 
-    /** T20 (§4.5): réconciliation — le `(kind, providerId)` de l'identité est nécessaire pour
-     *  reconstruire le `DownloadContentId` media3 (`CatalogReconciler`) avant suppression. */
+    /**
+     * T20 (§4.5): réconciliation — le `(kind, providerId)` de l'identité est nécessaire pour
+     * reconstruire le `DownloadContentId` media3 (`CatalogReconciler`) avant suppression.
+     *
+     * T20-R3: inclut aussi les lignes déjà `ORPHANED`, pas seulement celles nouvellement détectées.
+     * Sans cela, une ligne marquée `ORPHANED` après un échec du retrait media3 ou de la suppression
+     * Room (`CatalogReconciler.reconcileOne`) n'était plus jamais resélectionnée : le fichier et/ou
+     * la ligne restaient orphelins pour toujours. `ORPHANED` est un état terminal — une fois marquée,
+     * une ligne reste éligible au nettoyage à chaque cycle jusqu'à sa suppression effective, que le
+     * média catalogue soit ou non revenu entre-temps.
+     */
     @Query(
         "SELECT dm.mediaUid AS mediaUid, r.kind AS kind, r.providerId AS providerId " +
             "FROM downloaded_media dm JOIN media_refs r ON r.mediaUid = dm.mediaUid " +
-            "WHERE r.accountKey = :accountKey AND status != 'ORPHANED' AND (" +
+            "WHERE r.accountKey = :accountKey AND (" +
+            "dm.status = 'ORPHANED' OR " +
             "(r.kind = 'movie' AND NOT EXISTS (SELECT 1 FROM vod_streams s WHERE s.streamId = r.providerId)) OR " +
             "(r.kind = 'episode' AND NOT EXISTS (SELECT 1 FROM series_episodes e WHERE e.episodeId = r.providerId)))"
     )

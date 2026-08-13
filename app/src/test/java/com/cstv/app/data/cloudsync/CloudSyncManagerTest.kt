@@ -138,7 +138,9 @@ class CloudSyncManagerTest {
 
         manager.synchronizeProfile(profileId)
 
-        verify(objects).putObject(eq(remoteId), eq(namespace.wireName), any(), eq(null), any())
+        // T20-R1: the header must announce the encoded snapshot's own version
+        // (`namespace.schemaVersion`), not a stale global constant.
+        verify(objects).putObject(eq(remoteId), eq(namespace.wireName), eq(namespace.schemaVersion), eq(null), any())
     }
 
     @Test
@@ -152,7 +154,7 @@ class CloudSyncManagerTest {
 
         manager.synchronizeProfile(profileId)
 
-        verify(objects).putObject(eq(remoteId), eq(namespace.wireName), any(), eq("\"current\""), any())
+        verify(objects).putObject(eq(remoteId), eq(namespace.wireName), eq(namespace.schemaVersion), eq("\"current\""), any())
     }
 
     @Test
@@ -189,7 +191,7 @@ class CloudSyncManagerTest {
 
         val applied = serializer.applied[namespace]
         assertEquals(setOf("movie:1", "movie:2"), applied?.objects?.keys)
-        verify(objects).putObject(eq(remoteId), eq(namespace.wireName), any(), eq("\"remote-etag\""), any())
+        verify(objects).putObject(eq(remoteId), eq(namespace.wireName), eq(namespace.schemaVersion), eq("\"remote-etag\""), any())
     }
 
     @Test
@@ -295,6 +297,54 @@ class CloudSyncManagerTest {
         val captor = org.mockito.kotlin.argumentCaptor<ProfileSyncStateEntity>()
         verify(states, org.mockito.kotlin.atLeastOnce()).upsert(captor.capture())
         assertEquals(false, captor.lastValue.pending)
+    }
+
+    // T20-R1: `RoomSnapshotSerializer` always encodes a namespace at `namespace.schemaVersion`
+    // (favorites/playback/recently-watched-live == 2, the other four == 1) -- see
+    // `RoomSnapshotSerializer.snapshot()`. The bug was that `CloudSyncManagerImpl` announced the
+    // stale global `SnapshotCodec.SCHEMA_VERSION` constant (permanently `1`) in the `X-Schema-
+    // Version` header and never updated `profile_sync_state.schemaVersion`, so the backend metadata
+    // and the actually-encoded body silently disagreed on version for v2 namespaces. The `namespace`
+    // field under test here (`FAVORITES`) covers v2; the second test below covers a v1 namespace.
+
+    @Test
+    fun `push persists the pushed namespace's own schema version, both in the header and locally`() = runTest {
+        commonStubs()
+        whenever(states.get(profileId, namespace.wireName)).thenReturn(null)
+        stubListing(null)
+        serializer.snapshots[namespace] = snapshotOf(entry("live:1", "chan"))
+        okPut("v2-etag")
+
+        manager.synchronizeProfile(profileId)
+
+        verify(objects).putObject(eq(remoteId), eq(namespace.wireName), eq(2), eq(null), any())
+        val captor = org.mockito.kotlin.argumentCaptor<ProfileSyncStateEntity>()
+        verify(states, org.mockito.kotlin.atLeastOnce()).upsert(captor.capture())
+        assertEquals(2, captor.allValues.last { it.namespace == namespace.wireName }.schemaVersion)
+    }
+
+    @Test
+    fun `a namespace whose wire format never changed still announces v1, both in the header and locally`() = runTest {
+        val ratings = SyncNamespace.RATINGS
+        val idleOthers = SyncNamespace.entries.filterNot { it == ratings }
+        val activeProfile = ProfileEntity(id = profileId, name = "P", avatarId = 0, createdAt = 0L, remoteId = remoteId)
+        whenever(profiles.getById(profileId)).thenReturn(activeProfile)
+        idleOthers.forEach { ns ->
+            whenever(states.get(profileId, ns.wireName)).thenReturn(ProfileSyncStateEntity(profileId, ns.wireName, etag = "idle", pending = false))
+        }
+        whenever(states.get(profileId, ratings.wireName)).thenReturn(null)
+        val idleMetadata = idleOthers.map { ObjectMetadataDto(it.wireName, "idle", 1, 10, null) }
+        whenever(objects.listObjects(remoteId)).thenReturn(Response.success(ObjectListDto(idleMetadata)))
+        serializer.snapshots[ratings] = NamespaceSnapshot(ratings.schemaVersion, ratings.wireName, mapOf("movie:1" to JsonPrimitive("x")))
+        whenever(objects.putObject(eq(remoteId), eq(ratings.wireName), any(), org.mockito.kotlin.anyOrNull(), any()))
+            .thenReturn(Response.success(Unit, okhttp3.Headers.headersOf("ETag", "\"r1\"")))
+
+        manager.synchronizeProfile(profileId)
+
+        verify(objects).putObject(eq(remoteId), eq(ratings.wireName), eq(1), eq(null), any())
+        val captor = org.mockito.kotlin.argumentCaptor<ProfileSyncStateEntity>()
+        verify(states, org.mockito.kotlin.atLeastOnce()).upsert(captor.capture())
+        assertEquals(1, captor.allValues.last { it.namespace == ratings.wireName }.schemaVersion)
     }
 }
 

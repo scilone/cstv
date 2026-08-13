@@ -57,13 +57,13 @@ class RoomSnapshotSerializer @Inject constructor(
                 }
             }
             SyncNamespace.RATINGS -> ratings.getAllForProfile(profileId, accountKey)
-                .associate { "${it.kind}:${it.providerId}" to gson.toJsonTree(RatingWire(it.value)) }
+                .associate { "${it.kind}:${it.providerId}" to gson.toJsonTree(RatingWire(it.kind, it.providerId, it.value)) }
             SyncNamespace.TRACK_PREFERENCES -> tracks.getAllForProfile(profileId, accountKey)
-                .associate { "${it.kind}:${it.providerId}" to gson.toJsonTree(TrackPreferenceWire(it.audioLang, it.subtitleLang)) }
+                .associate { "${it.kind}:${it.providerId}" to gson.toJsonTree(TrackPreferenceWire(it.kind, it.providerId, it.audioLang, it.subtitleLang)) }
             SyncNamespace.SERIES_WATCH_STATE -> series.getAllForProfile(profileId, accountKey)
-                .associate { it.providerId.toString() to gson.toJsonTree(SeriesWatchStateWire(it.lastKnownSeason, it.lastKnownEpisode, it.lastNotifiedSeason, it.lastNotifiedEpisode, it.updatedAt)) }
+                .associate { it.providerId.toString() to gson.toJsonTree(SeriesWatchStateWire(it.providerId, it.lastKnownSeason, it.lastKnownEpisode, it.lastNotifiedSeason, it.lastNotifiedEpisode, it.updatedAt)) }
             SyncNamespace.CATEGORY_PREFERENCES -> categories.getAllForProfile(profileId, accountKey)
-                .associate { "${it.kind}:${it.categoryId}" to gson.toJsonTree(CategoryPreferenceWire(it.hidden, it.sortOrder)) }
+                .associate { "${it.kind}:${it.categoryId}" to gson.toJsonTree(CategoryPreferenceWire(it.categoryId, it.kind, it.hidden, it.sortOrder)) }
             SyncNamespace.RECENTLY_WATCHED_LIVE -> {
                 live.pruneRecentlyWatchedToMostRecent(profileId, SnapshotLimits.RECENTLY_WATCHED_LIVE)
                 live.wireRows(profileId, accountKey).associate { "live:${it.providerId}" to gson.toJsonTree(RecentlyWatchedWire(it.watchedAt)) }
@@ -82,7 +82,7 @@ class RoomSnapshotSerializer @Inject constructor(
             SyncNamespace.FAVORITES -> {
                 favorites.deleteAllForProfile(profileId)
                 snapshot.objects.forEach { (key, value) ->
-                    val (kind, providerId) = parseKindProviderId(key) ?: return@forEach
+                    val (kind, providerId) = parseKindProviderId(key, FAVORITE_KINDS) ?: return@forEach
                     val wire = gson.fromJson(value, FavoriteWire::class.java)
                     val mediaUid = mediaRefDao.resolve(accountKey, kind, providerId)
                     favorites.addFavorite(FavoriteEntity(profileId = profileId, mediaUid = mediaUid, addedAt = wire.addedAt))
@@ -91,7 +91,7 @@ class RoomSnapshotSerializer @Inject constructor(
             SyncNamespace.PLAYBACK -> {
                 vod.deleteAllPlaybackForProfile(profileId)
                 snapshot.objects.forEach { (key, value) ->
-                    val (kind, providerId) = parseKindProviderId(key) ?: return@forEach
+                    val (kind, providerId) = parseKindProviderId(key, PLAYBACK_KINDS) ?: return@forEach
                     val wire = gson.fromJson(value, PlaybackWire::class.java)
                     val mediaUid = mediaRefDao.resolve(accountKey, kind, providerId)
                     vod.savePlaybackPosition(PlaybackPositionEntity(profileId, mediaUid, wire.positionMs, wire.durationMs, wire.lastAccessedAt))
@@ -100,7 +100,7 @@ class RoomSnapshotSerializer @Inject constructor(
             SyncNamespace.RATINGS -> {
                 ratings.deleteAllForProfile(profileId)
                 snapshot.objects.forEach { (key, value) ->
-                    val (kind, providerId) = parseKindProviderId(key) ?: return@forEach
+                    val (kind, providerId) = parseKindProviderId(key, RATING_KINDS) ?: return@forEach
                     val wire = gson.fromJson(value, RatingWire::class.java)
                     val mediaUid = mediaRefDao.resolve(accountKey, kind, providerId)
                     ratings.upsert(MediaRatingEntity(profileId, mediaUid, wire.value))
@@ -109,7 +109,7 @@ class RoomSnapshotSerializer @Inject constructor(
             SyncNamespace.TRACK_PREFERENCES -> {
                 tracks.deleteAllForProfile(profileId)
                 snapshot.objects.forEach { (key, value) ->
-                    val (kind, providerId) = parseKindProviderId(key) ?: return@forEach
+                    val (kind, providerId) = parseKindProviderId(key, TRACK_PREFERENCE_KINDS) ?: return@forEach
                     val wire = gson.fromJson(value, TrackPreferenceWire::class.java)
                     val mediaUid = mediaRefDao.resolve(accountKey, kind, providerId)
                     tracks.upsert(TrackPreferenceEntity(profileId = profileId, mediaUid = mediaUid, audioLang = wire.audioLang, subtitleLang = wire.subtitleLang))
@@ -118,6 +118,8 @@ class RoomSnapshotSerializer @Inject constructor(
             SyncNamespace.SERIES_WATCH_STATE -> {
                 series.deleteAllForProfile(profileId)
                 snapshot.objects.forEach { (key, value) ->
+                    // No kind travels in this namespace's key (always "series") or body -- only the
+                    // provider id needs validating, which `toIntOrNull()` already does.
                     val providerId = key.toIntOrNull() ?: return@forEach
                     val wire = gson.fromJson(value, SeriesWatchStateWire::class.java)
                     val mediaUid = mediaRefDao.resolve(accountKey, "series", providerId)
@@ -133,7 +135,7 @@ class RoomSnapshotSerializer @Inject constructor(
             SyncNamespace.CATEGORY_PREFERENCES -> {
                 categories.deleteAllForProfile(profileId)
                 snapshot.objects.forEach { (key, value) ->
-                    val (kind, categoryId) = parseKindCategoryId(key) ?: return@forEach
+                    val (kind, categoryId) = parseKindCategoryId(key, CATEGORY_KINDS) ?: return@forEach
                     val wire = gson.fromJson(value, CategoryPreferenceWire::class.java)
                     val catUid = categoryRefDao.resolve(accountKey, kind, categoryId)
                     categories.upsert(CategoryPreferenceEntity(profileId = profileId, catUid = catUid, hidden = wire.hidden, sortOrder = wire.sortOrder))
@@ -142,9 +144,12 @@ class RoomSnapshotSerializer @Inject constructor(
             SyncNamespace.RECENTLY_WATCHED_LIVE -> {
                 live.deleteRecentlyWatchedForProfile(profileId)
                 snapshot.objects.forEach { (key, value) ->
-                    val (_, providerId) = parseKindProviderId(key) ?: return@forEach
+                    // T20-R5: the parsed kind must actually be used and strictly be "live" -- this
+                    // namespace's identity is always resolved as live, so a `movie:42` key silently
+                    // became a `live:42` identity when the parsed kind was discarded.
+                    val (kind, providerId) = parseKindProviderId(key, RECENTLY_WATCHED_LIVE_KINDS) ?: return@forEach
                     val wire = gson.fromJson(value, RecentlyWatchedWire::class.java)
-                    val mediaUid = mediaRefDao.resolve(accountKey, "live", providerId)
+                    val mediaUid = mediaRefDao.resolve(accountKey, kind, providerId)
                     live.insertRecentlyWatched(RecentlyWatchedLiveEntity(profileId = profileId, mediaUid = mediaUid, watchedAt = wire.watchedAt))
                 }
             }
@@ -152,16 +157,45 @@ class RoomSnapshotSerializer @Inject constructor(
         database.withTransaction { applySnapshot() }
     }
 
-    private fun parseKindProviderId(key: String): Pair<String, Int>? {
+    /**
+     * T20-R5: a cloud reference of unknown or invalid type must never be applied (T20 error rule).
+     * `parseKindProviderId`/`parseKindCategoryId` used to accept any non-empty string as `kind`,
+     * so a corrupted or hostile snapshot could create identities of a kind that namespace never
+     * produces (e.g. a `live` entry in `playback`), or -- worse, for `recently-watched-live` --
+     * write under a fixed `"live"` kind while completely ignoring the kind actually carried by the
+     * key. [allowedKinds] is the domain-accurate set for the namespace calling this.
+     *
+     * `internal`, not `private`: `RoomSnapshotSerializerTest` exercises this parsing/validation
+     * directly (see the T20-R5 tests) rather than through `apply()`'s `database.withTransaction { }`
+     * -- a real Room transaction dispatch has no reliable way to be driven against a bare Mockito
+     * `AppDatabase` mock under `runTest`'s virtual-time dispatcher, and no other transactional DAO
+     * method in this codebase is unit-tested that way either (see `ProfileRepositoryImplTest`'s
+     * `database = null`). Testing the pure decision this directly targets is what actually matters:
+     * every call site immediately does `?: return@forEach` on a `null` result, before any DAO write.
+     */
+    internal fun parseKindProviderId(key: String, allowedKinds: Set<String>): Pair<String, Int>? {
         val separator = key.indexOf(':')
         if (separator <= 0) return null
+        val kind = key.substring(0, separator)
+        if (kind !in allowedKinds) return null
         val providerId = key.substring(separator + 1).toIntOrNull() ?: return null
-        return key.substring(0, separator) to providerId
+        return kind to providerId
     }
 
-    private fun parseKindCategoryId(key: String): Pair<String, String>? {
+    internal fun parseKindCategoryId(key: String, allowedKinds: Set<String>): Pair<String, String>? {
         val separator = key.indexOf(':')
         if (separator <= 0 || separator == key.lastIndex) return null
-        return key.substring(0, separator) to key.substring(separator + 1)
+        val kind = key.substring(0, separator)
+        if (kind !in allowedKinds) return null
+        return kind to key.substring(separator + 1)
+    }
+
+    internal companion object {
+        val FAVORITE_KINDS = setOf("live", "movie", "series")
+        val PLAYBACK_KINDS = setOf("movie", "episode")
+        val RATING_KINDS = setOf("movie", "series")
+        val TRACK_PREFERENCE_KINDS = setOf("movie", "series")
+        val RECENTLY_WATCHED_LIVE_KINDS = setOf("live")
+        val CATEGORY_KINDS = setOf("live", "vod", "series")
     }
 }

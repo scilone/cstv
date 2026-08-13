@@ -13,13 +13,20 @@ data class PlaybackWire(val positionMs: Long, val durationMs: Long, val lastAcce
 
 data class RecentlyWatchedWire(val watchedAt: Long)
 
-/** Unchanged v1 shape (namespace not versioned): [ratedMediaType]/[ratedMediaId] mirror the wire
- *  key so a decoded object stays self-describing even though the key already carries them. */
-data class RatingWire(val value: Int)
+/**
+ * T20-R2: `ratings`, `track-preferences`, `series-watch-state` and `category-preferences` are
+ * namespaces the PO explicitly kept at v1 -- unlike [FavoriteWire]/[PlaybackWire]/
+ * [RecentlyWatchedWire], their JSON body must stay byte-for-byte what the pre-T20 entity produced
+ * (`gson.toJsonTree(entity).withoutFields("profileId")`), not just what the map key encodes. The
+ * fields below mirror the wire key on purpose -- dropping them would silently publish a second,
+ * undeclared document shape under the same `schemaVersion = 1` (see review finding T20-R2).
+ */
+data class RatingWire(val mediaType: String, val mediaId: Int, val value: Int)
 
-data class TrackPreferenceWire(val audioLang: String?, val subtitleLang: String?)
+data class TrackPreferenceWire(val mediaType: String, val mediaId: Int, val audioLang: String?, val subtitleLang: String?)
 
 data class SeriesWatchStateWire(
+    val seriesId: Int,
     val lastKnownSeason: Int,
     val lastKnownEpisode: Int,
     val lastNotifiedSeason: Int,
@@ -27,4 +34,4 @@ data class SeriesWatchStateWire(
     val updatedAt: Long,
 )
 
-data class CategoryPreferenceWire(val hidden: Boolean, val sortOrder: Int?)
+data class CategoryPreferenceWire(val categoryId: String, val type: String, val hidden: Boolean, val sortOrder: Int?)

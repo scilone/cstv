@@ -6,19 +6,23 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * T20 §4.3 : preuve SQL de la raison d'être du remplacement `@Insert(REPLACE)`
- * → `@Upsert` + suppression différentielle par `cachedAt` sur `live_streams`
- * et `series_streams` (`LiveTvDao`/`SeriesDao`). Même limitation que
+ * T20 §4.3 (+ T20-R4) : preuve SQL de la raison d'être du remplacement
+ * `@Insert(REPLACE)` → `@Upsert` + suppression différentielle par `cachedAt`
+ * sur les trois parents catalogue -- `live_streams`, `series_streams` et
+ * `vod_streams` (`LiveTvDao`/`SeriesDao`/`VodDao`). Même limitation que
  * [Migration27To28SqlTest] (pas d'`androidTest`/`MigrationTestHelper`) : le
  * schéma Room 28 pertinent est rejoué à la main sur SQLite en mémoire, et le
  * SQL exercé reproduit exactement la sémantique compilée par Room pour
  * `@Upsert` (`INSERT ... ON CONFLICT(pk) DO UPDATE`), par opposition à
  * `INSERT OR REPLACE` qui supprime puis réinsère la ligne en conflit.
  *
- * La preuve tient en une phrase : `REPLACE` déclenche `ON DELETE CASCADE`
- * sur un enfant même quand le parent est *maintenu* (son `streamId` reste le
- * même) ; `ON CONFLICT DO UPDATE` ne le déclenche jamais, parce qu'aucune
- * ligne n'est supprimée.
+ * La preuve tient en une phrase : `REPLACE` supprime puis recrée la ligne en
+ * conflit -- ce qui déclenche `ON DELETE CASCADE` sur tout enfant réel
+ * (`epg_cache`, `series_seasons`/`series_episodes`) même quand le parent est
+ * *maintenu* (son id reste le même), et changerait le `rowid` même sans
+ * aucun enfant aujourd'hui (`vod_streams`, preuve la plus directe possible en
+ * l'absence de cascade existante). `ON CONFLICT DO UPDATE` ne fait ni l'un ni
+ * l'autre, parce qu'aucune ligne n'est supprimée.
  */
 class CatalogUpsertSqlTest {
 
@@ -48,6 +52,18 @@ class CatalogUpsertSqlTest {
                 "CREATE TABLE series_episodes (episodeId INTEGER NOT NULL PRIMARY KEY, seriesId INTEGER NOT NULL, " +
                     "title TEXT NOT NULL, cachedAt INTEGER NOT NULL, " +
                     "FOREIGN KEY(seriesId) REFERENCES series_streams(seriesId) ON DELETE CASCADE)"
+            )
+            // T20-R4 : troisième parent catalogue -- `VodDao` était resté en `@Insert(REPLACE)` +
+            // `clearAllStreams()`/`clearStreamsByCategory()` alors que Live et Séries avaient déjà
+            // basculé au différentiel. Aucune table Room n'a aujourd'hui de clé étrangère vers
+            // `vod_streams`, donc la preuve ne peut pas passer par une cascade comme pour
+            // `epg_cache`/`series_episodes` -- elle passe par le `rowid` SQLite, identité physique
+            // de la ligne : `REPLACE` la change (supprime puis réinsère), `ON CONFLICT DO UPDATE`
+            // ne la change jamais. C'est exactement ce qui casserait silencieusement la première
+            // relation future ajoutée sur le catalogue VOD (téléchargement, note, etc.).
+            statement.execute(
+                "CREATE TABLE vod_streams (streamId INTEGER NOT NULL PRIMARY KEY, name TEXT NOT NULL, " +
+                    "categoryId TEXT NOT NULL, cachedAt INTEGER NOT NULL)"
             )
             // Un état utilisateur qui référence le stream : preuve que le
             // remplacement différentiel ne le perd jamais tant que le stream
@@ -201,6 +217,113 @@ class CatalogUpsertSqlTest {
                 statement.executeQuery("SELECT COUNT(*) AS n FROM series_episodes WHERE seriesId = 50").use { it.next(); assertEquals(1, it.getInt("n")) }
                 statement.executeQuery("SELECT COUNT(*) AS n FROM series_seasons WHERE seriesId = 51").use { it.next(); assertEquals(0, it.getInt("n")) }
                 statement.executeQuery("SELECT COUNT(*) AS n FROM series_episodes WHERE seriesId = 51").use { it.next(); assertEquals(0, it.getInt("n")) }
+            }
+            assertEquals(0, connection.foreignKeyViolations())
+        }
+    }
+
+    // T20-R4 : `VodDao` avait été laissé de côté lors de la conversion T20 §4.3 ; ces trois tests
+    // couvrent le catalogue VOD comme les précédents couvrent Live et Séries.
+
+    /**
+     * `streamId` est déclaré `INTEGER PRIMARY KEY`, donc alias natif du `rowid` SQLite : il reste
+     * inchangé après un `INSERT OR REPLACE` sur la même clé (SQLite le réattribue), ce qui
+     * disqualifie le `rowid` comme témoin d'une suppression. La preuve passe donc par un trigger
+     * `AFTER DELETE` qui journalise chaque suppression réelle de ligne — exactement l'événement
+     * qui déclencherait `ON DELETE CASCADE` sur un enfant, s'il en existait un aujourd'hui.
+     */
+    private fun Connection.installVodDeleteWitness() {
+        createStatement().use { statement ->
+            // SQLite does not fire a user-defined `AFTER DELETE` trigger for the rows a `REPLACE`
+            // conflict resolution deletes unless `recursive_triggers` is on -- a real FK `ON DELETE
+            // CASCADE` (used by the live/series proofs above) is a separate, always-on mechanism, so
+            // this pragma is only needed for this trigger-based witness.
+            statement.execute("PRAGMA recursive_triggers = ON")
+            statement.execute("CREATE TABLE vod_delete_log (streamId INTEGER NOT NULL)")
+            statement.execute("CREATE TRIGGER vod_streams_ad AFTER DELETE ON vod_streams BEGIN INSERT INTO vod_delete_log(streamId) VALUES (OLD.streamId); END")
+        }
+    }
+
+    private fun Connection.vodDeleteCount(): Int = createStatement().use { statement ->
+        statement.executeQuery("SELECT COUNT(*) AS n FROM vod_delete_log").use { it.next(); it.getInt("n") }
+    }
+
+    @Test
+    fun `INSERT OR REPLACE -- the old VOD behavior -- deletes and recreates the row even when the stream is still there`() {
+        DriverManager.getConnection("jdbc:sqlite::memory:").use { connection ->
+            connection.createRoom28CatalogSchema()
+            connection.installVodDeleteWitness()
+            connection.createStatement().use { statement ->
+                statement.execute("INSERT INTO vod_streams(streamId, name, categoryId, cachedAt) VALUES (900, 'Film', '1', 0)")
+            }
+
+            // Un refresh de catalogue qui revoit exactement le même streamId, via l'ancien
+            // `INSERT OR REPLACE` : documente le bug corrigé, pas le comportement voulu.
+            connection.createStatement().use { statement ->
+                statement.execute("INSERT OR REPLACE INTO vod_streams(streamId, name, categoryId, cachedAt) VALUES (900, 'Film', '1', 1)")
+            }
+
+            assert(connection.vodDeleteCount() == 1) {
+                "REPLACE aurait dû supprimer la ligne en conflit avant de la réinsérer (trigger AFTER DELETE non déclenché)"
+            }
+        }
+    }
+
+    @Test
+    fun `upsert via ON CONFLICT DO UPDATE never deletes the VOD row`() {
+        DriverManager.getConnection("jdbc:sqlite::memory:").use { connection ->
+            connection.createRoom28CatalogSchema()
+            connection.installVodDeleteWitness()
+            connection.createStatement().use { statement ->
+                statement.execute("INSERT INTO vod_streams(streamId, name, categoryId, cachedAt) VALUES (900, 'Film', '1', 0)")
+            }
+
+            // Sémantique exacte compilée par Room pour `@Upsert` sur `VodDao.insertStreamsRaw`.
+            connection.createStatement().use { statement ->
+                statement.execute(
+                    "INSERT INTO vod_streams(streamId, name, categoryId, cachedAt) VALUES (900, 'Film', '1', 1) " +
+                        "ON CONFLICT(streamId) DO UPDATE SET name = excluded.name, categoryId = excluded.categoryId, cachedAt = excluded.cachedAt"
+                )
+            }
+
+            assertEquals(0, connection.vodDeleteCount())
+            connection.createStatement().use { statement ->
+                statement.executeQuery("SELECT cachedAt FROM vod_streams WHERE streamId = 900").use {
+                    it.next(); assertEquals(1L, it.getLong("cachedAt"))
+                }
+            }
+            assertEquals(0, connection.foreignKeyViolations())
+        }
+    }
+
+    @Test
+    fun `differential delete by batchTs removes only the truly absent VOD stream and keeps the maintained one`() {
+        DriverManager.getConnection("jdbc:sqlite::memory:").use { connection ->
+            connection.createRoom28CatalogSchema()
+            connection.createStatement().use { statement ->
+                statement.execute("INSERT INTO vod_streams(streamId, name, categoryId, cachedAt) VALUES (900, 'Maintenu', '1', 0)")
+                statement.execute("INSERT INTO vod_streams(streamId, name, categoryId, cachedAt) VALUES (901, 'Disparu', '1', 0)")
+                // Un téléchargement qui pointe encore vers le film disparu : la disparition
+                // catalogue n'entraîne aucune cascade sur l'état utilisateur (§4.4).
+                statement.execute("INSERT INTO media_refs(accountKey, kind, providerId) VALUES ('acc', 'movie', 901)")
+            }
+
+            // `VodDao.replaceAllStreams` : upsert du lot revu (`batchTs` = 1), puis suppression des
+            // seules lignes non revues -- exactement `LiveTvDao.replaceAllStreams`/`SeriesDao`.
+            connection.createStatement().use { statement ->
+                statement.execute(
+                    "INSERT INTO vod_streams(streamId, name, categoryId, cachedAt) VALUES (900, 'Maintenu', '1', 1) " +
+                        "ON CONFLICT(streamId) DO UPDATE SET name = excluded.name, categoryId = excluded.categoryId, cachedAt = excluded.cachedAt"
+                )
+                statement.execute("DELETE FROM vod_streams WHERE cachedAt < 1")
+            }
+
+            connection.createStatement().use { statement ->
+                statement.executeQuery("SELECT COUNT(*) AS n FROM vod_streams WHERE streamId = 900").use { it.next(); assertEquals(1, it.getInt("n")) }
+                statement.executeQuery("SELECT COUNT(*) AS n FROM vod_streams WHERE streamId = 901").use { it.next(); assertEquals(0, it.getInt("n")) }
+                // Le téléchargement orphelin de catalogue survit : c'est le rôle du nettoyage
+                // applicatif de `CatalogReconciler`, jamais d'une cascade destructrice ici.
+                statement.executeQuery("SELECT COUNT(*) AS n FROM media_refs WHERE providerId = 901").use { it.next(); assertEquals(1, it.getInt("n")) }
             }
             assertEquals(0, connection.foreignKeyViolations())
         }

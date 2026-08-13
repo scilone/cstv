@@ -5,6 +5,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
+import androidx.room.Upsert
 import com.cstv.app.data.local.entity.PlaybackPositionEntity
 import com.cstv.app.data.local.entity.VodCategoryEntity
 import com.cstv.app.data.local.entity.VodStreamEntity
@@ -167,8 +168,15 @@ interface VodDao {
         })
     }
 
-    /** Ne jamais appeler directement : contourne le calcul de [VodStreamEntity.searchText]. */
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    /**
+     * Ne jamais appeler directement : contourne le calcul de [VodStreamEntity.searchText].
+     *
+     * T20-R4 : `@Upsert` (`INSERT … ON CONFLICT DO UPDATE`), pas `@Insert(REPLACE)`. `REPLACE`
+     * compile en `INSERT OR REPLACE`, qui supprime la ligne en conflit avant de la réinsérer et
+     * déclencherait `ON DELETE CASCADE` sur tout enfant du catalogue VOD à chaque synchronisation —
+     * même piège que `LiveTvDao`/`SeriesDao`, voir `CatalogUpsertSqlTest` et T20 §4.3.
+     */
+    @Upsert
     suspend fun insertStreamsRaw(streams: List<VodStreamEntity>)
 
     /**
@@ -182,19 +190,34 @@ interface VodDao {
         insertCategories(categories)
     }
 
+    /**
+     * T20-R4 : différentiel horodaté, pas purge totale — voir `LiveTvDao.replaceAllStreams`
+     * pour le motif complet. Chaque appelant stampe son lot avec le même `cachedAt`
+     * (`VodRepositoryImpl.syncVodStreams`, déjà le cas) ; upsert du lot puis suppression des
+     * seules lignes non revues laisse les films maintenus intacts — la cascade (téléchargements,
+     * reprises via `media_refs`, etc.) ne se déclenche que pour un film réellement disparu.
+     */
     @Transaction
     suspend fun replaceAllStreams(streams: List<VodStreamEntity>) {
         if (streams.isEmpty()) return
-        clearAllStreams()
+        val batchTs = streams.first().cachedAt
         streams.chunked(INSERT_CHUNK_SIZE).forEach { insertStreams(it) }
+        deleteStreamsCachedBefore(batchTs)
     }
 
     @Transaction
     suspend fun replaceStreamsByCategory(categoryId: String, streams: List<VodStreamEntity>) {
         if (streams.isEmpty()) return
-        clearStreamsByCategory(categoryId)
+        val batchTs = streams.first().cachedAt
         streams.chunked(INSERT_CHUNK_SIZE).forEach { insertStreams(it) }
+        deleteStreamsCachedBefore(batchTs, categoryId)
     }
+
+    @Query("DELETE FROM vod_streams WHERE cachedAt < :batchTs")
+    suspend fun deleteStreamsCachedBefore(batchTs: Long)
+
+    @Query("DELETE FROM vod_streams WHERE cachedAt < :batchTs AND categoryId = :categoryId")
+    suspend fun deleteStreamsCachedBefore(batchTs: Long, categoryId: String)
 
     @Query("SELECT * FROM vod_streams WHERE actors IS NULL OR director IS NULL OR genre IS NULL OR releaseYear IS NULL LIMIT :limit")
     suspend fun getStreamsNeedingEnrichment(limit: Int): List<VodStreamEntity>

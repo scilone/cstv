@@ -102,7 +102,11 @@ class CloudSyncManagerImpl @Inject constructor(
                     if (local.objects == remote.objects) {
                         // Merged result matches what the server already has: nothing
                         // left to push, whether or not this namespace was pending.
-                        states.upsert(state.copy(etag = remoteEtag, baseSnapshot = remoteBytes, lastSyncedAt = System.currentTimeMillis(), failureCode = null, pending = false))
+                        // T20-R1: still record the version this content actually is (the
+                        // encoded snapshot's own `schemaVersion`, not a stale global constant)
+                        // so `profile_sync_state` never claims a version other than the one the
+                        // last-known-good content is really in.
+                        states.upsert(state.copy(etag = remoteEtag, schemaVersion = local.schemaVersion, baseSnapshot = remoteBytes, lastSyncedAt = System.currentTimeMillis(), failureCode = null, pending = false))
                         mutableStatus.value = CloudSyncStatus.Idle
                         return
                     }
@@ -115,9 +119,12 @@ class CloudSyncManagerImpl @Inject constructor(
                 val encoded = codec.encode(local)
                 if (encoded !is SnapshotEncodeResult.Success) return recordFailure(profileId, namespace, state, com.cstv.app.domain.model.CstvError.PayloadTooLarge)
                 val body = encoded.bytes.toRequestBody(GZIP_MEDIA_TYPE)
-                val put = objects.putObject(remoteId, namespace.wireName, SnapshotCodec.SCHEMA_VERSION, CstvEtag.header(remoteEtag ?: state.etag), body)
+                // T20-R1: announce the version of the body actually encoded (`local.schemaVersion`,
+                // always `namespace.schemaVersion` -- see `RoomSnapshotSerializer.snapshot`), not the
+                // legacy global `SnapshotCodec.SCHEMA_VERSION` constant which never left `1`.
+                val put = objects.putObject(remoteId, namespace.wireName, local.schemaVersion, CstvEtag.header(remoteEtag ?: state.etag), body)
                 if (put.isSuccessful) {
-                    states.upsert(state.copy(etag = CstvEtag.bare(put.headers()["ETag"] ?: remoteEtag), baseSnapshot = encoded.bytes, pending = false, lastSyncedAt = System.currentTimeMillis(), lastAttemptAt = System.currentTimeMillis(), failureCode = null, retryCount = 0))
+                    states.upsert(state.copy(etag = CstvEtag.bare(put.headers()["ETag"] ?: remoteEtag), schemaVersion = local.schemaVersion, baseSnapshot = encoded.bytes, pending = false, lastSyncedAt = System.currentTimeMillis(), lastAttemptAt = System.currentTimeMillis(), failureCode = null, retryCount = 0))
                     mutableStatus.value = CloudSyncStatus.Idle
                     return
                 }

@@ -3,7 +3,7 @@
 ## Informations générales
 
 Status:
-IMPLEMENTATION
+RELEASED
 
 Created:
 2026-08-13
@@ -427,55 +427,55 @@ de nettoyage des anciennes références Xtream.
 
 ## Critères d'acceptation
 
-- [ ] Toutes les tables Room ont été auditées ; chaque duplication métier
+- [x] Toutes les tables Room ont été auditées ; chaque duplication métier
   conservée est explicitement justifiée comme structure d'accès dérivée ou
   nécessité fonctionnelle validée.
-- [ ] Les favoris ne stockent plus de nom, jaquette ou catégorie ; un favori
+- [x] Les favoris ne stockent plus de nom, jaquette ou catégorie ; un favori
   visible utilise les métadonnées courantes du catalogue.
-- [ ] Les reprises ne stockent plus les métadonnées du média ; elles conservent
+- [x] Les reprises ne stockent plus les métadonnées du média ; elles conservent
   uniquement leur référence et les valeurs propres à la reprise.
-- [ ] L'historique Live récent ne stocke plus le nom, l'icône, la catégorie ou
+- [x] L'historique Live récent ne stocke plus le nom, l'icône, la catégorie ou
   le numéro de chaîne ; son affichage provient du catalogue courant.
-- [ ] Les notes, préférences de pistes, suivis de séries et préférences de
+- [x] Les notes, préférences de pistes, suivis de séries et préférences de
   catégories sont reliés à leur profil et à leur cible sans devenir des copies
   de catalogue.
-- [ ] Les téléchargements sont reliés à leur média ; la disparition de la cible
+- [x] Les téléchargements sont reliés à leur média ; la disparition de la cible
   supprime la ligne et le fichier sans affecter un autre téléchargement.
-- [ ] Un média absent ou inactif n'apparaît dans aucun favori, reprise ou
+- [x] Un média absent ou inactif n'apparaît dans aucun favori, reprise ou
   historique visible et ne produit aucune carte dégradée.
-- [ ] Un média revenant avec la même identité réactive son état conservé avec
+- [x] Un média revenant avec la même identité réactive son état conservé avec
   ses métadonnées actuelles ; un nouvel identifiant ne récupère rien
   automatiquement.
-- [ ] Une catégorie disparue conserve son identité et ses préférences, qui se
+- [x] Une catégorie disparue conserve son identité et ses préférences, qui se
   réappliquent à son retour avec la même identité.
-- [ ] Une reprise d'épisode cloud reste invisible tant que cet épisode n'est
+- [x] Une reprise d'épisode cloud reste invisible tant que cet épisode n'est
   pas présent dans Room, sans déclencher de récupération globale des détails.
-- [ ] Une restauration cloud effectuée avant le catalogue ne montre pas de
+- [x] Une restauration cloud effectuée avant le catalogue ne montre pas de
   métadonnées embarquées ; les états deviennent visibles lorsque leurs cibles
   locales sont disponibles.
-- [ ] Supprimer un profil supprime toutes ses données et ses états de sync sans
+- [x] Supprimer un profil supprime toutes ses données et ses états de sync sans
   toucher aux autres profils.
-- [ ] La migration unique depuis Room 27 conserve les états rattachables,
+- [x] La migration unique depuis Room 27 conserve les états rattachables,
   supprime les lignes déjà orphelines et retire les colonnes redondantes sans
   fallback destructif.
-- [ ] Le compactage automatique peut réduire physiquement la base sans rendre
+- [x] Le compactage automatique peut réduire physiquement la base sans rendre
   l'application inutilisable en cas d'échec ou d'espace disque insuffisant.
-- [ ] `favorites`, `playback` et `recently-watched-live` utilisent un nouveau
+- [x] `favorites`, `playback` et `recently-watched-live` utilisent un nouveau
   format cloud allégé et versionné ; les quatre autres namespaces restent
   inchangés.
-- [ ] Les nouveaux snapshots ne contiennent aucune métadonnée catalogue
+- [x] Les nouveaux snapshots ne contiennent aucune métadonnée catalogue
   complète ni `profileId`, credential, URL Xtream, donnée TMDB/YouTube, JWT ou
   OTP.
-- [ ] Les champs dénormalisés d'un ancien snapshot sont ignorés et ne sont pas
+- [x] Les champs dénormalisés d'un ancien snapshot sont ignorés et ne sont pas
   réémis.
-- [ ] Les règles F34 de fusion, ETag, offline, erreurs et déclencheurs playback
+- [x] Les règles F34 de fusion, ETag, offline, erreurs et déclencheurs playback
   restent inchangées, et les plafonds T19 restent appliqués.
-- [ ] Aucun bouton ou écran de nettoyage des anciennes références Xtream n'est
+- [x] Aucun bouton ou écran de nettoyage des anciennes références Xtream n'est
   ajouté ; leur retrait n'est possible qu'après reconnexion à l'ancien compte,
   via les actions normales sur les éléments redevenus visibles.
-- [ ] Les structures FTS et index nécessaires peuvent conserver leurs données
+- [x] Les structures FTS et index nécessaires peuvent conserver leurs données
   dérivées sans devenir une seconde source métier.
-- [ ] Toutes les validations nécessaires sont automatisées et exécutables
+- [x] Toutes les validations nécessaires sont automatisées et exécutables
   localement sans appareil ni émulateur.
 
 ## Décision finale de l'étape 2
@@ -1404,24 +1404,251 @@ Implémentation (étape 5) de T20 considérée complète : T20-1 à T20-7 tous
 cochés. Statut laissé à `IMPLEMENTATION` — le passage à `REVIEW` (étape 6)
 n'a pas été demandé dans ce tour et n'a donc pas été engagé.
 
+Étape 6 effectuée le 2026-08-13 : revue technique complète de la migration
+Room 27→28, des DAO/repositories normalisés, de la réconciliation catalogue et
+du protocole cloud. Aucun code applicatif n'a été corrigé pendant cette étape.
+La review conclut à `CHANGES REQUESTED` avec cinq constats majeurs T20-R1 à
+T20-R5. Les checks automatisés restent verts (`950` tests JVM, `assembleDebug`,
+`lintDebug`, ainsi que les suites ciblées cloud/Room/sync), mais ils ne couvrent
+pas les contrats en défaut relevés ci-dessous.
+
+Étape 7 effectuée le 2026-08-14 : les cinq constats majeurs T20-R1 à T20-R5 de
+la review de l'étape 6 sont corrigés (détail par constat dans la section
+« Corrections demandées » ci-dessous) :
+
+- T20-R1 : `CloudSyncManagerImpl` annonce désormais la vraie version du corps
+  encodé (en-tête `X-Schema-Version` et `profile_sync_state.schemaVersion`),
+  plus la constante globale figée à `1`.
+- T20-R2 : `ratings`, `track-preferences`, `series-watch-state` et
+  `category-preferences` retrouvent leur forme JSON v1 exacte.
+- T20-R3 : `DownloadDao.findOrphaned` reprend aussi les lignes déjà `ORPHANED`,
+  rendant le nettoyage réellement rejouable après un échec.
+- T20-R4 : `VodDao` bascule à l'upsert différentiel comme Live et Séries.
+- T20-R5 : les clés cloud sont validées par `kind` autorisé par namespace avant
+  toute écriture locale, ce qui corrige au passage le rattachement erroné d'une
+  clé `movie:` en identité `live` dans `recently-watched-live`.
+
+Chaque correction est accompagnée de tests nouveaux ou modifiés (non-régression
+et couverture du défaut). `./gradlew testDebugUnitTest assembleDebug lintDebug`
+→ `BUILD SUCCESSFUL` sur l'ensemble du projet. Review passée à `RESOLVED`.
+
+Étape 8 effectuée le 2026-08-14 : validation finale contre le besoin initial.
+Vérification par relecture croisée des 20 critères d'acceptation de la
+section 3 face à l'implémentation (§4-§5) et aux corrections R1-R5 :
+comportement attendu, règles métier (identités inactives, cloisonnement par
+compte, cascade profil), expérience utilisateur (aucune régression visible,
+aucun écran ajouté), qualité technique et absence de régression confirmées.
+Points vérifiés explicitement pour cette étape (au-delà de ce que couvrait déjà
+l'étape 6) : absence de tout écran/bouton de nettoyage des anciennes
+références Xtream (grep négatif sur la couche présentation), jointure stricte
+`INNER JOIN` sur `series_episodes` pour les reprises d'épisode (invisibilité
+tant que l'épisode n'est pas chargé), présence des tests de migration
+(`Migration27To28SqlTest`) et de compactage (`DatabaseMaintenanceRunnerTest`),
+persistance de `searchText` comme structure d'accès dérivée (règle 13). Les 20
+critères d'acceptation de la section 3 sont cochés. `./gradlew testDebugUnitTest
+assembleDebug lintDebug` reconfirmé au vert. Statut du ticket passé à
+`VALIDATED`.
+
+Étape 9 effectuée le 2026-08-14 : documentation globale mise à jour.
+`docs/architecture.md` reçoit la description du modèle d'identité relationnel
+(`media_refs`/`category_refs`), du remplacement différentiel du catalogue et
+du format cloud v2 versionné par namespace, ainsi que la correction de la
+version Room affichée (22 → 28, restée périmée depuis plusieurs tickets).
+`docs/changelog.md` gagne l'entrée `[v1.80.0] - 2026-08-14`. `docs/features.md`
+et `docs/user-guide.md` ne sont pas modifiés : T20 est un ticket technique pur,
+sans fonction ni écran utilisateur nouveau ou changé (même précédent que
+T14/T16-T19, absents de ces deux documents). La version `1.80.0` n'est pas
+encore posée dans `app/build.gradle.kts` ni taguée : cette synchronisation
+relève de l'étape 10 (Livraison Git et Compilation), non engagée dans ce tour.
+
 ---
 
 # 8. Review
 
+Review Status: **RESOLVED**
+
+Date: 2026-08-13
+
 ## Critique
+
+Aucun constat critique.
 
 ## Majeur
 
+### T20-R1 — La version v2 du document n'est jamais annoncée au backend
+
+**Description :** `RoomSnapshotSerializer` et `SnapshotCodec` produisent bien
+un corps `schemaVersion = 2` pour `favorites`, `playback` et
+`recently-watched-live`, mais `CloudSyncManagerImpl` envoie toujours
+`SnapshotCodec.SCHEMA_VERSION`, constante globale restée à `1`, dans l'en-tête
+`X-Schema-Version`. Le `ProfileSyncStateEntity.schemaVersion` local n'est pas
+mis à jour non plus après un PUT réussi. Les tests de manager utilisent `any()`
+sur cet argument et ne vérifient donc pas le contrat réellement envoyé.
+
+**Impact :** le backend stocke et expose une métadonnée v1 pour un blob dont le
+contenu est v2. Le listing distant, la base de fusion locale et le contenu gzip
+ne décrivent plus la même version ; toute logique future qui se fie aux
+métadonnées peut accepter, refuser ou migrer le document de façon erronée.
+
+**Correction attendue :** envoyer la version du snapshot effectivement encodé
+(`local.schemaVersion`/`namespace.schemaVersion`), persister la même valeur dans
+`profile_sync_state`, et ajouter un test vérifiant exactement l'en-tête et
+l'état sauvegardé pour chacun des namespaces v1 et v2.
+
+### T20-R2 — Les quatre namespaces annoncés « inchangés » ont aussi changé de format sans versionnement
+
+**Description :** la spécification impose que `ratings`, `track-preferences`,
+`series-watch-state` et `category-preferences` conservent leur format v1. Les
+nouveaux DTO wire ne contiennent pourtant plus les champs d'identité autrefois
+présents dans chaque objet (`mediaType`/`mediaId`, `seriesId`, ou
+`type`/`categoryId`) ; seule la clé de map les porte désormais. Leur
+`schemaVersion` reste néanmoins à `1` et aucun upgrader n'est appliqué à ces
+quatre namespaces.
+
+**Impact :** deux structures différentes sont publiées sous la même version de
+schéma, contrairement à la décision PO de ne versionner que les trois formats
+modifiés. La lecture tolérante de Gson masque actuellement l'écart pour le
+nouveau client, mais le contrat distant n'est plus stable ni auto-descriptif et
+une version qui attend le vrai v1 peut reconstruire des références nulles ou à
+zéro. Les tests actuels ne comparent pas les quatre documents exacts à leur
+forme v1 antérieure.
+
+**Correction attendue :** conserver réellement, via les projections wire, la
+forme v1 des quatre namespaces non versionnés (référence comprise, sans
+métadonnée catalogue ni `profileId`) et ajouter des assertions JSON exactes de
+non-régression. Toute autre forme doit être explicitement versionnée, ce qui
+nécessiterait de revenir sur l'arbitrage du ticket.
+
+### T20-R3 — Un téléchargement marqué `ORPHANED` après échec n'est jamais repris
+
+**Description :** `CatalogReconciler` marque d'abord la ligne `ORPHANED`, puis
+tente le retrait media3 et annonce qu'un échec sera repris au cycle suivant.
+Or `DownloadDao.findOrphaned()` exclut explicitement toute ligne dont le statut
+vaut déjà `ORPHANED`. Après le premier échec media3 — ou après un échec de la
+suppression Room suivant une demande media3 acceptée — cette ligne ne sera donc
+plus jamais sélectionnée. Le test d'échec s'arrête après le premier passage et
+ne vérifie pas un second cycle.
+
+**Impact :** le fichier et/ou la ligne Room peuvent rester définitivement
+orphelins, invisibles dans la liste jointe mais comptés dans le stockage. La
+promesse fonctionnelle de nettoyage cohérent et rejouable n'est pas tenue.
+
+**Correction attendue :** inclure les lignes déjà `ORPHANED` dans la file de
+reprise, avec une machine d'état/idempotence qui permet de retenter le retrait
+media3 puis la suppression Room, et tester au minimum échec au premier cycle
+puis succès au suivant ainsi qu'un échec de suppression Room.
+
+### T20-R4 — Le catalogue VOD conserve le remplacement destructif que T20 devait supprimer
+
+**Description :** `LiveTvDao` et `SeriesDao` utilisent l'upsert différentiel,
+mais `VodDao.insertStreamsRaw()` reste en `@Insert(REPLACE)` et ses deux chemins
+de remplacement exécutent toujours `clearAllStreams()` ou
+`clearStreamsByCategory()` avant réinsertion. Le plan T20-3 demandait pourtant
+la conversion de chaque catalogue Live/VOD/Séries. `CatalogUpsertSqlTest` ne
+couvre que Live et Séries, ce qui a permis de cocher T20-3 malgré cet oubli.
+
+**Impact :** la stratégie catalogue reste incohérente selon le type de média et
+le catalogue VOD continue de reconstruire sa table et ses index au lieu de ne
+supprimer que les films réellement disparus. Toute future relation/cascade VOD
+réintroduira immédiatement le défaut `INSERT OR REPLACE` précisément identifié
+par l'architecture T20.
+
+**Correction attendue :** convertir également VOD à `@Upsert`, appliquer le
+même `batchTs` puis `DELETE cachedAt < batchTs` global et par catégorie, et
+étendre la preuve SQL/repository à ce troisième parent catalogue.
+
+### T20-R5 — L'application cloud ne valide pas le type métier porté par les clés
+
+**Description :** `parseKindProviderId()` et `parseKindCategoryId()` acceptent
+n'importe quelle chaîne non vide. `favorites`, `playback`, notes, pistes et
+catégories créent alors une identité avec ce `kind` non reconnu. Plus grave,
+`recently-watched-live` ignore entièrement le type parsé et transforme par
+exemple une clé `movie:42` en identité `live:42`. Cela contredit la règle du
+ticket selon laquelle une référence de type inconnu ou invalide ne doit jamais
+être appliquée.
+
+**Impact :** un snapshot opaque corrompu ou produit par un client fautif peut
+polluer durablement Room, réémettre des identités invalides, ou rattacher un
+historique Live à un identifiant provenant d'un autre type de média. Le backend
+ne peut pas protéger ce contrat puisqu'il ne lit pas le blob.
+
+**Correction attendue :** valider les kinds autorisés par namespace avant toute
+suppression/remplacement local (`live|movie|series` pour les favoris,
+`movie|episode` pour playback, etc.), exiger strictement `live` pour
+`recently-watched-live`, rejeter les identifiants hors domaine, et couvrir les
+clés inconnues/croisées par des tests transactionnels de non-altération de Room.
+
 ## Mineur
 
+Aucun constat mineur séparé ; les lacunes de tests directement liées aux cinq
+défauts sont incluses dans leurs corrections attendues.
+
 ## Corrections demandées
+
+- [x] **T20-R1** — Aligner version du corps, en-tête backend et état local, avec
+  assertions exactes v1/v2.
+  `CloudSyncManagerImpl` envoie désormais `local.schemaVersion` (celui du
+  `NamespaceSnapshot` réellement encodé, toujours égal à `namespace.schemaVersion`)
+  dans l'en-tête `X-Schema-Version`, au lieu de la constante globale
+  `SnapshotCodec.SCHEMA_VERSION` restée à `1`. `profile_sync_state.schemaVersion`
+  est persisté avec la même valeur après un push réussi et sur le chemin
+  « déjà à jour, rien à pousser ». Tests : `CloudSyncManagerTest` vérifie
+  désormais l'en-tête exact (`eq(namespace.schemaVersion)`, plus l'ancien
+  `any()`) sur chaque assertion de push, et deux nouveaux tests dédiés couvrent
+  respectivement FAVORITES (v2) et RATINGS (v1) de bout en bout, en-tête et
+  état local.
+- [x] **T20-R2** — Restaurer le format v1 exact des quatre namespaces non
+  versionnés et le figer par tests JSON.
+  `RatingWire`, `TrackPreferenceWire`, `SeriesWatchStateWire` et
+  `CategoryPreferenceWire` portent de nouveau les champs d'identité
+  (`mediaType`/`mediaId`, `seriesId`, `categoryId`/`type`) en plus de la valeur
+  métier, dans le même ordre que l'entité Room pré-T20 dépouillée de
+  `profileId` — forme JSON strictement identique. `RoomSnapshotSerializerTest`
+  ajoute une assertion JSON exacte (`Gson().toJson(item)`) par namespace non
+  versionné.
+- [x] **T20-R3** — Rendre le nettoyage `ORPHANED` réellement rejouable et tester
+  deux cycles ainsi que l'échec de suppression Room.
+  `DownloadDao.findOrphaned` inclut désormais aussi les lignes déjà
+  `ORPHANED` (`dm.status = 'ORPHANED' OR ...`), qui étaient explicitement
+  exclues et donc plus jamais reprises après un premier échec.
+  `CatalogReconcilerTest` ajoute un scénario en deux cycles (échec media3 puis
+  succès) et un scénario d'échec de suppression Room après un retrait media3
+  réussi.
+- [x] **T20-R4** — Convertir aussi le catalogue VOD à l'upsert différentiel et
+  étendre les preuves SQL.
+  `VodDao.insertStreamsRaw` passe de `@Insert(REPLACE)` à `@Upsert` ;
+  `replaceAllStreams`/`replaceStreamsByCategory` suivent le même différentiel
+  `batchTs` puis `DELETE ... WHERE cachedAt < :batchTs` (global et par
+  catégorie) que `LiveTvDao`/`SeriesDao`. `CatalogUpsertSqlTest` gagne trois
+  scénarios VOD ; en l'absence de toute clé étrangère réelle vers
+  `vod_streams` aujourd'hui, la preuve passe par un trigger `AFTER DELETE`
+  témoin (`REPLACE` le déclenche, `ON CONFLICT DO UPDATE` jamais) plutôt que
+  par une cascade.
+- [x] **T20-R5** — Valider strictement les clés/types cloud par namespace avant
+  toute écriture locale.
+  `parseKindProviderId`/`parseKindCategoryId` prennent un ensemble de `kind`
+  autorisés par namespace (favoris : live/movie/series ; playback :
+  movie/episode ; notes et préférences de piste : movie/series ; historique
+  Live : live strictement ; catégories : live/vod/series) et rejettent toute
+  clé hors domaine avant résolution d'identité. Corrige en particulier
+  `recently-watched-live`, qui ignorait le `kind` analysé et résolvait
+  silencieusement toute clé (ex. `movie:42`) comme `live`. Tests unitaires
+  directs sur les deux fonctions (rendues `internal` à cet effet) pour chaque
+  namespace concerné, y compris clé sans séparateur et identifiant non
+  numérique.
+
+Build (`assembleDebug`) et suite complète (`testDebugUnitTest`) vérifiés au
+vert après corrections.
 
 ---
 
 # 9. Release
 
 Version :
+v1.80.0
 
 Commit :
+🐛 fix(app): corrige la revue T20 (R1-R5), valide et documente (T20)
 
 Date :
+2026-08-14

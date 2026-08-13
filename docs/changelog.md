@@ -1,5 +1,14 @@
 # Journal des Modifications (Changelog) - CSTV IPTV
 
+## [v1.80.0] - 2026-08-14
+### ♻️ Normalisation relationnelle de Room et allègement de la synchronisation cloud (T20)
+* **Fin de la duplication de métadonnées dans les tables d'état** : favoris, reprises de lecture, historique Live, notes, préférences de piste, suivi de séries, préférences de catégorie et téléchargements ne stockent plus ni titre, ni jaquette, ni catégorie — uniquement une référence vers le catalogue et leurs valeurs métier propres. L'affichage résout toujours la métadonnée depuis le catalogue courant ; un média disparu ou inactif n'apparaît simplement dans aucune liste, sans carte incomplète.
+* **Identités relationnelles (`media_refs`/`category_refs`)** : deux nouvelles tables portent de vraies clés étrangères Room vers les états utilisateur, cloisonnées par compte Xtream. Une identité survit à la disparition de son média/sa catégorie (état conservé, invisible) et redevient active si le média revient avec la même identité.
+* **Catalogue Live/VOD/Séries en remplacement différentiel** : fin du cycle systématique purge-puis-réinsertion, remplacé par un upsert (`INSERT … ON CONFLICT DO UPDATE`) suivi d'une suppression ciblée des seuls éléments réellement disparus — l'EPG, les saisons et les épisodes déjà chargés ne sont plus détruits à chaque synchronisation.
+* **Réconciliation applicative (`CatalogReconciler`)** : après un cycle catalogue complet et réussi, nettoyage rejouable des caches de bandes-annonces orphelines et des téléchargements dont le média source a disparu (fichier local et ligne Room), avec reprise automatique en cas d'échec partiel.
+* **Format cloud v2, plus léger et versionné par namespace** : `favorites`, `playback` et `recently-watched-live` n'envoient plus la moindre métadonnée de catalogue (une reprise passe d'environ 200 à moins de 60 octets JSON) ; les quatre autres namespaces gardent leur format v1 inchangé. Un ancien document reçu est normalisé avant toute fusion, sans jamais réémettre les anciens champs.
+* **Migration unique Room 27 → 28** : les données existantes (favoris, reprises, historique, notes, préférences) sont conservées et rattachées au nouveau modèle ; les lignes déjà orphelines sont supprimées ; un compactage automatique de la base peut s'exécuter au premier démarrage suivant la mise à jour.
+
 ## [v1.79.0] - 2026-08-13
 ### 🔒 Durcissement sécurité backend et hygiène de la synchronisation cloud (T14/T16/T17/T18/T19)
 * **Quotas de compte (T14)** : un compte est désormais limité à 10 profils, 32 namespaces par profil et 20 Mio de stockage synchronisé, appliqués sous verrou pour rester corrects même en cas de créations simultanées.

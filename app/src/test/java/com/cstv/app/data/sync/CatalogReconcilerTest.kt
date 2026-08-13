@@ -128,4 +128,49 @@ class CatalogReconcilerTest {
         assert(removedContentIds.isEmpty())
         verifyNoInteractions(mediaRefDao)
     }
+
+    // T20-R3: `findOrphaned` used to exclude rows already `ORPHANED`, so a row that failed once
+    // was never selected again -- it stayed forever half-cleaned. The fix is in the DAO's SQL
+    // (`DownloadDao.findOrphaned`, now `dm.status = 'ORPHANED' OR ...`); these tests pin down the
+    // reconciler's side of the contract -- that a row the DAO *does* resurface is genuinely
+    // retried, and that a failure at either remaining step (media3, then Room) still leaves the row
+    // rejoinable instead of silently losing it.
+
+    @Test
+    fun `a row that failed media3 removal on one cycle is retried and cleaned up on the next`() = runTest {
+        val row = OrphanedDownloadRow(mediaUid = 42L, kind = "movie", providerId = 815)
+        var failFirstAttempt = true
+        val flakyRemover = DownloadContentRemover { contentId ->
+            if (failFirstAttempt) { failFirstAttempt = false; throw RuntimeException("media3 indisponible") }
+            removedContentIds.add(contentId)
+        }
+        reconciler = CatalogReconciler(downloadDao, trailerCacheDao, mediaRefDao, flakyRemover)
+        whenever(downloadDao.findOrphaned(accountKey)).thenReturn(listOf(row))
+
+        // Cycle 1: media3 removal fails, the row must not be deleted.
+        reconciler.reconcile(accountKey)
+        verify(downloadDao, never()).deleteByMediaUid(42L)
+
+        // Cycle 2: the DAO resurfaces the still-ORPHANED row (contract asserted by the fixed SQL,
+        // simulated here since the DAO itself is mocked) and the retry now succeeds end to end.
+        reconciler.reconcile(accountKey)
+        verify(downloadDao).deleteByMediaUid(42L)
+        assert(removedContentIds == listOf("movie_815")) { "attendu un seul retrait réussi movie_815, obtenu $removedContentIds" }
+    }
+
+    @Test
+    fun `a Room deletion failure after a successful media3 removal leaves the row ORPHANED and does not crash`() = runTest {
+        whenever(downloadDao.findOrphaned(accountKey)).thenReturn(
+            listOf(OrphanedDownloadRow(mediaUid = 42L, kind = "movie", providerId = 815))
+        )
+        whenever(downloadDao.deleteByMediaUid(42L)).doThrow(RuntimeException("db locked"))
+
+        reconciler.reconcile(accountKey)
+
+        verify(downloadDao).markOrphaned(42L)
+        // media3 removal itself succeeded (it ran before the Room failure) -- only the Room
+        // deletion that follows it failed, so the row is retried next cycle rather than lost.
+        assert(removedContentIds == listOf("movie_815")) { "attendu retrait media3 déjà effectué, obtenu $removedContentIds" }
+        verify(downloadDao).deleteByMediaUid(42L)
+    }
 }

@@ -1,16 +1,20 @@
 package com.cstv.app.data.cloudsync
 
 import com.cstv.app.data.local.dao.CategoryPreferenceDao
+import com.cstv.app.data.local.dao.CategoryPreferenceRow
 import com.cstv.app.data.local.dao.CategoryRefDao
 import com.cstv.app.data.local.dao.FavoriteWireRow
 import com.cstv.app.data.local.dao.FavoritesDao
 import com.cstv.app.data.local.dao.LiveTvDao
 import com.cstv.app.data.local.dao.MediaRatingDao
+import com.cstv.app.data.local.dao.MediaRatingRow
 import com.cstv.app.data.local.dao.MediaRefDao
 import com.cstv.app.data.local.dao.PlaybackWireRow
 import com.cstv.app.data.local.dao.RecentlyWatchedWireRow
 import com.cstv.app.data.local.dao.SeriesWatchStateDao
+import com.cstv.app.data.local.dao.SeriesWatchStateRow
 import com.cstv.app.data.local.dao.TrackPreferenceDao
+import com.cstv.app.data.local.dao.TrackPreferenceRow
 import com.cstv.app.data.local.dao.VodDao
 import com.cstv.app.data.local.db.AppDatabase
 import com.cstv.app.data.local.storage.CurrentAccountKeyProvider
@@ -111,5 +115,110 @@ class RoomSnapshotSerializerTest {
 
         assertEquals(1, snapshot.schemaVersion)
         org.mockito.kotlin.verifyNoInteractions(favorites, vod, live)
+    }
+
+    // T20-R2: `ratings`, `track-preferences`, `series-watch-state` and `category-preferences` are
+    // declared unchanged at v1 -- their JSON body must stay byte-for-byte the pre-T20 shape
+    // (`gson.toJsonTree(entity).withoutFields("profileId")`), not just encode the reference in the
+    // map key. These four exact-JSON assertions pin that contract down.
+
+    @Test
+    fun `ratings snapshot keeps the exact v1 object shape`() = runTest {
+        whenever(ratings.getAllForProfile(profileId, accountKey)).thenReturn(
+            listOf(MediaRatingRow(providerId = 815, kind = "movie", value = 4)),
+        )
+
+        val snapshot = serializer.snapshot(profileId, SyncNamespace.RATINGS)
+
+        assertEquals(1, snapshot.schemaVersion)
+        val item = snapshot.objects.getValue("movie:815")
+        assertEquals("""{"mediaType":"movie","mediaId":815,"value":4}""", Gson().toJson(item))
+    }
+
+    @Test
+    fun `track-preferences snapshot keeps the exact v1 object shape`() = runTest {
+        whenever(tracks.getAllForProfile(profileId, accountKey)).thenReturn(
+            listOf(TrackPreferenceRow(providerId = 42, kind = "series", audioLang = "fre", subtitleLang = "none")),
+        )
+
+        val snapshot = serializer.snapshot(profileId, SyncNamespace.TRACK_PREFERENCES)
+
+        assertEquals(1, snapshot.schemaVersion)
+        val item = snapshot.objects.getValue("series:42")
+        assertEquals("""{"mediaType":"series","mediaId":42,"audioLang":"fre","subtitleLang":"none"}""", Gson().toJson(item))
+    }
+
+    @Test
+    fun `series-watch-state snapshot keeps the exact v1 object shape`() = runTest {
+        whenever(series.getAllForProfile(profileId, accountKey)).thenReturn(
+            listOf(SeriesWatchStateRow(providerId = 99, lastKnownSeason = 2, lastKnownEpisode = 5, lastNotifiedSeason = 2, lastNotifiedEpisode = 4, updatedAt = 123L)),
+        )
+
+        val snapshot = serializer.snapshot(profileId, SyncNamespace.SERIES_WATCH_STATE)
+
+        assertEquals(1, snapshot.schemaVersion)
+        val item = snapshot.objects.getValue("99")
+        assertEquals(
+            """{"seriesId":99,"lastKnownSeason":2,"lastKnownEpisode":5,"lastNotifiedSeason":2,"lastNotifiedEpisode":4,"updatedAt":123}""",
+            Gson().toJson(item),
+        )
+    }
+
+    @Test
+    fun `category-preferences snapshot keeps the exact v1 object shape`() = runTest {
+        whenever(categories.getAllForProfile(profileId, accountKey)).thenReturn(
+            listOf(CategoryPreferenceRow(categoryId = "12", kind = "vod", hidden = true, sortOrder = 3)),
+        )
+
+        val snapshot = serializer.snapshot(profileId, SyncNamespace.CATEGORY_PREFERENCES)
+
+        assertEquals(1, snapshot.schemaVersion)
+        val item = snapshot.objects.getValue("vod:12")
+        assertEquals("""{"categoryId":"12","type":"vod","hidden":true,"sortOrder":3}""", Gson().toJson(item))
+    }
+
+    // T20-R5: a cloud reference of unknown or invalid type must never be applied (T20 error rule).
+    // These exercise `parseKindProviderId`/`parseKindCategoryId` directly rather than through
+    // `apply()` -- see the `internal` visibility note on those functions for why -- and cover the
+    // review's exact failure case (a `movie:` key that used to be silently resolved as `live` in
+    // recently-watched-live because the parsed kind was discarded) plus a cross-kind rejection on a
+    // second namespace and an unrecognized kind. Every `apply()` call site does `?: return@forEach`
+    // immediately on a `null` result, before any identity is resolved or any row is written, so a
+    // `null` here is exactly Room never being touched.
+
+    @Test
+    fun `recently-watched-live rejects a non-live kind instead of silently resolving it as live`() {
+        assertEquals("live" to 1042, serializer.parseKindProviderId("live:1042", RoomSnapshotSerializer.RECENTLY_WATCHED_LIVE_KINDS))
+        // This is the bug T20-R5 fixed: a `movie:` key must be rejected outright, never coerced
+        // into a `live` identity by a caller that discards the parsed kind.
+        assertEquals(null, serializer.parseKindProviderId("movie:42", RoomSnapshotSerializer.RECENTLY_WATCHED_LIVE_KINDS))
+    }
+
+    @Test
+    fun `favorites reject a kind outside the favorites domain, and an unrecognized kind`() {
+        assertEquals("movie" to 815, serializer.parseKindProviderId("movie:815", RoomSnapshotSerializer.FAVORITE_KINDS))
+        // "episode" is never a valid favorites kind (favorites are live/movie/series only).
+        assertEquals(null, serializer.parseKindProviderId("episode:99", RoomSnapshotSerializer.FAVORITE_KINDS))
+        // Entirely unrecognized/corrupted kind.
+        assertEquals(null, serializer.parseKindProviderId("bogus:1", RoomSnapshotSerializer.FAVORITE_KINDS))
+    }
+
+    @Test
+    fun `playback rejects a live kind, which is never a valid resume target`() {
+        assertEquals("episode" to 99213, serializer.parseKindProviderId("episode:99213", RoomSnapshotSerializer.PLAYBACK_KINDS))
+        assertEquals(null, serializer.parseKindProviderId("live:9", RoomSnapshotSerializer.PLAYBACK_KINDS))
+    }
+
+    @Test
+    fun `category-preferences reject a kind outside live vod series`() {
+        assertEquals("vod" to "12", serializer.parseKindCategoryId("vod:12", RoomSnapshotSerializer.CATEGORY_KINDS))
+        assertEquals(null, serializer.parseKindCategoryId("episode:12", RoomSnapshotSerializer.CATEGORY_KINDS))
+    }
+
+    @Test
+    fun `a key with no separator or an unparsable provider id is rejected regardless of kind`() {
+        assertEquals(null, serializer.parseKindProviderId("live", RoomSnapshotSerializer.FAVORITE_KINDS))
+        assertEquals(null, serializer.parseKindProviderId("live:notanumber", RoomSnapshotSerializer.FAVORITE_KINDS))
+        assertEquals(null, serializer.parseKindCategoryId("vod", RoomSnapshotSerializer.CATEGORY_KINDS))
     }
 }
