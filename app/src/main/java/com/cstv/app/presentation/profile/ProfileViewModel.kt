@@ -2,6 +2,8 @@ package com.cstv.app.presentation.profile
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.cstv.app.data.repository.CstvException
+import com.cstv.app.domain.model.CstvError
 import com.cstv.app.domain.model.Profile
 import com.cstv.app.domain.repository.ProfileRepository
 import com.cstv.app.domain.repository.CstvAuthRepository
@@ -138,8 +140,16 @@ class ProfileViewModel @Inject constructor(
                 action()
             } catch (error: Exception) {
                 if (error is kotlinx.coroutines.CancellationException) throw error
-                _state.update { it.copy(profileActionErrorRes = R.string.profile_cloud_action_failed) }
+                _state.update { it.copy(profileActionErrorRes = error.toProfileActionMessageRes()) }
             }
         }
+    }
+
+    /** Backend quota rejections (T14) get their own message; anything else stays generic. */
+    @StringRes
+    private fun Throwable.toProfileActionMessageRes(): Int = when ((this as? CstvException)?.cstvError) {
+        CstvError.ProfileLimit -> R.string.cstv_profile_limit
+        CstvError.StorageQuota -> R.string.cstv_storage_quota
+        else -> R.string.profile_cloud_action_failed
     }
 }

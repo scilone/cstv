@@ -22,7 +22,7 @@ final class Validator
 
     public static function uuid(mixed $value, string $field = 'id'): string
     {
-        if (!is_string($value) || !preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i', $value)) {
+        if (!is_string($value) || !preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iD', $value)) {
             throw new ApiException(422, 'INVALID_UUID', sprintf('%s must be a valid UUID.', $field));
         }
 
@@ -54,7 +54,7 @@ final class Validator
 
     public static function namespace(mixed $value): string
     {
-        if (!is_string($value) || !preg_match('/^[a-z0-9][a-z0-9._-]{0,63}$/', $value)) {
+        if (!is_string($value) || !preg_match('/^[a-z0-9][a-z0-9._-]{0,63}$/D', $value)) {
             throw new ApiException(422, 'INVALID_NAMESPACE', 'namespace has an invalid format.');
         }
 

@@ -40,6 +40,12 @@ sealed interface CstvError {
     data object Disabled : CstvError
     data object Expired : CstvError
     data object LastProfile : CstvError
+    data object ProfileLimit : CstvError
+    data object StorageQuota : CstvError
+    /** T19-R3: kept distinct from [StorageQuota] (`NAMESPACE_LIMIT_REACHED` vs
+     *  `STORAGE_QUOTA_EXCEEDED`) so the terminal sync status can name the actual cause instead of
+     *  collapsing both backend quota codes into one generic label. */
+    data object NamespaceLimit : CstvError
     data object ProfileNotFound : CstvError
     data object EtagMismatch : CstvError
     data object PayloadTooLarge : CstvError

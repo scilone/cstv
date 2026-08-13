@@ -29,6 +29,7 @@ final readonly class AuthAction
     public function verify(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
     {
         $body = Json::body($request);
-        return Json::response($response, $this->auth->verify($body['email'] ?? null, $body['code'] ?? null));
+        $ip = (string) ($request->getServerParams()['REMOTE_ADDR'] ?? '0.0.0.0');
+        return Json::response($response, $this->auth->verify($body['email'] ?? null, $body['code'] ?? null, $ip));
     }
 }

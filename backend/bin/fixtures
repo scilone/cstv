@@ -20,7 +20,7 @@ $pdo = Connection::create($config);
 $pdo->beginTransaction();
 
 try {
-    $pdo->exec('TRUNCATE TABLE profile_objects, profiles, otp_codes, accounts RESTART IDENTITY CASCADE');
+    $pdo->exec('TRUNCATE TABLE auth_verify_attempts, profile_objects, profiles, otp_codes, accounts RESTART IDENTITY CASCADE');
 
     $insertAccount = $pdo->prepare(
         'INSERT INTO accounts (id, email, enabled, active_until, created_at, updated_at) '

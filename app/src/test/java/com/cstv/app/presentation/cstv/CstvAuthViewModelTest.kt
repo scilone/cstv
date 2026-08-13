@@ -118,6 +118,18 @@ class CstvAuthViewModelTest {
         assertEquals(R.string.cstv_invalid_otp, viewModel.uiState.value.messageRes)
     }
 
+    @Test fun `verifyOtp too many attempts surfaces the T16 rate-limited message`() = runTest {
+        // T16 adds a rate limit on POST /v1/auth/otp/verify itself (OTP_VERIFY_RATE_LIMITED),
+        // distinct from the request-side limit already covered above for requestOtp.
+        val repository = FakeCstvAuthRepository(verifyOtpResult = Result.failure(CstvException(CstvError.RateLimited)))
+        val viewModel = buildViewModel(repository)
+        viewModel.updateEmail("mail@example.test")
+
+        viewModel.verifyOtp("123456")
+
+        assertEquals(R.string.cstv_rate_limited, viewModel.uiState.value.messageRes)
+    }
+
     @Test fun `verifyOtp account disabled surfaces a blocking message`() = runTest {
         val repository = FakeCstvAuthRepository(verifyOtpResult = Result.failure(CstvException(CstvError.Disabled)))
         val viewModel = buildViewModel(repository)

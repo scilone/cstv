@@ -257,6 +257,45 @@ class CloudSyncManagerTest {
         verify(objects, never()).putObject(any(), any(), any(), any(), any())
         assertEquals(CloudSyncStatus.Failed("PAYLOAD_TOO_LARGE"), manager.status.value)
     }
+
+    // T19-R3: STORAGE_QUOTA_EXCEEDED and NAMESPACE_LIMIT_REACHED must (a) stay distinct backend
+    // codes all the way to CloudSyncStatus, not collapse into one generic label, and (b) be
+    // terminal -- pending stays false so the worker stops re-pushing an object the server keeps
+    // rejecting for the same reason.
+
+    @Test
+    fun `storage quota exceeded on push is reported by its own code and never left pending`() = runTest {
+        commonStubs()
+        whenever(states.get(profileId, namespace.wireName)).thenReturn(null)
+        stubListing(null)
+        serializer.snapshots[namespace] = snapshotOf(entry("live:1", "chan"))
+        whenever(objects.putObject(eq(remoteId), eq(namespace.wireName), any(), org.mockito.kotlin.anyOrNull(), any()))
+            .thenReturn(Response.error(413, "{\"code\":\"STORAGE_QUOTA_EXCEEDED\"}".toResponseBody("application/json".toMediaType())))
+
+        manager.synchronizeProfile(profileId)
+
+        assertEquals(CloudSyncStatus.Failed("STORAGE_QUOTA_EXCEEDED"), manager.status.value)
+        val captor = org.mockito.kotlin.argumentCaptor<ProfileSyncStateEntity>()
+        verify(states, org.mockito.kotlin.atLeastOnce()).upsert(captor.capture())
+        assertEquals(false, captor.lastValue.pending)
+    }
+
+    @Test
+    fun `namespace cardinality limit on push is reported distinctly from the storage quota`() = runTest {
+        commonStubs()
+        whenever(states.get(profileId, namespace.wireName)).thenReturn(null)
+        stubListing(null)
+        serializer.snapshots[namespace] = snapshotOf(entry("live:1", "chan"))
+        whenever(objects.putObject(eq(remoteId), eq(namespace.wireName), any(), org.mockito.kotlin.anyOrNull(), any()))
+            .thenReturn(Response.error(409, "{\"code\":\"NAMESPACE_LIMIT_REACHED\"}".toResponseBody("application/json".toMediaType())))
+
+        manager.synchronizeProfile(profileId)
+
+        assertEquals(CloudSyncStatus.Failed("NAMESPACE_LIMIT_REACHED"), manager.status.value)
+        val captor = org.mockito.kotlin.argumentCaptor<ProfileSyncStateEntity>()
+        verify(states, org.mockito.kotlin.atLeastOnce()).upsert(captor.capture())
+        assertEquals(false, captor.lastValue.pending)
+    }
 }
 
 private class FakeSnapshotSerializer : SnapshotSerializer {

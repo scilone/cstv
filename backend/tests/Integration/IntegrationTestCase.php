@@ -37,6 +37,33 @@ abstract class IntegrationTestCase extends TestCase
         $this->jwt = new JwtService($this->config->jwtSecret);
     }
 
+    /**
+     * Rebuilds the app with extra environment overrides for the duration of one closure, then
+     * restores the previous environment and app. Lets a test exercise a small quota without
+     * changing the values every other test runs with.
+     *
+     * @param array<string, string> $env
+     */
+    protected function withOverriddenConfig(array $env, callable $body): void
+    {
+        $previous = [];
+        foreach ($env as $name => $value) {
+            $previous[$name] = getenv($name);
+            putenv($name . '=' . $value);
+        }
+
+        $app = $this->app;
+        try {
+            $this->app = Bootstrap::createApp(Config::fromEnvironment(), $this->pdo);
+            $body();
+        } finally {
+            $this->app = $app;
+            foreach ($previous as $name => $value) {
+                $value === false ? putenv($name) : putenv($name . '=' . $value);
+            }
+        }
+    }
+
     /** @param array<string, string> $headers */
     protected function request(string $method, string $uri, string $body = '', array $headers = []): ResponseInterface
     {

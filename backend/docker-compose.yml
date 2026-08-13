@@ -37,7 +37,12 @@ services:
       OTP_REQUEST_LIMIT_EMAIL: ${OTP_REQUEST_LIMIT_EMAIL:-5}
       OTP_REQUEST_LIMIT_IP: ${OTP_REQUEST_LIMIT_IP:-20}
       OTP_RATE_WINDOW_SECONDS: ${OTP_RATE_WINDOW_SECONDS:-3600}
+      OTP_VERIFY_LIMIT_IP: ${OTP_VERIFY_LIMIT_IP:-30}
+      OTP_VERIFY_WINDOW_SECONDS: ${OTP_VERIFY_WINDOW_SECONDS:-60}
       MAX_OBJECT_SIZE_BYTES: ${MAX_OBJECT_SIZE_BYTES:-1048576}
+      MAX_PROFILES_PER_ACCOUNT: ${MAX_PROFILES_PER_ACCOUNT:-10}
+      MAX_NAMESPACES_PER_PROFILE: ${MAX_NAMESPACES_PER_PROFILE:-32}
+      MAX_STORAGE_BYTES_PER_ACCOUNT: ${MAX_STORAGE_BYTES_PER_ACCOUNT:-20971520}
       # Enables the real parallel-request tests; they are skipped when this is unset.
       E2E_BASE_URL: ${E2E_BASE_URL-http://nginx}
     depends_on:
@@ -95,7 +100,14 @@ services:
       OTP_REQUEST_LIMIT_EMAIL: 5
       OTP_REQUEST_LIMIT_IP: 20
       OTP_RATE_WINDOW_SECONDS: 3600
+      # Small ceilings so the E2E concurrency tests can race the last slot without heavy seeding.
+      # Kept above what any single sequential test consumes (<=6 verifies, <=3 namespaces).
+      OTP_VERIFY_LIMIT_IP: 15
+      OTP_VERIFY_WINDOW_SECONDS: 60
       MAX_OBJECT_SIZE_BYTES: 1024
+      MAX_PROFILES_PER_ACCOUNT: 10
+      MAX_NAMESPACES_PER_PROFILE: 5
+      MAX_STORAGE_BYTES_PER_ACCOUNT: 1500
       API_TEST_BASE_URL: http://nginx-test
       E2E_BASE_URL: http://nginx-test
     depends_on:

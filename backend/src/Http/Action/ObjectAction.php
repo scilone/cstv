@@ -38,6 +38,7 @@ final readonly class ObjectAction
 
         return $response
             ->withHeader('Content-Type', self::CONTENT_TYPE)
+            ->withHeader('Content-Disposition', 'attachment')
             ->withHeader('ETag', '"' . (string) $object['etag'] . '"');
     }
 
@@ -50,7 +51,7 @@ final readonly class ObjectAction
         }
 
         $rawSchemaVersion = $request->getHeaderLine('X-Schema-Version');
-        if (!preg_match('/^[1-9]\d{0,9}$/', $rawSchemaVersion) || (int) $rawSchemaVersion > 2_147_483_647) {
+        if (!preg_match('/^[1-9]\d{0,9}$/D', $rawSchemaVersion) || (int) $rawSchemaVersion > 2_147_483_647) {
             throw new ApiException(422, 'INVALID_SCHEMA_VERSION', 'X-Schema-Version must be a positive integer.');
         }
 

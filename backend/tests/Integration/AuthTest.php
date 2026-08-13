@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace Cstv\Backend\Tests\Integration;
 
+use Cstv\Backend\Auth\OtpRepository;
 use Cstv\Backend\Shared\Config;
+use Cstv\Backend\Shared\Uuid;
 use InvalidArgumentException;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 final class AuthTest extends IntegrationTestCase
 {
@@ -121,6 +124,55 @@ final class AuthTest extends IntegrationTestCase
         self::assertSame('OTP_RATE_LIMITED', $this->json($blocked)['error']['code']);
     }
 
+    public function testVerificationIsRateLimitedPerIpIndependentlyOfAttemptsLeft(): void
+    {
+        $this->withOverriddenConfig(['OTP_VERIFY_LIMIT_IP' => '3', 'OTP_VERIFY_WINDOW_SECONDS' => '60'], function (): void {
+            for ($attempt = 0; $attempt < 3; $attempt++) {
+                self::assertSame(400, $this->verifyOtp('verify-flood@example.com', '000000')->getStatusCode());
+            }
+
+            $blocked = $this->verifyOtp('verify-flood@example.com', '000000');
+            self::assertSame(429, $blocked->getStatusCode());
+            self::assertSame('OTP_VERIFY_RATE_LIMITED', $this->json($blocked)['error']['code']);
+        });
+    }
+
+    public function testPurgeOfExpiredVerifyAttemptsIsBoundedAcrossMultipleIps(): void
+    {
+        // T16-R5: an unbounded DELETE would let one sampled request pay for wiping an entire
+        // backlog after a mass IP rotation. Twelve distinct, already-expired IPs prove the purge
+        // stops at its batch limit and that repeated bounded calls finish the job without any of
+        // those IPs calling back.
+        $repository = new OtpRepository($this->pdo);
+        $insert = $this->pdo->prepare(
+            "INSERT INTO auth_verify_attempts (id, request_ip, created_at) "
+            . "VALUES (:id, :ip, NOW() - INTERVAL '1 hour')",
+        );
+        for ($i = 1; $i <= 12; $i++) {
+            $insert->execute(['id' => Uuid::v4(), 'ip' => sprintf('203.0.113.%d', $i)]);
+        }
+
+        $firstBatch = $repository->purgeExpiredVerifyAttempts(60, 5);
+        self::assertSame(5, $firstBatch);
+        self::assertSame(7, (int) $this->pdo->query('SELECT COUNT(*) FROM auth_verify_attempts')->fetchColumn());
+
+        $secondBatch = $repository->purgeExpiredVerifyAttempts(60, 5);
+        $thirdBatch = $repository->purgeExpiredVerifyAttempts(60, 5);
+        self::assertSame(5, $secondBatch);
+        self::assertSame(2, $thirdBatch);
+        self::assertSame(0, (int) $this->pdo->query('SELECT COUNT(*) FROM auth_verify_attempts')->fetchColumn());
+    }
+
+    public function testMalformedCodeIsRejectedBeforeConsumingAVerifyAttempt(): void
+    {
+        $this->withOverriddenConfig(['OTP_VERIFY_LIMIT_IP' => '1', 'OTP_VERIFY_WINDOW_SECONDS' => '60'], function (): void {
+            // A malformed code never reaches the throttle, so it does not burn the single slot.
+            self::assertSame(422, $this->verifyOtp('format-throttle@example.com', '12345')->getStatusCode());
+            self::assertSame(400, $this->verifyOtp('format-throttle@example.com', '000000')->getStatusCode());
+            self::assertSame(429, $this->verifyOtp('format-throttle@example.com', '000000')->getStatusCode());
+        });
+    }
+
     public function testPreviousCodeIsInvalidatedByANewRequest(): void
     {
         $this->requestOtp('rotate@example.com');
@@ -144,6 +196,24 @@ final class AuthTest extends IntegrationTestCase
             $this->config->otpMaxAttempts,
             (int) $this->pdo->query("SELECT attempts_left FROM otp_codes WHERE email = 'format@example.com'")->fetchColumn(),
         );
+    }
+
+    /** @return list<array{string}> */
+    public static function trailingNewlineCodeProvider(): array
+    {
+        return [["123456\n"], ["123456\r\n"]];
+    }
+
+    #[DataProvider('trailingNewlineCodeProvider')]
+    public function testOtpCodeWithTrailingNewlineIsRejectedAsMalformed(string $code): void
+    {
+        $this->requestOtp('newline-code@example.com');
+        // Before the 'D' modifier "123456\n" reached the hash comparison (400 INVALID_OTP); it must
+        // now be rejected on format (422) exactly like any other non six-digit input.
+        $response = $this->verifyOtp('newline-code@example.com', $code);
+
+        self::assertSame(422, $response->getStatusCode());
+        self::assertSame('INVALID_OTP_FORMAT', $this->json($response)['error']['code']);
     }
 
     public function testOtpTestCodeIsImpossibleInProduction(): void

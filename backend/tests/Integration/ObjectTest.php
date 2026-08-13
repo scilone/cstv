@@ -153,4 +153,97 @@ final class ObjectTest extends IntegrationTestCase
             self::assertSame('INVALID_NAMESPACE', $this->json($response)['error']['code']);
         }
     }
+
+    /** @return list<array{string}> */
+    public static function trailingNewlineProvider(): array
+    {
+        return [['%0A'], ['%0D%0A']];
+    }
+
+    #[DataProvider('trailingNewlineProvider')]
+    public function testTrailingNewlineInNamespacePathIsRejected(string $encodedNewline): void
+    {
+        $account = $this->createAccount();
+        $profileId = $account['profileIds'][0];
+        // The router percent-decodes the segment, so "favorites%0A" reaches the validator as
+        // "favorites\n". Before the 'D' modifier this created a distinct snapshot (204).
+        $response = $this->request(
+            'PUT',
+            "/v1/profiles/{$profileId}/objects/favorites{$encodedNewline}",
+            'x',
+            $this->auth($account['token']) + [
+                'Content-Type' => 'application/vnd.cstv.blob+gzip',
+                'X-Schema-Version' => '1',
+            ],
+        );
+        self::assertSame(422, $response->getStatusCode());
+        self::assertSame('INVALID_NAMESPACE', $this->json($response)['error']['code']);
+    }
+
+    #[DataProvider('trailingNewlineProvider')]
+    public function testTrailingNewlineInProfileIdIsRejectedAsUuidNotServerError(string $encodedNewline): void
+    {
+        $account = $this->createAccount();
+        $profileId = $account['profileIds'][0];
+        // Before the 'D' modifier a trailing "\n" passed uuid() then failed the PostgreSQL cast,
+        // yielding 500 INTERNAL_ERROR. It must now be a clean 422 INVALID_UUID.
+        $response = $this->request(
+            'GET',
+            "/v1/profiles/{$profileId}{$encodedNewline}/objects",
+            '',
+            $this->auth($account['token']),
+        );
+        self::assertSame(422, $response->getStatusCode());
+        self::assertSame('INVALID_UUID', $this->json($response)['error']['code']);
+    }
+
+    public function testNamespaceCountIsCappedPerProfileButUpdatesStillPass(): void
+    {
+        $this->withOverriddenConfig(
+            ['MAX_NAMESPACES_PER_PROFILE' => '3', 'MAX_STORAGE_BYTES_PER_ACCOUNT' => '1048576'],
+            function (): void {
+                $account = $this->createAccount();
+                $profileId = $account['profileIds'][0];
+                foreach (['favorites', 'playback', 'ratings'] as $namespace) {
+                    self::assertSame(204, $this->putObject(
+                        $account['token'], $profileId, $namespace, (string) gzencode('x'),
+                    )->getStatusCode());
+                }
+
+                $blocked = $this->putObject(
+                    $account['token'], $profileId, 'category-preferences', (string) gzencode('x'),
+                );
+                self::assertSame(409, $blocked->getStatusCode());
+                self::assertSame('NAMESPACE_LIMIT_REACHED', $this->json($blocked)['error']['code']);
+
+                // Overwriting an existing namespace adds no new one, so it is allowed at the cap.
+                self::assertSame(204, $this->putObject(
+                    $account['token'], $profileId, 'favorites', (string) gzencode('y'), ['If-Match' => '*'],
+                )->getStatusCode());
+            },
+        );
+    }
+
+    public function testStorageQuotaIsEnforcedPerAccountAndAllowsSmallerReplacement(): void
+    {
+        $this->withOverriddenConfig(['MAX_STORAGE_BYTES_PER_ACCOUNT' => '1500'], function (): void {
+            $account = $this->createAccount();
+            $profileId = $account['profileIds'][0];
+            $blob = str_repeat('x', 900);
+
+            self::assertSame(204, $this->putObject($account['token'], $profileId, 'favorites', $blob)->getStatusCode());
+
+            $blocked = $this->putObject($account['token'], $profileId, 'playback', $blob);
+            self::assertSame(413, $blocked->getStatusCode());
+            self::assertSame('STORAGE_QUOTA_EXCEEDED', $this->json($blocked)['error']['code']);
+            self::assertSame(0, (int) $this->pdo->query(
+                "SELECT COUNT(*) FROM profile_objects WHERE namespace = 'playback'",
+            )->fetchColumn());
+
+            // Replacing the existing object with a smaller one frees room and must not be refused.
+            self::assertSame(204, $this->putObject(
+                $account['token'], $profileId, 'favorites', str_repeat('y', 100), ['If-Match' => '*'],
+            )->getStatusCode());
+        });
+    }
 }

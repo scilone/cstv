@@ -121,6 +121,19 @@ Pour `playback`, l’application doit mettre à jour Room immédiatement, mais e
 
 La suppression d’un profil est interdite s’il est le dernier. Sinon PostgreSQL supprime ses snapshots par cascade ; les autres installations constatent la liste de profils et les snapshots actuels lors de leur prochaine synchronisation complète.
 
+## Déploiement (alwaysdata)
+
+Le frontal alwaysdata (Apache derrière le proxy `alproxy`) redirige tout trafic `http://` en 301 vers `https://` : la TLS existe et est imposée en amont de l'application, qui ne sert jamais elle-même de contenu en clair.
+
+`SecurityHeadersMiddleware` (`src/Http/SecurityHeadersMiddleware.php`, câblé en dernier dans `Bootstrap::createApp()` pour englober aussi les réponses d'erreur) ajoute sur **toute** réponse :
+
+- `Strict-Transport-Security: max-age=31536000; includeSubDomains` — envoyé inconditionnellement ; un navigateur ne l'honore que si la réponse lui parvient réellement en HTTPS (RFC 6797), donc pas besoin de détecter un `X-Forwarded-Proto` fiable derrière le proxy alwaysdata ;
+- `X-Content-Type-Options: nosniff` ;
+- `Referrer-Policy: no-referrer` ;
+- `Cache-Control: no-store` sur toute réponse sous `/v1` (comptes, profils, jetons, snapshots ne doivent jamais être conservés par un cache intermédiaire).
+
+La réponse blob (`GET /v1/profiles/{profileId}/objects/{namespace}`) porte en plus `Content-Disposition: attachment`.
+
 ## ETags et erreurs
 
 La valeur stockée est le SHA-256 hexadécimal du payload compressé. Les réponses HTTP utilisent sa forme d’entity-tag forte entre guillemets ; les listings JSON utilisent la valeur hexadécimale nue. `If-Match` accepte un ETag courant entre guillemets, une liste séparée par des virgules ou `*` pour une ressource existante. Il est obligatoire pour modifier ou supprimer un snapshot existant.

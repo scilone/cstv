@@ -23,11 +23,15 @@
     <string name="cstv_network_unavailable">Une connexion internet est nécessaire.</string>
     <string name="cstv_server_unavailable">Le service est temporairement indisponible.</string>
     <string name="cstv_unknown_error">Une erreur est survenue. Réessayez.</string>
+    <string name="cstv_profile_limit">Nombre maximal de profils atteint pour ce compte.</string>
+    <string name="cstv_storage_quota">Limite de stockage du compte atteinte. Libérez de l\'espace puis réessayez.</string>
     <string name="cstv_logout">Se déconnecter du compte CSTV (%1$s)</string>
     <string name="cstv_sync_idle">Données à jour sur tous vos appareils.</string>
     <string name="cstv_sync_pending">Synchronisation des données en attente.</string>
     <string name="cstv_sync_incompatible">Certaines données ne peuvent pas être synchronisées pour le moment.</string>
     <string name="cstv_sync_too_large">Certaines données sont trop volumineuses pour être synchronisées.</string>
+    <string name="cstv_sync_storage_quota">Limite de stockage cloud atteinte pour ce compte. Libérez de l\'espace (favoris, historique) pour reprendre la synchronisation.</string>
+    <string name="cstv_sync_namespace_limit">Trop de types de données à synchroniser pour ce profil. Contactez le support si le problème persiste.</string>
     <string name="cstv_sync_failed">La synchronisation des données a rencontré un problème temporaire.</string>
     <string name="profile_cloud_offline">Les modifications de profils nécessitent une connexion internet.</string>
     <string name="profile_cloud_action_failed">La modification du profil n’a pas pu être enregistrée.</string>

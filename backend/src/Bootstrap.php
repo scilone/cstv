@@ -18,6 +18,7 @@ use Cstv\Backend\Http\Action\ObjectAction;
 use Cstv\Backend\Http\Action\ProfileAction;
 use Cstv\Backend\Http\ApiErrorHandler;
 use Cstv\Backend\Http\AuthMiddleware;
+use Cstv\Backend\Http\SecurityHeadersMiddleware;
 use Cstv\Backend\Profile\ProfileRepository;
 use Cstv\Backend\Profile\ProfileService;
 use Cstv\Backend\Shared\Config;
@@ -37,7 +38,7 @@ final class Bootstrap
 
         $accounts = new AccountRepository($pdo);
         $profiles = new ProfileRepository($pdo);
-        $profileService = new ProfileService($pdo, $profiles);
+        $profileService = new ProfileService($pdo, $profiles, $config->maxProfilesPerAccount);
         $jwt = new JwtService($config->jwtSecret);
         $otpSender = $config->appEnv === 'production'
             ? new MailOtpSender($config->otpFromEmail, $config->otpFromName)
@@ -50,7 +51,13 @@ final class Bootstrap
             $otpSender,
             $jwt,
         );
-        $objectService = new ObjectService($pdo, $profiles, new ObjectRepository($pdo));
+        $objectService = new ObjectService(
+            $pdo,
+            $profiles,
+            new ObjectRepository($pdo),
+            $config->maxNamespacesPerProfile,
+            $config->maxStorageBytesPerAccount,
+        );
 
         $app = AppFactory::create();
         $app->get('/health', new HealthAction($pdo));
@@ -80,6 +87,10 @@ final class Bootstrap
             true,
         );
         $errorMiddleware->setDefaultErrorHandler(new ApiErrorHandler($app->getResponseFactory()));
+
+        // Added last so it is the outermost middleware: it wraps the error middleware above and
+        // therefore stamps headers on error responses (401, 404, 429, 500, ...) as well as 2xx.
+        $app->add(new SecurityHeadersMiddleware());
 
         return $app;
     }

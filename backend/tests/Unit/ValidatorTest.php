@@ -37,7 +37,17 @@ final class ValidatorTest extends TestCase
     /** @return list<array{string}> */
     public static function unsafePathProvider(): array
     {
-        return [[''], ['../'], ['/root'], ['with/slash'], [str_repeat('x', 129)]];
+        return [
+            [''],
+            ['../'],
+            ['/root'],
+            ['with/slash'],
+            [str_repeat('x', 129)],
+            // A trailing newline must not slip through: PCRE '$' matches before a final \n, so the
+            // pattern needs the 'D' modifier. Without it "favorites\n" would be a second namespace.
+            ["favorites\n"],
+            ["favorites\r\n"],
+        ];
     }
 
     #[DataProvider('unsafePathProvider')]
@@ -45,5 +55,33 @@ final class ValidatorTest extends TestCase
     {
         $this->expectException(ApiException::class);
         Validator::namespace($key);
+    }
+
+    public function testUuidIsNormalizedToLowercase(): void
+    {
+        self::assertSame(
+            '11111111-1111-4111-8111-111111111101',
+            Validator::uuid('11111111-1111-4111-8111-111111111101'),
+        );
+    }
+
+    /** @return list<array{mixed}> */
+    public static function invalidUuidProvider(): array
+    {
+        return [
+            [null],
+            ['not-a-uuid'],
+            ['11111111-1111-4111-8111-11111111110'],
+            // Trailing newline: rejected only once the pattern is anchored with 'D'.
+            ["11111111-1111-4111-8111-111111111101\n"],
+            ["11111111-1111-4111-8111-111111111101\r\n"],
+        ];
+    }
+
+    #[DataProvider('invalidUuidProvider')]
+    public function testInvalidUuidsAreRejected(mixed $value): void
+    {
+        $this->expectException(ApiException::class);
+        Validator::uuid($value);
     }
 }

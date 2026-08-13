@@ -4,7 +4,10 @@ info:
   version: 1.0.0
   description: Email OTP authentication and opaque per-profile namespace snapshots for CSTV.
 servers:
+  - url: https://cstv.alwaysdata.net
+    description: Production (alwaysdata, TLS uniquement — HTTP redirige en 301)
   - url: http://localhost:18080
+    description: Développement local (Docker Compose)
 tags:
   - name: Health
   - name: Auth
@@ -80,6 +83,16 @@ paths:
           $ref: '#/components/responses/Error'
         '422':
           $ref: '#/components/responses/Error'
+        '429':
+          description: Too many verification attempts from this client IP within the sliding window.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error:
+                  code: OTP_VERIFY_RATE_LIMITED
+                  message: Too many verification attempts. Try again later.
   /v1/me:
     get:
       tags: [Account]
@@ -143,6 +156,8 @@ paths:
         '401':
           $ref: '#/components/responses/Error'
         '403':
+          $ref: '#/components/responses/Error'
+        '409':
           $ref: '#/components/responses/Error'
         '422':
           $ref: '#/components/responses/Error'
@@ -290,6 +305,8 @@ paths:
         '403':
           $ref: '#/components/responses/Error'
         '404':
+          $ref: '#/components/responses/Error'
+        '409':
           $ref: '#/components/responses/Error'
         '412':
           $ref: '#/components/responses/Error'

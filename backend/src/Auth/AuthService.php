@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Cstv\Backend\Auth;
 
 use Cstv\Backend\Account\AccountRepository;
+use Cstv\Backend\Database\AdvisoryLock;
 use Cstv\Backend\Shared\ApiException;
+use Cstv\Backend\Shared\ClientIp;
 use Cstv\Backend\Shared\Config;
 use Cstv\Backend\Shared\Validator;
 use DateTimeImmutable;
@@ -14,6 +16,13 @@ use Throwable;
 
 final readonly class AuthService
 {
+    /** Roughly 1 verify in this many triggers a bounded global purge of expired throttle rows. */
+    private const VERIFY_PURGE_SAMPLING = 50;
+
+    /** Hard cap on rows removed by a single sampled purge, so one unlucky request never pays for
+     * deleting an entire backlog after a mass IP rotation. */
+    private const VERIFY_PURGE_BATCH_LIMIT = 500;
+
     public function __construct(
         private PDO $pdo,
         private Config $config,
@@ -67,12 +76,14 @@ final readonly class AuthService
     }
 
     /** @return array{accessToken: string, tokenType: string, expiresIn: int} */
-    public function verify(mixed $rawEmail, mixed $rawCode): array
+    public function verify(mixed $rawEmail, mixed $rawCode, string $ip = '0.0.0.0'): array
     {
         $email = Validator::email($rawEmail);
-        if (!is_string($rawCode) || !preg_match('/^\d{6}$/', $rawCode)) {
+        if (!is_string($rawCode) || !preg_match('/^\d{6}$/D', $rawCode)) {
             throw new ApiException(422, 'INVALID_OTP_FORMAT', 'OTP code must contain exactly six digits.');
         }
+
+        $this->throttleVerify($ip);
 
         $this->pdo->beginTransaction();
         try {
@@ -126,5 +137,44 @@ final readonly class AuthService
             'tokenType' => 'Bearer',
             'expiresIn' => $token['expiresIn'],
         ];
+    }
+
+    /**
+     * Caps verification attempts per client IP before any OTP transaction is opened, so a flood
+     * cannot mobilise the heavy path for every request. A transaction-scoped advisory lock on the
+     * IP key makes the count-then-insert atomic: a parallel burst cannot all read a below-limit
+     * count and all be admitted. Only accepted attempts are recorded, bounding the table at roughly
+     * the limit per IP per window; a sampled purge drops rows left by IPs that never return, one
+     * bounded batch (VERIFY_PURGE_BATCH_LIMIT rows) at a time — never the whole expired backlog in
+     * one request.
+     */
+    private function throttleVerify(string $ip): void
+    {
+        $ipKey = ClientIp::rateLimitKey(
+            filter_var($ip, FILTER_VALIDATE_IP) === false ? '0.0.0.0' : $ip,
+        );
+        $window = $this->config->otpVerifyWindowSeconds;
+
+        $this->pdo->beginTransaction();
+        try {
+            AdvisoryLock::verifyIp($this->pdo, $ipKey);
+            if (random_int(1, self::VERIFY_PURGE_SAMPLING) === 1) {
+                $this->otps->purgeExpiredVerifyAttempts($window, self::VERIFY_PURGE_BATCH_LIMIT);
+            }
+            $over = $this->otps->countRecentVerifyForIp($ipKey, $window) >= $this->config->otpVerifyLimitIp;
+            if (!$over) {
+                $this->otps->recordVerifyAttempt($ipKey);
+            }
+            $this->pdo->commit();
+        } catch (Throwable $exception) {
+            if ($this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+            throw $exception;
+        }
+
+        if ($over) {
+            throw new ApiException(429, 'OTP_VERIFY_RATE_LIMITED', 'Too many verification attempts. Try again later.');
+        }
     }
 }

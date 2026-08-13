@@ -28,6 +28,33 @@ final class ProfileTest extends IntegrationTestCase
         self::assertSame(4, $this->json($response)['avatarId']);
     }
 
+    public function testProfileCreationIsCappedPerAccount(): void
+    {
+        $this->withOverriddenConfig(['MAX_PROFILES_PER_ACCOUNT' => '3'], function (): void {
+            $account = $this->createAccount(); // starts with one profile
+            for ($index = 0; $index < 2; $index++) {
+                self::assertSame(201, $this->jsonRequest(
+                    'POST',
+                    '/v1/profiles',
+                    ['name' => 'Extra ' . $index, 'avatarId' => 0],
+                    $this->auth($account['token']),
+                )->getStatusCode());
+            }
+
+            $blocked = $this->jsonRequest(
+                'POST',
+                '/v1/profiles',
+                ['name' => 'Over the limit', 'avatarId' => 0],
+                $this->auth($account['token']),
+            );
+            self::assertSame(409, $blocked->getStatusCode());
+            self::assertSame('PROFILE_LIMIT_REACHED', $this->json($blocked)['error']['code']);
+            self::assertSame(3, (int) $this->pdo->query(
+                "SELECT COUNT(*) FROM profiles WHERE account_id = '{$account['id']}'",
+            )->fetchColumn());
+        });
+    }
+
     public function testLastProfileCannotBeDeleted(): void
     {
         $account = $this->createAccount();

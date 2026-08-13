@@ -5,7 +5,6 @@ import com.cstv.app.data.local.entity.*
 import com.cstv.app.data.local.db.AppDatabase
 import com.cstv.app.domain.sync.SyncNamespace
 import com.google.gson.Gson
-import com.google.gson.JsonElement
 import javax.inject.Inject
 import javax.inject.Singleton
 import androidx.room.withTransaction
@@ -27,16 +26,34 @@ class RoomSnapshotSerializer @Inject constructor(
     private val database: AppDatabase
 ) : SnapshotSerializer {
     override suspend fun snapshot(profileId: Int, namespace: SyncNamespace): NamespaceSnapshot {
+        // T19-R2: prune Room itself before reading, not just the in-memory list below -- otherwise
+        // rows past the cap survive locally and an older one can re-enter the top N (and get
+        // re-pushed) once a more recent one is deleted. The in-memory `capMostRecent` below stays
+        // as a defensive belt-and-suspenders pass; it is a no-op once the DAO prune already ran.
         val values: List<Pair<String, Any>> = when (namespace) {
-            SyncNamespace.FAVORITES -> favorites.getAllForProfile(profileId).map { "${it.type}:${it.id}" to it }
-            SyncNamespace.PLAYBACK -> vod.getAllPlaybackPositions(profileId).map { it.streamId.toString() to it }
+            SyncNamespace.FAVORITES -> {
+                favorites.pruneToMostRecent(profileId, SnapshotLimits.FAVORITES)
+                favorites.getAllForProfile(profileId)
+                    .capMostRecent(SnapshotLimits.FAVORITES) { it.addedAt }
+                    .map { "${it.type}:${it.id}" to it }
+            }
+            SyncNamespace.PLAYBACK -> {
+                vod.prunePlaybackToMostRecent(profileId, SnapshotLimits.PLAYBACK)
+                vod.getAllPlaybackPositions(profileId)
+                    .capMostRecent(SnapshotLimits.PLAYBACK) { it.lastAccessedAt }
+                    .map { it.streamId.toString() to it }
+            }
             SyncNamespace.RATINGS -> ratings.getAllForProfile(profileId).map { "${it.mediaType}:${it.mediaId}" to it }
             SyncNamespace.TRACK_PREFERENCES -> tracks.getAllForProfile(profileId).map { "${it.mediaType}:${it.mediaId}" to it }
             SyncNamespace.SERIES_WATCH_STATE -> series.getAllForProfile(profileId).map { it.seriesId.toString() to it }
             SyncNamespace.CATEGORY_PREFERENCES -> categories.getAllForProfile(profileId).map { "${it.type}:${it.categoryId}" to it }
-            SyncNamespace.RECENTLY_WATCHED_LIVE -> live.getRecentlyWatched(profileId, Int.MAX_VALUE).map { it.streamId.toString() to it }
+            SyncNamespace.RECENTLY_WATCHED_LIVE -> {
+                live.pruneRecentlyWatchedToMostRecent(profileId, SnapshotLimits.RECENTLY_WATCHED_LIVE)
+                live.getRecentlyWatched(profileId, SnapshotLimits.RECENTLY_WATCHED_LIVE).map { it.streamId.toString() to it }
+            }
         }
-        return NamespaceSnapshot(SnapshotCodec.SCHEMA_VERSION, namespace.wireName, values.associate { (key, value) -> key to gson.toJsonTree(value).withoutProfileId() })
+        val strip = namespace.strippedFields()
+        return NamespaceSnapshot(SnapshotCodec.SCHEMA_VERSION, namespace.wireName, values.associate { (key, value) -> key to gson.toJsonTree(value).withoutFields(strip) })
     }
 
     override suspend fun apply(profileId: Int, snapshot: NamespaceSnapshot) {
@@ -52,6 +69,4 @@ class RoomSnapshotSerializer @Inject constructor(
         }
         database.withTransaction { applySnapshot() }
     }
-
-    private fun JsonElement.withoutProfileId(): JsonElement = asJsonObject.deepCopy().apply { remove("profileId") }
 }

@@ -1056,7 +1056,15 @@ private fun cloudSyncStatusStringRes(status: CloudSyncStatus): Int = when (statu
     is CloudSyncStatus.Idle -> R.string.cstv_sync_idle
     is CloudSyncStatus.Pending -> R.string.cstv_sync_pending
     is CloudSyncStatus.Incompatible -> R.string.cstv_sync_incompatible
-    is CloudSyncStatus.Failed -> if (status.code == "PAYLOAD_TOO_LARGE") R.string.cstv_sync_too_large else R.string.cstv_sync_failed
+    // T19-R3: STORAGE_QUOTA_EXCEEDED and NAMESPACE_LIMIT_REACHED are terminal (recordFailure never
+    // leaves them pending) and need their own message -- the generic label below reads as "retry
+    // will fix it", which is false for a quota the user must actually act on.
+    is CloudSyncStatus.Failed -> when (status.code) {
+        "PAYLOAD_TOO_LARGE" -> R.string.cstv_sync_too_large
+        "STORAGE_QUOTA_EXCEEDED" -> R.string.cstv_sync_storage_quota
+        "NAMESPACE_LIMIT_REACHED" -> R.string.cstv_sync_namespace_limit
+        else -> R.string.cstv_sync_failed
+    }
 }
 
 @Composable

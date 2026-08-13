@@ -1,5 +1,7 @@
 package com.cstv.app.presentation.profile
 
+import com.cstv.app.data.repository.CstvException
+import com.cstv.app.domain.model.CstvError
 import com.cstv.app.domain.model.Profile
 import com.cstv.app.domain.model.StartupProfileResolution
 import com.cstv.app.domain.model.CstvSession
@@ -178,5 +180,41 @@ class ProfileViewModelTest {
         assertFalse(viewModel.state.value.cloudCrudEnabled)
         assertEquals(com.cstv.app.R.string.profile_cloud_offline, viewModel.state.value.profileActionErrorRes)
         verify(profileRepository, never()).renameProfile(any(), any())
+    }
+
+    // T19-R4/T19: T14's backend quota rejections must reach the user as their dedicated
+    // message, not the generic "action failed" fallback -- proven end to end through the
+    // real exception mapping in ProfileViewModel, not just CstvErrorMapperTest in isolation.
+    @Test
+    fun test_createProfile_profileLimitReached_showsDedicatedMessage() = runTest {
+        val viewModel = buildViewModel()
+        whenever(profileRepository.createProfile(any(), any())).thenAnswer { throw CstvException(CstvError.ProfileLimit) }
+
+        viewModel.createProfile("Nouveau profil", 0)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(com.cstv.app.R.string.cstv_profile_limit, viewModel.state.value.profileActionErrorRes)
+    }
+
+    @Test
+    fun test_createProfile_storageQuotaExceeded_showsDedicatedMessage() = runTest {
+        val viewModel = buildViewModel()
+        whenever(profileRepository.createProfile(any(), any())).thenAnswer { throw CstvException(CstvError.StorageQuota) }
+
+        viewModel.createProfile("Nouveau profil", 0)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(com.cstv.app.R.string.cstv_storage_quota, viewModel.state.value.profileActionErrorRes)
+    }
+
+    @Test
+    fun test_createProfile_unrelatedFailure_fallsBackToTheGenericMessage() = runTest {
+        val viewModel = buildViewModel()
+        whenever(profileRepository.createProfile(any(), any())).thenThrow(RuntimeException("boom"))
+
+        viewModel.createProfile("Nouveau profil", 0)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(com.cstv.app.R.string.profile_cloud_action_failed, viewModel.state.value.profileActionErrorRes)
     }
 }

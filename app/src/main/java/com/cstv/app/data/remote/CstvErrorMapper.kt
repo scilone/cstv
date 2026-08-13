@@ -22,6 +22,10 @@ class CstvErrorMapper(private val gson: Gson) {
         "ACCOUNT_DISABLED" -> CstvError.Disabled
         "ACCOUNT_EXPIRED" -> CstvError.Expired
         "PROFILE_NOT_FOUND" -> CstvError.ProfileNotFound
+        "PROFILE_LIMIT_REACHED" -> CstvError.ProfileLimit
+        "STORAGE_QUOTA_EXCEEDED" -> CstvError.StorageQuota
+        "NAMESPACE_LIMIT_REACHED" -> CstvError.NamespaceLimit
+        "OTP_VERIFY_RATE_LIMITED", "OTP_RATE_LIMITED" -> CstvError.RateLimited
         "ETAG_MISMATCH" -> CstvError.EtagMismatch
         "PAYLOAD_TOO_LARGE" -> CstvError.PayloadTooLarge
         "PRECONDITION_REQUIRED" -> CstvError.PreconditionRequired

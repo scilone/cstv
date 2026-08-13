@@ -85,7 +85,11 @@ class CloudSyncManagerImpl @Inject constructor(
                     val decoded = codec.decode(remoteBytes)
                     val remote = (decoded as? SnapshotDecodeResult.Success)?.snapshot ?: return recordDecodeFailure(profileId, namespace, state, decoded)
                     val base = state.baseSnapshot?.let { bytes -> (codec.decode(bytes) as? SnapshotDecodeResult.Success)?.snapshot }
-                    local = merger.merge(base, local, remote, state.pending)
+                    // T19-R1: the three-way merge is not itself bounded -- two disjoint local/remote
+                    // sets can total up to 2N objects, and a remote object from an older client can
+                    // still carry a stripped field (e.g. playback's `plot`). Re-apply the T19 cap and
+                    // field stripping before this result reaches Room (`apply`) or the wire (`encode`).
+                    local = merger.merge(base, local, remote, state.pending).normalized(namespace)
                     // A response that arrived after an account switch is never
                     // allowed to alter the newly selected account's Room data.
                     if (sessions.get()?.accountId != accountIdAtStart) return
@@ -131,13 +135,22 @@ class CloudSyncManagerImpl @Inject constructor(
         val code = when (error) {
             com.cstv.app.domain.model.CstvError.ProfileNotFound -> "PROFILE_NOT_FOUND"
             com.cstv.app.domain.model.CstvError.PayloadTooLarge -> "PAYLOAD_TOO_LARGE"
+            com.cstv.app.domain.model.CstvError.StorageQuota -> "STORAGE_QUOTA_EXCEEDED"
+            com.cstv.app.domain.model.CstvError.NamespaceLimit -> "NAMESPACE_LIMIT_REACHED"
             com.cstv.app.domain.model.CstvError.Incompatible -> "INCOMPATIBLE"
             com.cstv.app.domain.model.CstvError.PreconditionRequired -> "PRECONDITION_REQUIRED"
             com.cstv.app.domain.model.CstvError.EtagMismatch -> "ETAG_MISMATCH"
             com.cstv.app.domain.model.CstvError.ServerError -> "SERVER_ERROR"
             else -> "UNAVAILABLE"
         }
-        states.upsert(state.copy(pending = error != com.cstv.app.domain.model.CstvError.ProfileNotFound && error != com.cstv.app.domain.model.CstvError.PayloadTooLarge && error != com.cstv.app.domain.model.CstvError.Incompatible, lastAttemptAt = System.currentTimeMillis(), failureCode = code, retryCount = state.retryCount + 1))
+        // Terminal failures where an identical retry cannot succeed until local/account state
+        // changes: the object is not left pending so the worker stops re-pushing it in a loop.
+        val terminal = error == com.cstv.app.domain.model.CstvError.ProfileNotFound ||
+            error == com.cstv.app.domain.model.CstvError.PayloadTooLarge ||
+            error == com.cstv.app.domain.model.CstvError.StorageQuota ||
+            error == com.cstv.app.domain.model.CstvError.NamespaceLimit ||
+            error == com.cstv.app.domain.model.CstvError.Incompatible
+        states.upsert(state.copy(pending = !terminal, lastAttemptAt = System.currentTimeMillis(), failureCode = code, retryCount = state.retryCount + 1))
         mutableStatus.value = if (error == com.cstv.app.domain.model.CstvError.Incompatible) CloudSyncStatus.Incompatible else CloudSyncStatus.Failed(code)
     }
     private fun key(profileId: Int, namespace: SyncNamespace) = "$profileId:${namespace.wireName}"

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Cstv\Backend\Profile;
 
+use Cstv\Backend\Database\AdvisoryLock;
 use Cstv\Backend\Shared\ApiException;
 use Cstv\Backend\Shared\Validator;
 use PDO;
@@ -11,18 +12,39 @@ use Throwable;
 
 final readonly class ProfileService
 {
-    public function __construct(private PDO $pdo, private ProfileRepository $profiles)
-    {
+    public function __construct(
+        private PDO $pdo,
+        private ProfileRepository $profiles,
+        private int $maxProfilesPerAccount,
+    ) {
     }
 
     /** @return array<string, mixed> */
     public function create(string $accountId, mixed $name, mixed $avatarId): array
     {
-        return $this->profiles->create(
-            $accountId,
-            Validator::profileName($name),
-            Validator::avatarId($avatarId),
-        );
+        $name = Validator::profileName($name);
+        $avatarId = Validator::avatarId($avatarId);
+
+        $this->pdo->beginTransaction();
+        try {
+            // Serialize on the account itself: a row-level FOR UPDATE only locks the profiles that
+            // already exist, so two concurrent creations could both count the same rows and both
+            // insert (phantom). The advisory lock makes count-then-insert atomic per account.
+            AdvisoryLock::account($this->pdo, $accountId);
+            if (count($this->profiles->lockIdsForAccount($accountId)) >= $this->maxProfilesPerAccount) {
+                throw new ApiException(409, 'PROFILE_LIMIT_REACHED', 'The account has reached its profile limit.');
+            }
+
+            $profile = $this->profiles->create($accountId, $name, $avatarId);
+            $this->pdo->commit();
+
+            return $profile;
+        } catch (Throwable $exception) {
+            if ($this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+            throw $exception;
+        }
     }
 
     /** @param array<string, mixed> $changes @return array<string, mixed> */

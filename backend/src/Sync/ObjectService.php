@@ -17,6 +17,8 @@ final readonly class ObjectService
         private PDO $pdo,
         private ProfileRepository $profiles,
         private ObjectRepository $objects,
+        private int $maxNamespacesPerProfile,
+        private int $maxStorageBytesPerAccount,
     ) {
     }
 
@@ -32,10 +34,14 @@ final readonly class ObjectService
         $etag = hash('sha256', $payload);
         $this->pdo->beginTransaction();
         try {
+            // Account lock first (quota aggregates span every namespace and profile of the
+            // account), then the finer namespace lock. Same order everywhere → no deadlock.
+            AdvisoryLock::account($this->pdo, $accountId);
             $this->requireOwnedProfileForMutation($profileId, $accountId);
             AdvisoryLock::namespace($this->pdo, $profileId, $namespace);
             $current = $this->objects->findMetadataForUpdate($profileId, $namespace);
             $this->requireMatchingPrecondition($ifMatch, $current === null ? null : (string) $current['etag']);
+            $this->requireWithinQuota($accountId, $profileId, $current, strlen($payload));
 
             $this->objects->upsert($profileId, $namespace, $payload, $etag, $schemaVersion);
             $this->pdo->commit();
@@ -53,6 +59,7 @@ final readonly class ObjectService
     {
         $this->pdo->beginTransaction();
         try {
+            AdvisoryLock::account($this->pdo, $accountId);
             $this->requireOwnedProfileForMutation($profileId, $accountId);
             AdvisoryLock::namespace($this->pdo, $profileId, $namespace);
             $current = $this->objects->findMetadataForUpdate($profileId, $namespace);
@@ -94,6 +101,29 @@ final readonly class ObjectService
         }
 
         return $object;
+    }
+
+    /**
+     * Bounds what a single account can store. A namespace that does not yet exist counts against
+     * the per-profile namespace cardinality; the account's total stored bytes (minus the object
+     * being replaced, plus the new payload) must stay within the storage quota. Replacing an
+     * existing object with a smaller one is therefore never refused. Runs under the per-account
+     * advisory lock held by put(), so the aggregates and the upsert are atomic against concurrent
+     * writes on any namespace or profile of the same account.
+     *
+     * @param array<string, mixed>|null $current
+     */
+    private function requireWithinQuota(string $accountId, string $profileId, ?array $current, int $payloadBytes): void
+    {
+        if ($current === null && $this->objects->countNamespacesForProfile($profileId) >= $this->maxNamespacesPerProfile) {
+            throw new ApiException(409, 'NAMESPACE_LIMIT_REACHED', 'The profile has reached its namespace limit.');
+        }
+
+        $currentBytes = $current === null ? 0 : (int) $current['compressed_size'];
+        $projectedTotal = $this->objects->sumBytesForAccount($accountId) - $currentBytes + $payloadBytes;
+        if ($projectedTotal > $this->maxStorageBytesPerAccount) {
+            throw new ApiException(413, 'STORAGE_QUOTA_EXCEEDED', 'The account has reached its storage quota.');
+        }
     }
 
     private function requireOwnedProfile(string $profileId, string $accountId): void

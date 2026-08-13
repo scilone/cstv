@@ -190,6 +190,14 @@ interface VodDao {
     @Query("DELETE FROM playback_positions WHERE profileId = :profileId")
     suspend fun deleteAllPlaybackForProfile(profileId: Int)
 
+    /** T19-R2: persistent equivalent of the snapshot-time playback cap — see
+     *  [FavoritesDao.pruneToMostRecent] for why this must delete in Room, not just at read time. */
+    @Query(
+        "DELETE FROM playback_positions WHERE profileId = :profileId AND rowid NOT IN (" +
+            "SELECT rowid FROM playback_positions WHERE profileId = :profileId ORDER BY lastAccessedAt DESC LIMIT :limit)"
+    )
+    suspend fun prunePlaybackToMostRecent(profileId: Int, limit: Int)
+
     @Query("DELETE FROM playback_positions WHERE seriesId = :seriesId AND profileId = :profileId")
     suspend fun deletePlaybackPositionsBySeriesId(seriesId: Int, profileId: Int)
 

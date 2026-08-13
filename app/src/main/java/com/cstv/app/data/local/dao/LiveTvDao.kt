@@ -129,6 +129,15 @@ interface LiveTvDao {
     @Query("DELETE FROM recently_watched_live WHERE profileId = :profileId")
     suspend fun deleteRecentlyWatchedForProfile(profileId: Int)
 
+    /** T19-R2: persistent equivalent of the snapshot-time recently-watched cap — the read-side
+     *  `LIMIT` in [getRecentlyWatched] bounds what gets pushed, but does not stop an older row from
+     *  re-entering the top N once a more recent one is deleted. See [FavoritesDao.pruneToMostRecent]. */
+    @Query(
+        "DELETE FROM recently_watched_live WHERE profileId = :profileId AND rowid NOT IN (" +
+            "SELECT rowid FROM recently_watched_live WHERE profileId = :profileId ORDER BY watchedAt DESC LIMIT :limit)"
+    )
+    suspend fun pruneRecentlyWatchedToMostRecent(profileId: Int, limit: Int)
+
     // --- EPG (T4 : fenêtre par chaîne, consultable hors ligne) ---
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertEpgEntries(entries: List<EpgCacheEntity>)

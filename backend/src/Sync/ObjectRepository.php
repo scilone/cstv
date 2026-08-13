@@ -49,6 +49,27 @@ final readonly class ObjectRepository
         $statement->execute();
     }
 
+    /** Number of distinct namespace snapshots already stored for a profile. */
+    public function countNamespacesForProfile(string $profileId): int
+    {
+        $statement = $this->pdo->prepare(
+            'SELECT COUNT(*) FROM profile_objects WHERE profile_id = :profile_id',
+        );
+        $statement->execute(['profile_id' => $profileId]);
+        return (int) $statement->fetchColumn();
+    }
+
+    /** Total stored bytes across every profile of an account, for the per-account storage quota. */
+    public function sumBytesForAccount(string $accountId): int
+    {
+        $statement = $this->pdo->prepare(
+            'SELECT COALESCE(SUM(o.compressed_size), 0) FROM profile_objects o '
+            . 'INNER JOIN profiles p ON p.id = o.profile_id WHERE p.account_id = :account_id',
+        );
+        $statement->execute(['account_id' => $accountId]);
+        return (int) $statement->fetchColumn();
+    }
+
     public function delete(string $profileId, string $namespace): void
     {
         $statement = $this->pdo->prepare(

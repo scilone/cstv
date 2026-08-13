@@ -35,6 +35,19 @@ interface FavoritesDao {
     @Query("DELETE FROM favorites WHERE profileId = :profileId")
     suspend fun deleteAllForProfile(profileId: Int)
 
+    /**
+     * T19-R2: makes the per-profile favourites cap persistent in Room, not just a snapshot-time
+     * `take(N)`. Without this, a favourite pruned from the pushed document could still resurface
+     * locally (e.g. after a more recent one is removed, an older row past the cap would re-enter
+     * the top N and be re-pushed). `rowid` is SQLite's implicit row id; `favorites` has no surrogate
+     * key column of its own (composite primary key), so it is the only stable per-row handle here.
+     */
+    @Query(
+        "DELETE FROM favorites WHERE profileId = :profileId AND rowid NOT IN (" +
+            "SELECT rowid FROM favorites WHERE profileId = :profileId ORDER BY addedAt DESC LIMIT :limit)"
+    )
+    suspend fun pruneToMostRecent(profileId: Int, limit: Int)
+
     // --- Unified local substring search ---
     @Query(
         """

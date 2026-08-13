@@ -24,7 +24,12 @@ final readonly class Config
         public int $otpRequestLimitEmail,
         public int $otpRequestLimitIp,
         public int $otpRateWindowSeconds,
+        public int $otpVerifyLimitIp,
+        public int $otpVerifyWindowSeconds,
         public int $maxObjectSizeBytes,
+        public int $maxProfilesPerAccount,
+        public int $maxNamespacesPerProfile,
+        public int $maxStorageBytesPerAccount,
     ) {
     }
 
@@ -85,7 +90,12 @@ final readonly class Config
             otpRequestLimitEmail: self::integer('OTP_REQUEST_LIMIT_EMAIL', 5, 1, 100),
             otpRequestLimitIp: self::integer('OTP_REQUEST_LIMIT_IP', 20, 1, 1000),
             otpRateWindowSeconds: self::integer('OTP_RATE_WINDOW_SECONDS', 3600, 60, 86_400),
+            otpVerifyLimitIp: self::integer('OTP_VERIFY_LIMIT_IP', 30, 1, 10_000),
+            otpVerifyWindowSeconds: self::integer('OTP_VERIFY_WINDOW_SECONDS', 60, 10, 86_400),
             maxObjectSizeBytes: self::integer('MAX_OBJECT_SIZE_BYTES', 1_048_576, 1, 16_777_216),
+            maxProfilesPerAccount: self::integer('MAX_PROFILES_PER_ACCOUNT', 10, 1, 100),
+            maxNamespacesPerProfile: self::integer('MAX_NAMESPACES_PER_PROFILE', 32, 1, 1_000),
+            maxStorageBytesPerAccount: self::integer('MAX_STORAGE_BYTES_PER_ACCOUNT', 20_971_520, 1_024, 1_073_741_824),
         );
     }
 
