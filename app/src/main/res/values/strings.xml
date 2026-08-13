@@ -25,7 +25,6 @@
     <string name="cstv_unknown_error">Une erreur est survenue. Réessayez.</string>
     <string name="cstv_profile_limit">Nombre maximal de profils atteint pour ce compte.</string>
     <string name="cstv_storage_quota">Limite de stockage du compte atteinte. Libérez de l\'espace puis réessayez.</string>
-    <string name="cstv_logout">Se déconnecter du compte CSTV (%1$s)</string>
     <string name="cstv_sync_idle">Données à jour sur tous vos appareils.</string>
     <string name="cstv_sync_pending">Synchronisation des données en attente.</string>
     <string name="cstv_sync_incompatible">Certaines données ne peuvent pas être synchronisées pour le moment.</string>
@@ -163,6 +162,15 @@
     <string name="player_close">Fermer</string>
     <string name="series_search_placeholder">Rechercher dans cette catégorie...</string>
     <string name="settings_logout">DÉCONNEXION</string>
+    <!-- B27 : carte « Comptes » des Paramètres (TV + mobile) -->
+    <string name="settings_accounts_title_tv">COMPTES</string>
+    <string name="settings_accounts_title_mobile">Comptes</string>
+    <string name="settings_account_iptv">Compte IPTV</string>
+    <string name="settings_account_iptv_unknown">Identifiant indisponible</string>
+    <string name="settings_account_cstv">Compte CSTV</string>
+    <string name="settings_account_cstv_none">Aucun compte lié.</string>
+    <string name="settings_account_logout_tv">SE DÉCONNECTER</string>
+    <string name="settings_account_logout_mobile">Se déconnecter</string>
     <string name="settings_manage_categories_tv">GÉRER LES CATÉGORIES</string>
     <string name="settings_manage_categories_mobile">Gérer les catégories</string>
     <string name="settings_sync_in_progress">SYNCHRONISATION...</string>

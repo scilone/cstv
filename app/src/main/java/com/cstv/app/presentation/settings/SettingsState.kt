@@ -13,5 +13,7 @@ data class SettingsState(
     val uploadedLogsUrl: String? = null,
     val uploadLogsError: String? = null,
     val cstvEmail: String? = null,
-    val cloudSyncStatus: CloudSyncStatus = CloudSyncStatus.Idle
+    val cloudSyncStatus: CloudSyncStatus = CloudSyncStatus.Idle,
+    /** B27 : identifiant Xtream affiché dans la carte « Comptes » des Paramètres. */
+    val iptvUsername: String? = null
 )

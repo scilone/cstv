@@ -1,12 +1,15 @@
 package com.cstv.app.presentation.settings
 
+import com.cstv.app.data.local.storage.CredentialsManager
 import com.cstv.app.data.local.storage.SettingsManager
 import com.cstv.app.data.local.storage.SyncFrequency
 import com.cstv.app.data.util.DiagnosticManager
+import com.cstv.app.domain.model.Credentials
 import com.cstv.app.domain.model.SubtitleBackground
 import com.cstv.app.domain.model.SubtitleStyle
 import com.cstv.app.domain.model.SubtitleTextColor
 import com.cstv.app.domain.model.SubtitleTextSize
+import com.cstv.app.domain.model.UserInfo
 import com.cstv.app.domain.repository.CstvAuthRepository
 import com.cstv.app.domain.sync.CloudSyncManager
 import com.cstv.app.domain.sync.CloudSyncStatus
@@ -50,6 +53,9 @@ class SettingsViewModelTest {
     @Mock
     private lateinit var cloudSyncManager: CloudSyncManager
 
+    @Mock
+    private lateinit var credentialsManager: CredentialsManager
+
     private lateinit var viewModel: SettingsViewModel
     private val testDispatcher = UnconfinedTestDispatcher()
 
@@ -64,9 +70,22 @@ class SettingsViewModelTest {
         whenever(settingsManager.getDebugModeEnabled()).thenReturn(false)
         whenever(cstvAuthRepository.storedEmail()).thenReturn(null)
         whenever(cloudSyncManager.status).thenReturn(kotlinx.coroutines.flow.MutableStateFlow(CloudSyncStatus.Idle))
+        whenever(credentialsManager.getCredentials()).thenReturn(
+            Credentials(host = "http://panel.test", port = 80, username = "user42", password = "secret")
+        )
+        whenever(credentialsManager.getLastUserInfo()).thenReturn(null)
 
-        viewModel = SettingsViewModel(settingsManager, diagnosticManager, cstvAuthRepository, cloudSyncManager, context)
+        viewModel = buildViewModel()
     }
+
+    private fun buildViewModel() = SettingsViewModel(
+        settingsManager,
+        diagnosticManager,
+        cstvAuthRepository,
+        cloudSyncManager,
+        credentialsManager,
+        context
+    )
 
     @After
     fun tearDown() {
@@ -179,13 +198,50 @@ class SettingsViewModelTest {
 
     /**
      * F33 §5.7 : « Se déconnecter du compte CSTV » ne touche jamais aux
-     * identifiants Xtream — vrai par construction ici, `SettingsViewModel`
-     * n'a même pas de référence à `CredentialsManager`/`AuthRepository`.
+     * identifiants Xtream. Depuis B27, `SettingsViewModel` connaît
+     * `CredentialsManager` (lecture de l'identifiant affiché dans la carte
+     * « Comptes ») : la garantie n'est plus structurelle, on la vérifie.
      */
     @Test
     fun test_signOutCstv_delegatesOnlyToCstvAuthRepository() {
         viewModel.signOutCstv()
 
         verify(cstvAuthRepository).signOut()
+        verify(credentialsManager, never()).clearCredentials()
+    }
+
+    /** B27 : la carte « Comptes » affiche l'identifiant Xtream courant. */
+    @Test
+    fun test_initialState_exposesIptvUsernameFromCredentials() {
+        assertEquals("user42", viewModel.state.value.iptvUsername)
+    }
+
+    /** B27 : sans identifiants mémorisés, repli sur le dernier `UserInfo` connu. */
+    @Test
+    fun test_initialState_fallsBackToLastUserInfoUsername() {
+        whenever(credentialsManager.getCredentials()).thenReturn(null)
+        whenever(credentialsManager.getLastUserInfo()).thenReturn(
+            UserInfo(
+                username = "offline_user",
+                auth = true,
+                status = "Active",
+                expiryDate = "Inconnu",
+                maxConnections = 1,
+                activeConnections = 0,
+                message = "",
+                isOfflineSession = true
+            )
+        )
+
+        assertEquals("offline_user", buildViewModel().state.value.iptvUsername)
+    }
+
+    /** B27 : aucune source d'identifiant → la carte retombe sur son libellé de repli. */
+    @Test
+    fun test_initialState_iptvUsernameNullWhenNoCredentials() {
+        whenever(credentialsManager.getCredentials()).thenReturn(null)
+        whenever(credentialsManager.getLastUserInfo()).thenReturn(null)
+
+        assertNull(buildViewModel().state.value.iptvUsername)
     }
 }

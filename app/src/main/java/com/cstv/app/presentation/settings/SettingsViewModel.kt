@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.work.*
+import com.cstv.app.data.local.storage.CredentialsManager
 import com.cstv.app.data.local.storage.SettingsManager
 import com.cstv.app.data.local.storage.SyncFrequency
 import com.cstv.app.data.util.DiagnosticManager
@@ -30,6 +31,7 @@ class SettingsViewModel @Inject constructor(
     private val diagnosticManager: DiagnosticManager,
     private val cstvAuthRepository: CstvAuthRepository,
     private val cloudSyncManager: CloudSyncManager,
+    private val credentialsManager: CredentialsManager,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
@@ -55,7 +57,11 @@ class SettingsViewModel @Inject constructor(
                 syncFrequency = settingsManager.getSyncFrequency(),
                 subtitleStyle = settingsManager.getSubtitleStyle(),
                 debugModeEnabled = settingsManager.getDebugModeEnabled(),
-                cstvEmail = cstvAuthRepository.storedEmail()
+                cstvEmail = cstvAuthRepository.storedEmail(),
+                // B27 : repli sur le dernier UserInfo connu, seule source restante
+                // quand la session courante tourne sans identifiants mémorisés.
+                iptvUsername = credentialsManager.getCredentials()?.username
+                    ?: credentialsManager.getLastUserInfo()?.username
             )
         }
     }

@@ -7,7 +7,6 @@ import com.cstv.app.domain.sync.CloudSyncStatus
 import com.cstv.app.presentation.theme.BricolageGrotesque
 import com.cstv.app.presentation.theme.HankenGrotesk
 import com.cstv.app.presentation.theme.Surface1
-import com.cstv.app.presentation.theme.Surface2
 import com.cstv.app.presentation.theme.Surface3
 import com.cstv.app.domain.model.SubtitleBackground
 import com.cstv.app.domain.model.SubtitleStyle
@@ -273,27 +272,97 @@ private fun TvSettingsLayout(
             onCheckForUpdate = onCheckForUpdate
         )
 
-        cstvEmail?.let { email ->
-            TvText(
-                text = stringResource(cloudSyncStatusStringRes(state.cloudSyncStatus)),
-                style = TvTheme.typography.bodySmall,
-                color = Color.White.copy(alpha = 0.7f),
-                modifier = Modifier.fillMaxWidth()
-            )
-            TvSettingsActionButton(
-                text = stringResource(R.string.cstv_logout, email),
-                onClick = onCstvLogout,
-                modifier = Modifier.fillMaxWidth()
-            )
-        }
+        TvAccountsCard(
+            iptvUsername = state.iptvUsername,
+            cstvEmail = cstvEmail,
+            cloudSyncStatus = state.cloudSyncStatus,
+            onCstvLogout = onCstvLogout,
+            onLogout = onLogout
+        )
 
         Spacer(modifier = Modifier.height(16.dp))
+    }
+}
 
-        TvSettingsDestructiveButton(
-            text = stringResource(R.string.settings_logout),
-            onClick = onLogout,
-            modifier = Modifier.fillMaxWidth()
-        )
+/**
+ * B27 : carte « Comptes ». Les deux connexions de l'app (IPTV Xtream et compte
+ * CSTV) vivaient à deux endroits différents en bas de l'écran, dans deux
+ * langages visuels ; elles partagent désormais la carte `Surface3` commune aux
+ * autres sections.
+ */
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+private fun TvAccountsCard(
+    iptvUsername: String?,
+    cstvEmail: String?,
+    cloudSyncStatus: CloudSyncStatus,
+    onCstvLogout: () -> Unit,
+    onLogout: () -> Unit
+) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = Surface3),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            TvText(
+                text = stringResource(R.string.settings_accounts_title_tv),
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.Bold,
+                style = TvTheme.typography.titleMedium
+            )
+
+            TvText(
+                text = stringResource(R.string.settings_account_iptv),
+                color = Color.White,
+                fontWeight = FontWeight.Bold,
+                style = TvTheme.typography.titleSmall
+            )
+            TvText(
+                text = iptvUsername ?: stringResource(R.string.settings_account_iptv_unknown),
+                color = Color.Gray,
+                style = TvTheme.typography.bodySmall
+            )
+            TvSettingsDestructiveButton(
+                text = stringResource(R.string.settings_logout),
+                onClick = onLogout,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            HorizontalDivider(color = Color.White.copy(alpha = 0.12f))
+
+            TvText(
+                text = stringResource(R.string.settings_account_cstv),
+                color = Color.White,
+                fontWeight = FontWeight.Bold,
+                style = TvTheme.typography.titleSmall
+            )
+            if (cstvEmail == null) {
+                TvText(
+                    text = stringResource(R.string.settings_account_cstv_none),
+                    color = Color.Gray,
+                    style = TvTheme.typography.bodySmall
+                )
+            } else {
+                TvText(
+                    text = cstvEmail,
+                    color = Color.Gray,
+                    style = TvTheme.typography.bodySmall
+                )
+                TvText(
+                    text = stringResource(cloudSyncStatusStringRes(cloudSyncStatus)),
+                    color = Color.White.copy(alpha = 0.7f),
+                    style = TvTheme.typography.bodySmall
+                )
+                TvSettingsActionButton(
+                    text = stringResource(R.string.settings_account_logout_tv),
+                    onClick = onCstvLogout,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        }
     }
 }
 
@@ -467,42 +536,118 @@ private fun MobileSettingsLayout(
             onCheckForUpdate = onCheckForUpdate
         )
 
-        cstvEmail?.let { email ->
-            Text(
-                text = stringResource(cloudSyncStatusStringRes(state.cloudSyncStatus)),
-                color = Color.Gray,
-                fontSize = 12.sp,
-                textAlign = TextAlign.Start,
-                modifier = Modifier.fillMaxWidth()
-            )
-            OutlinedButton(onClick = onCstvLogout, modifier = Modifier.fillMaxWidth().height(44.dp)) {
-                Text(stringResource(R.string.cstv_logout, email))
-            }
-        }
+        MobileAccountsCard(
+            iptvUsername = state.iptvUsername,
+            cstvEmail = cstvEmail,
+            cloudSyncStatus = state.cloudSyncStatus,
+            onCstvLogout = onCstvLogout,
+            onLogout = onLogout
+        )
 
-        // Profiles (Phase 27)
         Spacer(modifier = Modifier.height(24.dp))
+    }
+}
 
-        Button(
-            onClick = onLogout,
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFCF6679)),
-            shape = RoundedCornerShape(8.dp),
-            modifier = Modifier.fillMaxWidth().height(44.dp)
+/** B27 : pendant mobile de [TvAccountsCard]. */
+@Composable
+private fun MobileAccountsCard(
+    iptvUsername: String?,
+    cstvEmail: String?,
+    cloudSyncStatus: CloudSyncStatus,
+    onCstvLogout: () -> Unit,
+    onLogout: () -> Unit
+) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = Surface3),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ExitToApp,
-                    contentDescription = "Déconnexion",
-                    tint = Color.White,
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = stringResource(R.string.settings_accounts_title_mobile),
+                color = Color.White,
+                fontWeight = FontWeight.Bold,
+                fontSize = 15.sp
+            )
+
+            Column {
                 Text(
-                    text = "Se déconnecter",
-                    fontSize = 14.sp,
+                    text = stringResource(R.string.settings_account_iptv),
+                    color = Color.White,
                     fontWeight = FontWeight.Bold,
-                    color = Color.White
+                    fontSize = 13.sp
                 )
+                Text(
+                    text = iptvUsername ?: stringResource(R.string.settings_account_iptv_unknown),
+                    color = Color.Gray,
+                    fontSize = 12.sp
+                )
+            }
+
+            Button(
+                onClick = onLogout,
+                colors = ButtonDefaults.buttonColors(containerColor = RatingDislike),
+                shape = RoundedCornerShape(8.dp),
+                modifier = Modifier.fillMaxWidth().height(44.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ExitToApp,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = stringResource(R.string.settings_account_logout_mobile),
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
+            }
+
+            HorizontalDivider(color = Color.White.copy(alpha = 0.12f))
+
+            Column {
+                Text(
+                    text = stringResource(R.string.settings_account_cstv),
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp
+                )
+                // B27 : l'e-mail est une ligne de texte à part entière — inséré dans
+                // le libellé du bouton (44 dp), il partait sur deux lignes tronquées.
+                Text(
+                    text = cstvEmail ?: stringResource(R.string.settings_account_cstv_none),
+                    color = Color.Gray,
+                    fontSize = 12.sp
+                )
+                if (cstvEmail != null) {
+                    Text(
+                        text = stringResource(cloudSyncStatusStringRes(cloudSyncStatus)),
+                        color = Color.White.copy(alpha = 0.7f),
+                        fontSize = 12.sp
+                    )
+                }
+            }
+
+            if (cstvEmail != null) {
+                Button(
+                    onClick = onCstvLogout,
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.fillMaxWidth().height(40.dp)
+                ) {
+                    Text(
+                        text = stringResource(R.string.settings_account_logout_mobile),
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
             }
         }
     }
@@ -1085,10 +1230,11 @@ private fun TvCheckUpdateCard(
     onCheckForUpdate: () -> Unit
 ) {
     val isChecking = appUpdateState is com.cstv.app.presentation.update.AppUpdateUiState.Checking
-    // F35-R5 : carte et action alignées sur §4.8 (Surface2 / AccentLavande),
-    // pas le Surface3 générique des autres cartes de cet écran.
+    // B27 : retour au Surface3 des autres cartes de l'écran. La déviation F35-R5
+    // (Surface2 + action AccentLavande) se lisait comme un défaut de rendu, et son
+    // liseré de focus lavande sur fond lavande était invisible à distance.
     Card(
-        colors = CardDefaults.cardColors(containerColor = Surface2),
+        colors = CardDefaults.cardColors(containerColor = Surface3),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(
@@ -1111,7 +1257,6 @@ private fun TvCheckUpdateCard(
                 onClick = onCheckForUpdate,
                 loading = isChecking,
                 enabled = !isChecking,
-                containerColor = AccentLavande,
                 modifier = Modifier.fillMaxWidth()
             )
         }
@@ -1125,9 +1270,9 @@ private fun MobileCheckUpdateCard(
     onCheckForUpdate: () -> Unit
 ) {
     val isChecking = appUpdateState is com.cstv.app.presentation.update.AppUpdateUiState.Checking
-    // F35-R5 : Surface2 (comme la variante TV ci-dessus), pas Surface3.
+    // B27 : Surface3 (comme la variante TV ci-dessus et le reste de l'écran).
     Card(
-        colors = CardDefaults.cardColors(containerColor = Surface2),
+        colors = CardDefaults.cardColors(containerColor = Surface3),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(
