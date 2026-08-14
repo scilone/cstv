@@ -21,8 +21,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.FastForward
-import androidx.compose.material.icons.filled.FastRewind
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Replay
@@ -62,8 +60,6 @@ import com.cstv.app.data.local.storage.ResizeMode
 import androidx.media3.ui.PlayerView
 import com.cstv.app.presentation.player.applySubtitleStyle
 import com.cstv.app.presentation.player.PlayerTopButton
-import com.cstv.app.presentation.player.TransportButton
-import com.cstv.app.presentation.player.PlayPauseButton
 import com.cstv.app.presentation.player.PlayerBottomAction
 import com.cstv.app.presentation.player.PlayerCoverAction
 import com.cstv.app.presentation.player.ResolutionBadge
@@ -213,10 +209,16 @@ fun VodPlayerScreen(
     // pleine navigation D-pad et le focus retombe sur la vidéo.
     var keyInteractionTick by remember { mutableStateOf(0) }
     // Focus TV : la surface vidéo garde les touches tant que l'overlay est
-    // masqué ; dès qu'il s'affiche, le bouton central les reçoit et les flèches
-    // servent uniquement à circuler entre les options.
+    // masqué ; dès qu'il s'affiche, la barre de progression les reçoit et les
+    // flèches servent uniquement à circuler entre les options.
     val videoFocus = rememberTvInitialFocus(isTv = isTv, ready = !showControls, targetKey = showControls)
-    val controlsFocus = rememberTvInitialFocus(isTv = isTv, ready = showControls, targetKey = showControls)
+    // La barre n'est focalisable qu'une fois la durée connue (`enabled`) : sans
+    // cette condition, les tentatives bornées s'épuiseraient avant qu'elle existe.
+    val controlsFocus = rememberTvInitialFocus(
+        isTv = isTv,
+        ready = showControls && playbackProgress.isReady,
+        targetKey = showControls
+    )
     var videoWidth by remember { mutableStateOf(0) }
     var videoHeight by remember { mutableStateOf(0) }
 
@@ -226,8 +228,18 @@ fun VodPlayerScreen(
     var showTrackDialog by remember { mutableStateOf(false) }
 
     // Prepare and play VOD
-    LaunchedEffect(details, lockUi.canStartPlayback) {
+    // Une pause relâche le verrou de lecture (F37) : `canStartPlayback` repasse
+    // à false puis à true à la reprise. Sans ce garde-fou, l'effet rejouerait sa
+    // préparation complète et le `seekTo(initialPositionMs)` renverrait la
+    // lecture à la position d'ouverture au lieu de la position de pause.
+    var playbackPrepared by remember(details.streamId) { mutableStateOf(false) }
+    LaunchedEffect(details.streamId, lockUi.canStartPlayback) {
         if (!lockUi.canStartPlayback) return@LaunchedEffect
+        if (playbackPrepared) {
+            exoPlayer.playWhenReady = true
+            return@LaunchedEffect
+        }
+        playbackPrepared = true
         isBuffering = true
         playbackError = null
         
@@ -690,24 +702,8 @@ fun VodPlayerScreen(
                 }
             }
 
-            // Transport central : reculer / play-pause / avancer (10s)
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(36.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.align(Alignment.Center)
-            ) {
-                TransportButton(Icons.Default.FastRewind, "Reculer 10s", onClick = { skipBackward() })
-                PlayPauseButton(
-                    isPlaying = isPlaying,
-                    onClick = { togglePlayPause() },
-                    modifier = if (isTv) {
-                        Modifier
-                            .tvInitialFocusTarget(controlsFocus)
-                            .focusProperties { down = coverFocusRequester }
-                    } else Modifier
-                )
-                TransportButton(Icons.Default.FastForward, "Avancer 10s", onClick = { skipForward() })
-            }
+            // Pas de transport central : la barre de progression porte à elle
+            // seule avance / recul (gauche-droite) et play-pause (OK).
 
             // Bloc inférieur : affiche + titre + résolution + progression + actions
             Column(
@@ -784,8 +780,9 @@ fun VodPlayerScreen(
                                     inactiveTrackColor = Color(0x55FFFFFF)
                                 ),
                                 // Barre focalisée au pad : gauche/droite pilotent
-                                // la lecture plutôt que le focus. En preview, pour
-                                // passer avant le pas par défaut du Slider.
+                                // la lecture plutôt que le focus, OK bascule
+                                // lecture/pause. En preview, pour passer avant le
+                                // pas par défaut du Slider.
                                 modifier = Modifier
                                     .weight(1f)
                                     .onPreviewKeyEvent { keyEvent ->
@@ -794,9 +791,22 @@ fun VodPlayerScreen(
                                         } else when (keyEvent.key) {
                                             Key.DirectionLeft -> { skipBackward(); true }
                                             Key.DirectionRight -> { skipForward(); true }
+                                            Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> {
+                                                togglePlayPause(); true
+                                            }
                                             else -> false
                                         }
                                     }
+                                    .then(
+                                        // Cible du focus initial dès l'ouverture de
+                                        // l'overlay ; le haut mène à la jaquette
+                                        // (gauche/droite étant confisquées).
+                                        if (isTv) {
+                                            Modifier
+                                                .tvInitialFocusTarget(controlsFocus)
+                                                .focusProperties { up = coverFocusRequester }
+                                        } else Modifier
+                                    )
                             )
                             if (playbackProgress.isReady) {
                                 Text(

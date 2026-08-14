@@ -4,18 +4,15 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Movie
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -141,46 +138,6 @@ fun PlayerTopButton(
 }
 
 /**
- * Bouton de transport central (rewind / play-pause / fast-forward). Le
- * play/pause est agrandi via [big]. Icône blanche, halo au focus.
- */
-@Composable
-fun TransportButton(
-    icon: ImageVector,
-    contentDescription: String,
-    onClick: () -> Unit,
-    big: Boolean = false,
-    modifier: Modifier = Modifier
-) {
-    var isFocused by remember { mutableStateOf(false) }
-    val boxSize = if (big) 76.dp else 60.dp
-    val iconSize = if (big) 44.dp else 34.dp
-    Box(
-        modifier = modifier
-            .size(boxSize)
-            .onFocusChanged { isFocused = it.isFocused }
-            // Le clip précède le clickable : sans lui, l'indication de clic se
-            // peint sur les bornes carrées du nœud et laisse un aplat gris
-            // autour du bouton rond.
-            .clip(CircleShape)
-            .clickable(onClick = onClick)
-            .focusable()
-            .background(
-                if (isFocused) MaterialTheme.colorScheme.primary.copy(alpha = 0.35f) else Color(0x33000000),
-                CircleShape
-            )
-            .border(
-                width = if (isFocused) 2.dp else 0.dp,
-                color = if (isFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
-                shape = CircleShape
-            ),
-        contentAlignment = Alignment.Center
-    ) {
-        Icon(icon, contentDescription = contentDescription, tint = Color.White, modifier = Modifier.size(iconSize))
-    }
-}
-
-/**
  * Action de la barre du bas : icône + libellé sur une ligne (ex.
  * « ↻ Recommencer », « ⏭ Épisode suivant », « 🔊 Audio »). Se grise si
  * [enabled] est faux. Focus D-pad matérialisé par la couleur primaire.
@@ -250,63 +207,3 @@ fun ResolutionBadge(
     }
 }
 
-/**
- * Pause dessinée à la main (deux barres) : l'icône Pause du set core n'est pas
- * garantie ; ceci évite une dépendance sur material-icons-extended pour ce cas.
- */
-@Composable
-fun PauseGlyph(size: androidx.compose.ui.unit.Dp = 40.dp) {
-    Row(horizontalArrangement = Arrangement.spacedBy(size * 0.18f)) {
-        repeat(2) {
-            Box(
-                modifier = Modifier
-                    .size(width = size * 0.28f, height = size)
-                    .background(Color.White, RoundedCornerShape(2.dp))
-            )
-        }
-    }
-}
-
-/**
- * Bouton play/pause central agrandi, avec glyphe pause dessiné à la main.
- * Partagé par les lecteurs VOD/Séries (le Live TV n'a pas de transport).
- */
-@Composable
-fun PlayPauseButton(
-    isPlaying: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    var isFocused by remember { mutableStateOf(false) }
-    Box(
-        modifier = modifier
-            .size(76.dp)
-            .onFocusChanged { isFocused = it.isFocused }
-            // Clip avant clickable : sinon l'indication de clic se peint sur les
-            // bornes carrées du nœud et déborde du bouton rond.
-            .clip(CircleShape)
-            .clickable(onClick = onClick)
-            .focusable()
-            .background(
-                if (isFocused) MaterialTheme.colorScheme.primary.copy(alpha = 0.35f) else Color(0x33000000),
-                CircleShape
-            )
-            .border(
-                width = if (isFocused) 2.dp else 0.dp,
-                color = if (isFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
-                shape = CircleShape
-            ),
-        contentAlignment = Alignment.Center
-    ) {
-        if (isPlaying) {
-            PauseGlyph(size = 34.dp)
-        } else {
-            Icon(
-                imageVector = Icons.Default.PlayArrow,
-                contentDescription = "Lecture",
-                tint = Color.White,
-                modifier = Modifier.size(44.dp)
-            )
-        }
-    }
-}
