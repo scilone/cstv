@@ -2,6 +2,8 @@ package com.cstv.app.presentation.update
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -77,7 +79,11 @@ fun AppUpdateDialog(
         Surface(
             shape = RoundedCornerShape(if (isTv) 16.dp else 12.dp),
             color = Surface2,
-            modifier = Modifier.width(if (isTv) 480.dp else 320.dp)
+            // B28 : 600 dp sur TV. À 480 dp, la rangée d'actions de l'état
+            // `Available` non obligatoire (3 boutons de 160 dp + 2 espacements de
+            // 12 dp = 504 dp) dépassait les 424 dp utiles : Row écrasait le
+            // dernier bouton aux ~80 dp restants, rendu en pastille tronquée.
+            modifier = Modifier.width(if (isTv) 600.dp else 320.dp)
         ) {
             Column(
                 modifier = Modifier.padding(if (isTv) 28.dp else 20.dp),
@@ -277,10 +283,22 @@ private fun ErrorContent(
     }
 }
 
+/**
+ * B28 : sur TV, `FlowRow` et non `Row`. Un `Row` mesure ses enfants sans poids
+ * dans la largeur *restante* : trois boutons de 160 dp dans une rangée trop
+ * étroite laissaient au dernier les quelques dizaines de dp disponibles, rendu
+ * en pastille tronquée. Le `FlowRow` passe à la ligne au lieu d'écraser, ce qui
+ * tient aussi si un libellé s'allonge ou si un état gagne une action.
+ */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ActionsRow(isTv: Boolean, content: @Composable () -> Unit) {
     if (isTv) {
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) { content() }
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) { content() }
     } else {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { content() }
     }

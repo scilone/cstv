@@ -8,6 +8,7 @@ import com.cstv.app.presentation.theme.BricolageGrotesque
 import com.cstv.app.presentation.theme.HankenGrotesk
 import com.cstv.app.presentation.theme.Surface1
 import com.cstv.app.presentation.theme.Surface3
+import com.cstv.app.presentation.theme.Surface4
 import com.cstv.app.domain.model.SubtitleBackground
 import com.cstv.app.domain.model.SubtitleStyle
 import com.cstv.app.domain.model.SubtitleTextColor
@@ -120,9 +121,14 @@ fun SettingsScreen(
 }
 
 /**
- * Action de paramètres TV unifiée (F32) : `Surface3` au repos, liseré
+ * Action de paramètres TV unifiée (F32) : `Surface4` au repos, liseré
  * `tvFocusHighlight` au focus. Porteur unique du langage visuel des actions
  * de paramètres — toute évolution future du style se fait ici.
+ *
+ * B27 : le repos était en `Surface3`, exactement le fond des cartes qui les
+ * portent — « Extraire les logs » et « Rechercher une mise à jour » se lisaient
+ * comme du texte posé sur la carte, pas comme des boutons. `Surface4` est
+ * l'aplat déjà utilisé par les options de tri au repos.
  */
 @Composable
 private fun TvSettingsActionButton(
@@ -132,7 +138,7 @@ private fun TvSettingsActionButton(
     icon: ImageVector? = null,
     enabled: Boolean = true,
     loading: Boolean = false,
-    containerColor: Color = Surface3,
+    containerColor: Color = Surface4,
     contentColor: Color = Color.White,
     focusBorderColor: Color = AccentLavandeHover,
     onFocusChanged: ((Boolean) -> Unit)? = null
@@ -356,7 +362,9 @@ private fun TvAccountsCard(
                     color = Color.White.copy(alpha = 0.7f),
                     style = TvTheme.typography.bodySmall
                 )
-                TvSettingsActionButton(
+                // B27 : les deux déconnexions partagent le rouge destructif —
+                // même nature d'action, même signal visuel.
+                TvSettingsDestructiveButton(
                     text = stringResource(R.string.settings_account_logout_tv),
                     onClick = onCstvLogout,
                     modifier = Modifier.fillMaxWidth()
@@ -421,7 +429,7 @@ private fun TvSortingOptionButton(
                 when {
                     isSelected -> MaterialTheme.colorScheme.primary
                     isFocused -> Color.LightGray.copy(alpha = 0.2f)
-                    else -> Color(0xFF2C2C35)
+                    else -> Surface4
                 }
             )
             .border(
@@ -635,18 +643,28 @@ private fun MobileAccountsCard(
             }
 
             if (cstvEmail != null) {
+                // B27 : rouge destructif comme la déconnexion IPTV ci-dessus.
                 Button(
                     onClick = onCstvLogout,
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                    colors = ButtonDefaults.buttonColors(containerColor = RatingDislike),
                     shape = RoundedCornerShape(8.dp),
-                    modifier = Modifier.fillMaxWidth().height(40.dp)
+                    modifier = Modifier.fillMaxWidth().height(44.dp)
                 ) {
-                    Text(
-                        text = stringResource(R.string.settings_account_logout_mobile),
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ExitToApp,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = stringResource(R.string.settings_account_logout_mobile),
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    }
                 }
             }
         }
@@ -735,7 +753,7 @@ private fun MobileSortingOptionButton(
     Button(
         onClick = onClick,
         colors = ButtonDefaults.buttonColors(
-            containerColor = if (isSelected) MaterialTheme.colorScheme.primary else Color(0xFF2C2C35),
+            containerColor = if (isSelected) MaterialTheme.colorScheme.primary else Surface4,
             contentColor = Color.White
         ),
         shape = RoundedCornerShape(8.dp),

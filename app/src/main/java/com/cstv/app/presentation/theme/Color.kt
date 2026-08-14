@@ -11,6 +11,14 @@ val Surface1 = Color(0xFF0F0F13)
 val Surface2 = Color(0xFF16161D)
 val Surface3 = Color(0xFF1E1E24)
 
+/**
+ * Aplat des contrôles posés *sur* une carte `Surface3` (B27) : boutons de
+ * paramètres, options de tri, éléments focalisables TV. Sur `Surface3`, un
+ * contrôle en `Surface3` disparaît dans sa carte — il faut un cran au-dessus.
+ * Valeur déjà employée en dur dans une dizaine d'écrans, nommée ici.
+ */
+val Surface4 = Color(0xFF2C2C35)
+
 val AccentLavande = Color(0xFF9C86FF) // primary
 val AccentLavandeHover = Color(0xFFB3A3FF)
 
