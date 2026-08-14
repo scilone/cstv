@@ -809,8 +809,10 @@ fun VodPlayerScreen(
                                     )
                             )
                             if (playbackProgress.isReady) {
+                                // Décompte plutôt que durée totale : le préfixe
+                                // « - » signale qu'il s'agit du temps restant.
                                 Text(
-                                    text = formatTime(playbackProgress.durationMs),
+                                    text = "-${formatTime(playbackProgress.remainingMs)}",
                                     color = Color.White,
                                     fontSize = 12.sp,
                                     modifier = Modifier.widthIn(min = PLAYER_PROGRESS_TIME_LABEL_MIN_WIDTH)

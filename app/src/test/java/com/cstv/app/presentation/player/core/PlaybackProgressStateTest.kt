@@ -60,4 +60,29 @@ class PlaybackProgressStateTest {
         assertEquals(10_000L, state.durationMs)
         assertEquals(10_000f, state.sliderRangeEnd)
     }
+
+    @Test
+    fun `counts down the remaining time from the current position`() {
+        val state = playbackProgressState(positionMs = 2_500L, durationMs = 10_000L)
+
+        assertEquals(7_500L, state.remainingMs)
+    }
+
+    @Test
+    fun `reports no remaining time at the end of the stream`() {
+        val atEnd = playbackProgressState(positionMs = 10_000L, durationMs = 10_000L)
+        // Position reportée au-delà de la durée en fin de flux : le décompte
+        // reste à zéro plutôt que de repasser en négatif.
+        val pastEnd = playbackProgressState(positionMs = 15_000L, durationMs = 10_000L)
+
+        assertEquals(0L, atEnd.remainingMs)
+        assertEquals(0L, pastEnd.remainingMs)
+    }
+
+    @Test
+    fun `reports no remaining time while duration is unknown`() {
+        val state = playbackProgressState(positionMs = 120_000L, durationMs = 0L)
+
+        assertEquals(0L, state.remainingMs)
+    }
 }

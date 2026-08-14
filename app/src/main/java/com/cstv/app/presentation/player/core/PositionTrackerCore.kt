@@ -25,10 +25,19 @@ internal data class PlaybackProgressState(
 
     val sliderRangeEnd: Float
         get() = durationMs.toFloat().coerceAtLeast(1f)
+
+    /**
+     * Temps restant, affiché en décompte à droite de la jauge. Vaut 0 tant que
+     * la durée est inconnue, `positionMs` étant alors normalisée à 0 ; le
+     * `coerceAtLeast` couvre les positions que le lecteur reporte au-delà de la
+     * durée en fin de flux.
+     */
+    val remainingMs: Long
+        get() = (durationMs - positionMs).coerceAtLeast(0L)
 }
 
-/** Largeur minimale commune aux temps `MM:SS` et `H:MM:SS` du lecteur. */
-internal val PLAYER_PROGRESS_TIME_LABEL_MIN_WIDTH: Dp = 56.dp
+/** Largeur minimale commune aux temps `MM:SS` et `H:MM:SS` du lecteur, préfixe `-` du décompte compris. */
+internal val PLAYER_PROGRESS_TIME_LABEL_MIN_WIDTH: Dp = 64.dp
 
 internal fun playbackProgressState(positionMs: Long, durationMs: Long): PlaybackProgressState {
     if (durationMs <= 0L) return PlaybackProgressState(positionMs = 0L, durationMs = 0L)
