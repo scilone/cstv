@@ -69,8 +69,7 @@ class DiagnosticManagerTest {
             host = "my-secret-server.com",
             port = 8080,
             username = "john_doe",
-            password = "supersecretpassword123",
-            rememberMe = true
+            password = "supersecretpassword123"
         )
         whenever(credentialsManager.getCredentials()).thenReturn(creds)
 

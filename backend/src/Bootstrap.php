@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Cstv\Backend;
 
 use Cstv\Backend\Account\AccountRepository;
+use Cstv\Backend\Account\IptvCredentialsRepository;
+use Cstv\Backend\Account\IptvCredentialsService;
 use Cstv\Backend\Auth\AuthService;
 use Cstv\Backend\Auth\JwtService;
 use Cstv\Backend\Auth\LogOtpSender;
@@ -13,6 +15,7 @@ use Cstv\Backend\Auth\OtpRepository;
 use Cstv\Backend\Database\Connection;
 use Cstv\Backend\Http\Action\AuthAction;
 use Cstv\Backend\Http\Action\HealthAction;
+use Cstv\Backend\Http\Action\IptvCredentialsAction;
 use Cstv\Backend\Http\Action\MeAction;
 use Cstv\Backend\Http\Action\ObjectAction;
 use Cstv\Backend\Http\Action\ProfileAction;
@@ -22,6 +25,8 @@ use Cstv\Backend\Http\SecurityHeadersMiddleware;
 use Cstv\Backend\Profile\ProfileRepository;
 use Cstv\Backend\Profile\ProfileService;
 use Cstv\Backend\Shared\Config;
+use Cstv\Backend\Shared\Crypto\EnvelopeCipher;
+use Cstv\Backend\Shared\Crypto\KeyRing;
 use Cstv\Backend\Sync\ObjectRepository;
 use Cstv\Backend\Sync\ObjectService;
 use PDO;
@@ -58,6 +63,11 @@ final class Bootstrap
             $config->maxNamespacesPerProfile,
             $config->maxStorageBytesPerAccount,
         );
+        $iptvCredentials = new IptvCredentialsService(
+            $pdo,
+            new IptvCredentialsRepository($pdo),
+            new EnvelopeCipher(new KeyRing($config->iptvCredentialsKeys, $config->iptvCredentialsKeyId)),
+        );
 
         $app = AppFactory::create();
         $app->get('/health', new HealthAction($pdo));
@@ -67,8 +77,12 @@ final class Bootstrap
 
         $profileAction = new ProfileAction($profiles, $profileService);
         $objectAction = new ObjectAction($objectService, $config->maxObjectSizeBytes);
-        $app->group('/v1', function (RouteCollectorProxy $group) use ($profiles, $profileAction, $objectAction): void {
+        $iptvCredentialsAction = new IptvCredentialsAction($iptvCredentials, $config->maxIptvCredentialsBytes);
+        $app->group('/v1', function (RouteCollectorProxy $group) use ($profiles, $profileAction, $objectAction, $iptvCredentialsAction): void {
             $group->get('/me', new MeAction($profiles));
+            $group->get('/account/iptv-credentials', [$iptvCredentialsAction, 'get']);
+            $group->put('/account/iptv-credentials', [$iptvCredentialsAction, 'put']);
+            $group->delete('/account/iptv-credentials', [$iptvCredentialsAction, 'delete']);
             $group->get('/profiles', [$profileAction, 'list']);
             $group->post('/profiles', [$profileAction, 'create']);
             $group->patch('/profiles/{profileId}', [$profileAction, 'update']);

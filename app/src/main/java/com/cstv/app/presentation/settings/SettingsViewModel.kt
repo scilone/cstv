@@ -11,6 +11,7 @@ import com.cstv.app.data.util.DiagnosticManager
 import com.cstv.app.data.worker.DatabaseSyncWorker
 import com.cstv.app.data.worker.SyncScheduling
 import com.cstv.app.domain.repository.CstvAuthRepository
+import com.cstv.app.domain.usecase.SignOutCstvUseCase
 import com.cstv.app.domain.sync.CloudSyncManager
 import com.cstv.app.domain.model.SubtitleBackground
 import com.cstv.app.domain.model.SubtitleTextColor
@@ -32,6 +33,7 @@ class SettingsViewModel @Inject constructor(
     private val cstvAuthRepository: CstvAuthRepository,
     private val cloudSyncManager: CloudSyncManager,
     private val credentialsManager: CredentialsManager,
+    private val signOutCstvUseCase: SignOutCstvUseCase,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
@@ -195,5 +197,5 @@ class SettingsViewModel @Inject constructor(
     }
 
     /** Keeps Xtream credentials and all local profile data intact (F33 §5.7). */
-    fun signOutCstv() = cstvAuthRepository.signOut()
+    fun signOutCstv() { viewModelScope.launch { signOutCstvUseCase() } }
 }

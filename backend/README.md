@@ -1,6 +1,6 @@
 # CSTV Backend POC
 
-API HTTP légère pour l’authentification CSTV par email/OTP et la synchronisation de snapshots gzip opaques par profil et namespace. Elle ne stocke ni fournisseur, ni identifiants, ni catalogue, ni installation ou device IPTV.
+API HTTP légère pour l’authentification CSTV par email/OTP et la synchronisation de snapshots gzip opaques par profil et namespace. Elle ne stocke ni fournisseur, ni catalogue, ni installation ou device IPTV. Une exception volontaire, dédiée et chiffrée existe pour l'unique sauvegarde d'identifiants IPTV d'un compte CSTV.
 
 ## Architecture
 
@@ -42,10 +42,13 @@ La copie de `.env.example` est recommandée, mais Compose possède des valeurs d
 | `OTP_TTL_SECONDS`, `OTP_MAX_ATTEMPTS` | validité et essais OTP | 300 s, 5 |
 | `OTP_REQUEST_LIMIT_EMAIL`, `OTP_REQUEST_LIMIT_IP`, `OTP_RATE_WINDOW_SECONDS` | quotas PostgreSQL | 5, 20, 3600 s |
 | `MAX_OBJECT_SIZE_BYTES` | taille compressée maximale mesurée côté serveur | 1 MiB |
+| `MAX_IPTV_CREDENTIALS_BYTES` | taille maximale du JSON d'identifiants IPTV | 4096 octets |
+| `IPTV_CREDENTIALS_KEYS` | trousseau `keyId:base64(32 octets)` pour lire les sauvegardes | clé de développement locale |
+| `IPTV_CREDENTIALS_KEY_ID` | identifiant de la clé utilisée pour chiffrer les nouvelles écritures | `dev` |
 | `API_TEST_BASE_URL` | cible HTTP des tests fonctionnels permanents | `http://nginx-test` dans la stack de test |
 | `E2E_BASE_URL` | cible HTTP des tests de concurrence réelle | `http://nginx-test` dans la stack de test |
 
-`JWT_SECRET` et `OTP_HASH_SECRET` doivent faire au moins 32 caractères et les valeurs de développement sont refusées en production. En production, définir des secrets aléatoires, `OTP_TEST_CODE=` et une adresse valide `OTP_FROM_EMAIL` ; toute valeur de test ou expéditeur absent provoque une erreur de configuration.
+`JWT_SECRET` et `OTP_HASH_SECRET` doivent faire au moins 32 caractères et les valeurs de développement sont refusées en production. En production, définir des secrets aléatoires, `OTP_TEST_CODE=`, une adresse valide `OTP_FROM_EMAIL`, ainsi qu'un trousseau IPTV aléatoire ; toute clé de développement IPTV dans le trousseau provoque une erreur de configuration.
 
 ## Migrations et fixtures de démonstration
 
@@ -120,6 +123,12 @@ Les mutations concurrentes du même `(profil, namespace)` sont sérialisées par
 Pour `playback`, l’application doit mettre à jour Room immédiatement, mais envoyer le snapshot uniquement au démarrage effectif du média, à la pause et à la fin naturelle de lecture. Il ne faut pas pousser à chaque tick, lors du passage en arrière-plan, ni à la simple sortie ou destruction du lecteur. Un envoi périodique pourra être évalué dans un second temps.
 
 La suppression d’un profil est interdite s’il est le dernier. Sinon PostgreSQL supprime ses snapshots par cascade ; les autres installations constatent la liste de profils et les snapshots actuels lors de leur prochaine synchronisation complète.
+
+## Sauvegarde des identifiants IPTV
+
+`GET`, `PUT` et `DELETE /v1/account/iptv-credentials` sont protégés par le JWT et ne portent aucun identifiant de compte dans l'URL. Une seule ligne par compte est stockée dans `account_iptv_credentials`; son `payload` contient une enveloppe XChaCha20-Poly1305 (`version || nonce || ciphertext+tag`) et jamais les champs Xtream en clair. La clé est lue depuis `IPTV_CREDENTIALS_KEYS`, hors PostgreSQL, et l'AAD lie la donnée au compte et au `key_id`.
+
+`PUT` est volontairement last-write-wins sans `If-Match` obligatoire. `DELETE` est idempotent sans précondition ; une invalidation liée à une copie restaurée envoie son ETag, afin qu'un `412` protège une copie plus récente d'un autre appareil. Les réponses sensibles portent `Cache-Control: no-store`.
 
 ## Déploiement (alwaysdata)
 

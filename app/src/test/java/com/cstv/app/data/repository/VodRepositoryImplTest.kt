@@ -67,7 +67,7 @@ class VodRepositoryImplTest {
 
     private lateinit var repository: VodRepositoryImpl
 
-    private val credentials = Credentials("test.com", 80, "username", "password", true)
+    private val credentials = Credentials("test.com", 80, "username", "password")
     private val activeProfileId = 1
     private val accountKey = "account-key"
 

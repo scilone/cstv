@@ -67,7 +67,7 @@ class CatalogSyncManagerImplTest {
 
     private lateinit var manager: CatalogSyncManagerImpl
 
-    private val credentials = Credentials("panel.example.com", 8080, "user", "secret", true)
+    private val credentials = Credentials("panel.example.com", 8080, "user", "secret")
     private val accountKey get() = CatalogServerKey.from(credentials)
     // Distincte de `accountKey` (serveur seul) : la réconciliation opère sur les
     // identités `media_refs`, clées par AccountKey (host:port:username).

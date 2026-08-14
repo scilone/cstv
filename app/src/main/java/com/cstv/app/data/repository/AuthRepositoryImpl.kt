@@ -107,7 +107,7 @@ class AuthRepositoryImpl @Inject constructor(
      */
     override suspend fun autoLogin(): AutoLoginOutcome {
         val credentials = credentialsManager.getCredentials()
-        if (credentials == null || !credentials.rememberMe) {
+        if (credentials == null) {
             return AutoLoginOutcome.NoCredentials
         }
 

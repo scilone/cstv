@@ -47,7 +47,13 @@ fun LoginScreen(
     modifier: Modifier = Modifier
 ) {
     val loginState by viewModel.loginState.collectAsStateWithLifecycle()
-    val savedCredentials by viewModel.savedCredentials.collectAsStateWithLifecycle()
+    val cloudBackupVisible by viewModel.cloudBackupVisible.collectAsStateWithLifecycle()
+    val cloudBackupEnabled by viewModel.cloudBackupEnabled.collectAsStateWithLifecycle()
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(Unit) {
+        viewModel.messages.collect { snackbarHostState.showSnackbar(it) }
+    }
 
     // Champ unique "adresse du serveur" (Phase 28), remplaçant les anciens
     // champs host/port séparés. Parsé en host/port juste avant l'appel
@@ -57,18 +63,6 @@ fun LoginScreen(
     var serverAddressError by remember { mutableStateOf<String?>(null) }
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
-    var rememberMe by remember { mutableStateOf(true) }
-
-    // Pre-populate if saved credentials exist. Reconstitue l'adresse complète
-    // à partir du host/port déjà stockés (Phase 1) sans forcer une ressaisie.
-    LaunchedEffect(savedCredentials) {
-        savedCredentials?.let { creds ->
-            serverAddress = ServerAddressParser.buildDisplayAddress(creds.host, creds.port)
-            username = creds.username
-            password = creds.password
-            rememberMe = creds.rememberMe
-        }
-    }
 
     LaunchedEffect(loginState) {
         if (loginState is LoginState.Success) {
@@ -83,6 +77,10 @@ fun LoginScreen(
             .background(Surface1), // Deep luxury black/blue background
         contentAlignment = Alignment.Center
     ) {
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier.align(Alignment.BottomCenter)
+        )
         Column(
             modifier = Modifier
                 .fillMaxWidth(if (isTv) 0.5f else 0.88f)
@@ -120,8 +118,9 @@ fun LoginScreen(
                 onUsernameChange = { username = it },
                 password = password,
                 onPasswordChange = { password = it },
-                rememberMe = rememberMe,
-                onRememberMeChange = { rememberMe = it },
+                cloudBackupVisible = cloudBackupVisible,
+                cloudBackupEnabled = cloudBackupEnabled,
+                onCloudBackupChange = viewModel::onCloudBackupChange,
                 isTv = isTv,
                 onSubmit = {
                     when (val parsed = ServerAddressParser.parse(serverAddress)) {
@@ -131,7 +130,7 @@ fun LoginScreen(
                         is ServerAddressParser.Result.Success -> {
                             serverAddressError = null
                             viewModel.login(
-                                Credentials(parsed.host, parsed.port, username, password, rememberMe)
+                                Credentials(parsed.host, parsed.port, username, password)
                             )
                         }
                     }
@@ -202,8 +201,9 @@ fun LoginForm(
     onUsernameChange: (String) -> Unit,
     password: String,
     onPasswordChange: (String) -> Unit,
-    rememberMe: Boolean,
-    onRememberMeChange: (Boolean) -> Unit,
+    cloudBackupVisible: Boolean,
+    cloudBackupEnabled: Boolean,
+    onCloudBackupChange: (Boolean) -> Unit,
     isTv: Boolean,
     onSubmit: () -> Unit,
     isLoading: Boolean
@@ -314,26 +314,26 @@ fun LoginForm(
             modifier = Modifier.fillMaxWidth()
         )
 
-        // Remember Me Switch/Checkbox Row
-        Row(
+        if (cloudBackupVisible) Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(vertical = 4.dp)
         ) {
             Checkbox(
-                checked = rememberMe,
-                onCheckedChange = onRememberMeChange,
+                checked = cloudBackupEnabled,
+                onCheckedChange = onCloudBackupChange,
                 enabled = !isLoading,
                 colors = CheckboxDefaults.colors(checkedColor = MaterialTheme.colorScheme.primary)
             )
             Spacer(modifier = Modifier.width(4.dp))
             Text(
-                text = stringResource(R.string.login_remember_me),
+                text = stringResource(R.string.login_cloud_backup),
                 fontSize = 14.sp,
                 color = Color.LightGray
             )
         }
+        if (cloudBackupVisible) Text(stringResource(R.string.login_cloud_backup_help), fontSize = 12.sp, color = Color.LightGray)
 
         Spacer(modifier = Modifier.height(8.dp))
 

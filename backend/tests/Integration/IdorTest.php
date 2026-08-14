@@ -130,6 +130,19 @@ final class IdorTest extends IntegrationTestCase
         self::assertNotContains($this->victimProfileId, $ids);
     }
 
+    public function testAccountScopedCredentialsCannotBeReadOrDeletedByAnotherAccount(): void
+    {
+        $path = '/v1/account/iptv-credentials';
+        $put = $this->jsonRequest('PUT', $path, [
+            'host' => 'https://victim-panel.example', 'port' => 8080, 'username' => 'victim', 'password' => 'secret',
+        ], $this->auth($this->victim['token']));
+        self::assertSame(204, $put->getStatusCode());
+
+        self::assertSame(404, $this->request('GET', $path, '', $this->auth($this->attacker['token']))->getStatusCode());
+        self::assertSame(204, $this->request('DELETE', $path, '', $this->auth($this->attacker['token']))->getStatusCode());
+        self::assertSame(200, $this->request('GET', $path, '', $this->auth($this->victim['token']))->getStatusCode());
+    }
+
     private function victimObjectUri(): string
     {
         return sprintf('/v1/profiles/%s/objects/favorites', $this->victimProfileId);

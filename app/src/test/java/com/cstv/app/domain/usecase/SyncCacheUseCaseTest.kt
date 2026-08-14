@@ -41,7 +41,7 @@ class SyncCacheUseCaseTest {
 
     private lateinit var useCase: SyncCacheUseCase
 
-    private val credentials = Credentials("host.example.com", 8080, "user", "pass", true)
+    private val credentials = Credentials("host.example.com", 8080, "user", "pass")
 
     @Before
     fun setUp() {

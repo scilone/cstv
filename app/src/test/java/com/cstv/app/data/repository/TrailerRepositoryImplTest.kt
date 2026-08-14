@@ -38,7 +38,7 @@ class TrailerRepositoryImplTest {
     @get:Rule
     val globalTimeout: Timeout = Timeout.seconds(60)
 
-    private val credentials = Credentials("https://panel.example", 443, "user", "password", true)
+    private val credentials = Credentials("https://panel.example", 443, "user", "password")
     private val xtream: XtreamApiService = mock()
     private val tmdb: TmdbApiService = mock()
     private val credentialsManager: CredentialsManager = mock()

@@ -9,6 +9,7 @@
         "ext-mbstring": "*",
         "ext-pdo": "*",
         "ext-pdo_pgsql": "*",
+        "ext-sodium": "*",
         "firebase/php-jwt": "^7.0",
         "slim/psr7": "^1.7",
         "slim/slim": "^4.15.2"

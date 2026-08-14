@@ -30,6 +30,10 @@ final readonly class Config
         public int $maxProfilesPerAccount,
         public int $maxNamespacesPerProfile,
         public int $maxStorageBytesPerAccount,
+        /** @var array<string, string> key id => base64-encoded 32-byte key */
+        public array $iptvCredentialsKeys,
+        public string $iptvCredentialsKeyId,
+        public int $maxIptvCredentialsBytes,
     ) {
     }
 
@@ -73,6 +77,27 @@ final readonly class Config
         $host = self::string('DB_HOST', 'postgres');
         $port = self::integer('DB_PORT', 5432, 1, 65535);
         $database = self::string('POSTGRES_DB', 'cstv');
+        $defaultIptvCredentialsKeys = 'dev:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=';
+        // An explicitly empty keyring is a configuration error, not an invitation
+        // to fall back to the development key. Only an absent variable gets the
+        // development default used by local/test installations.
+        $configuredKeyRing = getenv('IPTV_CREDENTIALS_KEYS');
+        $rawKeyRing = $configuredKeyRing === false ? $defaultIptvCredentialsKeys : trim($configuredKeyRing);
+        $configuredKeyId = getenv('IPTV_CREDENTIALS_KEY_ID');
+        $keyId = $configuredKeyId === false ? 'dev' : trim($configuredKeyId);
+        $keyRing = self::iptvCredentialsKeyRing($rawKeyRing);
+        if (!isset($keyRing[$keyId])) {
+            throw new InvalidArgumentException('IPTV_CREDENTIALS_KEY_ID must exist in IPTV_CREDENTIALS_KEYS.');
+        }
+        $developmentKey = sodium_base642bin(explode(':', $defaultIptvCredentialsKeys, 2)[1], SODIUM_BASE64_VARIANT_ORIGINAL);
+        $containsDevelopmentKey = false;
+        foreach ($keyRing as $encodedKey) {
+            $containsDevelopmentKey = $containsDevelopmentKey || hash_equals($developmentKey, sodium_base642bin($encodedKey, SODIUM_BASE64_VARIANT_ORIGINAL));
+        }
+        sodium_memzero($developmentKey);
+        if ($environment === 'production' && $containsDevelopmentKey) {
+            throw new InvalidArgumentException('Development IPTV credentials encryption key must be replaced in production.');
+        }
 
         return new self(
             appEnv: $environment,
@@ -96,6 +121,9 @@ final readonly class Config
             maxProfilesPerAccount: self::integer('MAX_PROFILES_PER_ACCOUNT', 10, 1, 100),
             maxNamespacesPerProfile: self::integer('MAX_NAMESPACES_PER_PROFILE', 32, 1, 1_000),
             maxStorageBytesPerAccount: self::integer('MAX_STORAGE_BYTES_PER_ACCOUNT', 20_971_520, 1_024, 1_073_741_824),
+            iptvCredentialsKeys: $keyRing,
+            iptvCredentialsKeyId: $keyId,
+            maxIptvCredentialsBytes: self::integer('MAX_IPTV_CREDENTIALS_BYTES', 4096, 1, 65_536),
         );
     }
 
@@ -143,5 +171,30 @@ final readonly class Config
         }
 
         return $value;
+    }
+
+    /** @return array<string, string> */
+    private static function iptvCredentialsKeyRing(string $raw): array
+    {
+        $keys = [];
+        foreach (explode(',', $raw) as $entry) {
+            [$id, $encoded] = array_pad(explode(':', trim($entry), 2), 2, null);
+            if (!is_string($id) || !preg_match('/^[a-z0-9_-]{1,32}$/D', $id) || !is_string($encoded)) {
+                throw new InvalidArgumentException('IPTV_CREDENTIALS_KEYS has an invalid key entry.');
+            }
+            try {
+                $key = sodium_base642bin($encoded, SODIUM_BASE64_VARIANT_ORIGINAL);
+            } catch (\SodiumException) {
+                throw new InvalidArgumentException('IPTV_CREDENTIALS_KEYS must contain valid base64 keys.');
+            }
+            if (strlen($key) !== SODIUM_CRYPTO_AEAD_XCHACHA20POLY1305_IETF_KEYBYTES || isset($keys[$id])) {
+                throw new InvalidArgumentException('IPTV_CREDENTIALS_KEYS must contain unique 32-byte keys.');
+            }
+            $keys[$id] = $encoded;
+        }
+        if ($keys === []) {
+            throw new InvalidArgumentException('IPTV_CREDENTIALS_KEYS must not be empty.');
+        }
+        return $keys;
     }
 }

@@ -62,7 +62,7 @@ class LiveTvRepositoryImplTest {
 
     private lateinit var repository: LiveTvRepositoryImpl
 
-    private val credentials = Credentials("test.com", 80, "username", "password", true)
+    private val credentials = Credentials("test.com", 80, "username", "password")
     private val accountKey = "account-key"
 
     @Before

@@ -1,5 +1,11 @@
 # Journal des Modifications (Changelog) - CSTV IPTV
 
+## À venir — non publiée
+### ✨ Identifiants IPTV toujours locaux et sauvegarde CSTV explicite (F36)
+* **Mémoire locale durable** : après une authentification Xtream réussie, les identifiants sont conservés localement dans le stockage chiffré, indépendamment du choix de sauvegarde cloud.
+* **Sauvegarde CSTV volontaire et révocable** : la nouvelle case de connexion, visible uniquement avec un compte CSTV lié et décochée par défaut, sauvegarde une copie chiffrée par compte CSTV. La copie est restaurable silencieusement sur un nouvel appareil ; décochage et déconnexions demandent sa suppression sans confondre session IPTV locale et session CSTV.
+* **Protection serveur** : les quatre champs Xtream sont chiffrés côté API avec XChaCha20-Poly1305 et une clé hors PostgreSQL ; aucune valeur en clair n'est enregistrée dans la table, les logs ou les réponses d'erreur.
+
 ## [v1.80.0] - 2026-08-14
 ### ♻️ Normalisation relationnelle de Room et allègement de la synchronisation cloud (T20)
 * **Fin de la duplication de métadonnées dans les tables d'état** : favoris, reprises de lecture, historique Live, notes, préférences de piste, suivi de séries, préférences de catégorie et téléchargements ne stockent plus ni titre, ni jaquette, ni catégorie — uniquement une référence vers le catalogue et leurs valeurs métier propres. L'affichage résout toujours la métadonnée depuis le catalogue courant ; un média disparu ou inactif n'apparaît simplement dans aucune liste, sans carte incomplète.

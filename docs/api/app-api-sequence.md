@@ -1,6 +1,6 @@
 # Workflow application CSTV / API
 
-L’application Android conserve la donnée métier dans Room. Le backend stocke uniquement un snapshot gzip opaque par `(profil, namespace)` et son ETag ; les clés d’objets restent à l’intérieur du document applicatif. Il ne connaît ni appareil, ni installation, ni source ou credential IPTV.
+L’application Android conserve la donnée métier dans Room. Le backend stocke les snapshots gzip opaques par `(profil, namespace)` et leur ETag. Une exception dédiée stocke au plus une sauvegarde d'identifiants IPTV chiffrée par compte CSTV ; elle ne partage ni le modèle par profil ni le format gzip opaque. L'API ne connaît ni appareil, ni installation ni catalogue IPTV.
 
 ## Authentification et chargement initial
 
@@ -45,6 +45,39 @@ sequenceDiagram
 ```
 
 Le même chargement des métadonnées est rejoué au démarrage, à la reprise de l’application et après un retour réseau. Il n’existe ni cursor ni journal `sync_changes`.
+
+## Sauvegarde et restauration des identifiants IPTV
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant App as App Android / TV
+    participant X as Panel Xtream
+    participant API as API CSTV
+    participant DB as PostgreSQL
+
+    App->>X: Validation des identifiants saisis
+    X-->>App: Connexion acceptée
+    App->>App: Sauvegarde locale chiffrée, toujours
+    opt Consentement CSTV coché
+        App->>API: PUT /v1/account/iptv-credentials
+        API->>DB: Chiffre XChaCha20-Poly1305 et UPSERT par compte
+        API-->>App: 204 + ETag
+    end
+
+    Note over App: Nouvel appareil sans copie locale
+    App->>API: GET /v1/account/iptv-credentials
+    API->>DB: Déchiffre l'enveloppe liée au compte
+    API-->>App: Identifiants + ETag, no-store
+    App->>X: Vérification silencieuse
+    X-->>App: Connexion acceptée ou refusée
+    alt Refus explicite de la copie restaurée
+        App->>API: DELETE avec If-Match ETag
+        API-->>App: 204 ou 412 si une copie plus récente existe
+    end
+```
+
+Une panne CSTV n'empêche jamais la connexion IPTV : l'intention d'écriture ou de suppression est persistée dans le stockage chiffré de l'application puis rejouée par un worker réseau. Une suppression en attente est prioritaire sur toute restauration ou écriture locale.
 
 ## Modification locale et envoi asynchrone
 
@@ -158,6 +191,6 @@ sequenceDiagram
 | Fusionner les conflits 412 puis réessayer | Imposer `If-Match` sous verrou transactionnel |
 | Envoyer playback uniquement au démarrage effectif, à la pause et à la fin naturelle | Borner chaque snapshot par `MAX_OBJECT_SIZE_BYTES` |
 | Resynchroniser au démarrage/reprise/reconnexion | Relire le compte PostgreSQL à chaque requête |
-| Continuer à appeler Xtream/TMDB/YouTube | Ne jamais stocker les credentials ou catalogues IPTV |
+| Continuer à appeler Xtream/TMDB/YouTube | Ne jamais stocker catalogue ou fournisseur IPTV ; ne stocker les credentials qu'en enveloppe chiffrée par compte |
 
 Le contrat HTTP détaillé reste défini dans [`openapi.yaml`](openapi.yaml).

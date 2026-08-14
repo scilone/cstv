@@ -17,7 +17,7 @@ final class MigrationTest extends IntegrationTestCase
         try {
             $migrator = new Migrator($this->pdo, dirname(__DIR__, 2) . '/migrations');
             self::assertSame(
-                ['001_initial.sql', '002_namespace_snapshots.sql', '003_verify_throttle.sql'],
+                ['001_initial.sql', '002_namespace_snapshots.sql', '003_verify_throttle.sql', '004_account_iptv_credentials.sql'],
                 $migrator->migrate(),
             );
             self::assertSame([], $migrator->migrate());
@@ -26,7 +26,7 @@ final class MigrationTest extends IntegrationTestCase
                 "SELECT tablename FROM pg_tables WHERE schemaname = current_schema() ORDER BY tablename",
             )->fetchAll(\PDO::FETCH_COLUMN);
             self::assertSame(
-                ['accounts', 'auth_verify_attempts', 'otp_codes', 'profile_objects', 'profiles', 'schema_migrations'],
+                ['account_iptv_credentials', 'accounts', 'auth_verify_attempts', 'otp_codes', 'profile_objects', 'profiles', 'schema_migrations'],
                 $tables,
             );
 

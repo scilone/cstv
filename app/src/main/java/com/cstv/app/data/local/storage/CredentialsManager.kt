@@ -32,7 +32,6 @@ class CredentialsManager @Inject constructor(context: Context) {
             putInt("port", credentials.port)
             putString("username", credentials.username)
             putString("password", credentials.password)
-            putBoolean("remember_me", credentials.rememberMe)
             apply()
         }
     }
@@ -42,9 +41,7 @@ class CredentialsManager @Inject constructor(context: Context) {
         val port = sharedPreferences.getInt("port", 0)
         val username = sharedPreferences.getString("username", null) ?: return null
         val password = sharedPreferences.getString("password", null) ?: return null
-        val rememberMe = sharedPreferences.getBoolean("remember_me", false)
-
-        return Credentials(host, port, username, password, rememberMe)
+        return Credentials(host, port, username, password)
     }
 
     /**

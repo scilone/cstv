@@ -9,7 +9,7 @@ package com.cstv.app.domain.model
  */
 sealed interface AutoLoginOutcome {
 
-    /** Aucun identifiant enregistré, ou « se souvenir de moi » désactivé. */
+    /** Aucun identifiant enregistré sur l'appareil. */
     object NoCredentials : AutoLoginOutcome
 
     /** Validation réseau réussie. */
@@ -36,6 +36,12 @@ enum class AutoLoginRejection {
      * pour ce compte : la première connexion exige Internet.
      */
     NO_LOCAL_SESSION,
+
+    CLOUD_CREDENTIALS_INVALID,
+
+    CLOUD_RESTORE_UNAVAILABLE,
+
+    CLOUD_RESTORE_FAILED,
 
     UNKNOWN
 }

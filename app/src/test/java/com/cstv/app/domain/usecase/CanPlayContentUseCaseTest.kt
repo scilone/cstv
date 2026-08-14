@@ -36,7 +36,7 @@ class CanPlayContentUseCaseTest {
 
     private lateinit var useCase: CanPlayContentUseCase
 
-    private val credentials = Credentials("panel.example.com", 8080, "user", "secret", true)
+    private val credentials = Credentials("panel.example.com", 8080, "user", "secret")
     private val accountKey = "account-key"
 
     @Before

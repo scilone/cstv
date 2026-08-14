@@ -61,4 +61,26 @@ final class Validator
         return $value;
     }
 
+    /** @return array{host: string, port: int, username: string, password: string} */
+    public static function iptvCredentials(array $body): array
+    {
+        $host = $body['host'] ?? null;
+        $port = $body['port'] ?? null;
+        $username = $body['username'] ?? null;
+        $password = $body['password'] ?? null;
+        if (!is_string($host) || trim($host) === '' || strlen($host) > 255 || preg_match('/[\x00-\x1F\x7F]/', $host)) {
+            throw new ApiException(422, 'INVALID_IPTV_CREDENTIALS', 'host is invalid.');
+        }
+        if (!is_int($port) || $port < 1 || $port > 65535) {
+            throw new ApiException(422, 'INVALID_IPTV_CREDENTIALS', 'port is invalid.');
+        }
+        if (!is_string($username) || $username === '' || strlen($username) > 128 || preg_match('/[\x00-\x1F\x7F]/', $username)) {
+            throw new ApiException(422, 'INVALID_IPTV_CREDENTIALS', 'username is invalid.');
+        }
+        if (!is_string($password) || $password === '' || strlen($password) > 256 || preg_match('/[\x00-\x1F\x7F]/', $password)) {
+            throw new ApiException(422, 'INVALID_IPTV_CREDENTIALS', 'password is invalid.');
+        }
+        return ['host' => trim($host), 'port' => $port, 'username' => $username, 'password' => $password];
+    }
+
 }

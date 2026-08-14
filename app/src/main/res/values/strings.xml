@@ -46,7 +46,12 @@
     <string name="login_password">Mot de passe</string>
     <string name="login_password_hide">Cacher</string>
     <string name="login_password_show">Afficher</string>
-    <string name="login_remember_me">Se souvenir de moi</string>
+    <string name="login_cloud_backup">Sauvegarder mes identifiants IPTV dans CSTV</string>
+    <string name="login_cloud_backup_help">Ils seront chiffrés et restaurés automatiquement sur vos autres appareils.</string>
+    <string name="login_cloud_backup_deferred">Connexion réussie. La sauvegarde CSTV sera réessayée automatiquement.</string>
+    <string name="login_cloud_backup_delete_deferred">Déconnexion effectuée. La suppression dans CSTV sera réessayée automatiquement.</string>
+    <string name="login_cloud_credentials_invalid">Les identifiants sauvegardés ne sont plus valides. Saisissez-en de nouveaux.</string>
+    <string name="login_cloud_restore_failed">Les identifiants sauvegardés n\'ont pas pu être restaurés. Saisissez-les à nouveau.</string>
     <string name="login_button">CONNEXION</string>
     <string name="common_back">Retour</string>
     <string name="common_clear">Effacer</string>

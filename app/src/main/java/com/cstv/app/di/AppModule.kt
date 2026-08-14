@@ -43,6 +43,7 @@ import com.cstv.app.data.local.storage.CstvSessionManager
 import com.cstv.app.data.local.storage.CstvSessionManagerImpl
 import com.cstv.app.data.remote.CstvErrorMapper
 import com.cstv.app.data.remote.api.CstvApiService
+import com.cstv.app.data.remote.api.CstvIptvCredentialsApiService
 import com.cstv.app.data.remote.api.CstvAuthInterceptor
 import com.cstv.app.data.remote.api.CstvSessionGuardInterceptor
 import com.cstv.app.data.remote.api.CstvObjectsApiService
@@ -385,11 +386,15 @@ object AppModule {
     }
 
     @Provides @Singleton fun provideCstvApiService(@javax.inject.Named("cstv") retrofit: Retrofit): CstvApiService = retrofit.create(CstvApiService::class.java)
+    @Provides @Singleton fun provideCstvIptvCredentialsApiService(@javax.inject.Named("cstv") retrofit: Retrofit): CstvIptvCredentialsApiService = retrofit.create(CstvIptvCredentialsApiService::class.java)
     @Provides @Singleton fun provideCstvObjectsApiService(@javax.inject.Named("cstvObjects") retrofit: Retrofit): CstvObjectsApiService = retrofit.create(CstvObjectsApiService::class.java)
     @Provides @Singleton
     fun provideCloudProfileEmptinessProbe(impl: com.cstv.app.data.repository.CstvCloudProfileEmptinessProbe): com.cstv.app.data.repository.CloudProfileEmptinessProbe = impl
     @Provides @Singleton
     fun provideCstvAuthRepository(impl: CstvAuthRepositoryImpl): CstvAuthRepository = impl
+    @Provides @Singleton fun provideIptvCloudBackupStore(impl: com.cstv.app.data.local.storage.IptvCloudBackupStoreImpl): com.cstv.app.data.local.storage.IptvCloudBackupStore = impl
+    @Provides @Singleton fun provideIptvCredentialsBackupScheduler(impl: com.cstv.app.data.worker.WorkManagerIptvCredentialsBackupScheduler): com.cstv.app.data.worker.IptvCredentialsBackupScheduler = impl
+    @Provides @Singleton fun provideIptvCredentialsBackupRepository(impl: com.cstv.app.data.repository.IptvCredentialsBackupRepositoryImpl): com.cstv.app.domain.repository.IptvCredentialsBackupRepository = impl
 
     @Provides
     @Singleton

@@ -27,6 +27,20 @@ Lors du premier lancement de l'application, vous arrivez sur l'écran de connexi
 3. **Mot de passe** : Saisissez votre mot de passe associé.
 4. Cliquez sur **Se connecter**. Les identifiants sont chiffrés et sauvegardés localement de manière sécurisée.
 
+### ☁️ Sauvegarde CSTV des identifiants IPTV
+Si vous avez lié un compte CSTV par email, l'écran de connexion affiche la case
+**« Sauvegarder mes identifiants IPTV dans CSTV »**. Elle est décochée par défaut :
+la cocher autorise, après une connexion IPTV réussie, l'envoi d'une copie chiffrée
+vers CSTV. Sur un nouvel appareil connecté au même compte CSTV, l'application peut
+alors restaurer et vérifier cette copie automatiquement.
+
+Décocher la case supprime la copie CSTV sans fermer votre session IPTV locale. La
+commande de déconnexion IPTV supprime les identifiants locaux et demande aussi la
+suppression distante ; se déconnecter uniquement du compte CSTV conserve les
+identifiants IPTV locaux mais révoque la copie CSTV. Une indisponibilité temporaire
+de CSTV ne bloque jamais une connexion IPTV réussie : l'opération est rejouée dès
+que le réseau est disponible.
+
 ### 👥 Gestion des Profils (Type Netflix)
 Une fois connecté, l'application vous propose l'écran de sélection de profil :
 * Vous pouvez créer plusieurs profils locaux distincts pour chaque membre de la famille.
@@ -336,7 +350,6 @@ Les fiches détaillées des **Films (VOD)** et des **Séries** sur Android TV on
 * **Choix des Épisodes** : Appuyez sur **Bas** depuis les gélules pour entrer dans la liste verticale des épisodes de la saison choisie. Chaque épisode affiche son numéro, son titre, son résumé, sa vignette paysage de prévisualisation et une barre de progression si l'épisode a été entamé.
 * **Accès aux Titres associés** : En faisant **Bas** depuis le tout dernier épisode de la saison courante, le bloc « Titres associés » remonte de manière fluide pour s'afficher entièrement au bas du sélecteur d'épisodes et prend le focus horizontal. Appuyer sur **Haut** depuis les titres associés repositionne l'écran et remonte le focus sur le dernier épisode.
 * **Touche Retour** : La touche Retour de votre télécommande quitte immédiatement la fiche série et retourne à votre écran précédent, que vous soyez sur l'écran d'accueil Hero ou sur le sélecteur d'épisodes. Pour remonter des épisodes vers le Hero, utilisez simplement la touche **Haut** depuis le premier épisode de la liste.
-
 
 
 

@@ -60,7 +60,7 @@ class SeriesRepositoryImplTest {
 
     private lateinit var repository: SeriesRepositoryImpl
 
-    private val credentials = Credentials("test.com", 80, "username", "password", true)
+    private val credentials = Credentials("test.com", 80, "username", "password")
     private val activeProfileId = 1
     private val accountKey = "account-key"
 

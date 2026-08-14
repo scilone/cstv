@@ -23,7 +23,7 @@ class AccountKeyTest {
         port: Int = 8080,
         username: String = "user",
         password: String = "secret"
-    ) = Credentials(host, port, username, password, rememberMe = true)
+    ) = Credentials(host, port, username, password)
 
     /**
      * Une session hors ligne reste liée à un utilisateur, pas à son mot de passe.

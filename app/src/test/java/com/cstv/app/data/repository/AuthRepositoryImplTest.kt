@@ -72,7 +72,7 @@ class AuthRepositoryImplTest {
 
     private lateinit var authRepository: AuthRepositoryImpl
 
-    private val credentials = Credentials("test.com", 80, "username", "password", true)
+    private val credentials = Credentials("test.com", 80, "username", "password")
 
     @Before
     fun setUp() {
@@ -295,11 +295,13 @@ class AuthRepositoryImplTest {
     }
 
     @Test
-    fun autoLogin_withRememberMeDisabled_returnsNoCredentials() = runTest {
+    fun autoLogin_withStoredCredentials_doesNotTreatLegacyPreferenceAsAnOptOut() = runTest {
         org.mockito.kotlin.whenever(credentialsManager.getCredentials())
-            .thenReturn(credentials.copy(rememberMe = false))
+            .thenReturn(credentials)
+        stubCompleteCatalog("existing-account")
+        org.mockito.kotlin.whenever(networkMonitor.isCurrentlyOnline()).thenReturn(true)
 
-        assertTrue(authRepository.autoLogin() is AutoLoginOutcome.NoCredentials)
+        assertFalse(authRepository.autoLogin() is AutoLoginOutcome.NoCredentials)
     }
 
     @Test

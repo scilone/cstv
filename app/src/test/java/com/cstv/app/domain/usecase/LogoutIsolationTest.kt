@@ -16,6 +16,8 @@ import com.cstv.app.domain.repository.ProfileRepository
 import com.cstv.app.domain.util.TimeProvider
 import com.google.gson.Gson
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Rule
@@ -71,11 +73,23 @@ class LogoutIsolationTest {
 
     @Test
     fun `xtream logout only clears xtream credentials`() {
-        LogoutUseCase(xtreamAuthRepository)()
+        LogoutUseCase(xtreamAuthRepository, NoopBackup(), com.cstv.app.domain.model.IptvCloudBackupNotifier(), CoroutineScope(Dispatchers.Unconfined))()
 
         verify(xtreamAuthRepository).clearCredentials()
         // Aucune dépendance CSTV n'existe même dans le constructeur de
         // LogoutUseCase : ce test documente l'isolation structurelle.
+    }
+
+    private class NoopBackup : com.cstv.app.domain.repository.IptvCredentialsBackupRepository {
+        override fun linkedAccountId(): String? = null
+        override fun isConsentEnabled() = false
+        override suspend fun setConsent(enabled: Boolean) = com.cstv.app.domain.model.IptvBackupOutcome.Skipped
+        override suspend fun onAuthenticated(credentials: com.cstv.app.domain.model.Credentials) = com.cstv.app.domain.model.IptvBackupOutcome.Skipped
+        override suspend fun restore() = com.cstv.app.domain.model.IptvRestoreOutcome.Absent
+        override suspend fun invalidateRestored() = com.cstv.app.domain.model.IptvBackupOutcome.Skipped
+        override suspend fun deleteForIptvLogout() = com.cstv.app.domain.model.IptvBackupOutcome.Skipped
+        override suspend fun deleteForCstvSignOut() = com.cstv.app.domain.model.IptvBackupOutcome.Skipped
+        override suspend fun drainPending() = com.cstv.app.domain.model.IptvBackupOutcome.Skipped
     }
 
     @Test

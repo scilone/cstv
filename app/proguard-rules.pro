@@ -28,6 +28,7 @@
 -keep interface com.cstv.app.data.remote.api.TmdbApiService { *; }
 -keep interface com.cstv.app.data.remote.api.CstvApiService { *; }
 -keep interface com.cstv.app.data.remote.api.CstvObjectsApiService { *; }
+-keep interface com.cstv.app.data.remote.api.CstvIptvCredentialsApiService { *; }
 # GithubReleaseApiService (F35) : même pattern, même besoin de règle explicite.
 -keep interface com.cstv.app.data.remote.api.GithubReleaseApiService { *; }
 

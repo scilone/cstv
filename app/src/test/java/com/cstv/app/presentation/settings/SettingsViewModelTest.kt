@@ -13,6 +13,7 @@ import com.cstv.app.domain.model.UserInfo
 import com.cstv.app.domain.repository.CstvAuthRepository
 import com.cstv.app.domain.sync.CloudSyncManager
 import com.cstv.app.domain.sync.CloudSyncStatus
+import com.cstv.app.domain.usecase.SignOutCstvUseCase
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.*
@@ -56,6 +57,9 @@ class SettingsViewModelTest {
     @Mock
     private lateinit var credentialsManager: CredentialsManager
 
+    @Mock
+    private lateinit var signOutCstvUseCase: SignOutCstvUseCase
+
     private lateinit var viewModel: SettingsViewModel
     private val testDispatcher = UnconfinedTestDispatcher()
 
@@ -84,6 +88,7 @@ class SettingsViewModelTest {
         cstvAuthRepository,
         cloudSyncManager,
         credentialsManager,
+        signOutCstvUseCase,
         context
     )
 
@@ -203,10 +208,10 @@ class SettingsViewModelTest {
      * « Comptes ») : la garantie n'est plus structurelle, on la vérifie.
      */
     @Test
-    fun test_signOutCstv_delegatesOnlyToCstvAuthRepository() {
+    fun test_signOutCstv_delegatesOnlyToCstvAuthRepository() = runTest {
         viewModel.signOutCstv()
 
-        verify(cstvAuthRepository).signOut()
+        verify(signOutCstvUseCase).invoke()
         verify(credentialsManager, never()).clearCredentials()
     }
 

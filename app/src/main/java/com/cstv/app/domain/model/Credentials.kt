@@ -4,9 +4,10 @@ data class Credentials(
     val host: String,
     val port: Int,
     val username: String,
-    val password: String,
-    val rememberMe: Boolean = false
+    val password: String
 ) {
+    override fun toString(): String = "Credentials(host=$host, port=$port, username=$username, password=***)"
+
     val baseUrl: String
         get() {
             val cleanHost = host.trim().removeSuffix("/")
