@@ -85,6 +85,9 @@ import kotlinx.coroutines.delay
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.cstv.app.presentation.components.PlaybackLockConflictDialog
+import com.cstv.app.presentation.components.PlaybackTakenOverOverlay
 
 private fun Context.findActivity(): Activity? {
     var currentContext = this
@@ -123,6 +126,10 @@ fun VodPlayerScreen(
     val context = LocalContext.current
 
     val exoPlayer = rememberManagedExoPlayer(useOfflineCache = true)
+    val lockUi by viewModel.playbackLockUiState.collectAsStateWithLifecycle()
+    val currentLockUi by rememberUpdatedState(lockUi)
+    LaunchedEffect(details.streamId) { viewModel.beginPlaybackLock(DownloadedItem.movieContentId(details.streamId)) }
+    LaunchedEffect(lockUi.takenOverBy) { if (lockUi.takenOverBy != null) exoPlayer.stop() }
 
     var isPlayerVisible by remember { mutableStateOf(true) }
     var isLeaving by remember { mutableStateOf(false) }
@@ -152,6 +159,7 @@ fun VodPlayerScreen(
         if (!isLeaving) {
             isLeaving = true
             isPlayerVisible = false
+            viewModel.releasePlaybackLock()
             exoPlayer.stop()
             exoPlayer.clearVideoSurface()
             if (!onClose()) {
@@ -205,7 +213,8 @@ fun VodPlayerScreen(
     var showTrackDialog by remember { mutableStateOf(false) }
 
     // Prepare and play VOD
-    LaunchedEffect(details) {
+    LaunchedEffect(details, lockUi.canStartPlayback) {
+        if (!lockUi.canStartPlayback) return@LaunchedEffect
         isBuffering = true
         playbackError = null
         
@@ -370,6 +379,11 @@ fun VodPlayerScreen(
                 }
             }
 
+            override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+                if (!playWhenReady) viewModel.pausePlaybackLock()
+                else if (!currentLockUi.canStartPlayback) { exoPlayer.pause(); viewModel.resumePlaybackLock() }
+            }
+
             override fun onIsPlayingChanged(playing: Boolean) {
                 isPlaying = playing
                 when {
@@ -383,7 +397,7 @@ fun VodPlayerScreen(
 
             override fun onPlayerError(error: PlaybackException) {
                 isBuffering = false
-                playbackError = "Impossible de charger le flux vidéo (${error.localizedMessage})"
+                playbackError = if (currentLockUi.failOpen) context.getString(R.string.playback_lock_possible_limit) else "Impossible de charger le flux vidéo (${error.localizedMessage})"
             }
 
             override fun onTracksChanged(tracks: Tracks) {
@@ -403,8 +417,12 @@ fun VodPlayerScreen(
 
         onDispose {
             exoPlayer.removeListener(listener)
+            viewModel.releasePlaybackLock()
         }
     }
+
+    lockUi.conflict?.let { holder -> PlaybackLockConflictDialog(holder, onDismiss = { viewModel.cancelPlaybackLockRequest(); handleClose() }, onTakeOver = viewModel::takeOverPlaybackLock) }
+    lockUi.takenOverBy?.let { holder -> PlaybackTakenOverOverlay(holder.deviceName, onResume = viewModel::resumePlaybackLock, onDismiss = { handleClose() }) }
 
     // Auto-apply preferences as soon as tracks are first discovered
     LaunchedEffect(availableAudioTracks, availableSubtitleTracks) {

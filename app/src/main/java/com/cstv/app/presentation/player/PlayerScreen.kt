@@ -75,6 +75,8 @@ import com.cstv.app.presentation.player.core.PlayerOverlayTopBar
 import com.cstv.app.presentation.player.core.enterPictureInPicture
 import com.cstv.app.presentation.player.core.rememberManagedExoPlayer
 import com.cstv.app.presentation.player.core.rememberPipState
+import com.cstv.app.presentation.components.PlaybackLockConflictDialog
+import com.cstv.app.presentation.components.PlaybackTakenOverOverlay
 
 private fun Context.findActivity(): Activity? {
     var currentContext = this
@@ -102,6 +104,10 @@ fun PlayerScreen(
     val context = LocalContext.current
 
     val exoPlayer = rememberManagedExoPlayer(useOfflineCache = false)
+    val lockUi by viewModel.playbackLockUiState.collectAsStateWithLifecycle()
+    val currentLockUi by rememberUpdatedState(lockUi)
+    LaunchedEffect(Unit) { viewModel.beginPlaybackLock() }
+    LaunchedEffect(lockUi.takenOverBy) { if (lockUi.takenOverBy != null) exoPlayer.stop() }
 
     var isPlayerVisible by remember { mutableStateOf(true) }
     var showChannelList by remember { mutableStateOf(false) }
@@ -117,6 +123,7 @@ fun PlayerScreen(
 
     val handleClose = {
         isPlayerVisible = false
+        viewModel.releasePlaybackLock()
         exoPlayer.stop()
         exoPlayer.clearVideoSurface()
         onClose()
@@ -180,7 +187,8 @@ fun PlayerScreen(
     }
 
     // Prepare and play the stream whenever the stream index or extension changes
-    LaunchedEffect(currentStream, streamExtension) {
+    LaunchedEffect(currentStream, streamExtension, lockUi.canStartPlayback) {
+        if (!lockUi.canStartPlayback) return@LaunchedEffect
         isBuffering = true
         playbackError = null
         
@@ -204,13 +212,18 @@ fun PlayerScreen(
                 isBuffering = playbackState == Player.STATE_BUFFERING
             }
 
+            override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+                if (!playWhenReady) viewModel.pausePlaybackLock()
+                else if (!currentLockUi.canStartPlayback) { exoPlayer.pause(); viewModel.resumePlaybackLock() }
+            }
+
             override fun onPlayerError(error: PlaybackException) {
                 // If m3u8 fails, fallback once to TS format
                 if (streamExtension == "m3u8") {
                     streamExtension = "ts"
                 } else {
                     isBuffering = false
-                    playbackError = "Impossible de charger le flux vidéo (${error.localizedMessage})"
+                    playbackError = if (currentLockUi.failOpen) context.getString(R.string.playback_lock_possible_limit) else "Impossible de charger le flux vidéo (${error.localizedMessage})"
                 }
             }
 
@@ -223,8 +236,14 @@ fun PlayerScreen(
 
         onDispose {
             exoPlayer.removeListener(listener)
+            viewModel.releasePlaybackLock()
         }
     }
+
+    lockUi.conflict?.let { holder ->
+        PlaybackLockConflictDialog(holder, onDismiss = { viewModel.cancelPlaybackLockRequest(); handleClose() }, onTakeOver = viewModel::takeOverPlaybackLock)
+    }
+    lockUi.takenOverBy?.let { holder -> PlaybackTakenOverOverlay(holder.deviceName, onResume = viewModel::resumePlaybackLock, onDismiss = handleClose) }
 
     fun zapNext() {
         if (activeStreamsList.isNotEmpty()) {

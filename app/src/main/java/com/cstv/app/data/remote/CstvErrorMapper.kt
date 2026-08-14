@@ -30,6 +30,8 @@ class CstvErrorMapper(private val gson: Gson) {
         "PAYLOAD_TOO_LARGE" -> CstvError.PayloadTooLarge
         "PRECONDITION_REQUIRED" -> CstvError.PreconditionRequired
         "INVALID_SCHEMA_VERSION", "UNSUPPORTED_MEDIA_TYPE" -> CstvError.Incompatible
+        "PLAYBACK_LOCK_HELD" -> CstvError.PlaybackLockHeld
+        "PLAYBACK_LOCK_REVOKED" -> CstvError.PlaybackLockRevoked
         else -> when (status) {
             400, 422 -> CstvError.Unknown
             401 -> CstvError.Rejected

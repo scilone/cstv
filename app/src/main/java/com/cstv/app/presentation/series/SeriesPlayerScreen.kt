@@ -91,6 +91,9 @@ import kotlinx.coroutines.delay
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.cstv.app.presentation.components.PlaybackLockConflictDialog
+import com.cstv.app.presentation.components.PlaybackTakenOverOverlay
 
 private fun Context.findActivity(): Activity? {
     var currentContext = this
@@ -131,6 +134,9 @@ fun SeriesPlayerScreen(
 ) {
     val context = LocalContext.current
     val exoPlayer = rememberManagedExoPlayer(useOfflineCache = true)
+    val lockUi by viewModel.playbackLockUiState.collectAsStateWithLifecycle()
+    val currentLockUi by rememberUpdatedState(lockUi)
+    LaunchedEffect(lockUi.takenOverBy) { if (lockUi.takenOverBy != null) exoPlayer.stop() }
 
     var isPlayerVisible by remember { mutableStateOf(true) }
     var isLeaving by remember { mutableStateOf(false) }
@@ -155,6 +161,8 @@ fun SeriesPlayerScreen(
     // navigation. Toute la logique du player (URL, sauvegarde de position,
     // titre) s'appuie sur cette valeur plutôt que sur le paramètre initial.
     var currentEpisode by remember { mutableStateOf(episode) }
+
+    LaunchedEffect(currentEpisode.id) { viewModel.beginPlaybackLock(DownloadedItem.episodeContentId(currentEpisode.id)) }
 
     // Épisode suivant selon la carte des saisons/épisodes de la série ; null en
     // fin de série ou quand la map n'est pas disponible (reprise depuis
@@ -185,6 +193,7 @@ fun SeriesPlayerScreen(
         if (!isLeaving) {
             isLeaving = true
             isPlayerVisible = false
+            viewModel.releasePlaybackLock()
             exoPlayer.stop()
             exoPlayer.clearVideoSurface()
             if (!onClose()) {
@@ -239,7 +248,8 @@ fun SeriesPlayerScreen(
 
     // Prepare & Play Episode. Clé = currentEpisode : rejoué à chaque
     // enchaînement (Phase 59), pas seulement à l'ouverture initiale.
-    LaunchedEffect(currentEpisode) {
+    LaunchedEffect(currentEpisode, lockUi.canStartPlayback) {
+        if (!lockUi.canStartPlayback) return@LaunchedEffect
         isBuffering = true
         playbackError = null
 
@@ -442,9 +452,16 @@ fun SeriesPlayerScreen(
                 }
             }
 
+            override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+                // La fin d'un épisode peut enchaîner immédiatement sur le suivant :
+                // dans ce cas le verrou reste au même appareil, sans fenêtre libre.
+                if (!playWhenReady && exoPlayer.playbackState != Player.STATE_ENDED) viewModel.pausePlaybackLock()
+                else if (playWhenReady && !currentLockUi.canStartPlayback) { exoPlayer.pause(); viewModel.resumePlaybackLock() }
+            }
+
             override fun onPlayerError(error: PlaybackException) {
                 isBuffering = false
-                playbackError = "Impossible de charger le flux vidéo (${error.localizedMessage})"
+                playbackError = if (currentLockUi.failOpen) context.getString(R.string.playback_lock_possible_limit) else "Impossible de charger le flux vidéo (${error.localizedMessage})"
             }
 
             override fun onTracksChanged(tracks: Tracks) {
@@ -464,8 +481,12 @@ fun SeriesPlayerScreen(
 
         onDispose {
             exoPlayer.removeListener(listener)
+            viewModel.releasePlaybackLock()
         }
     }
+
+    lockUi.conflict?.let { holder -> PlaybackLockConflictDialog(holder, onDismiss = { viewModel.cancelPlaybackLockRequest(); handleClose() }, onTakeOver = viewModel::takeOverPlaybackLock) }
+    lockUi.takenOverBy?.let { holder -> PlaybackTakenOverOverlay(holder.deviceName, onResume = viewModel::resumePlaybackLock, onDismiss = { handleClose() }) }
 
     // Auto-apply preferences as soon as tracks are first discovered
     LaunchedEffect(availableAudioTracks, availableSubtitleTracks) {

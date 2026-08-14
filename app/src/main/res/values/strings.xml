@@ -1,5 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="playback_lock_conflict_title">Lecture déjà en cours</string>
+    <string name="playback_lock_conflict_message">Une lecture est en cours sur %1$s depuis %2$s.</string>
+    <string name="playback_lock_just_now">à l’instant</string>
+    <string name="playback_lock_minutes">%1$d min</string>
+    <string name="playback_lock_cancel">Annuler</string>
+    <string name="playback_lock_takeover">Prendre la main</string>
+    <string name="playback_lock_other_device">un autre appareil</string>
+    <string name="playback_lock_taken_title">Lecture arrêtée</string>
+    <string name="playback_lock_taken_message">La lecture a été arrêtée car %1$s a pris la main.</string>
+    <string name="playback_lock_resume">Reprendre</string>
+    <string name="playback_lock_possible_limit">Lecture impossible. La limite de connexions simultanées de votre abonnement est peut-être atteinte.</string>
     <string name="app_name">CSTV</string>
     <string name="cstv_title">Compte CSTV</string>
     <string name="cstv_email">Adresse email</string>

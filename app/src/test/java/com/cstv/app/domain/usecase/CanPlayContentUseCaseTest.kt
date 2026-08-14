@@ -44,7 +44,11 @@ class CanPlayContentUseCaseTest {
         MockitoAnnotations.openMocks(this)
         whenever(credentialsManager.getCredentials()).thenReturn(credentials)
         whenever(accountKeyProvider.current()).thenReturn(accountKey)
-        useCase = CanPlayContentUseCase(downloadDao, networkMonitor, credentialsManager, accountKeyProvider)
+        useCase = CanPlayContentUseCase(
+            IsContentDownloadedUseCase(downloadDao, accountKeyProvider),
+            networkMonitor,
+            credentialsManager,
+        )
     }
 
     // T20: contentId is derived from `(kind, providerId)`, not stored -- the entity only carries

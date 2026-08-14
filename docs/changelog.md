@@ -1,6 +1,15 @@
 # Journal des Modifications (Changelog) - CSTV IPTV
 
 ## À venir — non publiée
+
+## [v1.82.0] - 2026-08-14
+### ✨ Verrou de lecture simultanée par compte (F37)
+* **Gestion coopérative et explicite** : Bloque le démarrage d'une nouvelle lecture en cas de conflit avec un autre appareil actif du foyer, en affichant un dialogue détaillant le nom de l'appareil occupant et la durée.
+* **Prise de main volontaire (Takeover)** : Permet à l'utilisateur de couper proprement la lecture sur le premier appareil pour y substituer son flux en un clic.
+* **Message de dépossession** : Présente un bandeau d'information clair à l'utilisateur dépossédé avec un bouton de reconquête rapide.
+* **Heartbeat de maintien & fail-open** : Maintient le verrou actif par heartbeat toutes les 30s et libère automatiquement le verrou en cas d'inactivité ou de pause. En cas d'indisponibilité du backend, le système bascule en fail-open pour garantir la continuité d'accès au catalogue.
+
+## [v1.81.0] - 2026-08-14
 ### ✨ Identifiants IPTV toujours locaux et sauvegarde CSTV explicite (F36)
 * **Mémoire locale durable** : après une authentification Xtream réussie, les identifiants sont conservés localement dans le stockage chiffré, indépendamment du choix de sauvegarde cloud.
 * **Sauvegarde CSTV volontaire et révocable** : la nouvelle case de connexion, visible uniquement avec un compte CSTV lié et décochée par défaut, sauvegarde une copie chiffrée par compte CSTV. La copie est restaurable silencieusement sur un nouvel appareil ; décochage et déconnexions demandent sa suppression sans confondre session IPTV locale et session CSTV.

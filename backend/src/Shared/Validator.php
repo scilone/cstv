@@ -83,4 +83,22 @@ final class Validator
         return ['host' => trim($host), 'port' => $port, 'username' => $username, 'password' => $password];
     }
 
+    /** @return array{deviceId: string, deviceName: string, takeover: bool} */
+    public static function playbackLockDevice(array $body): array
+    {
+        $deviceId = self::uuid($body['deviceId'] ?? null, 'deviceId');
+        $name = $body['deviceName'] ?? null;
+        if ($name === null) $name = '';
+        if (!is_string($name)) throw new ApiException(422, 'INVALID_PLAYBACK_LOCK_DEVICE', 'deviceName must be a string.');
+        $sanitized = preg_replace('/[\x00-\x1F\x7F]/u', '', $name);
+        if ($sanitized === null) throw new ApiException(422, 'INVALID_PLAYBACK_LOCK_DEVICE', 'deviceName must be valid UTF-8.');
+        $name = trim($sanitized);
+        // An absent automatic name is intentionally stored as an empty value;
+        // clients render their localised “another device” fallback instead.
+        if ($name !== '') $name = mb_strimwidth($name, 0, 64, '');
+        $takeover = $body['takeover'] ?? false;
+        if (!is_bool($takeover)) throw new ApiException(422, 'INVALID_PLAYBACK_LOCK_DEVICE', 'takeover must be a boolean.');
+        return ['deviceId' => $deviceId, 'deviceName' => $name, 'takeover' => $takeover];
+    }
+
 }

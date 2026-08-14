@@ -26,6 +26,7 @@ import org.junit.After
 import org.junit.Rule
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.rules.Timeout
@@ -128,10 +129,30 @@ class LiveTvViewModelTest {
         assertFalse(viewModel.state.value.isRemovingHistory)
     }
 
-    private fun createViewModel() = LiveTvViewModel(
+    @Test
+    fun `playback conflict stays in ViewModel until explicit takeover`() = runTest(dispatcher) {
+        val requester: com.cstv.app.domain.usecase.PlaybackLockRequester = mock()
+        val holder = com.cstv.app.domain.model.PlaybackLockHolder("Salon", 42)
+        whenever(requester.request(null, false)).thenReturn(com.cstv.app.domain.usecase.PlaybackLockRequestResult.Held(holder))
+        whenever(requester.request(null, true)).thenReturn(com.cstv.app.domain.usecase.PlaybackLockRequestResult.Allowed)
+        val viewModel = createViewModel(requester)
+
+        viewModel.beginPlaybackLock()
+        advanceUntilIdle()
+        assertEquals(holder, viewModel.playbackLockUiState.value.conflict)
+        assertFalse(viewModel.playbackLockUiState.value.canStartPlayback)
+
+        viewModel.takeOverPlaybackLock()
+        advanceUntilIdle()
+        verify(requester).request(null, true)
+        assertTrue(viewModel.playbackLockUiState.value.canStartPlayback)
+    }
+
+    private fun createViewModel(requester: com.cstv.app.domain.usecase.PlaybackLockRequester? = null) = LiveTvViewModel(
         getCategories, getCategoryCounts, getStreams, observeRecentlyWatched,
         removeRecentlyWatched, saveRecentlyWatched, getEpg, getEpgNowNext,
         credentialsManager, categoryPreferences, settingsManager, liveTvRepository,
-        observeCatalogStatusUseCase, catalogSyncManager, canPlayContentUseCase
+        observeCatalogStatusUseCase, catalogSyncManager, canPlayContentUseCase,
+        requester
     )
 }

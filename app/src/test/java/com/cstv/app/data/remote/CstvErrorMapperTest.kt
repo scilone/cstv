@@ -46,6 +46,11 @@ class CstvErrorMapperTest {
         assertEquals(CstvError.ProfileLimit, mapper.fromBody(409, "{\"code\":\"PROFILE_LIMIT_REACHED\"}"))
     }
 
+    @Test fun `playback lock codes take precedence over the generic 409 fallback`() {
+        assertEquals(CstvError.PlaybackLockHeld, mapper.fromBody(409, "{\"code\":\"PLAYBACK_LOCK_HELD\"}"))
+        assertEquals(CstvError.PlaybackLockRevoked, mapper.fromBody(409, "{\"code\":\"PLAYBACK_LOCK_REVOKED\"}"))
+    }
+
     @Test fun `an unrecognized 403 json code still fails closed as disabled`() {
         assertEquals(CstvError.Disabled, mapper.fromBody(403, "{\"code\":\"SOMETHING_NEW\"}"))
     }

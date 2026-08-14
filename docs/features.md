@@ -307,9 +307,21 @@ Cette fonctionnalité permet d'activer la connexion automatique sur un profil sp
 
 ## 28. Refonte de l'écran des paramètres TV (F32)
 Refonte ergonomique et visuelle de l'écran des paramètres sur Android TV afin de respecter la charte esthétique de l'application et d'épurer l'affichage.
-* **Retrait des éléments non TV** : Suppression du bouton visuel "Retour" en haut de l'écran (le bouton retour physique de la télécommande gère déjà ce comportement) et retrait définitif de la section de téléchargements ("Téléchargements hors-ligne") sur TV.
+* **Retrait des éléments non TV** : Suppression du bouton visuel "Retour" en haut de l'écran (le bouton retour physique de la télécommande gère déjà ce comportement) et retrait définitif de la section de téléchargements ("Téléchargements hors-ligne") on TV.
 * **Harmonisation visuelle des boutons** : Les boutons d'action clés (Gérer les catégories, Forcer la mise à jour, Extraire les logs de diagnostic, et Déconnexion) sont remplacés par des surfaces personnalisées (`Box` avec un liseré lumineux au focus en `AccentLavande` ou `RatingDislike` pour la déconnexion).
 * **Aplats de couleurs de la charte** : Fourniture explicite de l'aplat `AccentLavande` à l'action principale de synchronisation et de `RatingDislike` à l'action de déconnexion destructive au repos avec focus blanc pour un contraste et une lisibilité maximums.
+
+---
+
+## 29. Verrou de lecture : un seul appareil à la fois (F37)
+Cette fonctionnalité introduit un verrou de lecture partagé entre tous les appareils d'un même compte CSTV afin de gérer de manière explicite et lisible la limite d'une unique connexion simultanée de l'abonnement IPTV.
+* **Gestion explicite du conflit de lecture** : Lorsqu'un second appareil tente de lire un flux Xtream (Live, VOD ou épisode de série) alors qu'une lecture est déjà en cours dans le foyer, il est bloqué avant le démarrage et présente une boîte de dialogue nommant l'appareil détenteur et la durée de sa lecture.
+* **Prise de main volontaire (Takeover)** : L'utilisateur dispose de deux choix clairs : *Annuler* (ce qui n'affecte pas la lecture en cours) ou *Prendre la main*. La prise de main transfère le verrou, lance instantanément la lecture demandée, et coupe proprement le flux sur le premier appareil.
+* **Message de dépossession sur le premier appareil** : L'appareil qui s'est fait prendre la main arrête la vidéo et affiche un bandeau de dépossession explicite (« La lecture a été arrêtée car {nomAppareil} a pris la main ») avec une option pour « Reprendre » qui relance le parcours normal d'arbitrage.
+* **Heartbeat de maintien & Expiration passive** : Le détenteur maintient le verrou actif via un heartbeat envoyé toutes les 30 secondes. Sans rafraîchissement au-delà de 90 secondes (ex. crash, déconnexion brute, panne de courant), le verrou est considéré comme expiré et redevient libre.
+* **Résilience complète en fail-open** : Une indisponibilité ou un ralentissement du backend CSTV ne bloque jamais le catalogue. L'application bascule silencieusement en mode fail-open et tente de lancer le flux Xtream en direct, avec un message d'avertissement prudent sur la limite de connexions si le panel refuse ensuite la lecture.
+* **Identification automatique des appareils** : L'appareil est identifié de façon stable (UUID persistant non nominatif) et son nom d'affichage est dérivé automatiquement du modèle et de son form factor (ex. « SHIELD Android TV », « Pixel 7 (Mobile) »), évitant toute configuration utilisateur.
+* **Exclusion des médias téléchargés** : Les films ou épisodes lus depuis le cache hors-ligne ne se connectent pas au panel et sont totalement exclus du verrou, restant lisibles à tout moment.
 
 ---
 

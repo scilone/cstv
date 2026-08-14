@@ -351,5 +351,33 @@ Les fiches détaillées des **Films (VOD)** et des **Séries** sur Android TV on
 * **Accès aux Titres associés** : En faisant **Bas** depuis le tout dernier épisode de la saison courante, le bloc « Titres associés » remonte de manière fluide pour s'afficher entièrement au bas du sélecteur d'épisodes et prend le focus horizontal. Appuyer sur **Haut** depuis les titres associés repositionne l'écran et remonte le focus sur le dernier épisode.
 * **Touche Retour** : La touche Retour de votre télécommande quitte immédiatement la fiche série et retourne à votre écran précédent, que vous soyez sur l'écran d'accueil Hero ou sur le sélecteur d'épisodes. Pour remonter des épisodes vers le Hero, utilisez simplement la touche **Haut** depuis le premier épisode de la liste.
 
+---
+
+## 20. Verrou de lecture : un seul appareil à la fois (F37)
+
+Votre abonnement IPTV n'autorise qu'**une seule connexion simultanée** à votre fournisseur. Pour vous éviter des coupures d'image brutales, des figeages ou des chargements infinis lorsque plusieurs appareils du foyer lisent en même temps, l'application intègre un **verrou de lecture intelligent**.
+
+### 🔒 Démarrage d'une lecture nominale
+Lorsque vous lancez un film, une chaîne en direct ou un épisode de série, l'application vérifie en tâche de fond que la connexion est libre. Si aucun autre appareil n'est actif, le verrou est posé en silence et la vidéo démarre immédiatement sans aucune étape visible supplémentaire.
+
+### ⚠️ Gestion d'un conflit (Lecture en cours ailleurs)
+Si vous tentez de lancer une vidéo alors qu'un membre de votre foyer regarde déjà un programme sur un autre appareil, l'application bloque le flux et affiche une boîte de dialogue d'avertissement :
+* Elle vous indique le **nom de l'appareil occupant** (ex: « SHIELD Android TV ») ainsi que la **durée de son visionnage**.
+* Deux actions vous sont proposées :
+  * **Annuler** : Vous abandonnez votre lecture et retournez à l'écran précédent. La lecture de l'autre appareil continue sans aucune interruption.
+  * **Prendre la main** : Vous transférez volontairement le verrou à votre appareil. Votre vidéo démarre instantanément, et le flux est proprement coupé sur l'autre téléviseur ou smartphone.
+
+### 🛑 Notification de dépossession (Quand on vous prend la main)
+Si un autre appareil du foyer décide de prendre la main sur votre lecture en cours, votre vidéo s'arrête proprement de façon immédiate et affiche un bandeau d'information explicite :
+* Le message vous indique quel appareil a pris la main (ex: « La lecture a été arrêtée car Pixel 7 a pris la main »).
+* Un bouton **« Reprendre »** vous permet, si vous le souhaitez, de tenter de récupérer la connexion. Cela repasse par le parcours normal d'arbitrage et présentera à votre tour la boîte de dialogue de conflit si l'autre personne regarde toujours.
+
+### 🔋 Résilience & Extinction passive (Heartbeat)
+* **Crash ou coupure brute** : Si un appareil s'éteint brutalement (coupure de courant, batterie vide), son verrou expire automatiquement après **90 secondes**. Tout autre appareil peut alors prendre le relais sans blocage.
+* **Pause et arrêt** : Le verrou est directement libéré dès que vous mettez votre vidéo en pause explicite, que le programme se termine, ou que vous quittez le lecteur.
+* **Zapping & Épisodes** : Changer de chaîne en direct (zapping) ou enchaîner les épisodes d'une même série conserve votre verrou actif sans aucune interruption ni micro-coupure réseau.
+* **Mode hors-ligne** : La lecture de vos films ou épisodes téléchargés ne se connecte jamais au serveur de votre fournisseur. Elle n'est donc soumise à aucun verrou et ne bloquera jamais les autres écrans de la maison.
+
+
 
 

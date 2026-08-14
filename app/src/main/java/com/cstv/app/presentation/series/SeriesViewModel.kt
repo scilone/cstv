@@ -68,11 +68,42 @@ class SeriesViewModel @Inject constructor(
     private val invalidateTrailerPreviewUseCase: com.cstv.app.domain.usecase.InvalidateTrailerPreviewUseCase,
     @com.cstv.app.di.DefaultDispatcher
     private val computationDispatcher: kotlinx.coroutines.CoroutineDispatcher,
-    private val markPlaybackSyncUseCase: com.cstv.app.domain.usecase.MarkPlaybackSyncUseCase? = null
+    private val markPlaybackSyncUseCase: com.cstv.app.domain.usecase.MarkPlaybackSyncUseCase? = null,
+    private val requestPlaybackLockUseCase: com.cstv.app.domain.usecase.PlaybackLockRequester? = null,
+    private val releasePlaybackLockUseCase: com.cstv.app.domain.usecase.PlaybackLockReleaser? = null,
+    private val playbackLockManager: com.cstv.app.data.playback.PlaybackLockManager? = null,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(SeriesState())
     val state: StateFlow<SeriesState> = _state.asStateFlow()
+    private val _playbackLockUiState = MutableStateFlow(com.cstv.app.domain.model.PlaybackLockUiState())
+    val playbackLockUiState: StateFlow<com.cstv.app.domain.model.PlaybackLockUiState> = _playbackLockUiState.asStateFlow()
+    private var playbackLockRequest: kotlinx.coroutines.Job? = null
+    private var playbackLockContentId: String? = null
+
+    init {
+        playbackLockManager?.let { manager -> viewModelScope.launch {
+            manager.state.collect { lock ->
+                if (lock is com.cstv.app.domain.model.PlaybackLockState.Revoked) _playbackLockUiState.value = _playbackLockUiState.value.copy(canStartPlayback = false, conflict = null, takenOverBy = lock.holder)
+            }
+        } }
+    }
+
+    fun beginPlaybackLock(contentId: String) { playbackLockContentId = contentId; requestPlaybackLock(false) }
+    fun takeOverPlaybackLock() = requestPlaybackLock(true)
+    fun resumePlaybackLock() = requestPlaybackLock(false)
+    fun cancelPlaybackLockRequest() { _playbackLockUiState.value = _playbackLockUiState.value.copy(conflict = null) }
+    fun pausePlaybackLock() { releasePlaybackLockUseCase?.release(); _playbackLockUiState.value = _playbackLockUiState.value.copy(canStartPlayback = false) }
+    fun releasePlaybackLock() = pausePlaybackLock()
+    private fun requestPlaybackLock(takeover: Boolean) {
+        playbackLockRequest?.cancel()
+        playbackLockRequest = viewModelScope.launch {
+            when (val result = requestPlaybackLockUseCase?.request(playbackLockContentId, takeover) ?: com.cstv.app.domain.usecase.PlaybackLockRequestResult.Allowed) {
+                com.cstv.app.domain.usecase.PlaybackLockRequestResult.Allowed, com.cstv.app.domain.usecase.PlaybackLockRequestResult.NotRequired -> _playbackLockUiState.value = com.cstv.app.domain.model.PlaybackLockUiState(canStartPlayback = true, failOpen = playbackLockManager?.state?.value is com.cstv.app.domain.model.PlaybackLockState.FailOpen)
+                is com.cstv.app.domain.usecase.PlaybackLockRequestResult.Held -> _playbackLockUiState.value = com.cstv.app.domain.model.PlaybackLockUiState(conflict = result.holder)
+            }
+        }
+    }
 
     private val scrollPositions = mutableMapOf<String, Pair<Int, Int>>()
     private var ratingObservation: Job? = null

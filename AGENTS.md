@@ -19,10 +19,11 @@ Pour éviter la surcharge cognitive et de contexte, respecte scrupuleusement le 
 1. **Source de vérité unique** : Chaque tâche a son propre fichier Markdown (`ai/{category}/{id}-{name}.md`) qui contient tout son contexte (spécifications, plan de développement, notes, review, etc.).
 2. **Cycle de vie standard** : Chaque élément évolue par étapes :
    `IDEA ➔ ANALYSIS ➔ SPECIFICATION ➔ ARCHITECTURE ➔ TASK BREAKDOWN ➔ IMPLEMENTATION ➔ REVIEW ➔ FIXES ➔ VALIDATION ➔ DOCUMENTATION ➔ RELEASE ➔ ARCHIVE`
-3. **Commandes d'interaction** : Pour piloter le développement, utilise des instructions explicites comme :
+3. **Questions interactives obligatoires** : avant de rédiger ou compléter une étape, pose tes questions à l'utilisateur de manière interactive (choix fermés, par lots, option recommandée en premier) plutôt que de trancher seul — voir la section *Questions interactives* de `AI_DEVELOPMENT_WORKFLOW.md`. Reporte ensuite chaque réponse dans le tableau `Décisions produit` de la fiche.
+4. **Commandes d'interaction** : Pour piloter le développement, utilise des instructions explicites comme :
    - *"Exécute l'étape 1 de F1"*
    - *"Exécute l'étape 5 de T3"*
-4. **Archivage** : Une fois la tâche entièrement terminée, validée et livrée (avec commits Git/tag SemVer), déplace le fichier de la tâche vers son sous-dossier `archive/` respectif.
+5. **Archivage** : Une fois la tâche entièrement terminée, validée et livrée (avec commits Git/tag SemVer), déplace le fichier de la tâche vers son sous-dossier `archive/` respectif.
 
 ## Périmètre strict du projet
 

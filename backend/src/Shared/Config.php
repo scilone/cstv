@@ -34,6 +34,8 @@ final readonly class Config
         public array $iptvCredentialsKeys,
         public string $iptvCredentialsKeyId,
         public int $maxIptvCredentialsBytes,
+        public int $playbackLockTtlSeconds,
+        public int $playbackLockHeartbeatSeconds,
     ) {
     }
 
@@ -124,6 +126,8 @@ final readonly class Config
             iptvCredentialsKeys: $keyRing,
             iptvCredentialsKeyId: $keyId,
             maxIptvCredentialsBytes: self::integer('MAX_IPTV_CREDENTIALS_BYTES', 4096, 1, 65_536),
+            playbackLockTtlSeconds: self::integer('PLAYBACK_LOCK_TTL_SECONDS', 90, 30, 3600),
+            playbackLockHeartbeatSeconds: self::integer('PLAYBACK_LOCK_HEARTBEAT_SECONDS', 30, 5, 1800),
         );
     }
 

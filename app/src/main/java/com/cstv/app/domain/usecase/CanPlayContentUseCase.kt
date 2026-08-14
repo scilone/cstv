@@ -1,10 +1,6 @@
 package com.cstv.app.domain.usecase
 
-import com.cstv.app.data.local.dao.DownloadDao
 import com.cstv.app.data.local.storage.CredentialsManager
-import com.cstv.app.data.local.storage.CurrentAccountKeyProvider
-import com.cstv.app.domain.model.DownloadContentId
-import com.cstv.app.domain.model.DownloadStatus
 import com.cstv.app.domain.network.NetworkMonitor
 import javax.inject.Inject
 
@@ -28,10 +24,9 @@ sealed interface PlaybackAvailability {
  * lecture peut partir.
  */
 class CanPlayContentUseCase @Inject constructor(
-    private val downloadDao: DownloadDao,
+    private val isContentDownloadedUseCase: IsContentDownloadedUseCase,
     private val networkMonitor: NetworkMonitor,
     private val credentialsManager: CredentialsManager,
-    private val accountKeyProvider: CurrentAccountKeyProvider
 ) {
     /**
      * [contentId] suit la convention des téléchargements (`movie_123`,
@@ -40,14 +35,7 @@ class CanPlayContentUseCase @Inject constructor(
     suspend operator fun invoke(contentId: String?): PlaybackAvailability {
         // Ordre d'évaluation : un média téléchargé est lisible quelle que soit
         // la connectivité — c'est le chemin cache Media3 déjà opérationnel.
-        val ref = contentId?.let { DownloadContentId.parse(it) }
-        if (ref != null) {
-            val (kind, providerId) = ref
-            val downloaded = downloadDao.getByRef(accountKeyProvider.current(), kind.storageValue, providerId)
-            if (downloaded != null && downloaded.status == DownloadStatus.COMPLETED.name) {
-                return PlaybackAvailability.Allowed
-            }
-        }
+        if (isContentDownloadedUseCase(contentId)) return PlaybackAvailability.Allowed
 
         if (credentialsManager.getCredentials() == null) {
             return PlaybackAvailability.RequiresReauthentication

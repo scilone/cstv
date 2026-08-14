@@ -44,6 +44,7 @@ import com.cstv.app.data.local.storage.CstvSessionManagerImpl
 import com.cstv.app.data.remote.CstvErrorMapper
 import com.cstv.app.data.remote.api.CstvApiService
 import com.cstv.app.data.remote.api.CstvIptvCredentialsApiService
+import com.cstv.app.data.remote.api.CstvPlaybackLockApiService
 import com.cstv.app.data.remote.api.CstvAuthInterceptor
 import com.cstv.app.data.remote.api.CstvSessionGuardInterceptor
 import com.cstv.app.data.remote.api.CstvObjectsApiService
@@ -387,7 +388,11 @@ object AppModule {
 
     @Provides @Singleton fun provideCstvApiService(@javax.inject.Named("cstv") retrofit: Retrofit): CstvApiService = retrofit.create(CstvApiService::class.java)
     @Provides @Singleton fun provideCstvIptvCredentialsApiService(@javax.inject.Named("cstv") retrofit: Retrofit): CstvIptvCredentialsApiService = retrofit.create(CstvIptvCredentialsApiService::class.java)
+    @Provides @Singleton fun provideCstvPlaybackLockApiService(@javax.inject.Named("cstv") retrofit: Retrofit): CstvPlaybackLockApiService = retrofit.create(CstvPlaybackLockApiService::class.java)
     @Provides @Singleton fun provideCstvObjectsApiService(@javax.inject.Named("cstvObjects") retrofit: Retrofit): CstvObjectsApiService = retrofit.create(CstvObjectsApiService::class.java)
+    @Provides @Singleton fun providePlaybackLockRepository(impl: com.cstv.app.data.repository.PlaybackLockRepositoryImpl): com.cstv.app.domain.repository.PlaybackLockRepository = impl
+    @Provides @Singleton fun providePlaybackLockRequester(impl: com.cstv.app.domain.usecase.RequestPlaybackLockUseCase): com.cstv.app.domain.usecase.PlaybackLockRequester = impl
+    @Provides @Singleton fun providePlaybackLockReleaser(impl: com.cstv.app.domain.usecase.ReleasePlaybackLockUseCase): com.cstv.app.domain.usecase.PlaybackLockReleaser = impl
     @Provides @Singleton
     fun provideCloudProfileEmptinessProbe(impl: com.cstv.app.data.repository.CstvCloudProfileEmptinessProbe): com.cstv.app.data.repository.CloudProfileEmptinessProbe = impl
     @Provides @Singleton
@@ -395,6 +400,7 @@ object AppModule {
     @Provides @Singleton fun provideIptvCloudBackupStore(impl: com.cstv.app.data.local.storage.IptvCloudBackupStoreImpl): com.cstv.app.data.local.storage.IptvCloudBackupStore = impl
     @Provides @Singleton fun provideIptvCredentialsBackupScheduler(impl: com.cstv.app.data.worker.WorkManagerIptvCredentialsBackupScheduler): com.cstv.app.data.worker.IptvCredentialsBackupScheduler = impl
     @Provides @Singleton fun provideIptvCredentialsBackupRepository(impl: com.cstv.app.data.repository.IptvCredentialsBackupRepositoryImpl): com.cstv.app.domain.repository.IptvCredentialsBackupRepository = impl
+    @Provides @Singleton fun provideDeviceIdentityProvider(impl: com.cstv.app.data.local.storage.DeviceIdentityManager): com.cstv.app.data.local.storage.DeviceIdentityProvider = impl
 
     @Provides
     @Singleton

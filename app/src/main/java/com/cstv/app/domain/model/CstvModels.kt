@@ -51,5 +51,7 @@ sealed interface CstvError {
     data object PayloadTooLarge : CstvError
     data object PreconditionRequired : CstvError
     data object Incompatible : CstvError
+    data object PlaybackLockHeld : CstvError
+    data object PlaybackLockRevoked : CstvError
     data object Unknown : CstvError
 }

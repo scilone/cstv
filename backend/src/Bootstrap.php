@@ -19,11 +19,14 @@ use Cstv\Backend\Http\Action\IptvCredentialsAction;
 use Cstv\Backend\Http\Action\MeAction;
 use Cstv\Backend\Http\Action\ObjectAction;
 use Cstv\Backend\Http\Action\ProfileAction;
+use Cstv\Backend\Http\Action\PlaybackLockAction;
 use Cstv\Backend\Http\ApiErrorHandler;
 use Cstv\Backend\Http\AuthMiddleware;
 use Cstv\Backend\Http\SecurityHeadersMiddleware;
 use Cstv\Backend\Profile\ProfileRepository;
 use Cstv\Backend\Profile\ProfileService;
+use Cstv\Backend\Playback\PlaybackLockRepository;
+use Cstv\Backend\Playback\PlaybackLockService;
 use Cstv\Backend\Shared\Config;
 use Cstv\Backend\Shared\Crypto\EnvelopeCipher;
 use Cstv\Backend\Shared\Crypto\KeyRing;
@@ -68,6 +71,12 @@ final class Bootstrap
             new IptvCredentialsRepository($pdo),
             new EnvelopeCipher(new KeyRing($config->iptvCredentialsKeys, $config->iptvCredentialsKeyId)),
         );
+        $playbackLocks = new PlaybackLockService(
+            $pdo,
+            new PlaybackLockRepository($pdo),
+            $config->playbackLockTtlSeconds,
+            $config->playbackLockHeartbeatSeconds,
+        );
 
         $app = AppFactory::create();
         $app->get('/health', new HealthAction($pdo));
@@ -78,11 +87,15 @@ final class Bootstrap
         $profileAction = new ProfileAction($profiles, $profileService);
         $objectAction = new ObjectAction($objectService, $config->maxObjectSizeBytes);
         $iptvCredentialsAction = new IptvCredentialsAction($iptvCredentials, $config->maxIptvCredentialsBytes);
-        $app->group('/v1', function (RouteCollectorProxy $group) use ($profiles, $profileAction, $objectAction, $iptvCredentialsAction): void {
+        $playbackLockAction = new PlaybackLockAction($playbackLocks);
+        $app->group('/v1', function (RouteCollectorProxy $group) use ($profiles, $profileAction, $objectAction, $iptvCredentialsAction, $playbackLockAction): void {
             $group->get('/me', new MeAction($profiles));
             $group->get('/account/iptv-credentials', [$iptvCredentialsAction, 'get']);
             $group->put('/account/iptv-credentials', [$iptvCredentialsAction, 'put']);
             $group->delete('/account/iptv-credentials', [$iptvCredentialsAction, 'delete']);
+            $group->post('/account/playback-lock', [$playbackLockAction, 'acquire']);
+            $group->post('/account/playback-lock/heartbeat', [$playbackLockAction, 'heartbeat']);
+            $group->delete('/account/playback-lock', [$playbackLockAction, 'release']);
             $group->get('/profiles', [$profileAction, 'list']);
             $group->post('/profiles', [$profileAction, 'create']);
             $group->patch('/profiles/{profileId}', [$profileAction, 'update']);

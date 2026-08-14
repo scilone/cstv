@@ -99,6 +99,77 @@ Aucune information importante ne doit exister uniquement dans une conversation a
 
 ---
 
+# Questions interactives (règle transverse)
+
+Un ticket ne se devine pas : il se négocie. Avant de rédiger ou de compléter une
+étape, l'agent **doit** poser ses questions à l'utilisateur plutôt que de choisir
+seul et de présenter le résultat comme acquis.
+
+## Principe
+
+L'agent ne remplit une section qu'avec des décisions soit **explicitement
+validées** par l'utilisateur, soit **triviales et réversibles**. Toute décision
+qui engage le produit, le périmètre, l'expérience utilisateur ou une contrainte
+technique structurante passe par une question.
+
+## Format attendu
+
+Les questions doivent être posées **de manière interactive**, sous forme de
+choix fermés, dès que l'outillage le permet (outil de questions à choix
+multiples de l'agent). À défaut, une liste numérotée de questions avec options
+explicites dans la réponse.
+
+Règles de formulation :
+
+- **Par lots**, jamais une par une : regrouper jusqu'à 4 questions par salve
+  pour éviter les allers-retours.
+- **2 à 4 options par question**, mutuellement exclusives, jamais de question
+  ouverte quand un choix fermé est possible.
+- **L'option recommandée en premier**, suffixée `(Recommandé)`, avec la
+  justification du choix.
+- **Chaque option décrit sa conséquence**, y compris ses inconvénients : le rôle
+  de l'agent est d'éclairer un arbitrage, pas de vendre sa préférence.
+- **Vocabulaire du produit**, pas du code : les questions d'étape 1 et 2 doivent
+  être compréhensibles sans lire le dépôt.
+
+## Quand poser les questions
+
+| Étape | Objet des questions |
+|---|---|
+| 1 - Création | Comportement attendu, périmètre, cas de conflit, mode dégradé, ce qui est explicitement hors sujet. |
+| 2 - Spécification fonctionnelle | Parcours utilisateur, règles métier ambiguës, formulation des messages, cas limites. |
+| 3 - Technique et architecture | Arbitrages structurants uniquement (dépendance nouvelle, migration de schéma, compromis performance/complexité). Les choix internes relèvent de l'agent. |
+| 4 - Découpage | Ordre de livraison et découpage en lots seulement si plusieurs stratégies sont défendables. |
+| 6 à 8 - Review, correction, validation | Arbitrage sur les problèmes classés `Majeur` ou `Mineur` dont la correction élargirait le périmètre. |
+
+## Traçabilité
+
+Les réponses obtenues sont **immédiatement reportées dans le fichier de
+l'élément**, dans une section dédiée :
+
+```markdown
+# Décisions produit prises à l'étape X
+
+| Sujet | Décision |
+|---|---|
+| ... | ... |
+```
+
+Une décision qui reste uniquement dans la conversation est considérée comme
+perdue. Les points laissés en suspens vont dans `Questions ouvertes`, avec
+l'étape à laquelle ils devront être tranchés.
+
+## Limite
+
+Ne pas transformer chaque étape en interrogatoire. Ne pas poser de question dont
+la réponse est déjà écrite dans le dépôt (`AGENTS.md`, fiche de l'élément, code
+existant), ni sur un point sans conséquence observable. En cas d'exécution non
+interactive (aucune réponse possible), l'agent avance avec l'option qu'il aurait
+recommandée, l'inscrit comme **hypothèse** explicite dans le fichier et la
+signale dans sa réponse.
+
+---
+
 # Structure d'un fichier élément
 
 Chaque élément doit suivre cette structure :
@@ -130,7 +201,36 @@ Quel problème il résout.
 
 ---
 
-# 3. Spécification fonctionnelle
+# 3. Objectif
+
+Ce que l'élément doit obtenir, exprimé en résultats, pas en solutions.
+
+---
+
+# 4. Décisions produit prises à l'étape X
+
+| Sujet | Décision |
+|---|---|
+| ... | ... |
+
+Réponses obtenues auprès de l'utilisateur (voir *Questions interactives*).
+Une ligne par arbitrage tranché, complétée au fil des étapes.
+
+---
+
+# 5. Hypothèses
+
+Ce que l'élément tient pour acquis, et qui invaliderait la conception si c'était faux.
+
+---
+
+# 6. Questions ouvertes
+
+Points non tranchés, avec l'étape à laquelle ils devront l'être.
+
+---
+
+# 7. Spécification fonctionnelle
 
 Décrire :
 
@@ -143,7 +243,7 @@ Décrire :
 
 ---
 
-# 4. Spécification technique
+# 8. Spécification technique
 
 Décrire :
 
@@ -160,7 +260,7 @@ Décrire :
 
 ---
 
-# 5. Architecture
+# 9. Architecture
 
 Décrire :
 
@@ -171,7 +271,7 @@ Décrire :
 
 ---
 
-# 6. Plan de développement
+# 10. Plan de développement
 
 Liste des tâches :
 
@@ -181,13 +281,13 @@ Liste des tâches :
 
 ---
 
-# 7. Notes de développement
+# 11. Notes de développement
 
 Historique des décisions prises pendant l'implémentation.
 
 ---
 
-# 8. Review
+# 12. Review
 
 Résultats des revues.
 
@@ -201,7 +301,7 @@ Résultats des revues.
 
 ---
 
-# 9. Release
+# 13. Release
 
 Version :
 
@@ -253,6 +353,16 @@ Transformer une idée ou un problème brut en élément exploitable.
 
 ## Actions
 
+**Commencer par interroger l'utilisateur**, de manière interactive, avant
+d'écrire la moindre ligne du ticket (voir *Questions interactives*). Une idée
+brute contient toujours des arbitrages implicites : comportement en cas de
+conflit, périmètre exact, mode dégradé, ce qui est volontairement exclu.
+L'agent explore d'abord le dépôt pour ne poser que des questions utiles, puis
+pose ses questions par lots de choix fermés.
+
+Rédiger le fichier seulement une fois les réponses obtenues, et y reporter les
+décisions dans une section `Décisions produit prises à l'étape 1`.
+
 Créer un fichier :
 
 ```
@@ -274,6 +384,7 @@ Compléter :
 - description ;
 - contexte ;
 - objectif ;
+- décisions produit prises à l'étape 1 ;
 - hypothèses ;
 - questions ouvertes.
 
@@ -313,6 +424,12 @@ Ajouter :
 
 La spécification doit permettre à une personne externe au projet de comprendre exactement le résultat attendu.
 
+Traiter d'abord les `Questions ouvertes` laissées par l'étape 1 : chacune doit
+être posée à l'utilisateur de manière interactive (voir *Questions
+interactives*), puis soit tranchée dans les `Décisions produit`, soit reportée
+explicitement à l'étape 3 avec sa raison. Toute nouvelle ambiguïté découverte en
+rédigeant la spécification suit le même chemin.
+
 ## Modèle recommandé
 
 Sonnet 5 / GPT 5.6-Terra
@@ -346,6 +463,12 @@ Cette étape doit identifier :
 - les dépendances nécessaires ;
 - les risques techniques ;
 - les contraintes de performance.
+
+Les arbitrages **structurants** se posent à l'utilisateur de manière interactive
+avant d'être actés : nouvelle dépendance, migration de schéma Room ou backend,
+nouvelle surface d'API, compromis entre performance et complexité, tout choix
+difficile à revenir en arrière. Les choix internes sans conséquence observable
+restent à la main de l'agent : ils n'ont pas à être soumis.
 
 ## Modèle recommandé
 
@@ -796,7 +919,7 @@ L'agent doit toujours :
 5. Respecter les décisions déjà prises.
 6. Signaler les incohérences avant modification.
 7. Ne jamais modifier le périmètre sans validation.
-8. Poser directement des questions à l'utilisateur en cas de doute, d'ambiguïté ou de questionnement sur les choix fonctionnels ou techniques, afin de valider l'alignement avant d'agir.
+8. Poser directement des questions à l'utilisateur en cas de doute, d'ambiguïté ou de questionnement sur les choix fonctionnels ou techniques, afin de valider l'alignement avant d'agir. Ces questions se posent **de manière interactive et par lots de choix fermés**, selon la section *Questions interactives* : c'est le mode de fonctionnement par défaut, pas un recours exceptionnel. Une décision produit ne s'invente jamais en silence.
 9. Veiller à ce que tous les tests requis pour valider une tâche soient entièrement automatisés (tests unitaires s'exécutant localement via `./gradlew testDebugUnitTest`). Si une tâche ou une vérification requiert un appareil physique connecté (device), un émulateur en cours d'exécution, ou un test utilisateur manuel, elle ne doit pas être prise en compte et doit être ignorée des critères de validation de l'agent.
 10. Si un ticket fait l'objet de retours (feedback ou corrections demandées par l'utilisateur), traiter et implémenter ces retours directement dans le cadre du ticket d'origine sans passer par la création d'un nouveau ticket, à moins que l'agent n'estime que l'ampleur des retours soit trop importante et qu'il soit préférable de créer un nouveau ticket dédié.
 11. Dans le cas d'un hotfix (correction d'anomalie urgente en production), il est impératif d'effectuer directement les opérations de commit, push et création du tag Git correspondant (SemVer PATCH vX.Y.PATCH) pour assurer la livraison et le déploiement immédiats de la correction.
