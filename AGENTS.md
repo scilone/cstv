@@ -225,6 +225,28 @@ secrets et variables de production restent exclusivement dans ce fichier distant
 Ne jamais lancer `bin/fixtures` en production : le script de déploiement ne le
 fait volontairement pas.
 
+### Cohérence Composer du backend
+
+Toute modification de `backend/composer.json` (y compris l'ajout d'une extension
+PHP dans `require`) impose de régénérer et committer `backend/composer.lock`
+**avant** le déploiement. Ne pas exécuter un `composer update` général : il peut
+faire évoluer les versions de dépendances. Depuis `backend/`, utilise la mise à
+jour ciblée du hash puis la validation stricte :
+
+```bash
+docker compose run --rm --no-deps --user "$(id -u):$(id -g)" \
+  -v "$PWD:/var/www/html" php-test composer update --lock --no-install
+docker compose run --rm --no-deps --user "$(id -u):$(id -g)" \
+  -v "$PWD:/var/www/html" php-test composer validate --no-check-publish --strict
+```
+
+`php-test` n'a pas de volume source : `docker compose exec php-test composer
+update --lock` modifie seulement l'image/conteneur et ne corrige pas le lock du
+dépôt. Le volume explicite et l'identité de l'utilisateur hôte ci-dessus sont
+donc obligatoires. En production, `scripts/deploy-backend.sh` conserve
+volontairement `composer install --no-dev` afin d'installer exactement les
+versions committées, puis la migration.
+
 ### Signature
 
 Les paramètres de signature vivent dans `keystore.properties` à la racine,
