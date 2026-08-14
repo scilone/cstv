@@ -61,12 +61,20 @@ fun PlayerCoverAction(
     isAvailable: Boolean,
     unavailableContentDescription: String,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /**
+     * Format double sur TV (distance de lecture) ; le format compact reste de
+     * mise sur mobile, où le bloc bas partage une hauteur d'écran en paysage.
+     */
+    large: Boolean = false
 ) {
     var isFocused by remember { mutableStateOf(false) }
     Box(
         modifier = modifier
-            .size(width = 64.dp, height = 92.dp)
+            .size(
+                width = if (large) 128.dp else 64.dp,
+                height = if (large) 184.dp else 92.dp
+            )
             .onFocusChanged { isFocused = it.isFocused }
             .clip(RoundedCornerShape(8.dp))
             .clickable(
@@ -88,7 +96,7 @@ fun PlayerCoverAction(
                 imageVector = Icons.Default.Movie,
                 contentDescription = null,
                 tint = Color.White.copy(alpha = 0.75f),
-                modifier = Modifier.size(30.dp)
+                modifier = Modifier.size(if (large) 60.dp else 30.dp)
             )
         } else {
             AsyncImage(
@@ -150,6 +158,10 @@ fun TransportButton(
         modifier = modifier
             .size(boxSize)
             .onFocusChanged { isFocused = it.isFocused }
+            // Le clip précède le clickable : sans lui, l'indication de clic se
+            // peint sur les bornes carrées du nœud et laisse un aplat gris
+            // autour du bouton rond.
+            .clip(CircleShape)
             .clickable(onClick = onClick)
             .focusable()
             .background(

@@ -723,6 +723,7 @@ fun VodPlayerScreen(
                         isAvailable = canOpenDetails,
                         unavailableContentDescription = stringResource(R.string.player_details_unavailable),
                         onClick = handleOpenDetails,
+                        large = isTv,
                         modifier = Modifier.focusRequester(coverFocusRequester)
                     )
                     Spacer(modifier = Modifier.width(14.dp))
@@ -782,7 +783,20 @@ fun VodPlayerScreen(
                                     activeTrackColor = MaterialTheme.colorScheme.primary,
                                     inactiveTrackColor = Color(0x55FFFFFF)
                                 ),
-                                modifier = Modifier.weight(1f)
+                                // Barre focalisée au pad : gauche/droite pilotent
+                                // la lecture plutôt que le focus. En preview, pour
+                                // passer avant le pas par défaut du Slider.
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .onPreviewKeyEvent { keyEvent ->
+                                        if (!isTv || keyEvent.type != KeyEventType.KeyDown) {
+                                            false
+                                        } else when (keyEvent.key) {
+                                            Key.DirectionLeft -> { skipBackward(); true }
+                                            Key.DirectionRight -> { skipForward(); true }
+                                            else -> false
+                                        }
+                                    }
                             )
                             if (playbackProgress.isReady) {
                                 Text(

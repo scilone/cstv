@@ -680,7 +680,10 @@ fun PlayerScreen(
             var selectedDrawerCategory by remember { mutableStateOf(initialListCategory) }
 
             val dropdownCategories = remember(liveTvState.categories) {
-                listOf(initialListCategory) + liveTvState.categories
+                // « Tout » est écarté : « Liste de zapping » joue déjà ce rôle
+                // ici (les chaînes réellement zappables), les deux entrées côte
+                // à côte n'étaient pas distinguables.
+                listOf(initialListCategory) + liveTvState.categories.filterNot { it.categoryId == "all" }
             }
 
             val drawerStreams = remember(selectedDrawerCategory, liveTvState.streams, streamsList) {

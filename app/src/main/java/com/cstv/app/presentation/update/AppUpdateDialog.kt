@@ -1,5 +1,6 @@
 package com.cstv.app.presentation.update
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -33,9 +34,14 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import com.cstv.app.R
 import com.cstv.app.domain.model.AppUpdateRelease
+import com.cstv.app.presentation.components.TvInitialFocusState
+import com.cstv.app.presentation.components.rememberTvInitialFocus
+import com.cstv.app.presentation.components.tvInitialFocusTarget
 import com.cstv.app.presentation.theme.AccentLavande
+import com.cstv.app.presentation.theme.AccentLavandeHover
 import com.cstv.app.presentation.theme.Surface2
 import com.cstv.app.presentation.theme.Surface3
+import com.cstv.app.presentation.theme.Surface4
 
 /**
  * Dialogue partagé mobile/TV (F35, §3.4/§3.5), paramétré par [isTv] — même
@@ -304,17 +310,20 @@ private fun ActionsRow(isTv: Boolean, content: @Composable () -> Unit) {
     }
 }
 
-/** Focus D-pad déterministe sur l'action principale de l'état courant (F35-R5). */
+/**
+ * Focus D-pad déterministe sur l'action principale de l'état courant (F35-R5).
+ *
+ * Une demande unique échouait quand le bouton n'était pas encore attaché : plus
+ * aucune action n'était alors focalisée et le pad restait sans effet dans la
+ * popin. Les tentatives bornées de [rememberTvInitialFocus] couvrent ce délai.
+ */
 @Composable
-private fun rememberInitialFocus(isTv: Boolean): FocusRequester {
-    val focusRequester = remember { FocusRequester() }
-    if (isTv) LaunchedEffect(Unit) { runCatching { focusRequester.requestFocus() } }
-    return focusRequester
-}
+private fun rememberInitialFocus(isTv: Boolean): TvInitialFocusState =
+    rememberTvInitialFocus(isTv = isTv, ready = true, targetKey = Unit)
 
-private fun buttonModifier(isTv: Boolean, focusRequester: FocusRequester? = null): Modifier {
+private fun buttonModifier(isTv: Boolean, initialFocus: TvInitialFocusState? = null): Modifier {
     val sized = if (isTv) Modifier.width(160.dp) else Modifier.fillMaxWidth()
-    return focusRequester?.let { sized.focusRequester(it) } ?: sized
+    return if (isTv && initialFocus != null) sized.tvInitialFocusTarget(initialFocus) else sized
 }
 
 /**
@@ -327,8 +336,23 @@ private fun PrimaryButton(text: String, onClick: () -> Unit, isTv: Boolean, modi
     if (isTv) {
         androidx.tv.material3.Button(
             onClick = onClick,
-            colors = androidx.tv.material3.ButtonDefaults.colors(containerColor = AccentLavande, contentColor = Color.White),
+            // Sans couleurs de focus explicites, le défaut TV repeint le bouton
+            // en clair : l'action principale devenait indistincte des
+            // secondaires. Ici le focus éclaircit le lavande et garde le texte
+            // blanc, doublé du liseré ci-dessous.
+            colors = androidx.tv.material3.ButtonDefaults.colors(
+                containerColor = AccentLavande,
+                contentColor = Color.White,
+                focusedContainerColor = AccentLavandeHover,
+                focusedContentColor = Color.White
+            ),
             shape = androidx.tv.material3.ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+            border = androidx.tv.material3.ButtonDefaults.border(
+                focusedBorder = androidx.tv.material3.Border(
+                    border = BorderStroke(2.dp, Color.White),
+                    shape = RoundedCornerShape(8.dp)
+                )
+            ),
             modifier = modifier.height(44.dp)
         ) {
             androidx.tv.material3.Text(text, fontWeight = FontWeight.Bold, fontSize = 13.sp)
@@ -351,7 +375,25 @@ private fun SecondaryButton(text: String, onClick: () -> Unit, isTv: Boolean, mo
     if (isTv) {
         androidx.tv.material3.OutlinedButton(
             onClick = onClick,
+            // Même exigence que l'action principale : au repos, aplat neutre sur
+            // le fond du dialogue ; au focus, fond éclairci et liseré blanc.
+            colors = androidx.tv.material3.OutlinedButtonDefaults.colors(
+                containerColor = Surface3,
+                contentColor = Color.White,
+                focusedContainerColor = Surface4,
+                focusedContentColor = Color.White
+            ),
             shape = androidx.tv.material3.ButtonDefaults.shape(RoundedCornerShape(8.dp)),
+            border = androidx.tv.material3.OutlinedButtonDefaults.border(
+                border = androidx.tv.material3.Border(
+                    border = BorderStroke(1.dp, Color(0x33FFFFFF)),
+                    shape = RoundedCornerShape(8.dp)
+                ),
+                focusedBorder = androidx.tv.material3.Border(
+                    border = BorderStroke(2.dp, Color.White),
+                    shape = RoundedCornerShape(8.dp)
+                )
+            ),
             modifier = modifier.height(44.dp)
         ) {
             androidx.tv.material3.Text(text, fontSize = 13.sp)
