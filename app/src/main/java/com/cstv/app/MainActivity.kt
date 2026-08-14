@@ -66,6 +66,9 @@ import com.cstv.app.presentation.favorites.FavoritesViewModel
 import com.cstv.app.presentation.settings.SettingsViewModel
 import com.cstv.app.presentation.profile.ProfileViewModel
 import com.cstv.app.presentation.profile.ProfileSelectionScreen
+import com.cstv.app.presentation.bootstrap.CatalogBootstrapContent
+import com.cstv.app.presentation.bootstrap.CatalogBootstrapViewModel
+import com.cstv.app.presentation.bootstrap.shouldShowCatalogBootstrap
 import com.cstv.app.presentation.navigation.AppNavGraph
 import com.cstv.app.presentation.navigation.MobileNavigation
 import com.cstv.app.presentation.navigation.SeriesDeepLink
@@ -306,6 +309,29 @@ class MainActivity : ComponentActivity() {
                         }
                     )
                 } else {
+                    // F38 : le catalogue incomplet est un gate, pas une route.
+                    // Les deep links sont déjà mémorisés ci-dessus et ne seront
+                    // consommés que quand cette branche pourra composer le NavGraph.
+                    val catalogBootstrapViewModel: CatalogBootstrapViewModel = hiltViewModel()
+                    val catalogBootstrapState by catalogBootstrapViewModel.state.collectAsStateWithLifecycle()
+                    val showCatalogBootstrap = shouldShowCatalogBootstrap(
+                        hasLoggedInUser = loggedInUser != null,
+                        profileGateResolved = profileGateResolved,
+                        state = catalogBootstrapState
+                    )
+                    LaunchedEffect(showCatalogBootstrap) {
+                        if (showCatalogBootstrap) catalogBootstrapViewModel.startIfNeeded()
+                    }
+                    CatalogBootstrapContent(
+                        showBootstrap = showCatalogBootstrap,
+                        state = catalogBootstrapState,
+                        isTv = isTv,
+                        onRetry = catalogBootstrapViewModel::retry,
+                        onLogout = {
+                            loginViewModel.logout()
+                            loggedInUser = null
+                        }
+                    ) {
                     // Unified Jetpack Compose Navigation Layout for BOTH TV and Mobile.
                     // Le thème est déjà posé à la racine de setContent (voir plus haut).
                     run {
@@ -547,6 +573,7 @@ class MainActivity : ComponentActivity() {
                                 )
                             }
                         }
+                    }
                     }
                 }
             }

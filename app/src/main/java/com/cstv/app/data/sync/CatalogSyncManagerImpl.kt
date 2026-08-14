@@ -2,7 +2,6 @@ package com.cstv.app.data.sync
 
 import android.database.sqlite.SQLiteFullException
 import com.cstv.app.data.local.dao.CatalogSyncStateDao
-import com.cstv.app.data.local.entity.CatalogSection
 import com.cstv.app.data.local.storage.CredentialsManager
 import com.cstv.app.data.remote.api.RequestPriority
 import com.cstv.app.di.IptvLog
@@ -17,6 +16,7 @@ import com.cstv.app.domain.repository.LiveTvRepository
 import com.cstv.app.domain.repository.SeriesRepository
 import com.cstv.app.domain.repository.VodRepository
 import com.cstv.app.domain.sync.CatalogStatus
+import com.cstv.app.domain.sync.CatalogSection
 import com.cstv.app.domain.sync.CatalogSyncManager
 import com.cstv.app.domain.sync.SectionSyncOutcome
 import com.cstv.app.domain.sync.SyncFailureKind
@@ -135,6 +135,7 @@ class CatalogSyncManagerImpl @Inject constructor(
                     if (!isOnline) return@collect
                     val now = System.currentTimeMillis()
                     if (now - lastReconnectSyncAt < RECONNECT_MIN_INTERVAL_MILLIS) return@collect
+                    if (!shouldResumeCatalogAfterReconnect(syncStateDao.getAll())) return@collect
                     lastReconnectSyncAt = now
                     // syncIfStale() ne part que si le catalogue est périmé : un
                     // simple aller-retour réseau ne redéclenche rien.
@@ -398,3 +399,11 @@ class CatalogSyncManagerImpl @Inject constructor(
         private const val RECONNECT_MIN_INTERVAL_MILLIS = 15 * 60 * 1000L
     }
 }
+
+/** AUTH est durable : une reconnexion ne doit jamais rejouer des identifiants rejetés. */
+internal fun shouldResumeCatalogAfterReconnect(states: List<com.cstv.app.data.local.entity.CatalogSyncStateEntity>): Boolean =
+    states
+        .filter { it.section in CatalogSection.CATALOG_SECTIONS }
+        .maxByOrNull { it.lastFailureAt }
+        ?.takeIf { it.lastFailureAt > 0L }
+        ?.lastFailureKind != SyncFailureKind.AUTH.name

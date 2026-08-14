@@ -48,6 +48,13 @@ Une fois connecté, l'application vous propose l'écran de sélection de profil 
 * Le catalogue de chaînes et de vidéos reste commun pour ne pas encombrer la mémoire de l'appareil.
 * **Connexion automatique au démarrage (F31)** : Lors de l'édition d'un profil (mobile ou TV), vous pouvez cocher l'option "Connexion automatique au démarrage". Au lancement de l'application, l'écran "Qui regarde ?" sera totalement contourné et vous serez directement connecté à ce profil. Un seul profil à la fois peut être configuré en connexion automatique. Si vous l'activez sur un autre profil, le premier profil est automatiquement décoché. Si le profil automatique est supprimé, le comportement par défaut de sélection de profil est restauré.
 
+### ⏳ Écran de Préparation du Catalogue (F38)
+Lors de votre toute première connexion (ou après avoir changé de fournisseur IPTV, ce qui efface le catalogue précédent), l'application affiche un écran de chargement plein écran avant de vous laisser accéder à l'Accueil :
+* **Anti-écrans vides** : Il garantit que vous n'arriverez jamais sur une page d'Accueil ou des listes vides. L'accès à l'application reste bloqué tant que les six sections fondamentales du catalogue (les chaînes, les films et les séries, avec leurs catégories et leurs flux) n'ont pas toutes été téléchargées avec succès au moins une fois.
+* **Suivi de la progression** : L'écran indique clairement l'étape de synchronisation en cours (ex: "Chaînes TV", "Films") sous forme de barre de progression et de compteur d'étapes (de `1/6` à `6/6`).
+* **Résilience réseau & Erreurs** : En cas de coupure de réseau, l'application se met en pause automatique en affichant un indicateur "hors ligne" et reprend d'elle-même dès le retour d'Internet. Si une erreur définitive survient (identifiants refusés, panel muet, etc.), un message clair s'affiche avec la possibilité de **Réessayer** ou de **Se déconnecter** pour saisir d'autres identifiants.
+* **Notification d'attente prolongée** : Si votre catalogue est particulièrement volumineux et que le téléchargement dépasse 30 secondes, un message d'information s'affiche automatiquement pour vous rassurer (« Gros catalogue, cela peut prendre quelques minutes »).
+
 ---
 
 ## 3. Navigation dans l'application

@@ -325,6 +325,19 @@ Cette fonctionnalité introduit un verrou de lecture partagé entre tous les app
 
 ---
 
+## 30. Écran de chargement du premier remplissage (F38)
+Cette fonctionnalité introduit un écran de chargement dédié pour le tout premier remplissage du catalogue (ou après un changement de serveur avec purge de la base de données), empêchant l'accès à un catalogue vide et rendant visible la progression réelle.
+* **Écran de chargement plein écran dédié** : Affiché immédiatement après l'authentification et l'étape du gate de profil, il remplace l'Accueil vide par un retour visuel clair et structuré.
+* **Progression réelle et chiffrée** : Suivi rigoureux de la progression à travers les six sections fondamentales du catalogue (Catégories et Flux pour Live, VOD et Séries). L'écran affiche un compteur (de `1/6` à `6/6`), le libellé de l'étape courante, et une barre de progression déterminée.
+* **Garantie anti-écrans vides** : L'accès aux fonctionnalités applicatives (Accueil, VOD, Paramètres, etc.) reste strictement bloqué tant que les six sections ne sont pas validées avec succès au moins une fois. L'enrichissement (EPG, TMDB, fiches) se poursuit en tâche de fond de manière invisible après le déblocage.
+* **Résilience réseau et gestion d'erreurs typées** : 
+  * En cas de perte de connexion, l'écran bascule automatiquement en état "hors ligne" et reprend de lui-même dès le retour du signal.
+  * Les échecs sont analysés et traduits en messages clairs et non techniques (erreurs d'authentification, panel muet, réponse illisible, stockage insuffisant, erreur inconnue), offrant des actions directes pour « Réessayer » ou « Se déconnecter ».
+* **Délai d'attente prolongée** : Un avertissement s'affiche au-delà de 30 secondes d'activité continue (« Gros catalogue, cela peut prendre quelques minutes ») pour rassurer l'utilisateur face aux catalogues particulièrement volumineux.
+* **Intégration et accessibilité** : Conception partagée respectant l'accessibilité (lecteurs d'écran) et l'ergonomie TV (gestion robuste du focus D-pad sur l'action primaire "Réessayer" en cas d'erreur).
+
+---
+
 ## 🚫 Fonctionnalités hors périmètre (Exclusions validées)
 Pour des raisons de performance, de stabilité ou d'expérience utilisateur, les fonctionnalités suivantes sont **strictement hors périmètre** :
 * **Multi-comptes Xtream** : L'application gère un seul compte Xtream Codes actif à la fois (les profils sont purement locaux et rattachés à ce compte unique).

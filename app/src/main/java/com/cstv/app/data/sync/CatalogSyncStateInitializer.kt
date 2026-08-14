@@ -1,10 +1,10 @@
 package com.cstv.app.data.sync
 
 import com.cstv.app.data.local.dao.CatalogSyncStateDao
-import com.cstv.app.data.local.entity.CatalogSection
 import com.cstv.app.data.local.entity.CatalogSyncStateEntity
 import com.cstv.app.data.local.storage.CredentialsManager
 import com.cstv.app.data.local.storage.SettingsManager
+import com.cstv.app.domain.sync.CatalogSection
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import javax.inject.Inject

@@ -16,6 +16,7 @@ import com.cstv.app.data.remote.dto.SeriesStreamDto
 import com.cstv.app.data.remote.dto.SeriesInfoResponseDto
 import com.cstv.app.domain.model.*
 import com.cstv.app.domain.repository.TrailerRepository
+import com.cstv.app.domain.sync.CatalogSection
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
@@ -279,7 +280,7 @@ class AuthRepositoryImplTest {
     // --- T4 : connexion automatique et démarrage sans réseau ---
 
     private fun stubCompleteCatalog(forKey: String) {
-        val states = com.cstv.app.data.local.entity.CatalogSection.CATALOG_SECTIONS.map {
+        val states = CatalogSection.CATALOG_SECTIONS.map {
             com.cstv.app.data.local.entity.CatalogSyncStateEntity(
                 section = it, accountKey = forKey, lastSuccessAt = 1L
             )
@@ -371,7 +372,7 @@ class AuthRepositoryImplTest {
         org.mockito.kotlin.whenever(syncStateDao.getAll()).thenReturn(
             listOf(
                 com.cstv.app.data.local.entity.CatalogSyncStateEntity(
-                    section = com.cstv.app.data.local.entity.CatalogSection.LIVE_STREAMS,
+                    section = CatalogSection.LIVE_STREAMS,
                     accountKey = key,
                     lastSuccessAt = 1L
                 )

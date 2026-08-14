@@ -1,7 +1,6 @@
 package com.cstv.app.data.sync
 
 import com.cstv.app.data.local.dao.CatalogSyncStateDao
-import com.cstv.app.data.local.entity.CatalogSection
 import com.cstv.app.data.local.entity.CatalogSyncStateEntity
 import com.cstv.app.data.local.storage.CredentialsManager
 import com.cstv.app.data.local.storage.SettingsManager
@@ -20,6 +19,7 @@ import com.cstv.app.domain.repository.LiveTvRepository
 import com.cstv.app.domain.repository.SeriesRepository
 import com.cstv.app.domain.repository.VodRepository
 import com.cstv.app.domain.sync.SyncFailureKind
+import com.cstv.app.domain.sync.CatalogSection
 import com.cstv.app.domain.sync.SyncOutcome
 import com.cstv.app.domain.sync.SyncTrigger
 import com.cstv.app.domain.usecase.ClearCatalogCacheUseCase
@@ -377,6 +377,26 @@ class CatalogSyncManagerImplTest {
         assertEquals(SyncFailureKind.NETWORK, status.lastFailureKind)
         assertTrue(status.isOffline)
         assertTrue(status.isNetworkOnline)
+    }
+
+    @Test
+    fun reconnectDoesNotRetryWhenTheLatestCatalogFailureIsAuth() {
+        val states = listOf(
+            CatalogSyncStateEntity(
+                section = CatalogSection.LIVE_CATEGORIES,
+                accountKey = accountKey,
+                lastFailureAt = 2L,
+                lastFailureKind = SyncFailureKind.AUTH.name
+            ),
+            CatalogSyncStateEntity(
+                section = CatalogSection.VOD_STREAMS,
+                accountKey = accountKey,
+                lastFailureAt = 1L,
+                lastFailureKind = SyncFailureKind.NETWORK.name
+            )
+        )
+
+        assertFalse(shouldResumeCatalogAfterReconnect(states))
     }
 
     // --- Purge à la connexion sur changement de compte ---

@@ -1,7 +1,6 @@
 package com.cstv.app.data.repository
 
 import com.cstv.app.data.local.dao.CatalogSyncStateDao
-import com.cstv.app.data.local.entity.CatalogSection
 import com.cstv.app.data.local.storage.CredentialsManager
 import com.cstv.app.data.remote.api.DynamicBaseUrlInterceptor
 import com.cstv.app.data.remote.api.XtreamApiService
@@ -15,6 +14,7 @@ import com.cstv.app.domain.network.NetworkMonitor
 import com.cstv.app.domain.repository.AuthRepository
 import com.cstv.app.domain.repository.TrailerRepository
 import com.cstv.app.domain.sync.CatalogSyncManager
+import com.cstv.app.domain.sync.CatalogSection
 import java.io.IOException
 import java.net.ConnectException
 import java.net.SocketTimeoutException

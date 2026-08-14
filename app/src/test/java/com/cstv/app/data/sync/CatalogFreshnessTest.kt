@@ -1,8 +1,8 @@
 package com.cstv.app.data.sync
 
 import com.cstv.app.data.local.dao.CatalogSyncStateDao
-import com.cstv.app.data.local.entity.CatalogSection
 import com.cstv.app.data.local.entity.CatalogSyncStateEntity
+import com.cstv.app.domain.sync.CatalogSection
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Rule

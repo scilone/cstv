@@ -1,7 +1,7 @@
 package com.cstv.app.data.sync
 
 import com.cstv.app.data.local.dao.CatalogSyncStateDao
-import com.cstv.app.data.local.entity.CatalogSection
+import com.cstv.app.domain.sync.CatalogSection
 import javax.inject.Inject
 import javax.inject.Singleton
 

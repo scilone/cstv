@@ -2,6 +2,13 @@
 
 ## À venir — non publiée
 
+## [v1.83.0] - 2026-08-14
+### ✨ Écran de chargement du premier remplissage du catalogue (F38)
+* **Écran de chargement dédié** : Affichage d'un écran de chargement plein écran indiquant l'étape en cours et la progression (de 1/6 à 6/6) entre l'authentification/sélection de profil et l'accès au catalogue.
+* **Garantie anti-écrans vides** : Bloque totalement l'accès aux écrans de l'application tant que les six sections fondamentales du catalogue ne sont pas validées au moins une fois (les chaînes, les films et les séries, catégories + flux). L'enrichissement reste géré asynchronement en tâche de fond.
+* **Gestion résiliente des erreurs** : Traitement transparent de la perte réseau temporaire avec reprise automatique au retour du réseau. Affichage de messages d'erreurs clairs et localisés en cas d'échec (authentification, panel, parsing, stockage, inconnu) proposant de réessayer ou de se déconnecter de la session IPTV.
+* **Expérience utilisateur mobile et Android TV** : Design et parcours unifiés avec message d'alerte en cas d'attente prolongée au-delà de 30 secondes, et gestion robuste de la capture du focus initial au D-pad sur l'action primaire en cas d'erreur sur TV.
+
 ## [v1.82.0] - 2026-08-14
 ### ✨ Verrou de lecture simultanée par compte (F37)
 * **Gestion coopérative et explicite** : Bloque le démarrage d'une nouvelle lecture en cas de conflit avec un autre appareil actif du foyer, en affichant un dialogue détaillant le nom de l'appareil occupant et la durée.

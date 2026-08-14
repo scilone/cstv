@@ -21,27 +21,3 @@ data class CatalogSyncStateEntity(
     val lastFailureKind: String? = null,
     val itemCount: Int = 0
 )
-
-/**
- * Sections suivies. Les six premières composent le catalogue : c'est sur elles
- * que se calcule la complétude qui autorise le mode hors-ligne.
- */
-object CatalogSection {
-    const val LIVE_CATEGORIES = "live_categories"
-    const val LIVE_STREAMS = "live_streams"
-    const val VOD_CATEGORIES = "vod_categories"
-    const val VOD_STREAMS = "vod_streams"
-    const val SERIES_CATEGORIES = "series_categories"
-    const val SERIES_STREAMS = "series_streams"
-    const val ENRICHMENT = "enrichment"
-    const val EPG = "epg"
-
-    val CATALOG_SECTIONS = listOf(
-        LIVE_CATEGORIES,
-        LIVE_STREAMS,
-        VOD_CATEGORIES,
-        VOD_STREAMS,
-        SERIES_CATEGORIES,
-        SERIES_STREAMS
-    )
-}
