@@ -69,7 +69,12 @@ import com.cstv.app.presentation.player.PlayerCoverAction
 import com.cstv.app.presentation.player.ResolutionBadge
 import com.cstv.app.presentation.theme.Surface1
 import com.cstv.app.presentation.theme.Surface3
+import com.cstv.app.presentation.components.rememberTvInitialFocus
+import com.cstv.app.presentation.components.tvInitialFocusTarget
 import com.cstv.app.presentation.player.core.KeepScreenOnEffect
+import com.cstv.app.presentation.player.core.PlayerKeyIntent
+import com.cstv.app.presentation.player.core.resolveMediaKeyIntent
+import com.cstv.app.presentation.player.core.resolveTvDpadIntent
 import com.cstv.app.presentation.player.core.PlayerOverlayHost
 import com.cstv.app.presentation.player.core.PlayerOverlayGradients
 import com.cstv.app.presentation.player.core.PlayerOverlayTopBar
@@ -204,6 +209,14 @@ fun VodPlayerScreen(
     var duration by remember { mutableStateOf(0L) }
     val playbackProgress = playbackProgressState(currentPosition, duration)
     var showControls by remember { mutableStateOf(true) }
+    // Relance l'auto-masquage à chaque appui : sans ça, l'overlay se referme en
+    // pleine navigation D-pad et le focus retombe sur la vidéo.
+    var keyInteractionTick by remember { mutableStateOf(0) }
+    // Focus TV : la surface vidéo garde les touches tant que l'overlay est
+    // masqué ; dès qu'il s'affiche, le bouton central les reçoit et les flèches
+    // servent uniquement à circuler entre les options.
+    val videoFocus = rememberTvInitialFocus(isTv = isTv, ready = !showControls, targetKey = showControls)
+    val controlsFocus = rememberTvInitialFocus(isTv = isTv, ready = showControls, targetKey = showControls)
     var videoWidth by remember { mutableStateOf(0) }
     var videoHeight by remember { mutableStateOf(0) }
 
@@ -454,28 +467,60 @@ fun VodPlayerScreen(
         showControls = true
     }
 
+    fun runKeyIntent(intent: PlayerKeyIntent): Boolean = when (intent) {
+        PlayerKeyIntent.PlayPause -> { togglePlayPause(); true }
+        PlayerKeyIntent.Play -> { exoPlayer.play(); showControls = true; true }
+        PlayerKeyIntent.Pause -> { exoPlayer.pause(); showControls = true; true }
+        PlayerKeyIntent.FastForward -> { skipForward(); true }
+        PlayerKeyIntent.Rewind -> { skipBackward(); true }
+        // Un film n'a ni suivant ni précédent : la touche est consommée pour ne
+        // pas dégénérer en déplacement de focus inattendu.
+        PlayerKeyIntent.Next, PlayerKeyIntent.Previous -> { showControls = true; true }
+        PlayerKeyIntent.Stop -> { handleClose(); true }
+        PlayerKeyIntent.RevealControls -> { showControls = true; true }
+    }
+
     // Full screen capture key events for TV zapping and gesture capture
     Box(
         modifier = modifier
             .fillMaxSize()
             .background(Color.Black)
+            // Phase preview : les touches média et le pad TV sont arbitrés avant
+            // le bouton focalisé, sinon l'overlay capterait tout.
+            .onPreviewKeyEvent { keyEvent ->
+                if (keyEvent.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                keyInteractionTick++
+                val mediaIntent = resolveMediaKeyIntent(keyEvent.key)
+                if (mediaIntent != null) return@onPreviewKeyEvent runKeyIntent(mediaIntent)
+                if (!isTv) return@onPreviewKeyEvent false
+                val dpadIntent = resolveTvDpadIntent(keyEvent.key, showControls)
+                if (dpadIntent != null) runKeyIntent(dpadIntent) else false
+            }
             .onKeyEvent { keyEvent ->
                 if (keyEvent.type == KeyEventType.KeyDown) {
-                    when (keyEvent.key) {
-                        Key.DirectionLeft -> {
+                    when {
+                        keyEvent.key == Key.Back -> {
+                            handleClose()
+                            true
+                        }
+                        // Sur TV, les flèches restent au système de focus : elles
+                        // ont déjà été arbitrées en phase preview.
+                        isTv -> {
+                            showControls = true
+                            false
+                        }
+                        keyEvent.key == Key.DirectionLeft -> {
                             skipBackward()
                             true
                         }
-                        Key.DirectionRight -> {
+                        keyEvent.key == Key.DirectionRight -> {
                             skipForward()
                             true
                         }
-                        Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> {
+                        keyEvent.key == Key.DirectionCenter ||
+                            keyEvent.key == Key.Enter ||
+                            keyEvent.key == Key.NumPadEnter -> {
                             togglePlayPause()
-                            true
-                        }
-                        Key.Back -> {
-                            handleClose()
                             true
                         }
                         else -> {
@@ -485,6 +530,7 @@ fun VodPlayerScreen(
                     }
                 } else false
             }
+            .tvInitialFocusTarget(videoFocus)
             .focusable()
             .clickable { showControls = !showControls }
     ) {
@@ -600,6 +646,7 @@ fun VodPlayerScreen(
             isInPipMode = isInPipMode,
             isAutoHideBlocked = showTrackDialog,
             isPlaying = isPlaying,
+            interactionKey = keyInteractionTick,
             onVisibilityChanged = { showControls = it }
         ) {
             val hasMultipleAudio = availableAudioTracks.size > 1
@@ -653,7 +700,11 @@ fun VodPlayerScreen(
                 PlayPauseButton(
                     isPlaying = isPlaying,
                     onClick = { togglePlayPause() },
-                    modifier = if (isTv) Modifier.focusProperties { down = coverFocusRequester } else Modifier
+                    modifier = if (isTv) {
+                        Modifier
+                            .tvInitialFocusTarget(controlsFocus)
+                            .focusProperties { down = coverFocusRequester }
+                    } else Modifier
                 )
                 TransportButton(Icons.Default.FastForward, "Avancer 10s", onClick = { skipForward() })
             }

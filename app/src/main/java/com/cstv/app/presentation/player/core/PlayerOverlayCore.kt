@@ -28,9 +28,15 @@ fun PlayerOverlayHost(
     modifier: Modifier = Modifier,
     autoHideDelayMs: Long = 5000L,
     isPlaying: Boolean = true,
+    /**
+     * Toute valeur qui change à chaque interaction (appui télécommande, clic).
+     * Relance le compte à rebours : sans elle, l'overlay se referme au bout de
+     * 5 s en pleine navigation D-pad et le focus retombe sur la vidéo.
+     */
+    interactionKey: Any = Unit,
     content: @Composable BoxScope.() -> Unit
 ) {
-    LaunchedEffect(isVisible, isPlaying, isInPipMode, isAutoHideBlocked) {
+    LaunchedEffect(isVisible, isPlaying, isInPipMode, isAutoHideBlocked, interactionKey) {
         if (isVisible && isPlaying && !isInPipMode && !isAutoHideBlocked) {
             delay(autoHideDelayMs)
             onVisibilityChanged(false)

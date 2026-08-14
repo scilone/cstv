@@ -75,6 +75,11 @@ import com.cstv.app.presentation.player.core.PlayerOverlayTopBar
 import com.cstv.app.presentation.player.core.enterPictureInPicture
 import com.cstv.app.presentation.player.core.rememberManagedExoPlayer
 import com.cstv.app.presentation.player.core.rememberPipState
+import com.cstv.app.presentation.components.rememberTvInitialFocus
+import com.cstv.app.presentation.components.tvInitialFocusTarget
+import com.cstv.app.presentation.player.core.PlayerKeyIntent
+import com.cstv.app.presentation.player.core.resolveMediaKeyIntent
+import com.cstv.app.presentation.player.core.resolveTvDpadIntent
 import com.cstv.app.presentation.components.PlaybackLockConflictDialog
 import com.cstv.app.presentation.components.PlaybackTakenOverOverlay
 
@@ -159,6 +164,18 @@ fun PlayerScreen(
     var isBuffering by remember { mutableStateOf(true) }
     var playbackError by remember { mutableStateOf<String?>(null) }
     var showOverlay by remember { mutableStateOf(true) }
+    // Le live n'a pas de transport à l'écran, mais la touche média Play/Pause de
+    // la télécommande doit fonctionner : l'état sert à garder l'overlay ouvert
+    // tant que le flux est en pause.
+    var isPlaying by remember { mutableStateOf(true) }
+    // Relance l'auto-masquage à chaque appui : sans ça, l'overlay se referme en
+    // pleine navigation D-pad et le focus retombe sur la vidéo.
+    var keyInteractionTick by remember { mutableStateOf(0) }
+    // Focus TV : la surface vidéo garde les touches tant que l'overlay est
+    // masqué ; dès qu'il s'affiche, le premier bouton de la barre les reçoit et
+    // les flèches ne servent plus qu'à circuler entre les options.
+    val videoFocus = rememberTvInitialFocus(isTv = isTv, ready = !showOverlay, targetKey = showOverlay)
+    val controlsFocus = rememberTvInitialFocus(isTv = isTv, ready = showOverlay, targetKey = showOverlay)
     var streamExtension by remember { mutableStateOf("m3u8") } // Default to m3u8
     var videoWidth by remember { mutableStateOf(0) }
     var videoHeight by remember { mutableStateOf(0) }
@@ -213,6 +230,7 @@ fun PlayerScreen(
             }
 
             override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+                isPlaying = playWhenReady
                 if (!playWhenReady) viewModel.pausePlaybackLock()
                 else if (!currentLockUi.canStartPlayback) { exoPlayer.pause(); viewModel.resumePlaybackLock() }
             }
@@ -261,15 +279,63 @@ fun PlayerScreen(
         }
     }
 
+    fun togglePlayPause() {
+        // Un flux live reste « pausable » côté ExoPlayer (le tampon se fige) :
+        // la reprise repart du direct via la logique de verrou existante.
+        if (exoPlayer.isPlaying) exoPlayer.pause() else exoPlayer.play()
+        showOverlay = true
+    }
+
+    fun runKeyIntent(intent: PlayerKeyIntent): Boolean = when (intent) {
+        PlayerKeyIntent.PlayPause -> { togglePlayPause(); true }
+        PlayerKeyIntent.Play -> { exoPlayer.play(); showOverlay = true; true }
+        PlayerKeyIntent.Pause -> { exoPlayer.pause(); showOverlay = true; true }
+        // Un flux live n'est pas seekable : les touches d'avance et de retour
+        // sont consommées sans effet plutôt que de déplacer le focus.
+        PlayerKeyIntent.FastForward, PlayerKeyIntent.Rewind -> { showOverlay = true; true }
+        PlayerKeyIntent.Next -> { zapNext(); true }
+        PlayerKeyIntent.Previous -> { zapPrev(); true }
+        PlayerKeyIntent.Stop -> { handleClose(); true }
+        PlayerKeyIntent.RevealControls -> { showOverlay = true; true }
+    }
+
     // Full screen capture key events for TV zapping and gesture capture for Mobile swipe zapping
     Box(
         modifier = modifier
             .fillMaxSize()
             .background(Color.Black)
+            // Phase preview : les touches média et le pad TV sont arbitrés avant
+            // les boutons de l'overlay et le tiroir de chaînes.
+            .onPreviewKeyEvent { keyEvent ->
+                if (keyEvent.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                keyInteractionTick++
+                val mediaIntent = resolveMediaKeyIntent(keyEvent.key)
+                if (mediaIntent != null) return@onPreviewKeyEvent runKeyIntent(mediaIntent)
+                if (!isTv) return@onPreviewKeyEvent false
+                // Le tiroir de chaînes compte comme des contrôles visibles : le
+                // pad doit y circuler, pas zapper derrière.
+                val dpadIntent = resolveTvDpadIntent(keyEvent.key, showOverlay || showChannelList)
+                if (dpadIntent != null) runKeyIntent(dpadIntent) else false
+            }
             .onKeyEvent { keyEvent ->
                 if (keyEvent.type == KeyEventType.KeyDown) {
-                    when (keyEvent.key) {
-                        Key.DirectionUp -> {
+                    when {
+                        keyEvent.key == Key.Back -> {
+                            if (showChannelList) {
+                                showChannelList = false
+                                true
+                            } else {
+                                handleClose()
+                                true
+                            }
+                        }
+                        // Sur TV, les flèches restent au système de focus : elles
+                        // ont déjà été arbitrées en phase preview.
+                        isTv -> {
+                            showOverlay = true
+                            false
+                        }
+                        keyEvent.key == Key.DirectionUp -> {
                             if (showChannelList) {
                                 false
                             } else {
@@ -277,20 +343,11 @@ fun PlayerScreen(
                                 true
                             }
                         }
-                        Key.DirectionDown -> {
+                        keyEvent.key == Key.DirectionDown -> {
                             if (showChannelList) {
                                 false
                             } else {
                                 zapNext()
-                                true
-                            }
-                        }
-                        Key.Back -> {
-                            if (showChannelList) {
-                                showChannelList = false
-                                true
-                            } else {
-                                handleClose()
                                 true
                             }
                         }
@@ -301,6 +358,7 @@ fun PlayerScreen(
                     }
                 } else false
             }
+            .tvInitialFocusTarget(videoFocus)
             .focusable()
             .pointerInput(Unit) {
                 detectTapGestures(
@@ -446,7 +504,8 @@ fun PlayerScreen(
             isVisible = showOverlay,
             isInPipMode = isInPipMode,
             isAutoHideBlocked = showChannelList,
-            isPlaying = true,
+            isPlaying = isPlaying,
+            interactionKey = keyInteractionTick,
             onVisibilityChanged = { showOverlay = it }
         ) {
             val epgCurrent = playerEpg?.current
@@ -465,7 +524,10 @@ fun PlayerScreen(
                 PlayerTopButton(
                     icon = Icons.AutoMirrored.Filled.ArrowBack,
                     contentDescription = "Retour",
-                    onClick = handleClose
+                    onClick = handleClose,
+                    // Pas de transport central sur le live : le focus initial du
+                    // pad se pose sur le premier bouton de la barre.
+                    modifier = if (isTv) Modifier.tvInitialFocusTarget(controlsFocus) else Modifier
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     if (!isTv) {
