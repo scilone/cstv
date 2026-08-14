@@ -55,7 +55,11 @@
    appui réflexe déclenche).
 4. Le sélecteur de catégorie du tiroir live filtre `categoryId == "all"`.
 5. `TransportButton` clippe en cercle avant `clickable` : l'aplat carré disparaît,
-   le contour violet du focus reste.
+   le contour violet du focus reste. **Complété en v1.83.3** : le bouton central
+   `PlayPauseButton` a son propre composable et débordait toujours ; `PlayerTopButton`
+   et `PlayerBottomAction` avaient le même défaut, moins visible parce que leurs
+   coins sont peu arrondis. Les quatre composants clippent désormais avant
+   `clickable`.
 6. Les barres de progression Film et Série traitent gauche/droite en
    `onPreviewKeyEvent` (avant le pas par défaut du `Slider`) et appliquent le
    ±10 s existant.
@@ -83,6 +87,6 @@
 
 ## 5. Release
 
-Version : v1.83.2
+Version : v1.83.2, complété en v1.83.3
 
 Date : 2026-08-14

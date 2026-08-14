@@ -125,6 +125,7 @@ fun PlayerTopButton(
         modifier = modifier
             .size(44.dp)
             .onFocusChanged { isFocused = it.isFocused }
+            .clip(RoundedCornerShape(10.dp))
             .clickable(onClick = onClick)
             .focusable()
             .background(OverlayButtonBg, RoundedCornerShape(10.dp))
@@ -202,6 +203,7 @@ fun PlayerBottomAction(
         verticalAlignment = Alignment.CenterVertically,
         modifier = modifier
             .onFocusChanged { isFocused = it.isFocused }
+            .clip(RoundedCornerShape(8.dp))
             .then(if (enabled) Modifier.clickable(onClick = onClick) else Modifier)
             .then(if (enabled) Modifier.focusable() else Modifier)
             .background(
@@ -280,6 +282,9 @@ fun PlayPauseButton(
         modifier = modifier
             .size(76.dp)
             .onFocusChanged { isFocused = it.isFocused }
+            // Clip avant clickable : sinon l'indication de clic se peint sur les
+            // bornes carrées du nœud et déborde du bouton rond.
+            .clip(CircleShape)
             .clickable(onClick = onClick)
             .focusable()
             .background(
