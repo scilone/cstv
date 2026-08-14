@@ -204,6 +204,27 @@ compilation réussie. Il enchaîne `testDebugUnitTest`, `lintDebug`,
 tag, puis crée la Release GitHub avec notes générées et APK attaché
 (via `gh`, qui doit être authentifié).
 
+## Déploiement du backend (alwaysdata)
+
+La release Android ne déploie **pas** le backend. Après avoir committé et poussé
+les modifications backend sur `main`, déploie explicitement avec :
+
+```bash
+scripts/deploy-backend.sh --dry-run # prévisualisation rsync, sans modification distante
+scripts/deploy-backend.sh           # rsync + composer + migrations + healthcheck
+```
+
+Le script cible `cstv@ssh-cstv.alwaysdata.net:www`, exclut `.env` et `vendor/`,
+puis charge `~/.cstv-production.env` sur le serveur, exécute `composer install
+--no-dev --optimize-autoloader --no-interaction` et `php bin/migrate`. Il vérifie
+enfin `https://cstv.alwaysdata.net/health` et les en-têtes de sécurité. Les
+secrets et variables de production restent exclusivement dans ce fichier distant
+(voir `backend/.env.example`) ; ne jamais les synchroniser ni les afficher.
+
+`--skip-composer` ne s'utilise que si les dépendances distantes sont déjà à jour.
+Ne jamais lancer `bin/fixtures` en production : le script de déploiement ne le
+fait volontairement pas.
+
 ### Signature
 
 Les paramètres de signature vivent dans `keystore.properties` à la racine,
