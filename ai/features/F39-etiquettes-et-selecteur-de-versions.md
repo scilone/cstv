@@ -3,7 +3,7 @@
 ## Informations générales
 
 Status:
-ARCHITECTURE
+TASK BREAKDOWN
 
 Created:
 2026-08-15
@@ -414,7 +414,133 @@ flowchart TD
 
 # 10. Plan de développement
 
-_À compléter — étape 4._
+F39 se livre après T21 **et** T23 (ordre du lot). Le `PlaybackEngineController`
+partagé de T23 existe donc déjà : la tâche 4 s'appuie dessus pour de vrai,
+sans point d'extension à poser — au contraire, c'est F39 qui doit veiller à
+n'utiliser qu'un seul contrôleur de moteur, pas un second concurrent (§9.3).
+
+- [ ] 1. Badges dans les listes
+
+Objectif:
+Afficher 0, 1 ou 2 badges (langue puis qualité) sur les vignettes VOD et
+série, à partir des tags T21 déjà en projection (§8.4).
+
+Fichiers:
+- `data/local/dao/CatalogListRow.kt` (projections `VodStreamListRow`,
+  `SeriesStreamListRow` — vérifier que `languageTag`/`qualityTag` y sont
+  déjà, sinon les ajouter)
+- mapper UI de badges (nouveau, partagé par les cartes)
+- cartes communes des listes (accueil, catalogue, recherche, favoris)
+
+Validation:
+`EXPLAIN QUERY PLAN` avant/après sur la requête de l'onglet « Tout »,
+confirmant que l'ajout ne fait pas perdre l'index couvrant T9 (§8.4) — sinon
+remonter le besoin d'étendre l'index à T21, pas l'étendre depuis F39. Tests
+unitaires du mapper : 0/1/2 badges selon les tags présents, jamais de badge
+fabriqué sur une entrée sans attribut (décision étape 2).
+
+---
+
+- [ ] 2. Accès aux versions par `linkKey` (VOD et séries)
+
+Objectif:
+Requêtes DAO groupées par `linkKey` avec compatibilité d'année (§8.2), et
+`SeriesVersionResolver` qui élimine les séries candidates sans épisode
+équivalent.
+
+Fichiers:
+- `data/local/dao/VodDao.kt`, `SeriesDao.kt` (nouvelles requêtes)
+- `domain/model/SeriesVersionResolver.kt` (nouveau)
+- tests DAO et resolver associés (nouveau)
+
+Validation:
+Tests DAO SQLite (AGENTS.md) : groupement correct par `linkKey`, exclusion
+des années incompatibles, ordre par rang de qualité. Tests du resolver :
+une série sans le couple saison/épisode courant est filtrée ; une série pas
+encore en cache n'est pas proposée (pas d'appel `get_series_info` déclenché
+depuis le lecteur, §8.2). Plafond défensif de 20 versions vérifié par test
+(§8.7).
+
+---
+
+- [ ] 3. Persistance de la préférence de version série
+
+Objectif:
+Créer `SeriesVersionPreferenceEntity` (§8.3) et son repository ; gérer la
+préférence obsolète par repli paresseux.
+
+Fichiers:
+- entité + DAO + repository (nouveau)
+- migration Room — **vérifier le numéro réellement disponible dans
+  `AppDatabase.kt` avant d'écrire** (règle T21 §8.5)
+
+Fichiers modifiés:
+- `data/local/db/AppDatabase.kt`, `Migrations.kt`
+
+Validation:
+Test de migration et de création fraîche. Tests repository : écriture,
+lecture par `(profileId, linkKey)`, suppression paresseuse quand la série ou
+l'épisode équivalent préféré n'existe plus (repli sur la série ouverte,
+conformément à §8.3).
+
+---
+
+- [ ] 4. `MediaVersionSwitchController` — bascule transactionnelle
+
+Objectif:
+Implémenter la bascule (§8.5) au-dessus du `PlaybackEngineController` livré
+par T23 : capture de l'état courant, préparation de la cible, seek borné,
+validation après stabilité ou rollback complet sur échec.
+
+Fichiers:
+- `presentation/player/core/MediaVersionSwitchController.kt` (nouveau)
+- tests unitaires associés (nouveau)
+
+Validation:
+Tests JVM purs (patron `FakePlaybackEngine` de T23, réutilisé si possible) :
+bascule réussie avec position conservée, cible plus courte avec seek proche
+de la fin, timeout 8 s déclenchant le rollback à la position et à la source
+d'origine, double changement rapide où seule la génération la plus récente
+l'emporte (§8.5), interaction avec la réparation T23 pendant le délai
+d'attente (§9.3 — un seul contrôleur de moteur, pas deux listeners
+concurrents). Une préférence série n'est jamais modifiée sur un rollback.
+
+---
+
+- [ ] 5. `VersionSelectorSheet` et intégration aux lecteurs
+
+Objectif:
+Composant de sélection réutilisant emplacement et focus des sélecteurs
+pistes/sous-titres existants (§8.5) ; câblage dans `VodPlayerScreen` et
+`SeriesPlayerScreen` (§8.6), désactivé côté lecteur hors ligne.
+
+Fichiers:
+- `presentation/player/VersionSelectorSheet.kt` (nouveau)
+- `presentation/player/VodPlayerScreen.kt`, `SeriesPlayerScreen.kt`
+- ViewModels VOD/série concernés
+- `strings.xml` FR/EN (message de rollback, ressource localisée — §8.7)
+
+Validation:
+Tests de ViewModel (mobile/TV, sans appareil, AGENTS.md) : bouton masqué à
+0/1 candidate, affiché à 2+, version active identifiée. Message de rollback
+sans détail réseau ou codec (§8.7). Vérification manuelle sur mobile et TV
+de la navigation D-pad, hors critères d'acceptation automatisés.
+
+---
+
+- [ ] 6. Non-régression globale
+
+Objectif:
+Vérifier que les badges et le sélecteur n'introduisent aucune requête par
+carte ni régression sur le lecteur existant.
+
+Fichiers:
+- l'ensemble des fichiers listés en §8.9
+
+Validation:
+`./gradlew assembleDebug`, `./gradlew testDebugUnitTest`, `./gradlew
+lintDebug` verts. Tests de lecture et de liste existants toujours verts.
+Aucune nouvelle dépendance Gradle (§8.7).
 
 ---
 

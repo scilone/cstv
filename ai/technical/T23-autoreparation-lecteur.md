@@ -3,7 +3,7 @@
 ## Informations générales
 
 Status:
-ARCHITECTURE
+TASK BREAKDOWN
 
 Created:
 2026-08-15
@@ -414,7 +414,187 @@ stateDiagram-v2
 
 # 10. Plan de développement
 
-_À compléter — étape 4._
+Point d'attention transverse : dans l'ordre de livraison du lot, **T23
+précède F39 et F40**. Les tâches 6 et 7 ci-dessous ne peuvent donc pas
+appeler de code F39/F40 réel — elles posent le point d'extension
+(interface/callback) que F40 et F39 brancheront depuis *leurs propres*
+tickets, sans avoir à toucher T23 à nouveau. T23 doit rester complet et
+fonctionnel seul, sans F39 ni F40 livrés.
+
+- [ ] 1. Modèles purs — stratégies, plan de réparation, empreinte de piste
+
+Objectif:
+Poser les types sans dépendance Media3 directe : `DecoderStrategy`,
+`PlaybackRepairPlan`, `TrackFingerprint` (§8.1, §8.3).
+
+Fichiers:
+- `domain/model/PlaybackRepairPlan.kt` (nouveau, inclut `DecoderStrategy`,
+  `TrackFingerprint`)
+
+Validation:
+Compile. Test unitaire trivial de (dé)sérialisation JSON de
+`TrackFingerprint` (utilisée en §8.5 pour `disabledTrackJson`/
+`preferredAudioJson`).
+
+---
+
+- [ ] 2. `PlaybackFailureClassifier`
+
+Objectif:
+Qualifier une erreur Media3 en `DECODER` / `NETWORK_SOURCE` / hors
+périmètre / `UNKNOWN` (§8.3), et extraire le type de piste et son empreinte
+quand c'est possible.
+
+Fichiers:
+- `presentation/player/core/PlaybackFailureClassifier.kt` (nouveau)
+- tests unitaires associés (nouveau)
+
+Validation:
+Tests JVM avec des codes d'erreur Media3 simulés (AGENTS.md — aucun
+appareil requis) : chaque famille de code cité en §8.3 route vers la bonne
+catégorie ; un code non qualifiable route vers `UNKNOWN` sans déclencher la
+séquence (voir cas limite §7.4).
+
+---
+
+- [ ] 3. Persistance — `PlaybackRepairProfileEntity`, DAO, repository, migration
+
+Objectif:
+Stocker la configuration gagnante par `mediaUid`, sans `profileId` (§8.5).
+
+Fichiers:
+- entité `PlaybackRepairProfileEntity` (nouveau)
+- DAO associé (nouveau)
+- repository associé (nouveau)
+- migration Room — **vérifier le numéro réellement disponible dans
+  `AppDatabase.kt` avant d'écrire** (règle T21 §8.5, plusieurs tickets du
+  lot touchent au schéma)
+- `data/local/dao/MediaRefDao.kt` (`purgeUnreferenced` doit inclure la
+  nouvelle table)
+
+Fichiers modifiés:
+- `data/local/db/AppDatabase.kt`, `Migrations.kt`
+
+Validation:
+Test de migration (schéma avant/après), test de création fraîche. Test
+repository avec DAO fake ou Room in-memory : écriture, lecture par
+`mediaUid`, remplacement d'un profil existant, purge via
+`purgeUnreferenced` quand le média n'est plus référencé.
+
+---
+
+- [ ] 4. `PlaybackEngineController` — extraction du contrôleur partagé
+
+Objectif:
+Extraire de `PlayerScreen`, `VodPlayerScreen` et `SeriesPlayerScreen` la
+construction et le cycle de vie de l'ExoPlayer dans un contrôleur commun
+paramétrable par `PlaybackRepairPlan` (§8.2). Cette tâche ne câble pas
+encore la machine de réparation : elle ne fait que rendre le lecteur
+reconstructible sur un plan donné, en gardant le comportement actuel
+identique pour `DecoderStrategy.DEFAULT`.
+
+Fichiers:
+- `presentation/player/core/PlaybackEngineController.kt` (nouveau)
+- `presentation/player/core/ExoPlayerCore.kt`,
+  `PlayerDecoderPolicy.kt` (adaptés pour accepter un plan)
+
+Validation:
+Non-régression manuelle et par les tests existants du lecteur : une lecture
+normale (plan par défaut) se comporte exactement comme avant l'extraction.
+Test unitaire vérifiant qu'un changement de plan reconstruit une seule
+instance ExoPlayer (l'ancienne est bien libérée avant reconstruction, §8.7).
+
+---
+
+- [ ] 5. `PlaybackRecoveryCoordinator` — machine d'états de réparation
+
+Objectif:
+Implémenter la séquence complète (§8.4, §9.1) : `SOFTWARE_PREFERRED` →
+piste désactivée → autre piste audio, avec timeouts (8 s/essai, 24 s
+total), restauration de position, et consultation/écriture du profil
+mémorisé (tâche 3) en début et fin de séquence.
+
+Fichiers:
+- `presentation/player/core/PlaybackRecoveryCoordinator.kt` (nouveau)
+- `FakePlaybackEngine` de test (nouveau, §8.8)
+- tests unitaires associés (nouveau)
+
+Validation:
+Tests JVM avec `FakePlaybackEngine` déterministe (AGENTS.md) : ordre exact
+des trois essais, succès à chaque étape possible, timeout par essai et
+timeout global respectés, annulation propre à la fermeture du lecteur,
+profil mémorisé essayé en premier puis supprimé s'il échoue, restauration
+de position VOD (`min(position, duration-2s)`). Pour le direct, position par
+défaut sur live edge : le repli sur une position de tampon F41 est un point
+d'extension (tâche 6), pas une dépendance dure — F41 n'existe pas encore à
+ce stade de la livraison. **Attention à la boucle infinie** : le timer 24 s
+ne doit jamais tourner sans condition d'arrêt hors coroutine annulable
+(AGENTS.md § Boucles infinies de tests).
+
+---
+
+- [ ] 6. Points d'extension pour F39, F40 et F41 — sans implémentation de ces tickets
+
+Objectif:
+Exposer les deux seams que F39/F40/F41 brancheront depuis leurs propres
+tickets, sans avoir à retoucher T23 :
+
+- l'interface que **F40** consultera pour être notifié « T23 épuisé sur
+  cette variante, à toi de jouer » (§8.6), et sur laquelle **F39** s'appuie
+  pour son rollback (n'intervient qu'après l'échec final du moteur, pas au
+  premier renderer error) ;
+- le point d'entrée par lequel **F41** pourra fournir une position de
+  tampon pour la restauration en direct (§8.4), à défaut de quoi le direct
+  reprend au live edge (comportement déjà couvert par la tâche 5).
+
+Fichiers:
+- `presentation/player/core/PlaybackRecoveryCoordinator.kt` (callback/
+  interface d'extension, aucune logique F39/F40/F41 réelle)
+
+Validation:
+Tests unitaires avec un faux consommateur de chaque interface : notifié
+exactement une fois quand la séquence s'épuise sur une chaîne en direct, et
+jamais avant ; la position de tampon fournie par un faux fournisseur est
+bien utilisée en priorité sur le live edge quand elle est présente. Aucune
+régression sur le comportement VOD/série, qui n'a pas de consommateur F40
+(chaînes uniquement).
+
+---
+
+- [ ] 7. Câblage des écrans lecteur et UI de message final
+
+Objectif:
+Brancher `PlayerScreen`, `VodPlayerScreen` et `SeriesPlayerScreen` sur le
+contrôleur et le coordinateur ; afficher le message final et le bouton
+« Réessayer » sur `FinalFailure` (§7.2, §7.6), sans aucun jargon technique.
+
+Fichiers:
+- `presentation/player/PlayerScreen.kt`, `VodPlayerScreen.kt`,
+  `SeriesPlayerScreen.kt`
+
+Validation:
+Critères d'acceptation de §7.5 vérifiables manuellement sur un média connu
+pour échouer sans réparation (device réel — exclu des critères automatisés
+AGENTS.md, donc validation manuelle uniquement, pas bloquante pour la
+livraison). Tests d'état Compose vérifiant que `Loading`/`Playing`/
+`FinalFailure` pilotent le bon affichage, sans texte technique dans
+`FinalFailure`.
+
+---
+
+- [ ] 8. Non-régression globale
+
+Objectif:
+Vérifier que l'extraction du contrôleur partagé n'a rien cassé sur les
+trois lecteurs, et que le budget de performance (§8.7, §9.3) est respecté.
+
+Fichiers:
+- l'ensemble des fichiers listés en §8.9
+
+Validation:
+`./gradlew assembleDebug`, `./gradlew testDebugUnitTest`, `./gradlew
+lintDebug` verts. Tests de lecture existants (positions, pistes, reprise)
+toujours verts. Aucune nouvelle dépendance Gradle introduite (§8.9).
 
 ---
 

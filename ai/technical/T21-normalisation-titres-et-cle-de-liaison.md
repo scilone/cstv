@@ -3,7 +3,7 @@
 ## Informations générales
 
 Status:
-ARCHITECTURE
+TASK BREAKDOWN
 
 Created:
 2026-08-15
@@ -542,7 +542,197 @@ flowchart TD
 
 # 10. Plan de développement
 
-_À compléter — étape 4._
+Ordre de réalisation recommandé : les tâches 1 à 3 sont un socle pur sans
+dépendance Android, testable isolément avant de toucher à Room. Les tâches 4
+à 7 câblent ce socle au reste de l'application, dans l'ordre où elles
+deviennent nécessaires. La tâche 8 est indépendante des autres et peut se
+faire en parallèle dès que la tâche 3 est livrée.
+
+- [ ] 1. Modèles de domaine (langue, qualité, résultat de parsing)
+
+Objectif:
+Poser les types purs sur lesquels tout le reste s'appuie, sans logique
+d'extraction — juste la représentation du résultat.
+
+Fichiers:
+- `domain/model/MediaLanguage.kt` (nouveau)
+- `domain/model/MediaQuality.kt` (nouveau, enum à rang — voir §8.1)
+- `domain/model/ParsedMediaTitle.kt` (nouveau)
+
+Validation:
+Compile. Les codes Room associés à chaque valeur (`vf`, `vostfr`, `sd`, `hd`,
+`fhd`, `uhd_4k`…) sont couverts par un test qui vérifie qu'aucun code n'est
+dupliqué et que chacun reste stable si l'ordre des entrées de l'enum change.
+
+---
+
+- [ ] 2. `MediaTitleParser` — extraction, nettoyage, clé de liaison
+
+Objectif:
+Implémenter la fonction pure `parse(rawTitle, mediaKind, releaseYear)` :
+détection des marqueurs (§7.3), nettoyage du titre (§7.2), calcul de
+`linkKey` (§8.2 — minuscules NFD, diacritiques supprimés, SHA-256 tronqué),
+repli défensif titre vide (§7.6), priorité au marqueur de rang le plus élevé
+en cas de conflit (§7.3 et Questions ouvertes étape 3).
+
+Fichiers:
+- `domain/model/MediaTitleParser.kt` (nouveau)
+- tests unitaires associés (nouveau)
+
+Validation:
+Tests unitaires sur les fixtures issues du panel réel (`|FR| TF1 HD` / `|FR|
+TF1 SD` doivent produire la même `linkKey`, `epg_channel_id` en casses
+différentes ne doit pas être un obstacle ailleurs — voir T21 §Arbitrages) et
+sur des cas volontairement sales : libellé vide, un seul marqueur, marqueurs
+multiples de la même catégorie, aucun marqueur, ponctuation résiduelle après
+retrait. Le parseur ne doit lever aucune exception, quelle que soit l'entrée.
+Aucune regex compilée par appel (vérifiable par relecture, pas par un test de
+performance à ce stade).
+
+---
+
+- [ ] 3. Compatibilité par année et fonction `yearsAreCompatible`
+
+Objectif:
+Implémenter la règle de séparation par année (§8.3) comme fonction pure,
+séparée du parseur, puisqu'elle s'applique à la lecture et non au calcul de
+la clé.
+
+Fichiers:
+- `domain/model/MediaTitleParser.kt` (ou fichier dédié si plus lisible)
+- tests unitaires associés
+
+Validation:
+Tests couvrant les quatre cas (deux années connues égales/différentes, une
+année manquante d'un côté, les deux manquantes) et un test explicite de
+non-transitivité (A sans année compatible avec B et C, B et C d'années
+différentes et incompatibles entre elles) — cf. §8.3, ne doit jamais être
+« corrigé » vers un regroupement global.
+
+---
+
+- [ ] 4. Entités et DAO Room — nouvelles colonnes et index
+
+Objectif:
+Ajouter les six colonnes (`cleanTitle`, `linkKey`, `languageTag`,
+`languageRaw`, `qualityTag`, `qualityRaw`) aux entités catalogue et à
+`CatalogListRow`, avec l'index `linkKey` sur les trois tables.
+
+Fichiers:
+- `data/local/entity/LiveStreamEntity.kt`, `VodStreamEntity.kt`,
+  `SeriesStreamEntity.kt`
+- `data/local/dao/CatalogListRow.kt`
+- `data/local/dao/LiveTvDao.kt`, `VodDao.kt`, `SeriesDao.kt` (requêtes par
+  `linkKey`, en excluant systématiquement les valeurs vides — §8.5.2)
+- `domain/model/LiveStream.kt`, `VodStream.kt`, `SeriesStream.kt`
+
+Validation:
+Compile et Room valide le schéma (`./gradlew compileDebugKotlin`). Pas de
+test dédié à ce stade : les entités ne sont pas encore écrites nulle part.
+
+---
+
+- [ ] 5. Migration Room — schéma seul (numéro à vérifier avant d'écrire)
+
+Objectif:
+Poser la migration qui ajoute colonnes et index, sans aucun calcul — voir
+l'avertissement de numérotation en §8.5 : vérifier `AppDatabase.kt` avant
+d'écrire quoi que ce soit, ne jamais se fier au numéro cité dans la fiche.
+
+Fichiers:
+- `data/local/db/Migrations.kt` (nouvelle migration, ajoutée à
+  `ALL_MIGRATIONS`)
+- `data/local/db/AppDatabase.kt` (bump de version)
+- test SQL de la migration (nouveau, patron `MIGRATION_9_10` existant)
+- test de création fraîche du schéma (patron existant)
+
+Validation:
+`./gradlew testDebugUnitTest` sur le test de migration (base v(n-1) réelle →
+migrée → schéma attendu) et sur le test de création fraîche. Aucune perte de
+ligne existante. Migration mesurée quasi instantanée quel que soit le volume
+(elle ne parcourt aucune ligne).
+
+---
+
+- [ ] 6. Intégration à l'écriture de synchronisation
+
+Objectif:
+Appeler `MediaTitleParser` dans les mappers avant persistance, pour que
+toute entrée écrite par une synchronisation normale soit normalisée dès
+l'écriture (§8.4) — indépendamment du worker de la tâche 7, qui ne concerne
+que le stock déjà en base.
+
+Fichiers:
+- `data/repository/LiveTvRepositoryImpl.kt`, `VodRepositoryImpl.kt`,
+  `SeriesRepositoryImpl.kt`
+- tests de mapping et de synchronisation existants concernés
+
+Validation:
+Tests unitaires : une entrée synchronisée porte un `cleanTitle`/`linkKey`
+calculés sans appel réseau supplémentaire. Non-régression sur les tests de
+synchronisation existants (`./gradlew testDebugUnitTest`).
+
+---
+
+- [ ] 7. `CatalogNormalizationWorker` — recalcul du stock existant
+
+Objectif:
+Recalculer en tâche de fond les entrées déjà en cache au moment de la mise à
+jour (§8.5.1) : pagination par clé primaire, une transaction par page,
+reprenable après interruption, état d'avancement persisté.
+
+Fichiers:
+- `data/worker/CatalogNormalizationWorker.kt` (nouveau)
+- état d'avancement persisté (nouvelle entité/DataStore selon convention
+  existante du module `worker`)
+- déclenchement après migration (`AppModule.kt` ou point d'amorçage existant
+  des workers planifiés)
+- tests unitaires du worker (nouveau)
+
+Validation:
+Tests JVM (AGENTS.md — aucun test ne requiert d'appareil connecté) : reprise
+après interruption au milieu du parcours sans reperdre ni dupliquer de
+lignes, idempotence sur un catalogue déjà normalisé, repli défensif sur une
+ligne en erreur sans annuler le lot. Vérification manuelle du budget de
+performance (§8.5.2) sur un catalogue volumineux, à titre indicatif.
+
+---
+
+- [ ] 8. Bascule de l'appariement TMDB sur le titre stocké
+
+Objectif:
+`TmdbCatalogMatcher` consomme `cleanTitle`/`linkKey` persistés au lieu
+d'appeler `TitleNormalizer` à la volée (§8.6). `TitleNormalizer` devient une
+façade de compatibilité qui délègue au nouveau parseur.
+
+Fichiers:
+- `domain/model/TitleNormalizer.kt`
+- `domain/model/TmdbCatalogMatcher.kt`
+- tests existants de `TmdbCatalogMatcher`/`ApproximateTitleMatcher`
+
+Validation:
+Tests existants toujours verts sans modification de leurs attentes (le
+résultat de l'appariement ne doit pas changer, seule sa source change).
+Aucun appel à `TitleNormalizer.normalize()` ne subsiste sur le chemin
+catalogue de production (vérifiable par recherche dans le code).
+
+---
+
+- [ ] 9. Non-régression et nettoyage final
+
+Objectif:
+Vérifier l'ensemble du ticket avant review : build, tests, absence de
+référence aux méthodes FTS obsolètes repérées à l'étape 3 (§8.4).
+
+Fichiers:
+- l'ensemble des fichiers listés en §8.8
+
+Validation:
+`./gradlew assembleDebug`, `./gradlew testDebugUnitTest`, `./gradlew
+lintDebug` verts. Aucune régression sur les tests de synchronisation, de
+DAO ou d'appariement TMDB préexistants. AGENTS.md mis à jour avec le nouveau
+numéro de version Room réellement livré (l'entrée actuelle y est déjà
+périmée, indépendamment de ce ticket).
 
 ---
 

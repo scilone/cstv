@@ -3,7 +3,7 @@
 ## Informations générales
 
 Status:
-ARCHITECTURE
+TASK BREAKDOWN
 
 Created:
 2026-08-15
@@ -414,7 +414,159 @@ stateDiagram-v2
 
 # 10. Plan de développement
 
-_À compléter — étape 4._
+F40 se livre après T21 et T23, mais **avant F42 et F41** (ordre du lot). La
+coordination avec T23 (§8.6) se câble donc pour de vrai : le
+`PlaybackRecoveryCoordinator` existe déjà. En revanche, la prise en compte du
+catch-up F42 (arbitrage ratifié dans les Arbitrages structurants ci-dessus)
+et la fermeture du tampon F41 (§8.6) ne peuvent pas s'appuyer sur du code
+F41/F42 qui n'existe pas encore : la tâche 6 pose des points d'extension,
+que F41 et F42 brancheront depuis leurs propres tickets — même principe que
+T23 §10 tâche 6.
+
+- [ ] 1. `LiveVariantRepository` — résolution et ordre des variantes
+
+Objectif:
+Regrouper les variantes d'une chaîne par `linkKey` T21 et les ordonner
+(§8.1) : rang qualité décroissant, puis `num`, puis `streamId`.
+
+Fichiers:
+- `data/repository/LiveVariantRepository.kt` (nouveau)
+- `data/local/dao/LiveTvDao.kt` (requête par `linkKey`, excluant les valeurs
+  vides — arbitrage T21 §8.5.2)
+- tests unitaires associés (nouveau)
+
+Validation:
+Tests DAO : ordre stable et déterministe, y compris entre deux variantes de
+qualité identique. Une chaîne dont `linkKey` est encore vide (catalogue pas
+encore normalisé, T21) ne retourne aucune candidate. Plafond défensif de 20
+variantes (§8.7) vérifié par test.
+
+---
+
+- [ ] 2. `LiveQualitySession` et réglage global
+
+Objectif:
+Poser l'état de session (§8.2) — non persisté, recréé à chaque ouverture de
+chaîne — et le réglage `liveQualityModeDefault` dans les Paramètres.
+
+Fichiers:
+- `presentation/livetv/LiveQualitySession.kt` (nouveau)
+- `SettingsManager.kt`, `SettingsState.kt`, `SettingsViewModel.kt`,
+  `SettingsScreen.kt`
+
+Validation:
+Tests de `SettingsViewModel` : le réglage change le comportement par défaut
+des prochaines ouvertures, jamais rétroactivement sur une chaîne déjà
+ouverte (cas limite §7.4). Test unitaire : une session ne survit ni au
+zapping ni à la fermeture du lecteur.
+
+---
+
+- [ ] 3. `LiveStabilityMonitor` — mesure de stabilité
+
+Objectif:
+Mesurer les événements de buffering sur une fenêtre glissante de 120
+secondes (§8.3), fusion des événements rapprochés, déclenchement au
+cinquième événement.
+
+Fichiers:
+- `presentation/player/core/LiveStabilityMonitor.kt` (nouveau)
+- tests unitaires associés (nouveau)
+
+Validation:
+Tests avec un `Clock` faux (§8.8, jamais d'horloge réelle dans un test) :
+fenêtre 120 s respectée (un événement hors fenêtre ne compte plus), fusion
+des événements à moins de 500 ms, transition initiale `IDLE → BUFFERING →
+READY` non comptée, déclenchement exact au 5ᵉ événement retenu.
+
+---
+
+- [ ] 4. Machine automatique — `LiveQualityController`
+
+Objectif:
+Implémenter la séquence de repli (§8.4) : ouverture de la meilleure
+candidate, repli sur erreur réseau/seuil, score de la moins mauvaise après
+épuisement, jamais de remontée ni de réessai d'un `streamId` déjà rejeté.
+
+Fichiers:
+- `presentation/player/core/LiveQualityController.kt` (nouveau)
+- tests unitaires associés (nouveau)
+
+Validation:
+Tests JVM avec moteur de lecture faux (patron `FakePlaybackEngine` de T23,
+réutilisé si possible) : ordre exact des candidats essayés, jamais de
+double essai du même `streamId` (`attempted`), score lexicographique exact
+en cas d'épuisement (§8.4, ordre des critères), cooldown de 3 s après
+`READY` qui évite de compter les transitions de reconstruction, token de
+génération qui ignore les callbacks d'un flux abandonné.
+
+---
+
+- [ ] 5. `QualitySelectorSheet` et bascule manuelle
+
+Objectif:
+Composant de sélection (§8.5) et câblage dans le lecteur : le choix manuel
+invalide la machine automatique pour la session en cours, sans déclencher
+de nouveau repli sur échec.
+
+Fichiers:
+- `presentation/player/QualitySelectorSheet.kt` (nouveau)
+- `presentation/player/PlayerScreen.kt`
+- `LiveTvViewModel.kt`
+- `strings.xml` FR/EN (message de repli — §8.5, sans nom de codec ni URL)
+
+Validation:
+Tests de ViewModel : bouton masqué à une seule candidate, variante active
+identifiée par `streamId` (pas par libellé, qui peut être dupliqué). Un
+échec après choix manuel suit le comportement d'erreur standard, sans
+relancer l'automatisme (§8.5). Vérification manuelle D-pad mobile/TV, hors
+critères automatisés.
+
+---
+
+- [ ] 6. Coordination T23 réelle, points d'extension F41 et F42
+
+Objectif:
+Brancher pour de vrai la coordination avec T23 (§8.6, `DECODER` → T23 puis
+F40 après son échec final — T23 est déjà livré). Poser en parallèle deux
+points d'extension, sans logique F41/F42 réelle, qui n'existent pas encore
+à ce stade de la livraison :
+
+- un point que **F42** consultera pour restreindre les candidates aux
+  variantes archivables pendant une session de rattrapage (arbitrage F40 ×
+  F42, voir Arbitrages structurants) — par défaut, aucune restriction tant
+  que F42 n'est pas branché ;
+- un point que **F41** appellera avant une bascule de qualité, pour fermer
+  et purger son tampon local (§8.6) — par défaut, no-op tant que F41 n'est
+  pas branché.
+
+Fichiers:
+- `presentation/player/core/LiveQualityController.kt` (interfaces
+  d'extension)
+- intégration réelle avec `PlaybackRecoveryCoordinator` (T23)
+
+Validation:
+Tests d'intégration avec T23 réel (pas un faux) : une erreur de décodage
+est bien déléguée à T23 avant tout repli F40 ; F40 n'avance qu'après
+l'échec final de T23. Tests avec de faux consommateurs des deux points
+d'extension F41/F42, vérifiant qu'ils sont appelés au bon moment sans
+modifier le comportement par défaut en leur absence — c'est ce test qui
+garantit que F40 reste livrable et fonctionnel seul.
+
+---
+
+- [ ] 7. Non-régression globale
+
+Objectif:
+Vérifier l'ensemble avant review.
+
+Fichiers:
+- l'ensemble des fichiers listés en §8.9
+
+Validation:
+`./gradlew assembleDebug`, `./gradlew testDebugUnitTest`, `./gradlew
+lintDebug` verts. Aucune nouvelle dépendance Gradle (§8.7). Non-régression
+sur les tests de lecture live existants.
 
 ---
 

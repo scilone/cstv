@@ -3,7 +3,7 @@
 ## Informations générales
 
 Status:
-ARCHITECTURE
+TASK BREAKDOWN
 
 Created:
 2026-08-15
@@ -461,7 +461,224 @@ sequenceDiagram
 
 # 10. Plan de développement
 
-_À compléter — étape 4._
+Le backend se construit et se teste sans l'application (faux provider,
+tests fonctionnels des routes). Les tâches 1 à 6 sont donc réalisables et
+déployables sur un environnement de test avant qu'aucune tâche Android ne
+commence. Les tâches 7 à 10 câblent l'application sur ce backend déjà en
+place. La tâche 11 (suppression de l'ancien code) ne doit être faite qu'une
+fois les tâches 7 à 10 vertes, pour ne jamais casser le build entre deux
+commits.
+
+- [ ] 1. Backend — dépendance `ext-curl` et vérification d'hébergement
+
+Objectif:
+Ajouter la dépendance validée à l'étape 3 et s'assurer qu'elle est utilisable
+en production avant de construire quoi que ce soit dessus.
+
+Fichiers:
+- `backend/composer.json`, `backend/composer.lock` (procédure ciblée
+  AGENTS.md — jamais `composer update` général)
+
+Validation:
+`composer validate --no-check-publish --strict` (procédure Docker décrite
+dans AGENTS.md). Vérification manuelle, avant de poursuivre, que `ext-curl`
+est disponible sur l'hébergement alwaysdata cible — sinon la suite du
+ticket construit sur une hypothèse fausse.
+
+---
+
+- [ ] 2. Backend — migration PostgreSQL du cache partagé
+
+Objectif:
+Créer `media_metadata_cache` (§8.3), avec le numéro de migration réellement
+disponible au moment de l'exécution (vérifier `backend/migrations/`, pas la
+fiche — même règle que T21 §8.5).
+
+Fichiers:
+- `backend/migrations/0XX_media_metadata_cache.sql` (nouveau, numéro à
+  vérifier)
+
+Validation:
+Migration appliquée sur l'environnement Docker de dev (`docker compose`,
+patron des migrations existantes). Table et index d'expiration créés,
+rollback si le projet en a la convention.
+
+---
+
+- [ ] 3. Backend — port fournisseur et client TMDB
+
+Objectif:
+Implémenter `MediaMetadataProvider` (interface), `TmdbMediaMetadataProvider`
+et `TmdbClient` (§8.1) : seul composant qui connaît les routes et champs
+TMDB, timeouts et retries sur erreurs réseau/429/5xx, clé en en-tête
+`Authorization: Bearer` jamais journalisée.
+
+Fichiers:
+- `backend/src/Catalog/MediaMetadataProvider.php` (nouveau)
+- `backend/src/Catalog/TmdbMediaMetadataProvider.php` (nouveau)
+- `backend/src/Catalog/TmdbClient.php` (nouveau)
+- tests unitaires du mapping fournisseur → modèle produit (nouveau)
+
+Validation:
+Tests unitaires avec faux transport HTTP (pas d'appel réseau réel vers TMDB,
+conformément à AGENTS.md et §8.7) : mapping correct des 4 opérations,
+gestion des 429/5xx avec backoff, jamais la clé dans un message d'erreur ou
+un log.
+
+---
+
+- [ ] 4. Backend — cache partagé, verrou anti-stampede, stale-if-error
+
+Objectif:
+Implémenter `MediaMetadataCacheRepository` : lecture/écriture par
+`cache_key` (SHA-256 normalisé), verrou advisory PostgreSQL par clé, cycle
+`fresh → refresh → stale-if-error → erreur`, TTL différenciés (§8.3).
+
+Fichiers:
+- `backend/src/Catalog/MediaMetadataCacheRepository.php` (nouveau)
+- tests d'intégration PostgreSQL du verrou/cache (nouveau)
+
+Validation:
+Tests d'intégration : deux lectures concurrentes sur une clé froide ne
+déclenchent qu'un seul appel fournisseur ; une entrée expirée mais dans la
+fenêtre `stale_until` est servie marquée `stale` sur panne fournisseur ; les
+TTL du tableau §8.3 sont respectés.
+
+---
+
+- [ ] 5. Backend — routes HTTP, validation, quotas
+
+Objectif:
+Exposer les 4 routes `/v1/catalog/*` (§8.2) derrière le middleware JWT
+existant, avec validation stricte des paramètres et rate limit sur
+`/matches` (§8.6).
+
+Fichiers:
+- `backend/src/Catalog/CatalogService.php` (nouveau, orchestration)
+- `backend/src/Http/Action/CatalogAction.php` (nouveau)
+- `backend/openapi.yaml` (mis à jour)
+- tests fonctionnels des 4 routes (nouveau) : faux provider, authentification,
+  validation, `matched`, `not_found`, 502, 503
+
+Validation:
+Tests fonctionnels verts pour chaque route et chaque cas de la matrice
+ci-dessus, aucun test ne contacte TMDB (§8.7). Réponse d'appariement conforme
+au contrat JSON de §8.2, `ageRatingFr` dans l'ensemble `{0,10,12,16,18,null}`.
+
+---
+
+- [ ] 6. Backend — secrets, configuration, documentation de déploiement
+
+Objectif:
+Sortir la clé du code et documenter son emplacement de production, sans
+jamais la faire transiter par Git (§8.5).
+
+Fichiers:
+- `backend/src/Shared/Config.php` (`tmdbApiToken`)
+- `backend/.env.example` (`TMDB_API_TOKEN=`)
+- documentation de déploiement (`~/.cstv-production.env`, hors dépôt)
+
+Validation:
+`grep` sur le dépôt confirmant l'absence de toute clé TMDB en clair. Le
+backend démarre en échouant proprement si `TMDB_API_TOKEN` est absent en
+production, et fonctionne en test avec un faux provider sans token.
+
+---
+
+- [ ] 7. Android — client HTTP et DTO du contrat CSTV
+
+Objectif:
+Poser l'interface Retrofit `CstvCatalogApiService` sur le Retrofit CSTV
+existant, ses DTO et leurs mappers vers des modèles produit neutres — sans
+encore les brancher aux repositories.
+
+Fichiers:
+- `data/remote/api/CstvCatalogApiService.kt` (nouveau)
+- `data/remote/dto/CatalogDtos.kt` (nouveau)
+- modèles et mappers produit neutres (nouveau)
+- `app/proguard-rules.pro` (règle `-keep` pour la nouvelle interface —
+  obligation AGENTS.md)
+
+Validation:
+Tests unitaires des mappers DTO → domaine sur des réponses « sales »
+(champ manquant, `item` nul, `ageRatingFr` nul), conformément à AGENTS.md
+§ Stratégie de tests. Compile en configuration release avec la règle R8.
+
+---
+
+- [ ] 8. Android — bascule des repositories tendances/populaires/bandes-annonces
+
+Objectif:
+`TrendingRepositoryImpl`, `PopularRepositoryImpl` et `TrailerRepositoryImpl`
+consomment `CstvCatalogApiService` au lieu de `TmdbApiService`, avec le
+cache local 4 h et le repli sur cache expiré en cas d'erreur réseau (§8.4).
+
+Fichiers:
+- `data/repository/TrendingRepositoryImpl.kt`, `PopularRepositoryImpl.kt`,
+  `TrailerRepositoryImpl.kt`
+- tests de repository existants, adaptés
+
+Validation:
+Tests avec client HTTP fake (AGENTS.md § Stratégie de tests) : cache frais
+servi sans appel, cache expiré servi en repli sur erreur réseau dans la
+limite de 24 h, dégradation silencieuse sans exception remontée à l'UI sur
+échec total.
+
+---
+
+- [ ] 9. Android — appariement catalogue sur le contrat backend
+
+Objectif:
+`TmdbCatalogMatcher` (ou son successeur) résout les correspondances via
+`POST /matches` au lieu d'un appel TMDB direct ; l'algorithme de
+correspondance au catalogue local (T21) ne change pas.
+
+Fichiers:
+- `domain/model/TmdbCatalogMatcher.kt` et ses consommateurs
+
+Validation:
+Tests existants de correspondance toujours verts, sans changement du taux
+de correspondance attendu (§7.5) — seule la source de données change.
+
+---
+
+- [ ] 10. Android — suppression du chemin TMDB direct
+
+Objectif:
+Retirer tout ce qui n'a plus de raison d'exister une fois les tâches 7 à 9
+vertes : ancienne interface, clé, configuration de build.
+
+Fichiers:
+- suppression : `data/remote/api/TmdbApiService.kt`, `@TmdbApiKey`,
+  `provideTmdbApiService` (`AppModule.kt`)
+- `app/build.gradle.kts` (retrait de la lecture `TMDB_API_KEY` et du
+  `buildConfigField`)
+- suppression des DTO exclusivement fournisseur devenus inutilisés
+
+Validation:
+`./gradlew assembleRelease` : le build release échoue si un chemin de code
+référence encore `TMDB_API_KEY`. Recherche dans les artefacts textuels
+générés confirmant l'absence de `api.themoviedb.org` et de toute clé
+(§8.7) — c'est le critère d'acceptation central du ticket (§7.5).
+
+---
+
+- [ ] 11. Non-régression et documentation de conformité
+
+Objectif:
+Vérifier l'ensemble du ticket avant review, et traiter le point de
+conformité identifié à l'étape 3 (attribution TMDB, licence).
+
+Fichiers:
+- écran « À propos » (logo et mention TMDB, si non déjà présents)
+- l'ensemble des fichiers listés en §8.8
+
+Validation:
+`./gradlew assembleDebug`, `./gradlew testDebugUnitTest`, `./gradlew
+lintDebug` verts côté Android ; suite PHPUnit verte côté backend. Aucun
+appel réseau de test ne contacte un domaine TMDB réel. Déploiement backend
+via `scripts/deploy-backend.sh --dry-run` avant le déploiement réel
+(AGENTS.md § Déploiement du backend).
 
 ---
 
