@@ -11,6 +11,7 @@ import android.widget.FrameLayout
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
@@ -21,6 +22,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.FastForward
+import androidx.compose.material.icons.filled.FastRewind
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Replay
@@ -36,6 +39,7 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.*
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -60,6 +64,8 @@ import com.cstv.app.data.local.storage.ResizeMode
 import androidx.media3.ui.PlayerView
 import com.cstv.app.presentation.player.applySubtitleStyle
 import com.cstv.app.presentation.player.PlayerTopButton
+import com.cstv.app.presentation.player.TransportButton
+import com.cstv.app.presentation.player.PlayPauseButton
 import com.cstv.app.presentation.player.PlayerBottomAction
 import com.cstv.app.presentation.player.PlayerCoverAction
 import com.cstv.app.presentation.player.ResolutionBadge
@@ -465,18 +471,23 @@ fun VodPlayerScreen(
         showControls = true
     }
 
-    fun skipForward() {
+    // `revealControls` est laissé à false par le double-tap mobile : ouvrir le
+    // HUD au premier saut empêcherait les suivants, la zone de double-tap étant
+    // alors recouverte par l'overlay.
+    fun skipForward(revealControls: Boolean = true) {
         val newPos = (exoPlayer.currentPosition + 10000L).coerceAtMost(exoPlayer.duration)
         exoPlayer.seekTo(newPos)
         currentPosition = newPos
-        showControls = true
+        // Le repère de position rend le message unique à chaque saut : réémettre
+        // un libellé identique ne relancerait pas le minuteur d'effacement.
+        if (revealControls) showControls = true else overlayNotification = "10s ▶▶ · ${formatTime(newPos)}"
     }
 
-    fun skipBackward() {
+    fun skipBackward(revealControls: Boolean = true) {
         val newPos = (exoPlayer.currentPosition - 10000L).coerceAtLeast(0L)
         exoPlayer.seekTo(newPos)
         currentPosition = newPos
-        showControls = true
+        if (revealControls) showControls = true else overlayNotification = "◀◀ 10s · ${formatTime(newPos)}"
     }
 
     fun runKeyIntent(intent: PlayerKeyIntent): Boolean = when (intent) {
@@ -544,7 +555,29 @@ fun VodPlayerScreen(
             }
             .tvInitialFocusTarget(videoFocus)
             .focusable()
-            .clickable { showControls = !showControls }
+            .then(
+                if (isTv) {
+                    Modifier.clickable { showControls = !showControls }
+                } else {
+                    // Mobile : simple tap = bascule du HUD ; double-tap sur une
+                    // moitié d'écran = saut de 10 s dans ce sens, à condition que
+                    // le HUD soit masqué (sinon le geste viserait ses contrôles).
+                    Modifier.pointerInput(Unit) {
+                        detectTapGestures(
+                            onTap = { showControls = !showControls },
+                            onDoubleTap = { offset ->
+                                if (showControls) {
+                                    showControls = false
+                                } else if (offset.x >= size.width / 2f) {
+                                    skipForward(revealControls = false)
+                                } else {
+                                    skipBackward(revealControls = false)
+                                }
+                            }
+                        )
+                    }
+                }
+            )
     ) {
         // Android Video View
         if (isPlayerVisible) {
@@ -702,8 +735,21 @@ fun VodPlayerScreen(
                 }
             }
 
-            // Pas de transport central : la barre de progression porte à elle
-            // seule avance / recul (gauche-droite) et play-pause (OK).
+            // Transport central : reculer / play-pause / avancer (10s). Mobile
+            // uniquement — sur TV la barre de progression porte à elle seule
+            // avance / recul (gauche-droite) et play-pause (OK), et ces trois
+            // boutons masquaient l'image.
+            if (!isTv) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(36.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.align(Alignment.Center)
+                ) {
+                    TransportButton(Icons.Default.FastRewind, "Reculer 10s", onClick = { skipBackward() })
+                    PlayPauseButton(isPlaying = isPlaying, onClick = { togglePlayPause() })
+                    TransportButton(Icons.Default.FastForward, "Avancer 10s", onClick = { skipForward() })
+                }
+            }
 
             // Bloc inférieur : affiche + titre + résolution + progression + actions
             Column(
@@ -719,7 +765,6 @@ fun VodPlayerScreen(
                         isAvailable = canOpenDetails,
                         unavailableContentDescription = stringResource(R.string.player_details_unavailable),
                         onClick = handleOpenDetails,
-                        large = isTv,
                         modifier = Modifier.focusRequester(coverFocusRequester)
                     )
                     Spacer(modifier = Modifier.width(14.dp))

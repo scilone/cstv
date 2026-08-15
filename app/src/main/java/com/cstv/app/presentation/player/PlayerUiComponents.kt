@@ -4,15 +4,18 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Movie
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -58,20 +61,15 @@ fun PlayerCoverAction(
     isAvailable: Boolean,
     unavailableContentDescription: String,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    /**
-     * Format double sur TV (distance de lecture) ; le format compact reste de
-     * mise sur mobile, où le bloc bas partage une hauteur d'écran en paysage.
-     */
-    large: Boolean = false
+    modifier: Modifier = Modifier
 ) {
     var isFocused by remember { mutableStateOf(false) }
     Box(
+        // Format unique TV et mobile : la distance de lecture l'imposait sur TV,
+        // et le format compact d'origine était illisible sur mobile. Le bloc bas
+        // reste tenable en paysage téléphone à cette taille.
         modifier = modifier
-            .size(
-                width = if (large) 128.dp else 64.dp,
-                height = if (large) 184.dp else 92.dp
-            )
+            .size(width = 128.dp, height = 184.dp)
             .onFocusChanged { isFocused = it.isFocused }
             .clip(RoundedCornerShape(8.dp))
             .clickable(
@@ -93,7 +91,7 @@ fun PlayerCoverAction(
                 imageVector = Icons.Default.Movie,
                 contentDescription = null,
                 tint = Color.White.copy(alpha = 0.75f),
-                modifier = Modifier.size(if (large) 60.dp else 30.dp)
+                modifier = Modifier.size(60.dp)
             )
         } else {
             AsyncImage(
@@ -134,6 +132,111 @@ fun PlayerTopButton(
         contentAlignment = Alignment.Center
     ) {
         Icon(icon, contentDescription = contentDescription, tint = Color.White, modifier = Modifier.size(22.dp))
+    }
+}
+
+/**
+ * Bouton de transport central (rewind / play-pause / fast-forward). Le
+ * play/pause est agrandi via [big]. Icône blanche, halo au focus.
+ *
+ * Réservé au mobile : sur TV, la barre de progression porte à elle seule
+ * l'avance, le recul et le play/pause, et ces boutons masquaient l'image.
+ */
+@Composable
+fun TransportButton(
+    icon: ImageVector,
+    contentDescription: String,
+    onClick: () -> Unit,
+    big: Boolean = false,
+    modifier: Modifier = Modifier
+) {
+    var isFocused by remember { mutableStateOf(false) }
+    val boxSize = if (big) 76.dp else 60.dp
+    val iconSize = if (big) 44.dp else 34.dp
+    Box(
+        modifier = modifier
+            .size(boxSize)
+            .onFocusChanged { isFocused = it.isFocused }
+            // Le clip précède le clickable : sans lui, l'indication de clic se
+            // peint sur les bornes carrées du nœud et laisse un aplat gris
+            // autour du bouton rond.
+            .clip(CircleShape)
+            .clickable(onClick = onClick)
+            .focusable()
+            .background(
+                if (isFocused) MaterialTheme.colorScheme.primary.copy(alpha = 0.35f) else Color(0x33000000),
+                CircleShape
+            )
+            .border(
+                width = if (isFocused) 2.dp else 0.dp,
+                color = if (isFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
+                shape = CircleShape
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(icon, contentDescription = contentDescription, tint = Color.White, modifier = Modifier.size(iconSize))
+    }
+}
+
+/**
+ * Pause dessinée à la main (deux barres) : l'icône Pause du set core n'est pas
+ * garantie ; ceci évite une dépendance sur material-icons-extended pour ce cas.
+ */
+@Composable
+private fun PauseGlyph(size: androidx.compose.ui.unit.Dp = 40.dp) {
+    Row(horizontalArrangement = Arrangement.spacedBy(size * 0.18f)) {
+        repeat(2) {
+            Box(
+                modifier = Modifier
+                    .size(width = size * 0.28f, height = size)
+                    .background(Color.White, RoundedCornerShape(2.dp))
+            )
+        }
+    }
+}
+
+/**
+ * Bouton play/pause central agrandi, avec glyphe pause dessiné à la main.
+ * Partagé par les lecteurs VOD/Séries sur mobile (le Live TV n'a pas de
+ * transport, et la TV pilote la lecture depuis la barre de progression).
+ */
+@Composable
+fun PlayPauseButton(
+    isPlaying: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var isFocused by remember { mutableStateOf(false) }
+    Box(
+        modifier = modifier
+            .size(76.dp)
+            .onFocusChanged { isFocused = it.isFocused }
+            // Clip avant clickable : sinon l'indication de clic se peint sur les
+            // bornes carrées du nœud et déborde du bouton rond.
+            .clip(CircleShape)
+            .clickable(onClick = onClick)
+            .focusable()
+            .background(
+                if (isFocused) MaterialTheme.colorScheme.primary.copy(alpha = 0.35f) else Color(0x33000000),
+                CircleShape
+            )
+            .border(
+                width = if (isFocused) 2.dp else 0.dp,
+                color = if (isFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
+                shape = CircleShape
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        if (isPlaying) {
+            PauseGlyph(size = 34.dp)
+        } else {
+            Icon(
+                imageVector = Icons.Default.PlayArrow,
+                contentDescription = "Lecture",
+                tint = Color.White,
+                modifier = Modifier.size(44.dp)
+            )
+        }
     }
 }
 

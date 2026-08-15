@@ -22,6 +22,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.FastForward
+import androidx.compose.material.icons.filled.FastRewind
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Replay
@@ -64,6 +66,8 @@ import com.cstv.app.data.local.storage.ResizeMode
 import androidx.media3.ui.PlayerView
 import com.cstv.app.presentation.player.applySubtitleStyle
 import com.cstv.app.presentation.player.PlayerTopButton
+import com.cstv.app.presentation.player.TransportButton
+import com.cstv.app.presentation.player.PlayPauseButton
 import com.cstv.app.presentation.player.PlayerBottomAction
 import com.cstv.app.presentation.player.PlayerCoverAction
 import com.cstv.app.presentation.player.ResolutionBadge
@@ -529,18 +533,23 @@ fun SeriesPlayerScreen(
         showControls = true
     }
 
-    fun skipForward() {
+    // `revealControls` est laissé à false par le double-tap mobile : ouvrir le
+    // HUD au premier saut empêcherait les suivants, la zone de double-tap étant
+    // alors recouverte par l'overlay. Le repère de position rend le message
+    // unique à chaque saut ; réémettre un libellé identique ne relancerait pas
+    // le minuteur d'effacement.
+    fun skipForward(revealControls: Boolean = true) {
         val newPos = (exoPlayer.currentPosition + 10000L).coerceAtMost(exoPlayer.duration)
         exoPlayer.seekTo(newPos)
         currentPosition = newPos
-        showControls = true
+        if (revealControls) showControls = true else seekNotification = "10s ▶▶ · ${formatTime(newPos)}"
     }
 
-    fun skipBackward() {
+    fun skipBackward(revealControls: Boolean = true) {
         val newPos = (exoPlayer.currentPosition - 10000L).coerceAtLeast(0L)
         exoPlayer.seekTo(newPos)
         currentPosition = newPos
-        showControls = true
+        if (revealControls) showControls = true else seekNotification = "◀◀ 10s · ${formatTime(newPos)}"
     }
 
     fun runKeyIntent(intent: PlayerKeyIntent): Boolean = when (intent) {
@@ -618,13 +627,16 @@ fun SeriesPlayerScreen(
             .pointerInput(Unit) {
                 detectTapGestures(
                     onTap = { showControls = !showControls },
+                    // Le saut ne vaut que HUD masqué : une fois l'overlay ouvert,
+                    // le geste viserait ses contrôles. Le HUD reste fermé après
+                    // le saut, sinon les double-taps suivants seraient recouverts.
                     onDoubleTap = { offset ->
-                        if (offset.x < size.width / 2) {
-                            skipBackward()
-                            seekNotification = "◀◀ 10s"
+                        if (showControls) {
+                            showControls = false
+                        } else if (offset.x < size.width / 2) {
+                            skipBackward(revealControls = false)
                         } else {
-                            skipForward()
-                            seekNotification = "10s ▶▶"
+                            skipForward(revealControls = false)
                         }
                     }
                 )
@@ -801,8 +813,21 @@ fun SeriesPlayerScreen(
                 }
             }
 
-            // Pas de transport central : la barre de progression porte à elle
-            // seule avance / recul (gauche-droite) et play-pause (OK).
+            // Transport central : reculer / play-pause / avancer (10s). Mobile
+            // uniquement — sur TV la barre de progression porte à elle seule
+            // avance / recul (gauche-droite) et play-pause (OK), et ces trois
+            // boutons masquaient l'image.
+            if (!isTv) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(36.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.align(Alignment.Center)
+                ) {
+                    TransportButton(Icons.Default.FastRewind, "Reculer 10s", onClick = { skipBackward() })
+                    PlayPauseButton(isPlaying = isPlaying, onClick = { togglePlayPause() })
+                    TransportButton(Icons.Default.FastForward, "Avancer 10s", onClick = { skipForward() })
+                }
+            }
 
             // Bloc inférieur : affiche + titre + résolution + progression + actions
             Column(
@@ -818,7 +843,6 @@ fun SeriesPlayerScreen(
                         isAvailable = canOpenDetails,
                         unavailableContentDescription = stringResource(R.string.player_details_unavailable),
                         onClick = handleOpenDetails,
-                        large = isTv,
                         modifier = Modifier.focusRequester(coverFocusRequester)
                     )
                     Spacer(modifier = Modifier.width(14.dp))
