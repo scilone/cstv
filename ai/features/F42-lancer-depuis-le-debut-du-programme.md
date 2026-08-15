@@ -3,7 +3,7 @@
 ## Informations générales
 
 Status:
-ANALYSIS
+SPECIFICATION
 
 Created:
 2026-08-15
@@ -68,6 +68,16 @@ est faite : AGENTS.md doit être mis à jour lors de la livraison.
 | Détermination du début du programme | EPG (déjà en cache, `EpgCacheEntity`). |
 | Plateformes | Mobile et Android TV dès la première livraison. |
 
+## Décisions produit prises à l'étape 2
+
+| Sujet | Décision |
+|---|---|
+| Titre du programme dans l'action | Affiché quand l'EPG le fournit (« Depuis le début de *Nom du programme* »). |
+| Libellé du repli local (F41) | Distinct du mode principal — ne promet pas le vrai début, seulement le moment d'ouverture de la chaîne. |
+| Fin du programme repris | Poursuite en différé au-delà de la fin du programme, dans la limite de la source (flux décalé Xtream ou tampon F41) — pas de bascule automatique au direct. |
+| Accessible depuis le lecteur | Oui, en plus de l'appui long dans les listes, sur la chaîne déjà en cours de lecture. |
+| Marge de sécurité EPG | Une marge fixe modeste est appliquée avant l'heure de début annoncée, pour absorber les imprécisions connues de l'EPG (valeur exacte à l'étape 3). |
+
 ---
 
 # 5. Hypothèses
@@ -91,18 +101,119 @@ est faite : AGENTS.md doit être mis à jour lors de la livraison.
 
 | Question | À trancher à l'étape |
 |---|---|
-| Faut-il afficher le titre du programme en cours dans l'action (« Depuis le début de *…* ») ? | 2 |
-| Le repli local, qui ne remonte pas au vrai début, doit-il être proposé sous le même libellé ou sous un libellé distinct ? | 2 |
-| Que se passe-t-il à la fin du programme repris : bascule automatique au direct, ou poursuite en différé ? | 2 |
-| L'action doit-elle aussi exister depuis le lecteur, sur la chaîne déjà en cours ? | 2 |
-| Décalage EPG connu du panel : faut-il une marge de sécurité avant l'heure de début ? | 2 |
 | Vérification du support réel du flux décalé par le panel, et forme exacte de l'URL. | 3 |
+| Valeur exacte de la marge de sécurité appliquée avant l'heure de début EPG. | 3 |
+| Comment le contrôle de lecture se comporte-t-il en poursuite différée au-delà de la fin du programme (bouton « Revenir au direct » équivalent à celui de F41, barre de progression) ? | 3 |
 
 ---
 
 # 7. Spécification fonctionnelle
 
-_À compléter — étape 2._
+## 7.1 User stories
+
+- En tant qu'utilisateur qui arrive en cours de match ou de film, je veux
+  lancer la chaîne depuis le début du programme en cours, pour ne rien
+  avoir manqué.
+- En tant qu'utilisateur déjà en train de regarder une chaîne, je veux
+  pouvoir revenir au début du programme sans quitter le lecteur pour
+  retourner à la liste.
+- En tant qu'utilisateur sur un panel ou une chaîne sans flux décalé, je
+  veux que l'action reste honnête sur ce qu'elle peut m'offrir, plutôt que
+  de promettre un vrai début qu'elle ne peut pas fournir.
+
+## 7.2 Parcours utilisateur
+
+**Depuis les listes de chaînes**
+
+1. L'utilisateur fait un appui long sur une chaîne dans une liste.
+2. Le menu contextuel propose, en plus des actions existantes (favoris),
+   « Depuis le début de *Nom du programme* » si l'EPG fournit un titre pour
+   le programme en cours (décision étape 2), ou un libellé générique sinon.
+3. L'utilisateur sélectionne l'action.
+4. La chaîne s'ouvre au début du programme en cours :
+   - si le panel expose un flux décalé exploitable, au vrai début du
+     programme (avec la marge de sécurité EPG, décision étape 2) ;
+   - sinon, si le tampon local F41 couvre déjà ce moment (chaîne ouverte
+     depuis assez longtemps), au point le plus ancien qu'il contient, sous
+     un libellé distinct annonçant explicitement ce repli (décision
+     étape 2) ;
+   - si aucune des deux sources ne permet de remonter, l'action n'apparaît
+     pas ou est proposée désactivée (décision étape 1).
+
+**Depuis le lecteur, sur la chaîne déjà ouverte**
+
+1. Pendant la lecture d'une chaîne, l'utilisateur accède à la même action
+   directement dans le lecteur (décision étape 2), sans revenir à la liste.
+2. Le comportement de bascule est identique au parcours depuis les listes.
+
+**Poursuite après la fin du programme**
+
+1. Le programme rattrapé en différé se termine (heure de fin connue via
+   l'EPG).
+2. La lecture se poursuit en différé au-delà de cette fin plutôt que de
+   basculer automatiquement au direct (décision étape 2), dans la limite de
+   ce que permet la source (flux décalé du panel, ou tampon F41).
+3. Le contrôle explicite du retour au direct (bouton dédié, comportement
+   exact renvoyé à l'étape 3) reste à la main de l'utilisateur, à l'image du
+   bouton « Revenir au direct » de F41.
+
+## 7.3 Règles métier
+
+- Deux sources par ordre de préférence : flux décalé du panel Xtream en
+  priorité, repli sur le tampon local F41 sinon (décision étape 1).
+- L'action est masquée ou désactivée si aucune des deux sources ne permet de
+  remonter dans le temps pour cette chaîne (décision étape 1) — jamais
+  proposée pour promettre un résultat impossible.
+- Le repli local (F41) porte un libellé distinct du mode principal, pour ne
+  jamais annoncer un vrai début de programme qu'il ne peut pas fournir
+  (décision étape 2).
+- L'heure de début du programme provient de l'EPG en cache
+  (`EpgCacheEntity`), avec une marge de sécurité fixe avant cette heure pour
+  absorber ses imprécisions connues (décision étape 2).
+- L'action est accessible aux deux points d'entrée : appui long dans les
+  listes de chaînes, et depuis le lecteur sur la chaîne déjà ouverte
+  (décision étape 2).
+
+## 7.4 Cas limites
+
+- **Chaîne sans EPG** : aucune heure de début connue, l'action n'apparaît
+  pas (décision étape 1, hypothèse étape 1).
+- **Chaîne tout juste ouverte** (tampon F41 quasi vide) : le repli local ne
+  peut remonter qu'à quelques secondes avant le direct — comportement
+  attendu, pas une erreur ; si ce repli n'apporte aucun bénéfice réel par
+  rapport au direct, l'action reste néanmoins proposée (elle reste correcte,
+  juste peu utile dans ce cas précis).
+- **Flux décalé du panel qui échoue à l'ouverture** malgré sa disponibilité
+  annoncée : traité comme un échec de source, avec repli sur le tampon
+  local F41 si disponible, sinon comportement d'erreur de lecture standard.
+- **Programme en cours dont l'heure de début EPG est manifestement fausse**
+  (ex. dans le futur) : l'action ne doit pas lancer une lecture à un
+  instant qui n'existe pas encore — traitement exact renvoyé à l'étape 3.
+
+## 7.5 Critères d'acceptation
+
+- Sur une chaîne avec EPG et flux décalé supporté par le panel, l'action
+  ouvre la chaîne au début réel du programme en cours (± la marge de
+  sécurité).
+- Sur une chaîne avec EPG mais sans flux décalé, l'action propose le repli
+  local sous un libellé distinct, ouvrant au point le plus ancien du
+  tampon F41.
+- Sur une chaîne sans EPG, ou sans aucune des deux sources exploitables,
+  l'action n'apparaît pas ou est visiblement désactivée.
+- L'action est accessible à l'identique depuis l'appui long dans les listes
+  et depuis le lecteur sur la chaîne déjà ouverte.
+- À la fin du programme rattrapé, la lecture continue en différé plutôt que
+  de basculer automatiquement au direct.
+
+## 7.6 Gestion des erreurs
+
+- Échec d'ouverture du flux décalé malgré sa disponibilité annoncée par le
+  panel : repli automatique sur le tampon local F41 si la chaîne le permet,
+  sinon message d'erreur de lecture standard — jamais d'écran noir sans
+  explication.
+- EPG absent ou incohérent au moment de l'appui long : l'action se comporte
+  comme si aucune heure de début n'était connue (masquée ou désactivée),
+  jamais un lancement à une heure incorrecte.
 
 ---
 
