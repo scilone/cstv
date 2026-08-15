@@ -86,7 +86,6 @@ class LogoutIsolationTest {
         override suspend fun setConsent(enabled: Boolean) = com.cstv.app.domain.model.IptvBackupOutcome.Skipped
         override suspend fun onAuthenticated(credentials: com.cstv.app.domain.model.Credentials) = com.cstv.app.domain.model.IptvBackupOutcome.Skipped
         override suspend fun restore() = com.cstv.app.domain.model.IptvRestoreOutcome.Absent
-        override suspend fun invalidateRestored() = com.cstv.app.domain.model.IptvBackupOutcome.Skipped
         override suspend fun deleteForIptvLogout() = com.cstv.app.domain.model.IptvBackupOutcome.Skipped
         override suspend fun deleteForCstvSignOut() = com.cstv.app.domain.model.IptvBackupOutcome.Skipped
         override suspend fun drainPending() = com.cstv.app.domain.model.IptvBackupOutcome.Skipped

@@ -34,29 +34,28 @@ class RestoreIptvCredentialsUseCaseTest {
 
         assertTrue(outcome is AutoLoginOutcome.Online)
         assertEquals(credentials, auth.saved)
-        assertFalse(backup.invalidated)
     }
 
     @Test
-    fun invalidRestoredCredentialsAreConditionallyInvalidated() = runTest {
+    fun invalidRestoredCredentialsNeverRevokeTheBackup() = runTest {
         val backup = FakeBackup(IptvRestoreOutcome.Restored(credentials))
         val auth = FakeAuth(loginFailure = InvalidCredentialsException("bad credentials"))
 
         val outcome = RestoreIptvCredentialsUseCase(backup, auth)()
 
+        // Voir AutoLoginUseCaseTest : le refus du panel est signalé à l'écran,
+        // la sauvegarde reste en place.
         assertEquals(AutoLoginOutcome.Rejected(com.cstv.app.domain.model.AutoLoginRejection.CLOUD_CREDENTIALS_INVALID, ""), outcome)
-        assertTrue(backup.invalidated)
     }
 
     @Test
-    fun expiredAccountDoesNotInvalidateTheBackup() = runTest {
+    fun expiredAccountIsReportedWithoutTouchingTheBackup() = runTest {
         val backup = FakeBackup(IptvRestoreOutcome.Restored(credentials))
         val auth = FakeAuth(loginFailure = AccountExpiredException("expired", "01/01/2026"))
 
         val outcome = RestoreIptvCredentialsUseCase(backup, auth)()
 
         assertTrue(outcome is AutoLoginOutcome.Rejected)
-        assertFalse(backup.invalidated)
     }
 
     @Test
@@ -84,13 +83,11 @@ class RestoreIptvCredentialsUseCaseTest {
     }
 
     private class FakeBackup(private val restoreOutcome: IptvRestoreOutcome) : IptvCredentialsBackupRepository {
-        var invalidated = false
         override fun linkedAccountId(): String? = "account"
         override fun isConsentEnabled(): Boolean = false
         override suspend fun setConsent(enabled: Boolean): IptvBackupOutcome = IptvBackupOutcome.Skipped
         override suspend fun onAuthenticated(credentials: Credentials): IptvBackupOutcome = IptvBackupOutcome.Skipped
         override suspend fun restore(): IptvRestoreOutcome = restoreOutcome
-        override suspend fun invalidateRestored(): IptvBackupOutcome { invalidated = true; return IptvBackupOutcome.Deleted }
         override suspend fun deleteForIptvLogout(): IptvBackupOutcome = IptvBackupOutcome.Skipped
         override suspend fun deleteForCstvSignOut(): IptvBackupOutcome = IptvBackupOutcome.Skipped
         override suspend fun drainPending(): IptvBackupOutcome = IptvBackupOutcome.Skipped

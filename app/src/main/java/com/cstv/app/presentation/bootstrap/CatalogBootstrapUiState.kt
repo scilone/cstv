@@ -24,6 +24,18 @@ data class CatalogBootstrapUiState(
     /** Une phase hors des six sections reste visible, sans feindre une étape. */
     val showIndeterminateProgress: Boolean
         get() = isResolved && isSyncing && stepLabelRes == null
+
+    /**
+     * Le gate peut relancer seul la préparation (voir
+     * `CatalogBootstrapViewModel.observeRecoverableFailures`).
+     *
+     * `AUTH` en est exclu : rejouer des identifiants refusés ne produit que du
+     * trafic refusé. Un appareil hors ligne aussi : il n'y a rien à réessayer
+     * tant que le transport est coupé, et le `CatalogSyncManager` reprend déjà
+     * la main au retour du réseau.
+     */
+    val isRetryable: Boolean
+        get() = isResolved && blocking && !isSyncing && !offline && failure != SyncFailureKind.AUTH
 }
 
 const val CATALOG_STEP_COUNT = 6

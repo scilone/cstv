@@ -40,7 +40,6 @@ class LogoutUseCaseTest {
         override suspend fun setConsent(enabled: Boolean) = IptvBackupOutcome.Skipped
         override suspend fun onAuthenticated(credentials: Credentials) = IptvBackupOutcome.Skipped
         override suspend fun restore() = IptvRestoreOutcome.Absent
-        override suspend fun invalidateRestored() = IptvBackupOutcome.Skipped
         override suspend fun deleteForIptvLogout(): IptvBackupOutcome { deleted = true; return IptvBackupOutcome.Deferred }
         override suspend fun deleteForCstvSignOut() = IptvBackupOutcome.Skipped
         override suspend fun drainPending() = IptvBackupOutcome.Skipped

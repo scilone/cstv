@@ -76,22 +76,13 @@ class IptvCredentialsBackupRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun invalidateRestored(): IptvBackupOutcome = mutex.withLock {
-        val state = store.resetForAccount(linkedAccountId())
-        val etag = state.lastEtag ?: return@withLock IptvBackupOutcome.Skipped
-        try {
-            val response = api.delete("\"$etag\"")
-            if (response.isSuccessful || response.code() == 412) {
-                store.save(state.copy(consent = false, lastEtag = null, pendingOp = PendingCloudOp.NONE))
-                IptvBackupOutcome.Deleted
-            } else {
-                deferConditionalDelete(state)
-            }
-        } catch (exception: Exception) {
-            if (exception is CancellationException) throw exception
-            deferConditionalDelete(state)
-        }
-    }
+    // La révocation automatique sur identifiants refusés a été retirée : un
+    // `auth != 1` du panel signale aussi bien un plafond de connexions
+    // simultanées qu'un mot de passe faux, et supprimait la sauvegarde de tous
+    // les appareils. Voir `AutoLoginUseCase`. `PendingCloudOp.DELETE_IF_MATCH`
+    // reste géré par `drainPendingLocked` : une installation mise à jour peut
+    // encore porter une révocation différée décidée avant ce changement.
+
     override suspend fun deleteForIptvLogout(): IptvBackupOutcome = mutex.withLock {
         deleteUnconditionally(store.resetForAccount(linkedAccountId()))
     }

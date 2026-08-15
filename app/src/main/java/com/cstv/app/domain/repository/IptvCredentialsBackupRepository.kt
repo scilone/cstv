@@ -10,7 +10,6 @@ interface IptvCredentialsBackupRepository {
     suspend fun setConsent(enabled: Boolean): IptvBackupOutcome
     suspend fun onAuthenticated(credentials: Credentials): IptvBackupOutcome
     suspend fun restore(): IptvRestoreOutcome
-    suspend fun invalidateRestored(): IptvBackupOutcome
     suspend fun deleteForIptvLogout(): IptvBackupOutcome
     suspend fun deleteForCstvSignOut(): IptvBackupOutcome
     suspend fun drainPending(): IptvBackupOutcome

@@ -10,10 +10,14 @@ import com.cstv.app.domain.sync.SyncFailureKind
 import com.cstv.app.domain.sync.SyncState
 import com.cstv.app.domain.sync.SyncTrigger
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -40,6 +44,54 @@ class CatalogBootstrapViewModel @Inject constructor(
                 if (!it.blocking) startupRequestedForCurrentIncompleteCatalog = false
             }
         }
+        observeRecoverableFailures()
+    }
+
+    /**
+     * Reprise automatique après un échec récupérable.
+     *
+     * L'écran annonce « la préparation reprendra automatiquement », mais la
+     * seule reprise existante était celle du `CatalogSyncManager` sur un retour
+     * de réseau — un front montant de `NetworkMonitor.isOnline`. Quand le
+     * transport n'a jamais été coupé et que c'est le panel qui refuse (compte au
+     * plafond de connexions simultanées, quota momentané), ce front ne se
+     * produit jamais : le gate restait indéfiniment sur « Réessayer », et un
+     * appareil qu'on associait pendant une lecture en cours sur un autre ne
+     * passait tout simplement pas la première synchronisation. Le message
+     * promettait une reprise qui n'arrivait pas.
+     *
+     * La relance est donc portée ici, avec un délai qui double à chaque tentative
+     * — le panel a besoin qu'on cesse de le solliciter, pas qu'on insiste.
+     * `AUTH` en est exclu : rejouer des identifiants refusés ne produit que du
+     * trafic refusé et rapproche du bannissement (même règle que
+     * `shouldResumeCatalogAfterReconnect`). Un appareil réellement hors ligne en
+     * est exclu aussi : il n'y a rien à réessayer tant que le transport est
+     * coupé, et le manager reprend déjà la main au retour du réseau.
+     *
+     * Le sondage est adossé à `subscriptionCount` : rien n'est planifié quand
+     * l'écran n'observe pas — ni en production, ni sur le scheduler virtuel des
+     * tests (voir AGENTS.md, « Boucles infinies de tests »).
+     */
+    private fun observeRecoverableFailures() {
+        viewModelScope.launch {
+            mutableState.subscriptionCount
+                .map { it > 0 }
+                .distinctUntilChanged()
+                .collectLatest { isObserved ->
+                    if (!isObserved) return@collectLatest
+                    var delayMillis = FIRST_RETRY_DELAY_MILLIS
+                    while (true) {
+                        delay(delayMillis)
+                        delayMillis = (delayMillis * 2).coerceAtMost(MAX_RETRY_DELAY_MILLIS)
+                        val current = mutableState.value
+                        if (!current.isRetryable) {
+                            delayMillis = FIRST_RETRY_DELAY_MILLIS
+                            continue
+                        }
+                        catalogSyncManager.syncNow(SyncTrigger.STARTUP)
+                    }
+                }
+        }
     }
 
     /**
@@ -61,6 +113,11 @@ class CatalogBootstrapViewModel @Inject constructor(
         if (!state.value.blocking || state.value.isSyncing) return
         startupRequestedForCurrentIncompleteCatalog = false
         viewModelScope.launch { catalogSyncManager.syncNow(SyncTrigger.STARTUP) }
+    }
+
+    private companion object {
+        const val FIRST_RETRY_DELAY_MILLIS = 15_000L
+        const val MAX_RETRY_DELAY_MILLIS = 120_000L
     }
 }
 

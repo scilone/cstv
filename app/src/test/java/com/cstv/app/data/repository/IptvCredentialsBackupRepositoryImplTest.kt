@@ -87,24 +87,35 @@ class IptvCredentialsBackupRepositoryImplTest {
         verify(fixture.api).put(IptvCredentialsRequestDto("panel.example", 8080, "alice", "secret"), null)
     }
 
+    /**
+     * `DELETE_IF_MATCH` n'est plus produit par l'application : la révocation
+     * automatique sur identifiants refusés a été retirée (voir
+     * `AutoLoginUseCase`). Une installation mise à jour peut en revanche porter
+     * une révocation différée décidée avant ce changement — `drainPending` doit
+     * donc continuer de la mener à terme, ce que couvrent ces deux cas.
+     */
     @Test
-    fun conditionalInvalidationTreatsAChangedRemoteCopyAsSuccess() = runTest {
-        val fixture = fixture(IptvCloudBackupState(accountId = accountA, consent = true, lastEtag = "known"))
+    fun pendingConditionalDeleteTreatsAChangedRemoteCopyAsSuccess() = runTest {
+        val fixture = fixture(
+            IptvCloudBackupState(accountId = accountA, consent = true, lastEtag = "known", pendingOp = PendingCloudOp.DELETE_IF_MATCH)
+        )
         whenever(fixture.api.delete("\"known\""))
             .thenReturn(Response.error(412, "{}".toResponseBody()))
 
-        assertEquals(IptvBackupOutcome.Deleted, fixture.repository.invalidateRestored())
+        assertEquals(IptvBackupOutcome.Deleted, fixture.repository.drainPending())
 
         assertFalse(fixture.store.state.consent)
         assertEquals(PendingCloudOp.NONE, fixture.store.state.pendingOp)
     }
 
     @Test
-    fun deferredConditionalInvalidationKeepsItsEtag() = runTest {
-        val fixture = fixture(IptvCloudBackupState(accountId = accountA, consent = true, lastEtag = "known"))
+    fun deferredConditionalDeleteKeepsItsEtag() = runTest {
+        val fixture = fixture(
+            IptvCloudBackupState(accountId = accountA, consent = true, lastEtag = "known", pendingOp = PendingCloudOp.DELETE_IF_MATCH)
+        )
         whenever(fixture.api.delete("\"known\"")).thenThrow(RuntimeException("offline")).thenReturn(Response.success(Unit))
 
-        assertEquals(IptvBackupOutcome.Deferred, fixture.repository.invalidateRestored())
+        assertEquals(IptvBackupOutcome.Deferred, fixture.repository.drainPending())
         assertEquals(PendingCloudOp.DELETE_IF_MATCH, fixture.store.state.pendingOp)
 
         assertEquals(IptvBackupOutcome.Deleted, fixture.repository.drainPending())

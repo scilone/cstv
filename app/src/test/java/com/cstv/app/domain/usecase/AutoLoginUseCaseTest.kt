@@ -19,15 +19,18 @@ import org.junit.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class AutoLoginUseCaseTest {
     @Test
-    fun invalidLocalCredentialsInvalidateOnlyTheKnownRestoredCopy() = runTest {
+    fun invalidLocalCredentialsNeverRevokeTheCloudBackup() = runTest {
         val backup = FakeBackup()
         val auth = FakeAuth(AutoLoginOutcome.Rejected(AutoLoginRejection.INVALID_CREDENTIALS, "invalid"))
         val dispatcher = StandardTestDispatcher(testScheduler)
         val useCase = AutoLoginUseCase(auth, RestoreIptvCredentialsUseCase(backup, auth), backup, CoroutineScope(dispatcher))
 
+        // Un `auth != 1` du panel ne prouve pas que les identifiants sont
+        // faux : il tombe aussi quand le compte est au plafond de connexions
+        // simultanées. La sauvegarde ne se retire que sur décision explicite.
         assertEquals(AutoLoginOutcome.Rejected(AutoLoginRejection.INVALID_CREDENTIALS, "invalid"), useCase())
         advanceUntilIdle()
-        assertTrue(backup.invalidated)
+        assertEquals(null, backup.authenticated)
     }
 
     @Test
@@ -71,7 +74,6 @@ class AutoLoginUseCaseTest {
     }
 
     private class FakeBackup : IptvCredentialsBackupRepository {
-        var invalidated = false
         var authenticated: Credentials? = null
         var restored = false
         override fun linkedAccountId(): String? = null
@@ -79,7 +81,6 @@ class AutoLoginUseCaseTest {
         override suspend fun setConsent(enabled: Boolean): IptvBackupOutcome = IptvBackupOutcome.Skipped
         override suspend fun onAuthenticated(credentials: Credentials): IptvBackupOutcome { authenticated = credentials; return IptvBackupOutcome.Skipped }
         override suspend fun restore(): IptvRestoreOutcome { restored = true; return IptvRestoreOutcome.Absent }
-        override suspend fun invalidateRestored(): IptvBackupOutcome { invalidated = true; return IptvBackupOutcome.Skipped }
         override suspend fun deleteForIptvLogout(): IptvBackupOutcome = IptvBackupOutcome.Skipped
         override suspend fun deleteForCstvSignOut(): IptvBackupOutcome = IptvBackupOutcome.Skipped
         override suspend fun drainPending(): IptvBackupOutcome = IptvBackupOutcome.Skipped

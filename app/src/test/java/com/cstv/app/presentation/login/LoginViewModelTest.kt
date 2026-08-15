@@ -189,7 +189,6 @@ class LoginViewModelTest {
         }
         override suspend fun onAuthenticated(credentials: Credentials) = IptvBackupOutcome.Skipped
         override suspend fun restore() = IptvRestoreOutcome.Absent
-        override suspend fun invalidateRestored() = IptvBackupOutcome.Skipped
         override suspend fun deleteForIptvLogout() = IptvBackupOutcome.Skipped
         override suspend fun deleteForCstvSignOut() = IptvBackupOutcome.Skipped
         override suspend fun drainPending() = IptvBackupOutcome.Skipped

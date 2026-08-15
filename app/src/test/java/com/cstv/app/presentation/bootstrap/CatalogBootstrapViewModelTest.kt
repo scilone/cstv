@@ -14,6 +14,8 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -99,7 +101,7 @@ class CatalogBootstrapViewModelTest {
     }
 
     @Test
-    fun `typed failure is exposed and prevents an automatic retry`() = runTest(dispatcher) {
+    fun `typed failure is exposed and prevents an immediate startup request`() = runTest(dispatcher) {
         val manager = FakeCatalogSyncManager()
         val viewModel = CatalogBootstrapViewModel(manager)
         manager.sync.value = SyncState.Failed(SyncFailureKind.PANEL, at = 1L)
@@ -110,6 +112,58 @@ class CatalogBootstrapViewModelTest {
         advanceUntilIdle()
 
         assertTrue(manager.syncTriggers.isEmpty())
+    }
+
+    /**
+     * Le panel refuse aussi quand le compte est au plafond de connexions
+     * simultanées — un second appareil qu'on associe pendant une lecture en
+     * cours sur le premier. `CatalogSyncManager` ne reprend, lui, que sur un
+     * retour de réseau : sans front montant, l'écran restait sur « Réessayer »
+     * alors qu'il annonce une reprise automatique.
+     */
+    @Test
+    fun `a recoverable failure is retried on its own after a delay`() = runTest(dispatcher) {
+        val manager = FakeCatalogSyncManager()
+        val viewModel = CatalogBootstrapViewModel(manager)
+        val observation = launch { viewModel.state.collect {} }
+        manager.sync.value = SyncState.Failed(SyncFailureKind.PANEL, at = 1L)
+        advanceTimeBy(1_000L)
+
+        assertTrue(manager.syncTriggers.isEmpty())
+
+        advanceTimeBy(20_000L)
+        assertEquals(listOf(SyncTrigger.STARTUP), manager.syncTriggers)
+
+        observation.cancel()
+    }
+
+    /** Rejouer des identifiants refusés ne produit que du trafic refusé. */
+    @Test
+    fun `an auth failure is never retried automatically`() = runTest(dispatcher) {
+        val manager = FakeCatalogSyncManager()
+        val viewModel = CatalogBootstrapViewModel(manager)
+        val observation = launch { viewModel.state.collect {} }
+        manager.sync.value = SyncState.Failed(SyncFailureKind.AUTH, at = 1L)
+
+        advanceTimeBy(10 * 60 * 1000L)
+
+        assertTrue(manager.syncTriggers.isEmpty())
+        observation.cancel()
+    }
+
+    /** Hors ligne, il n'y a rien à réessayer : le manager reprend au retour du réseau. */
+    @Test
+    fun `an offline device is never retried automatically`() = runTest(dispatcher) {
+        val manager = FakeCatalogSyncManager(
+            initialStatus = CatalogStatus(isNetworkOnline = false, isOffline = true)
+        )
+        val viewModel = CatalogBootstrapViewModel(manager)
+        val observation = launch { viewModel.state.collect {} }
+
+        advanceTimeBy(10 * 60 * 1000L)
+
+        assertTrue(manager.syncTriggers.isEmpty())
+        observation.cancel()
     }
 
     @Test

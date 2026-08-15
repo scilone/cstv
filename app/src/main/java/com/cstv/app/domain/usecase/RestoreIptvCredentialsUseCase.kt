@@ -17,7 +17,9 @@ class RestoreIptvCredentialsUseCase @Inject constructor(private val backup: Iptv
         is IptvRestoreOutcome.Restored -> try {
             AutoLoginOutcome.Online(auth.login(restored.credentials).also { auth.saveCredentials(restored.credentials) })
         } catch (e: InvalidCredentialsException) {
-            backup.invalidateRestored()
+            // Voir `AutoLoginUseCase` : un refus du panel — y compris un plafond
+            // de connexions simultanées atteint — ne supprime plus la
+            // sauvegarde. L'écran affiche l'erreur, l'utilisateur décide.
             AutoLoginOutcome.Rejected(com.cstv.app.domain.model.AutoLoginRejection.CLOUD_CREDENTIALS_INVALID, "")
         } catch (e: AccountExpiredException) {
             AutoLoginOutcome.Rejected(com.cstv.app.domain.model.AutoLoginRejection.ACCOUNT_EXPIRED, e.message ?: "Compte expiré.")
