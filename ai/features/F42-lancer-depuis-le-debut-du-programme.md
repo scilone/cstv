@@ -82,11 +82,10 @@ est faite : AGENTS.md doit être mis à jour lors de la livraison.
 
 # 5. Hypothèses
 
-- Le panel Xtream utilisé expose un mécanisme de flux décalé exploitable par
-  l'API `player_api.php` ou par une URL dérivée. **Hypothèse la plus risquée du
-  ticket : à vérifier sur le panel réel avant l'étape 3.** Si elle est fausse,
-  la fonctionnalité se réduit au repli local, dont l'intérêt est nettement plus
-  faible.
+- ~~Le panel Xtream utilisé expose un mécanisme de flux décalé exploitable.~~
+  **Hypothèse vérifiée et confirmée à l'étape 3** : `tv_archive: 1`,
+  `tv_archive_duration: 5` jours sur les variantes HD du panel réel. Seul le
+  format exact de l'URL reste à calibrer à l'implémentation.
 - L'EPG en cache donne une heure de début fiable pour le programme en cours ; un
   décalage de quelques minutes est acceptable, un décalage systématique ne l'est
   pas.
@@ -101,7 +100,7 @@ est faite : AGENTS.md doit être mis à jour lors de la livraison.
 
 | Point traité à l'étape 3 | Décision |
 |---|---|
-| Support panel | Détecté par chaîne via `tv_archive` et `tv_archive_duration` du catalogue Xtream, puis validé par la première ouverture catch-up. Aucune capacité globale n'est supposée. |
+| Support panel | Détecté **par entrée** via `tv_archive` et `tv_archive_duration` du catalogue Xtream, puis validé par la première ouverture catch-up. Aucune capacité globale n'est supposée. Confirmé sur le panel réel, voir les arbitrages ci-dessous. |
 | URL | Adapter `XtreamCatchupUrlBuilder` pour le format timeshift du panel (`/timeshift/{user}/{password}/{duration}/{start}/{streamId}.ts`), isolé et remplaçable si le serveur annonce un format différent. |
 | Marge EPG | 2 minutes avant le début annoncé, bornées par la rétention disponible et jamais dans le futur. |
 | Poursuite différée | Le catch-up est consommé par fenêtres chaînées ; lorsqu'une fenêtre se termine, la suivante est devenue archivée. Le bouton et la barre utilisent le même modèle temporel que F41. |
@@ -117,8 +116,13 @@ multi-chaînes, hors périmètre et incompatible avec les limites de connexions.
 
 | Sujet | Décision |
 |---|---|
-| Support réel du flux décalé | **En attente de vérification sur le panel réel** avant d'engager l'étape 4. L'hypothèse d'étape 1 (« hypothèse la plus risquée du ticket, à vérifier avant l'étape 3 ») n'a pas été levée : l'étape 3 l'a contournée par une détection au runtime (`tv_archive`) et un builder d'URL isolé, mais le format d'URL reste supposé. Trois vérifications à faire : présence de `tv_archive: 1` dans `get_live_streams`, puis essai du format `/timeshift/{user}/{pass}/{durée}/{début}/{streamId}.ts`, puis de la variante `/streaming/timeshift.php?...`. |
-| Conséquence si l'hypothèse tombe | F42 perd son mode principal. Le repli local F41 ne le remplace pas : il n'existe que depuis le lecteur, sur une chaîne déjà ouverte (voir §7.3). Le ticket devrait alors être réévalué sur le fond, pas seulement adapté. |
+| Support réel du flux décalé | **Confirmé sur le panel réel.** `get_live_streams` renvoie `tv_archive: 1` avec `tv_archive_duration: 5` (5 jours de rétention). L'hypothèse la plus risquée du ticket est levée : le ticket a un mode principal. |
+| Capacité par variante, pas par chaîne | Observation du panel : le catch-up est déclaré sur les variantes **HD** (`\|FR\| TF1 HD`, `\|FR\| FRANCE 2 HD`) et **absent des SD** (`tv_archive: 0`). La capacité est donc un attribut de l'entrée, jamais de la chaîne logique — voir l'interaction avec F40 ci-dessous. |
+| Format d'URL | **Reste à calibrer à l'implémentation**, contre le panel réel. Ce n'est plus un risque de ticket mais un détail localisé : le builder est déjà conçu comme un port remplaçable (§8.3). Le développeur devra essayer, dans l'ordre, l'heure locale du panel puis l'UTC — les dates de l'EPG sont en UTC+2 alors que `start_timestamp` est en epoch UTC, donc le format attendu par les URLs n'est pas déductible de l'API. |
+| Éligibilité d'un programme | Deux conditions cumulatives, et non plus la seule capacité de chaîne : `tv_archive = 1` sur l'entrée **et** `has_archive = 1` sur le programme EPG visé. Le panel observé annonce des chaînes archivables dont les programmes courants sont à `has_archive: 0` : sans cette seconde condition, l'action serait proposée puis échouerait. Implique de persister `has_archive` dans `EpgCacheEntity` (nouvelle colonne, migration selon la règle de T21 §8.5). |
+| Résolution de l'instant de départ | Aucune analyse de date texte : `EpgCacheEntity` stocke déjà `startTimestamp`/`endTimestamp` en epoch, alimentés par `parseJsonTimestamp` depuis `start_timestamp`. Le `ProgramStartResolver` travaille donc exclusivement en epoch UTC, ce qui supprime toute ambiguïté de fuseau côté domaine — la conversion éventuelle reste confinée au builder d'URL. |
+| Interaction avec F40 | Sur ce panel, TF1 HD est archivable et TF1 SD ne l'est pas : un repli automatique de qualité ferait perdre la capacité de rattrapage en silence. **Tranché : quand une session catch-up est en cours, F40 ne considère que les variantes déclarant `tv_archive = 1`.** Si aucune n'est disponible, F40 ne bascule pas et laisse T23 puis la gestion d'erreur normale opérer — interrompre la session pour cause d'instabilité serait pire que la subir. En sélection manuelle pendant une session catch-up, les variantes sans archive restent visibles mais désactivées, avec la raison affichée. Reporté à l'identique dans F40. |
+| F42 pour l'étape 4 | **Débloqué.** La capacité du panel étant établie, l'inconnue résiduelle (format d'URL) est confinée à une classe remplaçable et se calibre pendant l'implémentation, avec accès au panel. Elle ne justifie plus de retenir le ticket. |
 
 ---
 

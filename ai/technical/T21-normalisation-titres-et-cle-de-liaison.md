@@ -135,6 +135,7 @@ Aucune question bloquante ne reste ouverte pour l'étape 4.
 |---|---|
 | Recalcul du catalogue existant | **En tâche de fond après le démarrage** (WorkManager), pas dans la migration Room. Révise la décision d'étape 1 : le gel du démarrage sur box Android TV a été jugé inacceptable face à un état transitoire non observable. Voir §8.5. |
 | État transitoire assumé | Une partie du catalogue reste sans `linkKey` le temps du traitement. F39 et F40 le traitent comme une entrée sans attribut (pas de badge, pas de bouton), sans écran d'attente ni indicateur de progression. |
+| Fixtures de test issues du panel réel | Les libellés de chaînes observés sur le panel suivent la forme `\|FR\| TF1 HD`, `\|FR\| TF1 SD`, `\|FR\| FRANCE 2 HD`, `\|FR\| FRANCE 2 SD` : préfixe pays entre barres verticales, nom, marqueur de qualité en suffixe. Ils doivent servir de fixtures aux tests plutôt que des exemples inventés. Deux confirmations qu'ils apportent : le préfixe pays étant **constant**, la décision d'étape 1 (« retrait des seuls marqueurs de qualité, pas de regroupement agressif sur les préfixes ») regroupe correctement HD et SD sous `\|FR\| TF1` sans traitement supplémentaire ; et le champ `epg_channel_id` vaut `france2.fr` sur une variante et `France2.fr` sur l'autre, ce qui valide la comparaison insensible à la casse retenue en §7.5. |
 
 ---
 

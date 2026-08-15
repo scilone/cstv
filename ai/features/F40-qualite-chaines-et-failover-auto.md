@@ -115,6 +115,8 @@ Aucune question bloquante ne reste ouverte pour l'étape 4.
 | Sujet | Décision |
 |---|---|
 | Catalogue pas encore normalisé | T21 recalcule le stock existant **en tâche de fond après le démarrage** (décision ratifiée à l'étape 3 de T21, qui révise son étape 1). Une chaîne dont `linkKey` est encore vide masque le bouton « Qualité » et ne déclenche aucun repli automatique : comportement identique à celui d'une chaîne sans variante, déjà spécifié. Aucun message d'attente n'est affiché. Une requête par `linkKey` ignore toujours les valeurs vides. |
+| Repli de qualité pendant une session catch-up (F42) | Observation du panel réel : la capacité de rattrapage est déclarée **par variante** — `\|FR\| TF1 HD` porte `tv_archive: 1`, `\|FR\| TF1 SD` porte `tv_archive: 0`. Un repli automatique vers une variante sans archive interromprait la session de rattrapage en cours, alors que l'utilisateur n'a rien demandé. **Tranché : tant qu'une session catch-up est active, le mode automatique ne considère que les variantes déclarant `tv_archive = 1`.** Si aucune autre variante archivable n'existe, F40 **ne bascule pas** : il laisse T23 tenter la réparation, puis la gestion d'erreur normale opérer. Subir un flux instable est préférable à perdre la session sans prévenir. |
+| Sélection manuelle pendant une session catch-up | Les variantes sans archive restent **visibles mais désactivées** dans le sélecteur, avec la raison affichée (« pas de rattrapage sur cette qualité »). Cohérent avec le principe de F42 : ne jamais promettre ce qui n'est pas possible, sans pour autant masquer l'information. |
 
 ---
 
