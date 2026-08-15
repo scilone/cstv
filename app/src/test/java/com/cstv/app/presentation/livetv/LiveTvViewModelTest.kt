@@ -73,6 +73,9 @@ class LiveTvViewModelTest {
         whenever(observeRecentlyWatched()).thenReturn(flowOf(emptyList()))
         whenever(categoryPreferences.changes).thenReturn(flowOf(Unit))
         whenever(observeCatalogStatusUseCase()).thenReturn(flowOf(com.cstv.app.domain.sync.CatalogStatus()))
+        // Voir VodViewModelTest.
+        whenever(catalogSyncManager.syncState)
+            .thenReturn(kotlinx.coroutines.flow.MutableStateFlow(com.cstv.app.domain.sync.SyncState.Idle))
     }
 
     @After

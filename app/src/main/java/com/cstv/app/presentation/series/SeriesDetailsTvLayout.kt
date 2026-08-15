@@ -1,6 +1,11 @@
 package com.cstv.app.presentation.series
 
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -29,6 +34,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.onFocusedBoundsChanged
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.ThumbDown
@@ -142,6 +148,20 @@ private val TV_SERIES_EPISODE_SPACING = 8.dp
  * ouverte mais inatteignable au D-pad.
  */
 private const val TV_SERIES_RELATED_FOCUS_ATTEMPTS = 6
+
+/**
+ * Chevron d'appel vers le panneau des épisodes.
+ *
+ * Le panneau héros occupe toute la hauteur de l'écran et ne laisse rien
+ * dépasser : rien n'indiquait qu'une descente du D-pad ouvrait la liste des
+ * épisodes. Un va-et-vient vertical de quelques pixels suffit à le signaler
+ * sans concurrencer le bouton de lecture — l'amplitude reste sous la hauteur du
+ * chevron pour que le mouvement se lise comme une respiration, pas comme un
+ * élément qui défile.
+ */
+private val TV_SERIES_SCROLL_HINT_SIZE = 28.dp
+private val TV_SERIES_SCROLL_HINT_TRAVEL = 6.dp
+private const val TV_SERIES_SCROLL_HINT_PERIOD_MS = 1400
 
 /** Position visuelle locale de la fiche TV, réinitialisée à chaque série. */
 internal enum class TvSeriesDetailsSection { HERO, EPISODES, RELATED }
@@ -639,8 +659,53 @@ fun SeriesDetailsTvLayout(
                 }
             }
         }
+        // Posé hors de la colonne translatée : l'indice reste collé au bas de
+        // l'écran et s'efface dès qu'on quitte le hero, au lieu de descendre
+        // avec le panneau qu'il annonce.
+        TvSeriesScrollHint(
+            visible = section == TvSeriesDetailsSection.HERO,
+            modifier = Modifier.align(Alignment.BottomCenter)
+        )
         TvFocusSelectorOverlay(focusSelector, modifier = Modifier.fillMaxSize())
     }
+}
+
+/** Voir [TV_SERIES_SCROLL_HINT_SIZE] : chevron d'appel vers les épisodes. */
+@Composable
+private fun TvSeriesScrollHint(visible: Boolean, modifier: Modifier = Modifier) {
+    val alpha by animateFloatAsState(
+        targetValue = if (visible) 1f else 0f,
+        animationSpec = tween(durationMillis = 300),
+        label = "seriesScrollHintAlpha"
+    )
+    if (alpha == 0f) return
+
+    val transition = rememberInfiniteTransition(label = "seriesScrollHint")
+    val bob by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = TV_SERIES_SCROLL_HINT_PERIOD_MS, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "seriesScrollHintBob"
+    )
+    val travelPx = with(LocalDensity.current) { TV_SERIES_SCROLL_HINT_TRAVEL.toPx() }
+
+    Icon(
+        imageVector = Icons.Default.KeyboardArrowDown,
+        // Décoratif : l'action est déjà portée par la navigation D-pad, et un
+        // lecteur d'écran n'a que faire d'un repère purement visuel.
+        contentDescription = null,
+        tint = TextSecondary,
+        modifier = modifier
+            .padding(bottom = TV_SERIES_BOTTOM_RESERVE)
+            .size(TV_SERIES_SCROLL_HINT_SIZE)
+            .graphicsLayer {
+                this.alpha = alpha
+                translationY = bob * travelPx
+            }
+    )
 }
 
 @Composable

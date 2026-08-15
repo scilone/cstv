@@ -147,6 +147,7 @@ class VodViewModel @Inject constructor(
     init {
         observeCategories()
         observeCatalogStatus()
+        observeSyncCompletion()
         triggerSilentSyncIfStale()
         // Observe et filtre les positions de lecture en temps réel (F5)
         viewModelScope.launch {
@@ -276,6 +277,32 @@ class VodViewModel @Inject constructor(
     }
 
     /**
+     * Réabonnement forcé à la fin d'une synchronisation réussie.
+     *
+     * Au tout premier lancement, l'écran s'abonne à un catalogue encore vide et
+     * n'a plus, ensuite, que l'invalidation Room pour être averti du
+     * remplissage. Le symptôme observé — onglet « Tout » resté vide jusqu'au
+     * redémarrage de l'application, sur les trois catalogues à la fois, alors
+     * que le sélecteur de catégories affiche bien les catégories et leurs
+     * compteurs — signe une émission unique à vide : le flux a bien répondu (le
+     * voile de chargement est levé), mais n'a jamais été réveillé par les
+     * écritures de la synchronisation.
+     *
+     * Plutôt que de dépendre de ce seul réveil, la fin de synchronisation
+     * relance explicitement la requête de liste. C'est une lecture Room de plus
+     * par synchronisation réussie, soit au plus une par heure en régime normal.
+     */
+    private fun observeSyncCompletion() {
+        viewModelScope.launch {
+            catalogSyncManager.syncState.collect { syncState ->
+                if (syncState !is com.cstv.app.domain.sync.SyncState.Success) return@collect
+                val categoryId = _state.value.selectedCategory?.categoryId ?: return@collect
+                resubscribeStreams(categoryId)
+            }
+        }
+    }
+
+    /**
      * T7 (D3) : entrer sur l'onglet VOD déclenche silencieusement une
      * synchronisation si le catalogue est périmé — pas d'erreur, pas de
      * bannière, pas d'action manuelle. `syncIfStale()` est déjà un no-op si le
@@ -287,11 +314,19 @@ class VodViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Re-sélectionner la catégorie déjà ouverte vidait `streams` avant que
+     * le garde de [observeStreams] ne renvoie sans se réabonner — la liste
+     * restait vide jusqu'à la prochaine écriture Room. Le vidage n'a de sens que
+     * pour un changement réel de catégorie, où il évite d'afficher un instant
+     * les médias de la précédente.
+     */
     fun selectCategory(category: VodCategory) {
+        val isSameCategory = _state.value.selectedCategory?.categoryId == category.categoryId
         _state.update {
             it.copy(
                 selectedCategory = category,
-                streams = emptyList(),
+                streams = if (isSameCategory) it.streams else emptyList(),
                 advancedFilter = AdvancedSearchFilter.DEFAULT,
                 isFilterSheetOpen = false,
                 filteredCount = 0
@@ -332,6 +367,12 @@ class VodViewModel @Inject constructor(
         val category = _state.value.categories.firstOrNull { it.categoryId == categoryId } ?: return false
         selectCategory(category)
         return true
+    }
+
+    /** Voir [observeSyncCompletion] : relance la requête de liste sans changer de catégorie. */
+    private fun resubscribeStreams(categoryId: String) {
+        observedCategoryId = null
+        observeStreams(categoryId)
     }
 
     private fun observeStreams(categoryId: String) {

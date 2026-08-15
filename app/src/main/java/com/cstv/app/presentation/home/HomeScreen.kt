@@ -25,6 +25,8 @@ import com.cstv.app.presentation.components.rememberTvInitialFocus
 import com.cstv.app.presentation.components.tvInitialFocusTarget
 
 import com.cstv.app.presentation.rememberRowScrollState
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.background
@@ -209,6 +211,47 @@ fun HomeScreen(
         }
     }
 
+    // Appui long sur une vignette de film/série = bascule favori, sur
+    // mobile comme sur TV (`Modifier.tvLongPressActions` couvre les deux). L'état
+    // affiché vient de `favoritesList`, déjà filtré des catégories masquées : un
+    // favori d'une catégorie masquée n'est de toute façon montré nulle part sur
+    // l'Accueil. La décision d'ajout/retrait, elle, est reprise en base par le
+    // ViewModel — le libellé du message est le seul à dépendre de cet état local.
+    val snackbarScope = rememberCoroutineScope()
+    val favoriteMovieIds = remember(state.favoritesList) {
+        state.favoritesList.asSequence().filter { it.type == "movie" }.map { it.id }.toSet()
+    }
+    val favoriteSeriesIds = remember(state.favoritesList) {
+        state.favoritesList.asSequence().filter { it.type == "series" }.map { it.id }.toSet()
+    }
+    val favoriteToggleLabel = stringResource(R.string.catalog_favorite_toggle_label)
+    val favoriteAddedMessage = stringResource(R.string.catalog_favorite_added)
+    val favoriteRemovedMessage = stringResource(R.string.catalog_favorite_removed)
+    val showFavoriteFeedback: (Boolean) -> Unit = { wasFavorite ->
+        snackbarScope.launch {
+            // Un appui long enchaîné ne doit pas faire la queue derrière le
+            // message précédent : le dernier geste est le seul à commenter.
+            historySnackbarHost.currentSnackbarData?.dismiss()
+            historySnackbarHost.showSnackbar(
+                if (wasFavorite) favoriteRemovedMessage else favoriteAddedMessage
+            )
+        }
+    }
+    val toggleMovieFavorite: (VodStream) -> Unit = { stream ->
+        val wasFavorite = stream.streamId in favoriteMovieIds
+        viewModel.toggleFavorite(
+            FavoriteItem(stream.streamId, "movie", stream.name, stream.streamIcon, stream.categoryId)
+        )
+        showFavoriteFeedback(wasFavorite)
+    }
+    val toggleSeriesFavorite: (SeriesStream) -> Unit = { stream ->
+        val wasFavorite = stream.seriesId in favoriteSeriesIds
+        viewModel.toggleFavorite(
+            FavoriteItem(stream.seriesId, "series", stream.name, stream.cover, stream.categoryId)
+        )
+        showFavoriteFeedback(wasFavorite)
+    }
+
     // Couche avant du sélecteur pivot fixe (F23) : un seul état par écran,
     // fourni uniquement aux conteneurs de listes de médias TV, jamais au
     // mobile ni au bandeau de navigation.
@@ -237,6 +280,12 @@ fun HomeScreen(
                     onFavoriteClick = handleFavoriteClick,
                     onMovieClick = onSelectMovieDetail,
                     onSeriesClick = onSelectSeriesDetail,
+                    isTv = isTv,
+                    favoriteMovieIds = favoriteMovieIds,
+                    favoriteSeriesIds = favoriteSeriesIds,
+                    favoriteToggleLabel = favoriteToggleLabel,
+                    onToggleMovieFavorite = toggleMovieFavorite,
+                    onToggleSeriesFavorite = toggleSeriesFavorite,
                     onBack = { expandedSection = null },
                     modifier = Modifier.fillMaxSize()
                 )
@@ -583,7 +632,11 @@ fun HomeScreen(
                                         .tvInitialFocusTarget(homeInitialFocus, index == 0 && homeInitialTarget == HomeFocusTarget.VOD)) {
                                         HomeVodMovieCard(
                                             stream = stream,
-                                            onClick = { onSelectMovieDetail(stream) }
+                                            onClick = { onSelectMovieDetail(stream) },
+                                            onLongClick = { toggleMovieFavorite(stream) },
+                                            longClickLabel = favoriteToggleLabel,
+                                            isFavorite = stream.streamId in favoriteMovieIds,
+                                            isTv = isTv
                                         )
                                     }
                                 }
@@ -619,7 +672,11 @@ fun HomeScreen(
                                         HomeVodMovieCard(
                                             stream = stream,
                                             onClick = { onSelectMovieDetail(stream) },
-                                            rank = index + 1
+                                            rank = index + 1,
+                                            onLongClick = { toggleMovieFavorite(stream) },
+                                            longClickLabel = favoriteToggleLabel,
+                                            isFavorite = stream.streamId in favoriteMovieIds,
+                                            isTv = isTv
                                         )
                                     }
                                 }
@@ -651,7 +708,11 @@ fun HomeScreen(
                                         .tvInitialFocusTarget(homeInitialFocus, index == 0 && homeInitialTarget == HomeFocusTarget.RECOMMENDED_MOVIES)) {
                                         HomeVodMovieCard(
                                             stream = stream,
-                                            onClick = { onSelectMovieDetail(stream) }
+                                            onClick = { onSelectMovieDetail(stream) },
+                                            onLongClick = { toggleMovieFavorite(stream) },
+                                            longClickLabel = favoriteToggleLabel,
+                                            isFavorite = stream.streamId in favoriteMovieIds,
+                                            isTv = isTv
                                         )
                                     }
                                 }
@@ -683,7 +744,11 @@ fun HomeScreen(
                                         .tvInitialFocusTarget(homeInitialFocus, index == 0 && homeInitialTarget == HomeFocusTarget.SERIES)) {
                                         HomeSeriesShowCard(
                                             stream = stream,
-                                            onClick = { onSelectSeriesDetail(stream) }
+                                            onClick = { onSelectSeriesDetail(stream) },
+                                            onLongClick = { toggleSeriesFavorite(stream) },
+                                            longClickLabel = favoriteToggleLabel,
+                                            isFavorite = stream.seriesId in favoriteSeriesIds,
+                                            isTv = isTv
                                         )
                                     }
                                 }
@@ -716,7 +781,11 @@ fun HomeScreen(
                                         HomeSeriesShowCard(
                                             stream = stream,
                                             onClick = { onSelectSeriesDetail(stream) },
-                                            rank = index + 1
+                                            rank = index + 1,
+                                            onLongClick = { toggleSeriesFavorite(stream) },
+                                            longClickLabel = favoriteToggleLabel,
+                                            isFavorite = stream.seriesId in favoriteSeriesIds,
+                                            isTv = isTv
                                         )
                                     }
                                 }
@@ -748,7 +817,11 @@ fun HomeScreen(
                                         .tvInitialFocusTarget(homeInitialFocus, index == 0 && homeInitialTarget == HomeFocusTarget.RECOMMENDED_SERIES)) {
                                         HomeSeriesShowCard(
                                             stream = stream,
-                                            onClick = { onSelectSeriesDetail(stream) }
+                                            onClick = { onSelectSeriesDetail(stream) },
+                                            onLongClick = { toggleSeriesFavorite(stream) },
+                                            longClickLabel = favoriteToggleLabel,
+                                            isFavorite = stream.seriesId in favoriteSeriesIds,
+                                            isTv = isTv
                                         )
                                     }
                                 }
@@ -832,6 +905,13 @@ private fun HomeExpandedGrid(
     onFavoriteClick: (FavoriteItem) -> Unit,
     onMovieClick: (VodStream) -> Unit,
     onSeriesClick: (SeriesStream) -> Unit,
+    // Même appui long que sur les rangées de l'Accueil.
+    isTv: Boolean,
+    favoriteMovieIds: Set<Int>,
+    favoriteSeriesIds: Set<Int>,
+    favoriteToggleLabel: String,
+    onToggleMovieFavorite: (VodStream) -> Unit,
+    onToggleSeriesFavorite: (SeriesStream) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -896,13 +976,21 @@ private fun HomeExpandedGrid(
                 HomeExpandedSection.RECOMMENDED_MOVIES -> gridItems(recommendedMovies) { stream ->
                     HomeVodMovieCard(
                         stream = stream,
-                        onClick = { onMovieClick(stream) }
+                        onClick = { onMovieClick(stream) },
+                        onLongClick = { onToggleMovieFavorite(stream) },
+                        longClickLabel = favoriteToggleLabel,
+                        isFavorite = stream.streamId in favoriteMovieIds,
+                        isTv = isTv
                     )
                 }
                 HomeExpandedSection.RECOMMENDED_SERIES -> gridItems(recommendedSeries) { stream ->
                     HomeSeriesShowCard(
                         stream = stream,
-                        onClick = { onSeriesClick(stream) }
+                        onClick = { onSeriesClick(stream) },
+                        onLongClick = { onToggleSeriesFavorite(stream) },
+                        longClickLabel = favoriteToggleLabel,
+                        isFavorite = stream.seriesId in favoriteSeriesIds,
+                        isTv = isTv
                     )
                 }
             }

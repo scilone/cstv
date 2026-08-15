@@ -67,6 +67,9 @@ class SeriesViewModelTest {
         whenever(getSeriesStreamsUseCase(any())).thenReturn(flowOf(emptyList()))
         whenever(categoryPreferenceRepository.changes).thenReturn(flowOf(Unit))
         whenever(observeCatalogStatusUseCase()).thenReturn(flowOf(com.cstv.app.domain.sync.CatalogStatus()))
+        // Voir VodViewModelTest.
+        whenever(catalogSyncManager.syncState)
+            .thenReturn(kotlinx.coroutines.flow.MutableStateFlow(com.cstv.app.domain.sync.SyncState.Idle))
         whenever(categoryPreferenceRepository.getPreferences(any())).thenReturn(emptyMap())
         whenever(seriesRepository.getCachedSeriesStreams(any())).thenReturn(emptyList())
     }

@@ -246,6 +246,9 @@
     <string name="livetv_category_selector_label">DIRECT : %1$s</string>
     <string name="livetv_favorite_toggle_label">Ajouter ou retirer des favoris</string>
     <string name="livetv_favorite_state_description">Favori</string>
+    <string name="catalog_favorite_toggle_label">Ajouter ou retirer des favoris</string>
+    <string name="catalog_favorite_added">Ajouté aux favoris</string>
+    <string name="catalog_favorite_removed">Retiré des favoris</string>
     <string name="catalog_no_search_result">Aucun résultat pour « %1$s »</string>
     <string name="vod_empty_category">Aucun film dans cette catégorie</string>
     <string name="vod_empty_filtered">Aucun film ne correspond à ces filtres</string>

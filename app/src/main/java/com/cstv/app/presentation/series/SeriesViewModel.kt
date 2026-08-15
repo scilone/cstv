@@ -150,6 +150,7 @@ class SeriesViewModel @Inject constructor(
     init {
         observeCategories()
         observeCatalogStatus()
+        observeSyncCompletion()
         triggerSilentSyncIfStale()
         // Observe et filtre les positions de lecture en temps réel (F5)
         viewModelScope.launch {
@@ -284,11 +285,24 @@ class SeriesViewModel @Inject constructor(
         }
     }
 
+    /** Voir `VodViewModel.observeSyncCompletion`. */
+    private fun observeSyncCompletion() {
+        viewModelScope.launch {
+            catalogSyncManager.syncState.collect { syncState ->
+                if (syncState !is com.cstv.app.domain.sync.SyncState.Success) return@collect
+                val categoryId = _state.value.selectedCategory?.categoryId ?: return@collect
+                resubscribeStreams(categoryId)
+            }
+        }
+    }
+
+    /** Voir `VodViewModel.selectCategory` : pas de vidage sans changement réel. */
     fun selectCategory(category: SeriesCategory) {
+        val isSameCategory = _state.value.selectedCategory?.categoryId == category.categoryId
         _state.update {
             it.copy(
                 selectedCategory = category,
-                streams = emptyList(),
+                streams = if (isSameCategory) it.streams else emptyList(),
                 advancedFilter = AdvancedSearchFilter.DEFAULT,
                 isFilterSheetOpen = false,
                 filteredCount = 0
@@ -329,6 +343,12 @@ class SeriesViewModel @Inject constructor(
         val category = _state.value.categories.firstOrNull { it.categoryId == categoryId } ?: return false
         selectCategory(category)
         return true
+    }
+
+    /** Voir `VodViewModel.resubscribeStreams`. */
+    private fun resubscribeStreams(categoryId: String) {
+        observedCategoryId = null
+        observeStreams(categoryId)
     }
 
     private fun observeStreams(categoryId: String) {

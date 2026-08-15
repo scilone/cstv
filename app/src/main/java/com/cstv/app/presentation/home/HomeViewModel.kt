@@ -741,6 +741,33 @@ class HomeViewModel @Inject constructor(
         if (fresh != null) applyToState(fresh)
     }
 
+    /**
+     * Bascule favori depuis une vignette de l'Accueil par appui long.
+     *
+     * Le cache de recommandations est invalidé dans la foulée : les favoris
+     * pèsent désormais dans le profil de goûts **et** sont exclus des
+     * suggestions (voir `GetRecommendationsUseCase`). Sans cette invalidation, un titre
+     * qu'on vient de mettre en favori resterait proposé jusqu'à l'expiration du
+     * cache, 24 h plus tard. L'invalidation est posée ici, sur l'action, et non
+     * sur le flux `observeFavorites` : celui-ci émet aussi la liste initiale à
+     * chaque ouverture de l'Accueil, ce qui relancerait le calcul complet du
+     * moteur à chaque lancement.
+     */
+    fun toggleFavorite(item: FavoriteItem) {
+        viewModelScope.launch {
+            try {
+                if (favoritesRepository.isFavorite(item.id, item.type)) {
+                    favoritesRepository.removeFavorite(item.id, item.type)
+                } else {
+                    favoritesRepository.addFavorite(item)
+                }
+                getRecommendationsUseCase.invalidateCache()
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+            }
+        }
+    }
+
     private fun refreshRecommendations() {
         recommendationsJob?.cancel()
         recommendationsJob = viewModelScope.launch {

@@ -2,6 +2,7 @@ package com.cstv.app.domain.usecase
 
 import com.cstv.app.domain.model.CategoryPreference
 import com.cstv.app.domain.model.CategoryType
+import com.cstv.app.domain.model.FavoriteItem
 import com.cstv.app.domain.model.PlaybackPosition
 import com.cstv.app.domain.model.SeriesStream
 import com.cstv.app.domain.model.VodStream
@@ -10,6 +11,7 @@ import com.cstv.app.domain.repository.SeriesRepository
 import com.cstv.app.domain.repository.VodRepository
 import com.cstv.app.data.local.storage.ProfileManager
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -42,6 +44,8 @@ class GetRecommendationsUseCaseTest {
         val profileManager = mock<ProfileManager>()
         val mediaRatingRepository = mock<com.cstv.app.domain.repository.MediaRatingRepository>()
         whenever(mediaRatingRepository.getAllRatings()).thenReturn(emptyList())
+        val favoritesRepository = mock<com.cstv.app.domain.repository.FavoritesRepository>()
+        whenever(favoritesRepository.observeFavorites()).thenReturn(flowOf(emptyList()))
 
         whenever(profileManager.currentProfileId()).thenReturn(1)
         
@@ -52,7 +56,7 @@ class GetRecommendationsUseCaseTest {
         )
         whenever(vodRepository.getAllPlaybackPositions()).thenReturn(history)
 
-        val useCase = GetRecommendationsUseCase(vodRepository, seriesRepository, categoryPreferenceRepository, profileManager, mediaRatingRepository, CoroutineScope(SupervisorJob()))
+        val useCase = GetRecommendationsUseCase(vodRepository, seriesRepository, categoryPreferenceRepository, profileManager, mediaRatingRepository, favoritesRepository, CoroutineScope(SupervisorJob()))
 
         val result = useCase(currentTimeMs = 1000L)
 
@@ -70,6 +74,8 @@ class GetRecommendationsUseCaseTest {
         val profileManager = mock<ProfileManager>()
         val mediaRatingRepository = mock<com.cstv.app.domain.repository.MediaRatingRepository>()
         whenever(mediaRatingRepository.getAllRatings()).thenReturn(emptyList())
+        val favoritesRepository = mock<com.cstv.app.domain.repository.FavoritesRepository>()
+        whenever(favoritesRepository.observeFavorites()).thenReturn(flowOf(emptyList()))
 
         // 3 items in history to pass cold start
         val history = listOf(
@@ -82,7 +88,7 @@ class GetRecommendationsUseCaseTest {
         whenever(seriesRepository.getCachedSeriesStreams("all")).thenReturn(emptyList())
         whenever(categoryPreferenceRepository.getPreferences(any())).thenReturn(emptyMap())
 
-        val useCase = GetRecommendationsUseCase(vodRepository, seriesRepository, categoryPreferenceRepository, profileManager, mediaRatingRepository, CoroutineScope(SupervisorJob()))
+        val useCase = GetRecommendationsUseCase(vodRepository, seriesRepository, categoryPreferenceRepository, profileManager, mediaRatingRepository, favoritesRepository, CoroutineScope(SupervisorJob()))
 
         // 1st call for Profile 1
         whenever(profileManager.currentProfileId()).thenReturn(1)
@@ -112,6 +118,8 @@ class GetRecommendationsUseCaseTest {
         val profileManager = mock<ProfileManager>()
         val mediaRatingRepository = mock<com.cstv.app.domain.repository.MediaRatingRepository>()
         whenever(mediaRatingRepository.getAllRatings()).thenReturn(emptyList())
+        val favoritesRepository = mock<com.cstv.app.domain.repository.FavoritesRepository>()
+        whenever(favoritesRepository.observeFavorites()).thenReturn(flowOf(emptyList()))
 
         whenever(profileManager.currentProfileId()).thenReturn(1)
         
@@ -135,7 +143,7 @@ class GetRecommendationsUseCaseTest {
         )
         whenever(categoryPreferenceRepository.getPreferences(CategoryType.SERIES)).thenReturn(emptyMap())
 
-        val useCase = GetRecommendationsUseCase(vodRepository, seriesRepository, categoryPreferenceRepository, profileManager, mediaRatingRepository, CoroutineScope(SupervisorJob()))
+        val useCase = GetRecommendationsUseCase(vodRepository, seriesRepository, categoryPreferenceRepository, profileManager, mediaRatingRepository, favoritesRepository, CoroutineScope(SupervisorJob()))
         val result = useCase(currentTimeMs = 1000L)
 
         // The hidden movie should not be recommended
@@ -157,6 +165,8 @@ class GetRecommendationsUseCaseTest {
         val profileManager = mock<ProfileManager>()
         val mediaRatingRepository = mock<com.cstv.app.domain.repository.MediaRatingRepository>()
         whenever(mediaRatingRepository.getAllRatings()).thenReturn(emptyList())
+        val favoritesRepository = mock<com.cstv.app.domain.repository.FavoritesRepository>()
+        whenever(favoritesRepository.observeFavorites()).thenReturn(flowOf(emptyList()))
 
         whenever(profileManager.currentProfileId()).thenReturn(1)
 
@@ -175,7 +185,7 @@ class GetRecommendationsUseCaseTest {
         // Premier calcul : aucune catégorie masquée, les deux films entrent en cache.
         whenever(categoryPreferenceRepository.getPreferences(any())).thenReturn(emptyMap())
 
-        val useCase = GetRecommendationsUseCase(vodRepository, seriesRepository, categoryPreferenceRepository, profileManager, mediaRatingRepository, CoroutineScope(SupervisorJob()))
+        val useCase = GetRecommendationsUseCase(vodRepository, seriesRepository, categoryPreferenceRepository, profileManager, mediaRatingRepository, favoritesRepository, CoroutineScope(SupervisorJob()))
         assertEquals(2, useCase(currentTimeMs = 1000L).movies.size)
 
         // Masquage décidé après coup : même profil, cache encore frais.
@@ -191,5 +201,92 @@ class GetRecommendationsUseCaseTest {
         // …mais le film de la catégorie masquée n'est plus proposé.
         assertEquals(1, fromCache.movies.size)
         assertEquals("Ok Movie", fromCache.movies[0].name)
+    }
+
+    /**
+     * Un favori ne se re-propose pas.
+     *
+     * Il est déjà dans la liste de l'utilisateur ; l'y renvoyer sous
+     * « Recommandé pour vous » occupe une place au détriment d'une découverte.
+     */
+    @Test
+    fun `a favourite is never proposed back as a recommendation`() = runTest {
+        val vodRepository = mock<VodRepository>()
+        val seriesRepository = mock<SeriesRepository>()
+        val categoryPreferenceRepository = mock<CategoryPreferenceRepository>()
+        val profileManager = mock<ProfileManager>()
+        val mediaRatingRepository = mock<com.cstv.app.domain.repository.MediaRatingRepository>()
+        whenever(mediaRatingRepository.getAllRatings()).thenReturn(emptyList())
+        val favoritesRepository = mock<com.cstv.app.domain.repository.FavoritesRepository>()
+        whenever(favoritesRepository.observeFavorites()).thenReturn(
+            flowOf(listOf(FavoriteItem(11, "movie", "Favourite Movie", null, "cat_ok")))
+        )
+        whenever(profileManager.currentProfileId()).thenReturn(1)
+
+        whenever(vodRepository.getAllPlaybackPositions()).thenReturn(
+            (1..3).map {
+                PlaybackPosition(streamId = it, positionMs = 1000L, durationMs = 5000L, lastAccessedAt = 0L, type = "movie")
+            }
+        )
+        whenever(vodRepository.getCachedVodStreams("all")).thenReturn(
+            listOf(
+                VodStream(10, "Ok Movie", "icon", "5", "0", "cat_ok"),
+                VodStream(11, "Favourite Movie", "icon", "5", "0", "cat_ok")
+            )
+        )
+        whenever(seriesRepository.getCachedSeriesStreams("all")).thenReturn(emptyList())
+        whenever(categoryPreferenceRepository.getPreferences(any())).thenReturn(emptyMap())
+
+        val useCase = GetRecommendationsUseCase(vodRepository, seriesRepository, categoryPreferenceRepository, profileManager, mediaRatingRepository, favoritesRepository, CoroutineScope(SupervisorJob()))
+        val result = useCase(currentTimeMs = 1000L)
+
+        assertEquals(listOf("Ok Movie"), result.movies.map { it.name })
+    }
+
+    /**
+     * Le genre d'un favori pèse davantage que celui d'un média simplement
+     * regardé.
+     *
+     * Le profil est volontairement partagé : un film seulement vu porte le genre
+     * `Comedy`, un film mis en favori porte `Horror`. Les deux candidats sont
+     * par ailleurs identiques (même catégorie, même note, même date d'ajout) —
+     * seul le poids du signal peut donc les départager.
+     */
+    @Test
+    fun `a favourite genre outweighs a merely watched genre`() = runTest {
+        val vodRepository = mock<VodRepository>()
+        val seriesRepository = mock<SeriesRepository>()
+        val categoryPreferenceRepository = mock<CategoryPreferenceRepository>()
+        val profileManager = mock<ProfileManager>()
+        val mediaRatingRepository = mock<com.cstv.app.domain.repository.MediaRatingRepository>()
+        whenever(mediaRatingRepository.getAllRatings()).thenReturn(emptyList())
+        val favoritesRepository = mock<com.cstv.app.domain.repository.FavoritesRepository>()
+        whenever(favoritesRepository.observeFavorites()).thenReturn(
+            flowOf(listOf(FavoriteItem(2, "movie", "Watched Horror", null, "cat")))
+        )
+        whenever(profileManager.currentProfileId()).thenReturn(1)
+
+        // Trois entrées d'historique pour passer le démarrage à froid ; seules
+        // les deux premières existent au catalogue et portent un genre.
+        whenever(vodRepository.getAllPlaybackPositions()).thenReturn(
+            (1..3).map {
+                PlaybackPosition(streamId = it, positionMs = 1000L, durationMs = 5000L, lastAccessedAt = 0L, type = "movie")
+            }
+        )
+        whenever(vodRepository.getCachedVodStreams("all")).thenReturn(
+            listOf(
+                VodStream(1, "Watched Comedy", "icon", "5", "0", "cat", genre = "Comedy"),
+                VodStream(2, "Watched Horror", "icon", "5", "0", "cat", genre = "Horror"),
+                VodStream(50, "Candidate Comedy", "icon", "5", "0", "cat", genre = "Comedy"),
+                VodStream(51, "Candidate Horror", "icon", "5", "0", "cat", genre = "Horror")
+            )
+        )
+        whenever(seriesRepository.getCachedSeriesStreams("all")).thenReturn(emptyList())
+        whenever(categoryPreferenceRepository.getPreferences(any())).thenReturn(emptyMap())
+
+        val useCase = GetRecommendationsUseCase(vodRepository, seriesRepository, categoryPreferenceRepository, profileManager, mediaRatingRepository, favoritesRepository, CoroutineScope(SupervisorJob()))
+        val result = useCase(currentTimeMs = 1000L)
+
+        assertEquals("Candidate Horror", result.movies.first().name)
     }
 }

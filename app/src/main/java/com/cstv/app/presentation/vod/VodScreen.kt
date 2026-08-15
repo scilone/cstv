@@ -51,6 +51,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
@@ -101,6 +102,8 @@ fun VodScreen(
     isTv: Boolean,
     favoritesList: List<FavoriteItem>,
     onMovieSelected: (VodStream) -> Unit,
+    /** Appui long sur une vignette = bascule favori (mobile et TV). */
+    onToggleFavorite: (VodStream) -> Unit = {},
     onNavigateToFavorites: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -155,6 +158,26 @@ fun VodScreen(
         }
     }.collectAsLazyPagingItems()
 
+    // Voir `HomeScreen`. L'état affiché vient de `favoritesList`, la
+    // décision d'ajout/retrait est reprise en base par le ViewModel des favoris.
+    val snackbarScope = rememberCoroutineScope()
+    val favoriteMovieIds = remember(favoritesList) {
+        favoritesList.asSequence().filter { it.type == "movie" }.map { it.id }.toSet()
+    }
+    val favoriteToggleLabel = stringResource(R.string.catalog_favorite_toggle_label)
+    val favoriteAddedMessage = stringResource(R.string.catalog_favorite_added)
+    val favoriteRemovedMessage = stringResource(R.string.catalog_favorite_removed)
+    val toggleFavorite: (VodStream) -> Unit = { stream ->
+        val wasFavorite = stream.streamId in favoriteMovieIds
+        onToggleFavorite(stream)
+        snackbarScope.launch {
+            historySnackbarHost.currentSnackbarData?.dismiss()
+            historySnackbarHost.showSnackbar(
+                if (wasFavorite) favoriteRemovedMessage else favoriteAddedMessage
+            )
+        }
+    }
+
     val getScroll: (String) -> Pair<Int, Int> = { viewModel.getScrollPosition(it) }
     val saveScroll: (String, Int, Int) -> Unit = { k, i, o -> viewModel.saveScrollPosition(k, i, o) }
     val tvFocusSelector = remember { TvFocusSelectorState() }
@@ -176,6 +199,9 @@ fun VodScreen(
                 searchQuery = searchQuery,
                 onSearchQueryChanged = { searchQuery = it },
                 isSpecificCategory = isSpecificCategory,
+                favoriteMovieIds = favoriteMovieIds,
+                favoriteToggleLabel = favoriteToggleLabel,
+                onToggleFavorite = toggleFavorite,
                 onHistoryRemove = { stream -> pendingRemoval = state.resumeMovies.firstOrNull { it.streamId == stream.streamId } },
                 getScroll = getScroll,
                 saveScroll = saveScroll,
@@ -210,6 +236,9 @@ fun VodScreen(
                 searchQuery = searchQuery,
                 onSearchQueryChanged = { searchQuery = it },
                 isSpecificCategory = isSpecificCategory,
+                favoriteMovieIds = favoriteMovieIds,
+                favoriteToggleLabel = favoriteToggleLabel,
+                onToggleFavorite = toggleFavorite,
                 onHistoryRemove = { stream -> pendingRemoval = state.resumeMovies.firstOrNull { it.streamId == stream.streamId } },
                 onNavigateToFavorites = onNavigateToFavorites,
                 getScroll = getScroll,
@@ -241,6 +270,10 @@ private fun TvLayout(
     searchQuery: String,
     onSearchQueryChanged: (String) -> Unit,
     isSpecificCategory: Boolean,
+    // Appui long sur une vignette = bascule favori.
+    favoriteMovieIds: Set<Int>,
+    favoriteToggleLabel: String,
+    onToggleFavorite: (VodStream) -> Unit,
     onHistoryRemove: (VodStream) -> Unit,
     getScroll: (String) -> Pair<Int, Int>,
     saveScroll: (String, Int, Int) -> Unit,
@@ -469,6 +502,9 @@ private fun TvLayout(
                             movies = favoriteMovies,
                             onMovieSelected = onMovieSelected,
                             isTv = true,
+                            onLongClick = onToggleFavorite,
+                            longClickLabel = favoriteToggleLabel,
+                            favoriteIds = favoriteMovieIds,
                             getScroll = getScroll,
                             saveScroll = saveScroll,
                             sectionListState = listState
@@ -490,6 +526,9 @@ private fun TvLayout(
                             movies = catMovies,
                             onMovieSelected = onMovieSelected,
                             isTv = true,
+                            onLongClick = onToggleFavorite,
+                            longClickLabel = favoriteToggleLabel,
+                            favoriteIds = favoriteMovieIds,
                             getScroll = getScroll,
                             saveScroll = saveScroll,
                             sectionListState = listState,
@@ -553,6 +592,9 @@ private fun TvLayout(
                                 HomeVodMovieCard(
                                     stream = stream,
                                     onClick = { onMovieSelected(stream) },
+                                    onLongClick = { onToggleFavorite(stream) },
+                                    longClickLabel = favoriteToggleLabel,
+                                    isFavorite = stream.streamId in favoriteMovieIds,
                                     isTv = true,
                                     fillCell = false,
                                     modifier = Modifier.onFocusChanged { if (it.isFocused) onMediaFocused(state.selectedCategory?.categoryId.orEmpty(), stream.streamId) }
@@ -590,6 +632,10 @@ private fun MobileLayout(
     searchQuery: String,
     onSearchQueryChanged: (String) -> Unit,
     isSpecificCategory: Boolean,
+    // Appui long sur une vignette = bascule favori.
+    favoriteMovieIds: Set<Int>,
+    favoriteToggleLabel: String,
+    onToggleFavorite: (VodStream) -> Unit,
     onHistoryRemove: (VodStream) -> Unit,
     onNavigateToFavorites: () -> Unit,
     getScroll: (String) -> Pair<Int, Int>,
@@ -747,6 +793,9 @@ private fun MobileLayout(
                             movies = favoriteMovies,
                             onMovieSelected = onMovieSelected,
                             isTv = false,
+                            onLongClick = onToggleFavorite,
+                            longClickLabel = favoriteToggleLabel,
+                            favoriteIds = favoriteMovieIds,
                             getScroll = getScroll,
                             saveScroll = saveScroll,
                             sectionListState = listState,
@@ -763,6 +812,9 @@ private fun MobileLayout(
                             movies = catMovies,
                             onMovieSelected = onMovieSelected,
                             isTv = false,
+                            onLongClick = onToggleFavorite,
+                            longClickLabel = favoriteToggleLabel,
+                            favoriteIds = favoriteMovieIds,
                             getScroll = getScroll,
                             saveScroll = saveScroll,
                             sectionListState = listState,
@@ -807,6 +859,9 @@ private fun MobileLayout(
                             HomeVodMovieCard(
                                 stream = stream,
                                 onClick = { onMovieSelected(stream) },
+                                onLongClick = { onToggleFavorite(stream) },
+                                longClickLabel = favoriteToggleLabel,
+                                isFavorite = stream.streamId in favoriteMovieIds,
                                 fillCell = true
                             )
                         }
@@ -836,6 +891,10 @@ private fun CategorySectionRow(
      */
     totalCount: Int? = null,
     onLongClick: ((VodStream) -> Unit)? = null,
+    /** Libellé de l'appui long ; le défaut couvre la rangée « Reprendre ». */
+    longClickLabel: String = stringResource(R.string.history_removal_confirm),
+    /** Films en favori, pour l'étoile en surimpression. */
+    favoriteIds: Set<Int> = emptySet(),
     /** Badge court en surimpression (ex. « S01E03 »), réservé à la rangée « Reprendre » (B18). */
     badgeFor: ((VodStream) -> String?)? = null,
     restoredFocusState: com.cstv.app.presentation.components.TvInitialFocusState? = null,
@@ -909,6 +968,8 @@ private fun CategorySectionRow(
                         stream = stream,
                         onClick = { onMovieSelected(stream) },
                         onLongClick = onLongClick?.let { { it(stream) } },
+                        longClickLabel = longClickLabel,
+                        isFavorite = stream.streamId in favoriteIds,
                         isTv = isTv,
                         badgeLabel = badgeFor?.invoke(stream),
                         modifier = Modifier.onFocusChanged { if (it.isFocused) onMediaFocused(categoryId, stream.streamId) }

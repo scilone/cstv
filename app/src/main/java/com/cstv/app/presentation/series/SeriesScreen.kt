@@ -51,6 +51,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
@@ -103,6 +104,8 @@ fun SeriesScreen(
     isTv: Boolean,
     favoritesList: List<FavoriteItem>,
     onSeriesSelected: (SeriesStream) -> Unit,
+    /** Appui long sur une vignette = bascule favori (mobile et TV). */
+    onToggleFavorite: (SeriesStream) -> Unit = {},
     onNavigateToFavorites: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -156,6 +159,26 @@ fun SeriesScreen(
         }
     }.collectAsLazyPagingItems()
 
+    // Voir `HomeScreen`. L'état affiché vient de `favoritesList`, la
+    // décision d'ajout/retrait est reprise en base par le ViewModel des favoris.
+    val snackbarScope = rememberCoroutineScope()
+    val favoriteSeriesIds = remember(favoritesList) {
+        favoritesList.asSequence().filter { it.type == "series" }.map { it.id }.toSet()
+    }
+    val favoriteToggleLabel = stringResource(R.string.catalog_favorite_toggle_label)
+    val favoriteAddedMessage = stringResource(R.string.catalog_favorite_added)
+    val favoriteRemovedMessage = stringResource(R.string.catalog_favorite_removed)
+    val toggleFavorite: (SeriesStream) -> Unit = { stream ->
+        val wasFavorite = stream.seriesId in favoriteSeriesIds
+        onToggleFavorite(stream)
+        snackbarScope.launch {
+            historySnackbarHost.currentSnackbarData?.dismiss()
+            historySnackbarHost.showSnackbar(
+                if (wasFavorite) favoriteRemovedMessage else favoriteAddedMessage
+            )
+        }
+    }
+
     val getScroll: (String) -> Pair<Int, Int> = { viewModel.getScrollPosition(it) }
     val saveScroll: (String, Int, Int) -> Unit = { k, i, o -> viewModel.saveScrollPosition(k, i, o) }
     val tvFocusSelector = remember { TvFocusSelectorState() }
@@ -177,6 +200,9 @@ fun SeriesScreen(
                 searchQuery = searchQuery,
                 onSearchQueryChanged = { searchQuery = it },
                 isSpecificCategory = isSpecificCategory,
+                favoriteSeriesIds = favoriteSeriesIds,
+                favoriteToggleLabel = favoriteToggleLabel,
+                onToggleFavorite = toggleFavorite,
                 onHistoryRemove = { stream -> pendingRemoval = state.resumeSeries.firstOrNull { (it.seriesId ?: it.streamId) == stream.seriesId } },
                 getScroll = getScroll,
                 saveScroll = saveScroll,
@@ -211,6 +237,9 @@ fun SeriesScreen(
                 searchQuery = searchQuery,
                 onSearchQueryChanged = { searchQuery = it },
                 isSpecificCategory = isSpecificCategory,
+                favoriteSeriesIds = favoriteSeriesIds,
+                favoriteToggleLabel = favoriteToggleLabel,
+                onToggleFavorite = toggleFavorite,
                 onHistoryRemove = { stream -> pendingRemoval = state.resumeSeries.firstOrNull { (it.seriesId ?: it.streamId) == stream.seriesId } },
                 onNavigateToFavorites = onNavigateToFavorites,
                 getScroll = getScroll,
@@ -242,6 +271,10 @@ private fun TvLayout(
     searchQuery: String,
     onSearchQueryChanged: (String) -> Unit,
     isSpecificCategory: Boolean,
+    // Appui long sur une vignette = bascule favori.
+    favoriteSeriesIds: Set<Int>,
+    favoriteToggleLabel: String,
+    onToggleFavorite: (SeriesStream) -> Unit,
     onHistoryRemove: (SeriesStream) -> Unit,
     getScroll: (String) -> Pair<Int, Int>,
     saveScroll: (String, Int, Int) -> Unit,
@@ -459,6 +492,9 @@ private fun TvLayout(
                             series = favoriteSeries,
                             onSeriesSelected = onSeriesSelected,
                             isTv = true,
+                            onLongClick = onToggleFavorite,
+                            longClickLabel = favoriteToggleLabel,
+                            favoriteIds = favoriteSeriesIds,
                             getScroll = getScroll,
                             saveScroll = saveScroll,
                             sectionListState = listState
@@ -480,6 +516,9 @@ private fun TvLayout(
                             series = catSeries,
                             onSeriesSelected = onSeriesSelected,
                             isTv = true,
+                            onLongClick = onToggleFavorite,
+                            longClickLabel = favoriteToggleLabel,
+                            favoriteIds = favoriteSeriesIds,
                             getScroll = getScroll,
                             saveScroll = saveScroll,
                             sectionListState = listState,
@@ -543,6 +582,9 @@ private fun TvLayout(
                                 HomeSeriesShowCard(
                                     stream = stream,
                                     onClick = { onSeriesSelected(stream) },
+                                    onLongClick = { onToggleFavorite(stream) },
+                                    longClickLabel = favoriteToggleLabel,
+                                    isFavorite = stream.seriesId in favoriteSeriesIds,
                                     isTv = true,
                                     fillCell = false,
                                     modifier = Modifier.onFocusChanged { if (it.isFocused) onMediaFocused(state.selectedCategory?.categoryId.orEmpty(), stream.seriesId) }
@@ -580,6 +622,10 @@ private fun MobileLayout(
     searchQuery: String,
     onSearchQueryChanged: (String) -> Unit,
     isSpecificCategory: Boolean,
+    // Appui long sur une vignette = bascule favori.
+    favoriteSeriesIds: Set<Int>,
+    favoriteToggleLabel: String,
+    onToggleFavorite: (SeriesStream) -> Unit,
     onHistoryRemove: (SeriesStream) -> Unit,
     onNavigateToFavorites: () -> Unit,
     getScroll: (String) -> Pair<Int, Int>,
@@ -730,6 +776,9 @@ private fun MobileLayout(
                             series = favoriteSeries,
                             onSeriesSelected = onSeriesSelected,
                             isTv = false,
+                            onLongClick = onToggleFavorite,
+                            longClickLabel = favoriteToggleLabel,
+                            favoriteIds = favoriteSeriesIds,
                             getScroll = getScroll,
                             saveScroll = saveScroll,
                             sectionListState = listState,
@@ -746,6 +795,9 @@ private fun MobileLayout(
                             series = catSeries,
                             onSeriesSelected = onSeriesSelected,
                             isTv = false,
+                            onLongClick = onToggleFavorite,
+                            longClickLabel = favoriteToggleLabel,
+                            favoriteIds = favoriteSeriesIds,
                             getScroll = getScroll,
                             saveScroll = saveScroll,
                             sectionListState = listState,
@@ -790,6 +842,9 @@ private fun MobileLayout(
                             HomeSeriesShowCard(
                                 stream = stream,
                                 onClick = { onSeriesSelected(stream) },
+                                onLongClick = { onToggleFavorite(stream) },
+                                longClickLabel = favoriteToggleLabel,
+                                isFavorite = stream.seriesId in favoriteSeriesIds,
                                 fillCell = true
                             )
                         }
@@ -814,6 +869,10 @@ private fun CategorySectionRow(
     /** Voir VodScreen : effectif total, décorrélé du plafond d'affichage. */
     totalCount: Int? = null,
     onLongClick: ((SeriesStream) -> Unit)? = null,
+    /** Libellé de l'appui long ; le défaut couvre la rangée « Reprendre ». */
+    longClickLabel: String = stringResource(R.string.history_removal_confirm),
+    /** Séries en favori, pour l'étoile en surimpression. */
+    favoriteIds: Set<Int> = emptySet(),
     /** Badge court en surimpression (ex. « S01E03 »), réservé à la rangée « Reprendre » (B18). */
     badgeFor: ((SeriesStream) -> String?)? = null,
     restoredFocusState: com.cstv.app.presentation.components.TvInitialFocusState? = null,
@@ -884,6 +943,8 @@ private fun CategorySectionRow(
                         stream = stream,
                         onClick = { onSeriesSelected(stream) },
                         onLongClick = onLongClick?.let { { it(stream) } },
+                        longClickLabel = longClickLabel,
+                        isFavorite = stream.seriesId in favoriteIds,
                         isTv = isTv,
                         badgeLabel = badgeFor?.invoke(stream),
                         modifier = Modifier.onFocusChanged { if (it.isFocused) onMediaFocused(categoryId, stream.seriesId) }

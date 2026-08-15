@@ -141,6 +141,7 @@ class LiveTvViewModel @Inject constructor(
     init {
         observeCategories()
         observeCatalogStatus()
+        observeSyncCompletion()
         triggerSilentSyncIfStale()
         viewModelScope.launch {
             observeRecentlyWatchedUseCase().collect { list ->
@@ -257,9 +258,33 @@ class LiveTvViewModel @Inject constructor(
         }
     }
 
+    /** Voir `VodViewModel.observeSyncCompletion`. */
+    private fun observeSyncCompletion() {
+        viewModelScope.launch {
+            catalogSyncManager.syncState.collect { syncState ->
+                if (syncState !is com.cstv.app.domain.sync.SyncState.Success) return@collect
+                val categoryId = _state.value.selectedCategory?.categoryId ?: return@collect
+                resubscribeStreams(categoryId)
+            }
+        }
+    }
+
+    /** Voir `VodViewModel.selectCategory` : pas de vidage sans changement réel. */
     fun selectCategory(category: LiveCategory) {
-        _state.update { it.copy(selectedCategory = category, streams = emptyList()) }
+        val isSameCategory = _state.value.selectedCategory?.categoryId == category.categoryId
+        _state.update {
+            it.copy(
+                selectedCategory = category,
+                streams = if (isSameCategory) it.streams else emptyList()
+            )
+        }
         observeStreams(category.categoryId)
+    }
+
+    /** Voir `VodViewModel.resubscribeStreams`. */
+    private fun resubscribeStreams(categoryId: String) {
+        observedCategoryId = null
+        observeStreams(categoryId)
     }
 
     private fun observeStreams(categoryId: String) {

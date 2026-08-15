@@ -61,6 +61,9 @@ class FavoritesViewModelTest {
     @Mock
     private lateinit var canPlayContentUseCase: com.cstv.app.domain.usecase.CanPlayContentUseCase
 
+    @Mock
+    private lateinit var getRecommendationsUseCase: com.cstv.app.domain.usecase.GetRecommendationsUseCase
+
     private val testDispatcher = StandardTestDispatcher()
     private lateinit var viewModel: FavoritesViewModel
 
@@ -92,7 +95,8 @@ class FavoritesViewModelTest {
             advancedCatalogSearchUseCase,
             getCatalogYearRangeUseCase,
             categoryPreferenceRepository,
-            canPlayContentUseCase
+            canPlayContentUseCase,
+            getRecommendationsUseCase
         )
         runCurrent()
     }

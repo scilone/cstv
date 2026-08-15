@@ -66,6 +66,10 @@ class VodViewModelTest {
         whenever(getVodStreamsUseCase(any())).thenReturn(flowOf(emptyList()))
         whenever(categoryPreferenceRepository.changes).thenReturn(flowOf(Unit))
         whenever(observeCatalogStatusUseCase()).thenReturn(flowOf(com.cstv.app.domain.sync.CatalogStatus()))
+        // Le ViewModel observe la fin de synchronisation pour relancer
+        // sa requête de liste (voir `observeSyncCompletion`).
+        whenever(catalogSyncManager.syncState)
+            .thenReturn(kotlinx.coroutines.flow.MutableStateFlow(com.cstv.app.domain.sync.SyncState.Idle))
         whenever(categoryPreferenceRepository.getPreferences(any())).thenReturn(emptyMap())
         whenever(vodRepository.getCachedVodStreams(any())).thenReturn(emptyList())
     }
@@ -263,6 +267,55 @@ class VodViewModelTest {
 
         verify(catalogSyncManager).syncIfStale()
         assertEquals(null, viewModel.state.value.selectedVodDetails)
+    }
+
+    /**
+     * Re-sélectionner la catégorie déjà ouverte ne doit pas vider la
+     * liste. Le garde de `observeStreams` renvoie sans se réabonner ; le vidage
+     * laissait alors l'onglet « Tout » définitivement vide, jusqu'à la prochaine
+     * écriture Room ou au redémarrage de l'application.
+     */
+    @Test
+    fun `re-selecting the current category keeps the loaded streams`() = runTest(testDispatcher) {
+        whenever(vodRepository.observeAllPlaybackPositions()).thenReturn(flowOf(emptyList()))
+        whenever(getVodStreamsUseCase(any())).thenReturn(flowOf(listOf(movie(1, "5", 2020, "Action"))))
+        val viewModel = createViewModel()
+        runCurrent()
+        assertEquals(1, viewModel.state.value.streams.size)
+
+        viewModel.selectCategory(VodCategory("all", "Tout", 0))
+        runCurrent()
+
+        assertEquals(1, viewModel.state.value.streams.size)
+    }
+
+    /**
+     * La fin d'une synchronisation relance la requête de liste.
+     *
+     * Au premier lancement, l'écran s'abonne à un catalogue vide et le
+     * remplissage n'était signalé que par l'invalidation Room. Le flux `syncState`
+     * fournit un second réveil, indépendant.
+     */
+    @Test
+    fun `a successful sync re-subscribes the stream query`() = runTest(testDispatcher) {
+        whenever(vodRepository.observeAllPlaybackPositions()).thenReturn(flowOf(emptyList()))
+        val syncState = kotlinx.coroutines.flow.MutableStateFlow<com.cstv.app.domain.sync.SyncState>(
+            com.cstv.app.domain.sync.SyncState.Idle
+        )
+        whenever(catalogSyncManager.syncState).thenReturn(syncState)
+        // Catalogue vide au premier abonnement, rempli au second.
+        whenever(getVodStreamsUseCase("all"))
+            .thenReturn(flowOf(emptyList()))
+            .thenReturn(flowOf(listOf(movie(1, "5", 2020, "Action"))))
+
+        val viewModel = createViewModel()
+        runCurrent()
+        assertTrue(viewModel.state.value.streams.isEmpty())
+
+        syncState.value = com.cstv.app.domain.sync.SyncState.Success(1_000L)
+        runCurrent()
+
+        assertEquals(1, viewModel.state.value.streams.size)
     }
 
     // --- F22 : filtres avancés portés par la catégorie TV active ---

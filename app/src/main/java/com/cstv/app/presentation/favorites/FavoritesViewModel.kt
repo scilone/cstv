@@ -56,7 +56,8 @@ class FavoritesViewModel @Inject constructor(
     private val advancedCatalogSearchUseCase: AdvancedCatalogSearchUseCase,
     private val getCatalogYearRangeUseCase: GetCatalogYearRangeUseCase,
     private val categoryPreferenceRepository: com.cstv.app.domain.repository.CategoryPreferenceRepository,
-    private val canPlayContentUseCase: com.cstv.app.domain.usecase.CanPlayContentUseCase
+    private val canPlayContentUseCase: com.cstv.app.domain.usecase.CanPlayContentUseCase,
+    private val getRecommendationsUseCase: GetRecommendationsUseCase
 ) : ViewModel() {
 
     /**
@@ -124,6 +125,12 @@ class FavoritesViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Les favoris pèsent désormais dans le profil de goûts **et** sont
+     * exclus des suggestions (voir [GetRecommendationsUseCase]). Le résultat du
+     * moteur étant conservé 24 h par profil, sans cette invalidation un titre
+     * qu'on vient de mettre en favori resterait proposé jusqu'au lendemain.
+     */
     fun toggleFavorite(id: Int, type: String, name: String, cover: String?, categoryId: String) {
         viewModelScope.launch {
             val favExists = isFavoriteUseCase(id, type)
@@ -132,6 +139,7 @@ class FavoritesViewModel @Inject constructor(
             } else {
                 addFavoriteUseCase(FavoriteItem(id, type, name, cover, categoryId))
             }
+            getRecommendationsUseCase.invalidateCache()
         }
     }
 

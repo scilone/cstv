@@ -5,6 +5,7 @@ import com.cstv.app.domain.model.RecommendationEngine
 import com.cstv.app.domain.model.SeriesStream
 import com.cstv.app.domain.model.VodStream
 import com.cstv.app.domain.repository.CategoryPreferenceRepository
+import com.cstv.app.domain.repository.FavoritesRepository
 import com.cstv.app.domain.repository.SeriesRepository
 import com.cstv.app.domain.repository.VodRepository
 import com.cstv.app.domain.repository.MediaRatingRepository
@@ -20,6 +21,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.first
 import java.util.concurrent.CancellationException
 import java.util.concurrent.Executors
 import javax.inject.Inject
@@ -51,19 +53,40 @@ private val recommendationDispatcher = Executors.newSingleThreadExecutor { runna
     }
 }.asCoroutineDispatcher()
 
+// `open` pour la même raison que `ClearCatalogCacheUseCase` : le projet n'a pas
+// `mockito-inline` (voir AGENTS.md), et `FavoritesViewModel` doit pouvoir être
+// testé avec un double de ce moteur — dont le calcul lit tout le catalogue.
 @Singleton
-class GetRecommendationsUseCase @Inject constructor(
+open class GetRecommendationsUseCase @Inject constructor(
     private val vodRepository: VodRepository,
     private val seriesRepository: SeriesRepository,
     private val categoryPreferenceRepository: CategoryPreferenceRepository,
     private val profileManager: ProfileManager,
     private val mediaRatingRepository: MediaRatingRepository,
+    private val favoritesRepository: FavoritesRepository,
     @Named("applicationScope") private val applicationScope: CoroutineScope
 ) {
     data class RecommendationResult(
         val movies: List<VodStream>,
         val series: List<SeriesStream>
     )
+
+    companion object {
+        /**
+         * Poids d'un média dans le profil de goûts.
+         *
+         * Trois niveaux d'intention, du plus faible au plus fort : l'avoir
+         * simplement regardé, l'avoir mis en favori, l'avoir explicitement aimé.
+         * Mettre un titre en favori est un geste délibéré — plus révélateur du
+         * goût qu'une lecture, qui peut n'être qu'un essai abandonné au bout de
+         * dix minutes — mais moins explicite qu'un pouce en l'air. Les niveaux
+         * ne se cumulent pas : un favori également aimé compte 3,0, pas 5,0,
+         * sans quoi un seul titre écraserait le profil.
+         */
+        internal const val WATCHED_WEIGHT = 1.0
+        internal const val FAVORITE_WEIGHT = 2.0
+        internal const val LIKED_WEIGHT = 3.0
+    }
 
     private val mutex = Mutex()
 
@@ -137,14 +160,36 @@ class GetRecommendationsUseCase @Inject constructor(
             val likedSeriesIds = ratings.filter { it.mediaType == RatedMediaType.SERIES && it.value == MediaRatingValue.LIKE }.map { it.mediaId.toString() }.toSet()
             val dislikedMovieIds = ratings.filter { it.mediaType == RatedMediaType.MOVIE && it.value == MediaRatingValue.DISLIKE }.map { it.mediaId.toString() }.toSet()
             val dislikedSeriesIds = ratings.filter { it.mediaType == RatedMediaType.SERIES && it.value == MediaRatingValue.DISLIKE }.map { it.mediaId.toString() }.toSet()
-            val positiveMovieHistoryIds = movieHistoryIds - dislikedMovieIds - likedMovieIds
-            val positiveSeriesHistoryIds = seriesHistoryIds - dislikedSeriesIds - likedSeriesIds
+
+            // Les favoris sont un signal de goût à part entière. Un titre
+            // explicitement rejeté le reste, même s'il est en favori : le pouce
+            // en bas est la décision la plus récente et la plus explicite.
+            val favorites = try {
+                favoritesRepository.observeFavorites().first()
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                emptyList()
+            }
+            val favoriteMovieIds = favorites
+                .filter { it.type == "movie" || it.type == "vod" }
+                .map { it.id.toString() }
+                .toSet() - dislikedMovieIds - likedMovieIds
+            val favoriteSeriesIds = favorites
+                .filter { it.type == "series" }
+                .map { it.id.toString() }
+                .toSet() - dislikedSeriesIds - likedSeriesIds
+
+            val positiveMovieHistoryIds = movieHistoryIds - dislikedMovieIds - likedMovieIds - favoriteMovieIds
+            val positiveSeriesHistoryIds = seriesHistoryIds - dislikedSeriesIds - likedSeriesIds - favoriteSeriesIds
 
             // Calculate distinct watched items count
             val totalWatchedCount = movieHistoryIds.size + seriesHistoryIds.size
 
             // Cold start protection: require at least 3 distinct items
-            if (totalWatchedCount < 3 && likedMovieIds.isEmpty() && likedSeriesIds.isEmpty()) {
+            if (totalWatchedCount < 3 &&
+                likedMovieIds.isEmpty() && likedSeriesIds.isEmpty() &&
+                favoriteMovieIds.isEmpty() && favoriteSeriesIds.isEmpty()
+            ) {
                 com.cstv.app.di.IptvLog.d("RECO", "Cold start: Not enough history ($totalWatchedCount < 3) for profile $currentProfileId. Returning empty.")
                 val emptyResult = RecommendationResult(emptyList(), emptyList())
                 updateCache(currentProfileId, currentTimeMs, emptyResult)
@@ -182,16 +227,20 @@ class GetRecommendationsUseCase @Inject constructor(
             // 4. Map history IDs to actual streams to build the profile taste
             val tasteSignals = mutableListOf<RecommendationEngine.TasteSignal>()
             
+            // Les ensembles sont disjoints par construction (voir plus haut) :
+            // le `when` retient donc un seul poids par média, jamais leur somme.
             for (movie in allMovies) {
                 when (movie.streamId.toString()) {
-                    in likedMovieIds -> tasteSignals.add(RecommendationEngine.TasteSignal(RecommendationEngine.RecommendableVod(movie), 3.0))
-                    in positiveMovieHistoryIds -> tasteSignals.add(RecommendationEngine.TasteSignal(RecommendationEngine.RecommendableVod(movie), 1.0))
+                    in likedMovieIds -> tasteSignals.add(RecommendationEngine.TasteSignal(RecommendationEngine.RecommendableVod(movie), LIKED_WEIGHT))
+                    in favoriteMovieIds -> tasteSignals.add(RecommendationEngine.TasteSignal(RecommendationEngine.RecommendableVod(movie), FAVORITE_WEIGHT))
+                    in positiveMovieHistoryIds -> tasteSignals.add(RecommendationEngine.TasteSignal(RecommendationEngine.RecommendableVod(movie), WATCHED_WEIGHT))
                 }
             }
             for (series in allSeries) {
                 when (series.seriesId.toString()) {
-                    in likedSeriesIds -> tasteSignals.add(RecommendationEngine.TasteSignal(RecommendationEngine.RecommendableSeries(series), 3.0))
-                    in positiveSeriesHistoryIds -> tasteSignals.add(RecommendationEngine.TasteSignal(RecommendationEngine.RecommendableSeries(series), 1.0))
+                    in likedSeriesIds -> tasteSignals.add(RecommendationEngine.TasteSignal(RecommendationEngine.RecommendableSeries(series), LIKED_WEIGHT))
+                    in favoriteSeriesIds -> tasteSignals.add(RecommendationEngine.TasteSignal(RecommendationEngine.RecommendableSeries(series), FAVORITE_WEIGHT))
+                    in positiveSeriesHistoryIds -> tasteSignals.add(RecommendationEngine.TasteSignal(RecommendationEngine.RecommendableSeries(series), WATCHED_WEIGHT))
                 }
             }
 
@@ -203,18 +252,27 @@ class GetRecommendationsUseCase @Inject constructor(
             val recommendableMovies = allowedMovies.map { RecommendationEngine.RecommendableVod(it) }
             val recommendableSeries = allowedSeries.map { RecommendationEngine.RecommendableSeries(it) }
 
+            // Un favori est déjà dans la liste de l'utilisateur — le lui
+            // re-proposer dans « Recommandé pour vous » n'apporte rien. Les
+            // identifiants viennent de `favorites` non filtré : ceux retirés
+            // plus haut au profit d'un poids supérieur (aimé) sont déjà exclus
+            // par `likedMovieIds`/`likedSeriesIds`, les rejetés par les
+            // `disliked*`.
+            val allFavoriteMovieIds = favorites.filter { it.type == "movie" || it.type == "vod" }.map { it.id.toString() }.toSet()
+            val allFavoriteSeriesIds = favorites.filter { it.type == "series" }.map { it.id.toString() }.toSet()
+
             val recommendedMovies = RecommendationEngine.getTopRecommendations(
                 candidates = recommendableMovies,
                 taste = profileTaste,
                 currentTimeMs = currentTimeMs,
-                excludeIds = movieHistoryIds + likedMovieIds + dislikedMovieIds
+                excludeIds = movieHistoryIds + likedMovieIds + dislikedMovieIds + allFavoriteMovieIds
             ).map { it.stream }
 
             val recommendedSeries = RecommendationEngine.getTopRecommendations(
                 candidates = recommendableSeries,
                 taste = profileTaste,
                 currentTimeMs = currentTimeMs,
-                excludeIds = seriesHistoryIds + likedSeriesIds + dislikedSeriesIds
+                excludeIds = seriesHistoryIds + likedSeriesIds + dislikedSeriesIds + allFavoriteSeriesIds
             ).map { it.series }
 
             val result = RecommendationResult(recommendedMovies, recommendedSeries)
@@ -258,7 +316,7 @@ class GetRecommendationsUseCase @Inject constructor(
         )
     }
 
-    suspend fun invalidateCache() {
+    open suspend fun invalidateCache() {
         mutex.withLock {
             cachedProfileId = -1
             cachedResult = null

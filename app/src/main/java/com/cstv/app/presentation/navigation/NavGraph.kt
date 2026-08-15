@@ -410,6 +410,16 @@ fun AppNavGraph(
                     onActiveVodMovieChanged(stream)
                     navController.navigate("vod_details")
                 },
+                // Appui long sur une vignette de film.
+                onToggleFavorite = { stream ->
+                    favoritesViewModel.toggleFavorite(
+                        id = stream.streamId,
+                        type = "movie",
+                        name = stream.name,
+                        cover = stream.streamIcon,
+                        categoryId = stream.categoryId
+                    )
+                },
                 onNavigateToFavorites = { navController.navigate("favorites") }
             )
         }
@@ -436,6 +446,16 @@ fun AppNavGraph(
                 onSeriesSelected = { stream ->
                     onActiveSeriesShowChanged(stream)
                     navController.navigate("series_details")
+                },
+                // Appui long sur une vignette de série.
+                onToggleFavorite = { stream ->
+                    favoritesViewModel.toggleFavorite(
+                        id = stream.seriesId,
+                        type = "series",
+                        name = stream.name,
+                        cover = stream.cover,
+                        categoryId = stream.categoryId
+                    )
                 },
                 onNavigateToFavorites = { navController.navigate("favorites") }
             )

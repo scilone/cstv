@@ -41,6 +41,8 @@ import com.cstv.app.presentation.theme.AccentLavande
 import com.cstv.app.presentation.theme.DarkBackground
 import com.cstv.app.presentation.theme.Surface1
 import com.cstv.app.presentation.components.historyItemActions
+import com.cstv.app.presentation.components.tvLongPressActions
+import com.cstv.app.presentation.theme.FavoriteGold
 import com.cstv.app.presentation.theme.Surface2
 import com.cstv.app.presentation.theme.Surface3
 import com.cstv.app.presentation.theme.BricolageGrotesque
@@ -385,6 +387,15 @@ fun HomeVodMovieCard(
     onClick: () -> Unit,
     rank: Int? = null,
     onLongClick: (() -> Unit)? = null,
+    /**
+     * Libellé de l'action d'appui long, lu par l'accessibilité et par
+     * l'action personnalisée TalkBack. Le défaut couvre l'usage historique de la
+     * carte (retrait de la rangée « Reprendre ») ; les catalogues passent le
+     * libellé « favoris ».
+     */
+    longClickLabel: String = stringResource(R.string.history_removal_confirm),
+    /** Étoile en surimpression dès que le média est dans les favoris. */
+    isFavorite: Boolean = false,
     isTv: Boolean = false,
     /**
      * `true` en cellule de grille (`LazyVerticalGrid`) : la carte occupe toute
@@ -413,7 +424,7 @@ fun HomeVodMovieCard(
         .background(Surface1)
         // Le rang Top 10 reste décoratif : seule l'affiche porte le focus et
         // fournit donc ses bounds exacts au sélecteur pivot.
-        .historyItemActions(isTv, onClick, onLongClick)
+        .tvLongPressActions(isTv, onClick, onLongClick, longClickLabel)
 
     Box(
         modifier = sizeModifier,
@@ -468,7 +479,34 @@ fun HomeVodMovieCard(
                     Text(badgeLabel, color = Color.White, fontSize = 8.sp, fontWeight = FontWeight.Bold)
                 }
             }
+
+            if (isFavorite) HomeCardFavoriteBadge(Modifier.align(Alignment.BottomEnd))
         }
+    }
+}
+
+/**
+ * Étoile de favori en surimpression.
+ *
+ * Coin bas-droit : le coin haut-droit porte déjà la note et le coin haut-gauche
+ * le repère « S01E03 » des reprises. Purement décorative — l'action reste
+ * l'appui long, déjà annoncé par [Modifier.tvLongPressActions].
+ */
+@Composable
+private fun HomeCardFavoriteBadge(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .padding(6.dp)
+            .clip(RoundedCornerShape(4.dp))
+            .background(Color(0xCC000000))
+            .padding(3.dp)
+    ) {
+        Icon(
+            imageVector = Icons.Default.Star,
+            contentDescription = null,
+            tint = FavoriteGold,
+            modifier = Modifier.size(12.dp)
+        )
     }
 }
 
@@ -533,6 +571,10 @@ fun HomeSeriesShowCard(
     onClick: () -> Unit,
     rank: Int? = null,
     onLongClick: (() -> Unit)? = null,
+    /** Voir [HomeVodMovieCard]. */
+    longClickLabel: String = stringResource(R.string.history_removal_confirm),
+    /** Voir [HomeVodMovieCard]. */
+    isFavorite: Boolean = false,
     isTv: Boolean = false,
     /** Voir [HomeVodMovieCard] : `true` en cellule de grille (B18). */
     fillCell: Boolean = false,
@@ -556,7 +598,7 @@ fun HomeSeriesShowCard(
         .background(Surface1)
         // Le rang Top 10 est hors de la cible focusable : le contour ne doit
         // entourer que la vignette, jamais le chiffre.
-        .historyItemActions(isTv, onClick, onLongClick)
+        .tvLongPressActions(isTv, onClick, onLongClick, longClickLabel)
 
     Box(
         modifier = sizeModifier,
@@ -611,6 +653,8 @@ fun HomeSeriesShowCard(
                     Text(badgeLabel, color = Color.White, fontSize = 8.sp, fontWeight = FontWeight.Bold)
                 }
             }
+
+            if (isFavorite) HomeCardFavoriteBadge(Modifier.align(Alignment.BottomEnd))
         }
     }
 }
