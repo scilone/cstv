@@ -186,18 +186,23 @@ private fun formatRemainingTime(remainingMs: Long): String {
 fun HomeFavoriteItemCard(
     favorite: FavoriteItem,
     onClick: () -> Unit,
+    onLongClick: (() -> Unit)? = null,
+    longClickLabel: String = "",
+    isTv: Boolean = false,
     modifier: Modifier = Modifier.width(130.dp)
 ) {
     var isFocused by remember { mutableStateOf(false) }
 
     // Phase 55 : titre en overlay dans la vignette (maquette), plus en dessous.
+    // Cette carte n'apparaît que dans des listes déjà filtrées aux favoris —
+    // l'appui long y retire donc toujours, jamais n'ajoute (hotfix retour PO).
     Box(
         modifier = modifier
             .height(195.dp)
             .onFocusChanged { isFocused = it.isFocused }
             .tvFocusHighlight(isFocused, RoundedCornerShape(14.dp))
             .clip(RoundedCornerShape(14.dp))
-            .clickable { onClick() }
+            .tvLongPressActions(isTv, onClick, onLongClick, longClickLabel)
             .background(Surface1),
         contentAlignment = Alignment.Center
     ) {

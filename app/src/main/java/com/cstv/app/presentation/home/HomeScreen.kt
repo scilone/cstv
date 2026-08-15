@@ -251,6 +251,12 @@ fun HomeScreen(
         )
         showFavoriteFeedback(wasFavorite)
     }
+    // Rangée/grille Favoris : la carte y est toujours déjà en favori, l'appui
+    // long ne peut donc que retirer (retour PO, hotfix).
+    val removeFavorite: (FavoriteItem) -> Unit = { fav ->
+        viewModel.toggleFavorite(fav)
+        showFavoriteFeedback(true)
+    }
 
     // Couche avant du sélecteur pivot fixe (F23) : un seul état par écran,
     // fourni uniquement aux conteneurs de listes de médias TV, jamais au
@@ -278,6 +284,7 @@ fun HomeScreen(
                     onResumeClick = handleResumeClick,
                     onResumeLongClick = { pendingRemoval = it },
                     onFavoriteClick = handleFavoriteClick,
+                    onFavoriteRemove = removeFavorite,
                     onMovieClick = onSelectMovieDetail,
                     onSeriesClick = onSelectSeriesDetail,
                     isTv = isTv,
@@ -563,7 +570,10 @@ fun HomeScreen(
                                         .tvInitialFocusTarget(homeInitialFocus, index == 0 && homeInitialTarget == HomeFocusTarget.FAVORITES)) {
                                         HomeFavoriteItemCard(
                                             favorite = fav,
-                                            onClick = { handleFavoriteClick(fav) }
+                                            onClick = { handleFavoriteClick(fav) },
+                                            onLongClick = { removeFavorite(fav) },
+                                            longClickLabel = favoriteToggleLabel,
+                                            isTv = isTv
                                         )
                                     }
                                 }
@@ -903,6 +913,7 @@ private fun HomeExpandedGrid(
     onResumeClick: (PlaybackPosition) -> Unit,
     onResumeLongClick: (PlaybackPosition) -> Unit,
     onFavoriteClick: (FavoriteItem) -> Unit,
+    onFavoriteRemove: (FavoriteItem) -> Unit,
     onMovieClick: (VodStream) -> Unit,
     onSeriesClick: (SeriesStream) -> Unit,
     // Même appui long que sur les rangées de l'Accueil.
@@ -970,6 +981,9 @@ private fun HomeExpandedGrid(
                     HomeFavoriteItemCard(
                         favorite = fav,
                         onClick = { onFavoriteClick(fav) },
+                        onLongClick = { onFavoriteRemove(fav) },
+                        longClickLabel = favoriteToggleLabel,
+                        isTv = isTv,
                         modifier = Modifier.fillMaxWidth()
                     )
                 }

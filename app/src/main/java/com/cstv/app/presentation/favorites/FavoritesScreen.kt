@@ -5,8 +5,10 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import com.cstv.app.presentation.components.tvFocusHighlight
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusGroup
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
+import com.cstv.app.presentation.components.tvLongPressActions
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
@@ -62,6 +64,18 @@ fun FavoritesScreen(
     // (FavoritesViewModel.init), plus besoin de reload manuel à l'entrée écran.
     val state by viewModel.state.collectAsStateWithLifecycle()
     val playbackSnackbarHostState = remember { SnackbarHostState() }
+    val snackbarScope = rememberCoroutineScope()
+    val favoriteRemovedMessage = stringResource(R.string.catalog_favorite_removed)
+    // Cet écran ne liste que des favoris : l'appui long n'y retire donc que
+    // des favoris, il n'en ajoute jamais — au contraire des listes catalogue
+    // (retour PO, hotfix).
+    val removeFavorite: (FavoriteItem) -> Unit = { item ->
+        viewModel.toggleFavorite(item.id, item.type, item.name, item.cover, item.categoryId)
+        snackbarScope.launch {
+            playbackSnackbarHostState.currentSnackbarData?.dismiss()
+            playbackSnackbarHostState.showSnackbar(favoriteRemovedMessage)
+        }
+    }
 
     LaunchedEffect(state.playbackError) {
         state.playbackError?.let { message ->
@@ -131,6 +145,7 @@ fun FavoritesScreen(
                                 itemsList = liveFavorites,
                                 isTv = isTv,
                                 onClick = { onPlayLive(it.id, it.categoryId) },
+                                onLongClick = removeFavorite,
                                 sectionListState = listState
                             )
                         }
@@ -145,6 +160,7 @@ fun FavoritesScreen(
                                 itemsList = movieFavorites,
                                 isTv = isTv,
                                 onClick = { onSelectMovie(it.id, it.categoryId) },
+                                onLongClick = removeFavorite,
                                 sectionListState = listState
                             )
                         }
@@ -159,6 +175,7 @@ fun FavoritesScreen(
                                 itemsList = seriesFavorites,
                                 isTv = isTv,
                                 onClick = { onSelectSeries(it.id, it.categoryId) },
+                                onLongClick = removeFavorite,
                                 sectionListState = listState
                             )
                         }
@@ -182,6 +199,7 @@ private fun FavoritesCategoryRow(
     itemsList: List<FavoriteItem>,
     isTv: Boolean,
     onClick: (FavoriteItem) -> Unit,
+    onLongClick: (FavoriteItem) -> Unit,
     sectionListState: LazyListState
 ) {
     Column(
@@ -207,7 +225,12 @@ private fun FavoritesCategoryRow(
             itemsIndexed(itemsList) { index, item ->
                 Box(modifier = Modifier.tvPivotItem(isTv, rowState, index)
                     .tvRowFocusEntryTarget(isTv, rowEntry, rowState, index)) {
-                    FavoriteCardItem(item = item, onClick = { onClick(item) })
+                    FavoriteCardItem(
+                        item = item,
+                        onClick = { onClick(item) },
+                        onLongClick = { onLongClick(item) },
+                        isTv = isTv
+                    )
                 }
             }
             tvPivotHorizontalEndSpacer(isTv)
@@ -218,10 +241,13 @@ private fun FavoritesCategoryRow(
 @Composable
 private fun FavoriteCardItem(
     item: FavoriteItem,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+    isTv: Boolean
 ) {
     var isFocused by remember { mutableStateOf(false) }
     val isLive = item.type == "live"
+    val longClickLabel = stringResource(R.string.catalog_favorite_toggle_label)
 
     Column(
         modifier = Modifier
@@ -229,7 +255,7 @@ private fun FavoriteCardItem(
             .onFocusChanged { isFocused = it.isFocused }
             .tvFocusHighlight(isFocused, RoundedCornerShape(12.dp))
             .clip(RoundedCornerShape(12.dp))
-            .clickable { onClick() }
+            .tvLongPressActions(isTv, onClick, onLongClick, longClickLabel)
             .background(Surface3)
     ) {
         // Thumbnail Image
