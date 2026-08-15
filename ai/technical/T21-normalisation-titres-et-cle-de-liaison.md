@@ -326,9 +326,17 @@ transformée en regroupement global en mémoire.
 
 Les mappers de `LiveTvRepositoryImpl`, `VodRepositoryImpl` et
 `SeriesRepositoryImpl` appellent le parseur avant de construire les entités.
-Les méthodes `insertStreamsWithFts` continuent de réaliser une seule écriture
-transactionnelle ; la normalisation est effectuée hors transaction sur
-`Dispatchers.Default`, puis les entités prêtes sont insérées par lots.
+Le point d'écriture est `insertStreams` de chaque DAO catalogue (`LiveTvDao`,
+`VodDao`, `SeriesDao`) : une méthode `@Transaction` qui calcule `searchText`
+puis délègue à `insertStreamsRaw` (`@Upsert`). Elle continue de réaliser une
+seule écriture transactionnelle ; la normalisation est effectuée hors
+transaction sur `Dispatchers.Default`, puis les entités prêtes sont insérées
+par lots.
+
+Attention : les tables FTS4 et les méthodes `insertStreamsWithFts` /
+`clearAllFts` n'existent plus depuis `MIGRATION_20_21`, qui les a remplacées
+par la colonne `searchText`. Un commentaire de `Migrations.kt` les décrivait
+encore au présent et a été corrigé ; ne pas s'y référer.
 
 Les enrichissements ultérieurs (`get_vod_info`, `get_series_info`) ne recalculent
 pas le titre lorsqu'ils ajoutent `releaseYear`. La clé ne change pas ; seule la
@@ -337,7 +345,19 @@ média entre groupes au milieu d'une session.
 
 ## 8.5 Migration Room 28 → 29
 
-`MIGRATION_28_29` :
+> **Numérotation.** La base est en version 28 à la rédaction de cette fiche
+> (`AppDatabase.kt`, dernière migration livrée `MIGRATION_27_28` — AGENTS.md
+> mentionne encore 27, l'information y est périmée). Le couple 28 → 29 vaut
+> donc **si T21 est le premier ticket du lot effectivement livré**, ce que
+> prévoit l'ordre de livraison décidé à l'étape 1. Cinq autres tickets du lot
+> touchent au schéma Room (F39 table `series_version_preferences`, F42
+> colonnes catch-up sur `live_streams`, F43 cache des bornes de générique,
+> F44 niveau d'âge du profil, T23 configuration de réparation) : chacun prend
+> le numéro suivant **au moment de sa livraison**, pas celui écrit dans sa
+> fiche. Vérifier la version réelle dans `AppDatabase.kt` avant d'écrire la
+> migration, jamais la valeur citée dans un ticket.
+
+`MIGRATION_28_29` (sous réserve de la numérotation ci-dessus) :
 
 1. ajoute les six colonnes avec leurs valeurs par défaut ;
 2. crée les trois index `linkKey` ;

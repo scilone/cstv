@@ -136,21 +136,26 @@ multi-chaînes, hors périmètre et incompatible avec les limites de connexions.
    « Depuis le début de *Nom du programme* » si l'EPG fournit un titre pour
    le programme en cours (décision étape 2), ou un libellé générique sinon.
 3. L'utilisateur sélectionne l'action.
-4. La chaîne s'ouvre au début du programme en cours :
-   - si le panel expose un flux décalé exploitable, au vrai début du
-     programme (avec la marge de sécurité EPG, décision étape 2) ;
-   - sinon, si le tampon local F41 couvre déjà ce moment (chaîne ouverte
-     depuis assez longtemps), au point le plus ancien qu'il contient, sous
-     un libellé distinct annonçant explicitement ce repli (décision
-     étape 2) ;
-   - si aucune des deux sources ne permet de remonter, l'action n'apparaît
-     pas ou est proposée désactivée (décision étape 1).
+4. La chaîne s'ouvre au vrai début du programme en cours, via le flux décalé
+   du panel, avec la marge de sécurité EPG (décision étape 2).
+5. Si le panel n'expose pas de flux décalé exploitable pour cette chaîne,
+   l'action n'apparaît pas ou est proposée désactivée (décision étape 1).
+   **Le repli local F41 n'est pas disponible depuis une liste** : le tampon
+   n'existe que pour la chaîne en cours de lecture, il n'y a donc rien à
+   remonter pour une chaîne qu'on n'a pas encore ouverte (voir 7.3).
 
 **Depuis le lecteur, sur la chaîne déjà ouverte**
 
 1. Pendant la lecture d'une chaîne, l'utilisateur accède à la même action
    directement dans le lecteur (décision étape 2), sans revenir à la liste.
-2. Le comportement de bascule est identique au parcours depuis les listes.
+2. La bascule utilise le flux décalé du panel s'il est exploitable, exactement
+   comme depuis une liste.
+3. À défaut, et **uniquement ici**, le tampon local F41 de la session en cours
+   sert de repli : la lecture reprend au point le plus ancien qu'il contient,
+   sous un libellé distinct annonçant explicitement ce repli (décision
+   étape 2).
+4. Si aucune des deux sources ne permet de remonter, l'action n'apparaît pas
+   ou est proposée désactivée (décision étape 1).
 
 **Poursuite après la fin du programme**
 
@@ -167,9 +172,15 @@ multi-chaînes, hors périmètre et incompatible avec les limites de connexions.
 
 - Deux sources par ordre de préférence : flux décalé du panel Xtream en
   priorité, repli sur le tampon local F41 sinon (décision étape 1).
-- L'action est masquée ou désactivée si aucune des deux sources ne permet de
-  remonter dans le temps pour cette chaîne (décision étape 1) — jamais
-  proposée pour promettre un résultat impossible.
+- **Le repli local F41 n'est possible que depuis le lecteur, sur la chaîne
+  déjà ouverte** (précision apportée à l'étape 3). F41 n'enregistre que la
+  session de lecture active : une chaîne jamais ouverte n'a aucun tampon, et
+  maintenir un tampon pour toutes les chaînes en arrière-plan serait un PVR
+  multi-chaînes, hors périmètre du projet. Depuis une liste, seul le flux
+  décalé du panel peut donc alimenter l'action.
+- L'action est masquée ou désactivée si aucune source disponible **à ce point
+  d'entrée** ne permet de remonter dans le temps pour cette chaîne (décision
+  étape 1) — jamais proposée pour promettre un résultat impossible.
 - Le repli local (F41) porte un libellé distinct du mode principal, pour ne
   jamais annoncer un vrai début de programme qu'il ne peut pas fournir
   (décision étape 2).
@@ -184,14 +195,18 @@ multi-chaînes, hors périmètre et incompatible avec les limites de connexions.
 
 - **Chaîne sans EPG** : aucune heure de début connue, l'action n'apparaît
   pas (décision étape 1, hypothèse étape 1).
-- **Chaîne tout juste ouverte** (tampon F41 quasi vide) : le repli local ne
-  peut remonter qu'à quelques secondes avant le direct — comportement
-  attendu, pas une erreur ; si ce repli n'apporte aucun bénéfice réel par
-  rapport au direct, l'action reste néanmoins proposée (elle reste correcte,
-  juste peu utile dans ce cas précis).
+- **Chaîne tout juste ouverte** (tampon F41 quasi vide) : depuis le lecteur,
+  le repli local ne peut remonter qu'à quelques secondes avant le direct.
+  Comme ce repli n'apporterait alors aucun bénéfice réel, il n'est pas
+  présenté comme tel (précision étape 3).
+- **Chaîne sans flux décalé, ouverte depuis une liste** : l'action est
+  absente ou désactivée, même si la même chaîne proposerait le repli local
+  une fois ouverte dans le lecteur. Asymétrie assumée, conséquence directe de
+  la portée de F41 (voir 7.3).
 - **Flux décalé du panel qui échoue à l'ouverture** malgré sa disponibilité
   annoncée : traité comme un échec de source, avec repli sur le tampon
-  local F41 si disponible, sinon comportement d'erreur de lecture standard.
+  local F41 si la chaîne est déjà en lecture, sinon comportement d'erreur de
+  lecture standard.
 - **Programme en cours dont l'heure de début EPG est manifestement fausse**
   (ex. dans le futur) : l'action ne doit pas lancer une lecture à un
   instant qui n'existe pas encore — traitement exact renvoyé à l'étape 3.
@@ -201,22 +216,25 @@ multi-chaînes, hors périmètre et incompatible avec les limites de connexions.
 - Sur une chaîne avec EPG et flux décalé supporté par le panel, l'action
   ouvre la chaîne au début réel du programme en cours (± la marge de
   sécurité).
-- Sur une chaîne avec EPG mais sans flux décalé, l'action propose le repli
-  local sous un libellé distinct, ouvrant au point le plus ancien du
-  tampon F41.
-- Sur une chaîne sans EPG, ou sans aucune des deux sources exploitables,
-  l'action n'apparaît pas ou est visiblement désactivée.
-- L'action est accessible à l'identique depuis l'appui long dans les listes
-  et depuis le lecteur sur la chaîne déjà ouverte.
+- Sur une chaîne avec EPG mais sans flux décalé, **déjà en cours de lecture**,
+  l'action propose le repli local sous un libellé distinct, ouvrant au point
+  le plus ancien du tampon F41.
+- Sur cette même chaîne atteinte depuis une liste (donc sans session de
+  lecture en cours), l'action n'apparaît pas ou est visiblement désactivée :
+  aucun tampon n'existe pour une chaîne non ouverte.
+- Sur une chaîne sans EPG, ou sans aucune source exploitable au point
+  d'entrée considéré, l'action n'apparaît pas ou est visiblement désactivée.
+- L'action est accessible depuis l'appui long dans les listes et depuis le
+  lecteur, avec la seule différence de sources décrite ci-dessus.
 - À la fin du programme rattrapé, la lecture continue en différé plutôt que
   de basculer automatiquement au direct.
 
 ## 7.6 Gestion des erreurs
 
 - Échec d'ouverture du flux décalé malgré sa disponibilité annoncée par le
-  panel : repli automatique sur le tampon local F41 si la chaîne le permet,
-  sinon message d'erreur de lecture standard — jamais d'écran noir sans
-  explication.
+  panel : repli automatique sur le tampon local F41 si la chaîne est déjà en
+  lecture et que son tampon couvre l'instant demandé, sinon message d'erreur
+  de lecture standard — jamais d'écran noir sans explication.
 - EPG absent ou incohérent au moment de l'appui long : l'action se comporte
   comme si aucune heure de début n'était connue (masquée ou désactivée),
   jamais un lancement à une heure incorrecte.
@@ -238,6 +256,11 @@ Ils sont mappés dans `LiveStreamEntity`/`LiveStream` sous forme
 `catchupAvailable: Boolean` et `catchupRetentionDays: Int?`, avec colonnes Room
 et migration de backfill par défaut (`false`/`null`). La synchronisation suivante
 met les valeurs à jour ; aucune requête individuelle par carte.
+
+> Ces colonnes sont ajoutées dans la **prochaine migration Room disponible au
+> moment de la livraison** de F42 : aucun numéro de version n'est figé ici,
+> plusieurs tickets du lot touchent au schéma. Vérifier `AppDatabase.kt` avant
+> d'écrire la migration (voir T21 §8.5).
 
 Une chaîne est éligible au catch-up si : drapeau actif, rétention positive, EPG
 courant cohérent, début demandé dans la rétention et credentials disponibles.

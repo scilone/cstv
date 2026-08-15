@@ -273,7 +273,10 @@ L'application mappe ces réponses vers l'absence silencieuse d'enrichissement.
 
 ## 8.3 Cache serveur partagé
 
-Migration PostgreSQL `006_media_metadata_cache.sql` :
+Migration PostgreSQL `006_media_metadata_cache.sql` — `backend/migrations/`
+s'arrête à `005_playback_locks.sql` à la rédaction de cette fiche, mais F44
+ajoute lui aussi une migration backend : **le numéro se prend au moment de la
+livraison**, pas ici (voir T21 §8.5 pour la même règle côté Room) :
 
 ```sql
 CREATE TABLE media_metadata_cache (

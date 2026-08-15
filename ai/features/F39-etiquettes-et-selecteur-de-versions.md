@@ -256,6 +256,12 @@ proposée jusqu'à l'ouverture/enrichissement normal de sa fiche.
 
 ## 8.3 Persistance de la préférence série
 
+> Cette table est créée dans la **prochaine migration Room disponible au
+> moment de la livraison** de F39. Aucun numéro de version n'est figé ici :
+> plusieurs tickets du lot touchent au schéma, et seul le premier livré
+> obtient le numéro suivant. Vérifier `AppDatabase.kt` avant d'écrire la
+> migration (voir T21 §8.5).
+
 ```kotlin
 @Entity(
     tableName = "series_version_preferences",

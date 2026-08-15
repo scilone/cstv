@@ -266,7 +266,11 @@ enum class AgeRating(val value: Int) {
 
 `Profile`/`ProfileEntity` ajoutent `maxAgeRating: Int?`; `null` signifie profil
 non bridé. Migration Room : colonne nullable, donc tous les profils existants
-restent non bridés.
+restent non bridés. Elle est écrite dans la **prochaine migration Room
+disponible au moment de la livraison** de F44 — aucun numéro de version n'est
+figé ici, plusieurs tickets du lot touchent au schéma ; vérifier
+`AppDatabase.kt` au préalable (voir T21 §8.5). Côté backend, la migration
+PostgreSQL prend de même le numéro suivant libre dans `backend/migrations/`.
 
 Migration PostgreSQL dédiée :
 

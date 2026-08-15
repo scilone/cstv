@@ -160,10 +160,17 @@ val MIGRATION_10_11 = object : Migration(10, 11) {
  * directe, sans colonne supplémentaire.
  *
  * Pas de triggers de synchronisation automatique (FTS4 external content) :
- * la synchro est faite explicitement côté app à chaque écriture (voir
- * `insertStreamsWithFts`/`clearAllFts`/`clearFtsByCategory` dans les DAOs),
- * ce qui reste cohérent avec le pattern clear+insert déjà utilisé par les
+ * la synchro était faite explicitement côté app à chaque écriture, ce qui
+ * restait cohérent avec le pattern clear+insert déjà utilisé par les
  * repositories pour les tables sources.
+ *
+ * OBSOLÈTE depuis MIGRATION_20_21 : les 3 tables FTS4 y sont supprimées au
+ * profit d'une colonne `searchText` sur chaque table source, et les méthodes
+ * DAO décrites ci-dessus (`insertStreamsWithFts`/`clearAllFts`/
+ * `clearFtsByCategory`) n'existent plus. L'écriture du catalogue passe
+ * aujourd'hui par `insertStreams` (@Transaction, calcule `searchText`) et
+ * `insertStreamsRaw` (@Upsert). Ce bloc ne décrit que l'état du schéma en
+ * v12 ; ne pas s'en servir comme référence de l'API DAO courante.
  */
 val MIGRATION_11_12 = object : Migration(11, 12) {
     override fun migrate(db: SupportSQLiteDatabase) {

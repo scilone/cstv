@@ -262,6 +262,11 @@ Les bornes sont élargies au dernier bloc audio concordant puis arrondies à
 
 ## 8.3 Modèle Room
 
+> Tables créées dans la **prochaine migration Room disponible au moment de la
+> livraison** de F43 : aucun numéro de version n'est figé ici, plusieurs
+> tickets du lot touchent au schéma. Vérifier `AppDatabase.kt` avant d'écrire
+> la migration (voir T21 §8.5).
+
 ```kotlin
 @Entity(tableName = "episode_audio_fingerprints",
     primaryKeys = ["accountKey", "episodeId", "algorithmVersion"])
