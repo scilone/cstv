@@ -3,7 +3,7 @@
 ## Informations générales
 
 Status:
-ANALYSIS
+SPECIFICATION
 
 Created:
 2026-08-15
@@ -70,6 +70,13 @@ Le backend existe déjà, avec authentification, quotas et durcissement HTTP
 | Contrat d'API | Exprimé dans le vocabulaire du produit, sans exposer la forme des réponses TMDB. |
 | Plateformes | Sans objet côté UI ; s'applique à mobile et TV par construction. |
 
+## Décisions produit prises à l'étape 2
+
+| Sujet | Décision |
+|---|---|
+| Images (affiches, jaquettes) | Chargées directement par l'application depuis le CDN d'images du fournisseur, sans passer par le backend. Le backend construit et renvoie l'URL complète (pas un chemin brut), donc l'app ne connaît pas le fournisseur — le contrat reste indépendant du fournisseur malgré ce contournement du proxy. Aucune clé n'est nécessaire pour charger une image (URLs publiques) : l'objectif « zéro clé dans l'APK » reste respecté. |
+| Cache local applicatif | Conservé, en plus du cache serveur, mais à courte durée (quelques heures — détail exact à l'étape 3). Objectif : éviter de resolliciter le backend à chaque navigation dans une même session et améliorer la résilience aux coupures réseau courtes, sans dupliquer la logique fine de fraîcheur du cache serveur qui reste la source de vérité. |
+
 ---
 
 # 5. Hypothèses
@@ -93,18 +100,96 @@ Le backend existe déjà, avec authentification, quotas et durcissement HTTP
 
 | Question | À trancher à l'étape |
 |---|---|
-| Les images d'affiches passent-elles aussi par le backend, ou l'application continue-t-elle de charger les URL d'images du fournisseur directement ? | 2 |
-| Faut-il conserver un cache local dans l'application en plus du cache serveur, et pour quelle durée ? | 2 |
 | Quelles durées de validité précises par type de donnée ? | 3 |
 | L'appariement titre/année reste-t-il calculé dans l'application (T21) avec un simple relais de recherche, ou passe-t-il entièrement côté serveur ? | 3 |
 | Migration de la clé TMDB vers les secrets de production (`~/.cstv-production.env`) et retrait de `local.properties`. | 3 |
 | Faut-il une règle `-keep` ProGuard pour la nouvelle interface Retrofit (obligation AGENTS.md) et un versionnage du contrat backend ? | 3 |
+| Durée exacte du cache local applicatif (décision étape 2 : « quelques heures ») et faut-il l'aligner sur les mêmes clés de cache que le serveur ou utiliser un TTL fixe indépendant ? | 3 |
+| Quel contrat de réponse quand le backend n'a pas d'enrichissement à fournir (TMDB indisponible en interne, œuvre non trouvée) : code HTTP dédié, champ « statut » explicite, ou réponse vide ? | 3 |
 
 ---
 
 # 7. Spécification fonctionnelle
 
-_À compléter — étape 2._
+## 7.1 Résultat attendu
+
+En fonctionnement nominal, aucun changement perceptible pour l'utilisateur :
+mêmes écrans, mêmes données affichées. Ce qui change est invisible — la
+source des données (backend CSTV au lieu de TMDB direct) — et se vérifie par
+l'absence de tout appel réseau de l'app vers un domaine TMDB et l'absence de
+clé TMDB dans l'APK.
+
+## 7.2 Parcours utilisateur (nominal)
+
+- **Accueil (tendances, F1)** : la section tendances demande sa liste
+  d'œuvres au backend au lieu de TMDB directement. Aucun changement visible
+  à l'écran.
+- **Fiche film/série** : les enrichissements TMDB (note, bande-annonce)
+  proviennent d'un appel backend paramétré avec le vocabulaire produit
+  (titre, année, éventuellement identifiants du catalogue T21) plutôt que
+  d'un appel direct à l'API TMDB.
+- **Bande-annonce** : l'identifiant ou l'URL YouTube nécessaire à
+  l'intégration du lecteur (périmètre validé AGENTS.md) provient de la
+  réponse backend.
+- **Appariement catalogue** (T21 → TMDB, utilisé pour F44 notamment) : la
+  recherche par titre/année passe par un point d'entrée backend dédié, qui
+  interroge TMDB et sert depuis son cache partagé.
+
+## 7.3 Règles métier
+
+- Migration en un seul bloc de tous les appels existants (décision étape 1) :
+  après livraison, aucun code applicatif n'appelle plus directement l'API
+  TMDB — seul le backend le fait.
+- Le contrat backend expose des champs produit (ex. note, synopsis, URL de
+  bande-annonce, URL d'affiche) plutôt que la structure brute des réponses
+  TMDB, pour rester indépendant du fournisseur.
+- Cache serveur partagé entre tous les utilisateurs, avec des durées
+  différenciées par type de donnée (tendances : heures ; fiches et
+  classifications : semaines — valeurs précises à l'étape 3).
+- Cache local applicatif court terme en complément (décision étape 2),
+  purgé automatiquement par expiration, jamais présenté comme à jour
+  au-delà de sa durée de vie.
+
+## 7.4 Cas limites
+
+- **Backend injoignable ou en erreur** : dégradation silencieuse (décision
+  étape 1) — l'écran s'affiche sans les enrichissements concernés, sans
+  bandeau d'erreur, sans jamais bloquer la navigation ni la lecture. Si le
+  cache local contient encore une réponse valide, elle est utilisée en
+  attendant.
+- **Backend joignable mais TMDB indisponible côté serveur** : le backend
+  applique lui-même la dégradation silencieuse en interne (répond sans
+  l'enrichissement plutôt que de propager une erreur à l'app) — contrat de
+  réponse exact renvoyé à l'étape 3.
+- **Œuvre absente de TMDB** (pas de correspondance trouvée) : réponse
+  backend distincte d'une erreur technique. L'app affiche la fiche sans
+  enrichissement, sans retenter en boucle.
+- **Cache serveur froid** pour une donnée jamais demandée : la latence de
+  l'appel TMDB initial est assumée par le premier appelant ; les suivants
+  bénéficient du cache. Aucun préchauffage explicite prévu en V1.
+
+## 7.5 Critères d'acceptation
+
+- Aucun artefact de build (APK) ne contient de clé TMDB ni n'émet de requête
+  réseau vers un domaine TMDB.
+- Les écrans Accueil (tendances), fiche film/série et bande-annonce
+  fonctionnent à l'identique en usage nominal, sans changement perceptible.
+- Une indisponibilité du backend n'empêche jamais l'affichage d'une fiche,
+  la navigation ni la lecture — seuls les enrichissements TMDB sont absents.
+- L'appariement catalogue (T21) obtient ses correspondances via le backend,
+  sans régression du taux de correspondance par rapport au comportement
+  actuel (appel TMDB direct).
+
+## 7.6 Gestion des erreurs
+
+- Timeout ou erreur réseau vers le backend : traité comme une
+  indisponibilité (dégradation silencieuse), jamais de message d'erreur
+  technique affiché à l'utilisateur (cohérent avec AGENTS.md § Gestion des
+  erreurs, même si ce flux reste secondaire par rapport à l'authentification
+  ou à la lecture).
+- Réponse backend malformée : traitée comme un enrichissement absent,
+  journalisée côté application pour diagnostic (log, jamais affichée à
+  l'utilisateur).
 
 ---
 
