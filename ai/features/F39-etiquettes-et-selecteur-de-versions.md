@@ -3,7 +3,7 @@
 ## Informations générales
 
 Status:
-ANALYSIS
+SPECIFICATION
 
 Created:
 2026-08-15
@@ -69,6 +69,16 @@ premier coup), le sélecteur en aval (corriger sans perdre sa place).
 | Périmètre média | Films et séries. Les chaînes en direct relèvent de F40. |
 | Plateformes | Mobile et Android TV dès la première livraison. |
 
+## Décisions produit prises à l'étape 2
+
+| Sujet | Décision |
+|---|---|
+| Entrée sans attribut détecté | Aucun badge affiché — pas d'information fabriquée, vignette inchangée par rapport à aujourd'hui. |
+| Nommage des versions dans le sélecteur | Attributs extraits (T21) sous forme lisible, ex. « VF · 4K » — pas le libellé Xtream brut. |
+| Version cible plus courte que la position courante | Reprise près de la fin de la version cible, plutôt qu'au début ou refus du changement. |
+| Version en cours dans la liste du sélecteur | Affichée et marquée comme active, comme les sélecteurs de pistes audio et sous-titres existants. |
+| Sélecteur en lecture hors ligne | Hors périmètre : n'apparaît pas dans le lecteur des contenus téléchargés, qui n'a qu'une seule version présente sur l'appareil. |
+
 ---
 
 # 5. Hypothèses
@@ -92,18 +102,111 @@ premier coup), le sélecteur en aval (corriger sans perdre sa place).
 
 | Question | À trancher à l'étape |
 |---|---|
-| Que faire quand une entrée n'a aucun attribut détecté : aucun badge, ou un badge neutre ? | 2 |
-| Comment nommer chaque version dans la liste du sélecteur (attributs seuls, ou libellé Xtream d'origine) ? | 2 |
-| Si la version cible est plus courte que la position courante, faut-il reprendre à la fin, au début, ou refuser ? | 2 |
-| La version en cours de lecture doit-elle apparaître dans la liste, marquée comme active ? | 2 |
-| Le sélecteur doit-il aussi apparaître dans le lecteur des contenus téléchargés hors ligne ? | 2 |
 | Où mémoriser la version préférée d'une série : extension de `TrackPreferenceEntity` ou nouvelle table ? | 3 |
+| Faut-il masquer le bouton « Version » ou l'afficher désactivé quand une seule version existe pour l'œuvre en cours ? | 3 |
 
 ---
 
 # 7. Spécification fonctionnelle
 
-_À compléter — étape 2._
+## 7.1 User stories
+
+- En tant qu'utilisateur qui parcourt une liste de films ou séries, je veux
+  voir la langue et la qualité d'une entrée sans l'ouvrir, pour choisir la
+  bonne version du premier coup.
+- En tant qu'utilisateur en cours de lecture, je veux changer de version
+  sans perdre ma position, pour corriger un choix de langue ou de qualité
+  sans devoir recommencer.
+- En tant qu'utilisateur qui regarde une série, je veux que mon choix de
+  version soit retenu pour les épisodes suivants, pour ne pas le refaire à
+  chaque épisode.
+
+## 7.2 Parcours utilisateur
+
+**Étiquettes dans les listes**
+
+1. L'utilisateur parcourt une liste de films ou de séries (accueil,
+   catalogue, recherche, favoris).
+2. Chaque vignette affiche, au maximum, deux badges : langue puis qualité
+   (ex. « VF · 4K »).
+3. Une entrée sans attribut détecté n'affiche aucun badge (décision étape 2).
+
+**Sélecteur de versions dans le lecteur**
+
+1. Pendant la lecture d'un film ou d'un épisode, l'utilisateur ouvre le
+   bouton « Version », à l'emplacement des sélecteurs de piste audio et de
+   sous-titres déjà présents dans le lecteur.
+2. La liste affiche toutes les entrées partageant la clé de liaison (T21) de
+   l'œuvre en cours, nommées par leurs attributs extraits (ex. « VF · 4K »),
+   avec la version en cours marquée comme active (décisions étape 2).
+3. L'utilisateur sélectionne une autre version.
+4. La lecture bascule sur cette version, reprise à la même position — ou
+   près de la fin si la version cible est plus courte que la position
+   courante (décision étape 2).
+5. Si le changement échoue, retour automatique à la version précédente, à
+   la même position, avec un message bref (voir 7.5).
+6. Pour une série, le choix est mémorisé par profil et réappliqué
+   automatiquement aux épisodes suivants de la série, sans repasser par le
+   sélecteur.
+
+## 7.3 Règles métier
+
+- Deux badges maximum par vignette, dans l'ordre langue puis qualité —
+  jamais un compteur de versions, jamais la qualité seule (décision étape 1).
+- Le sélecteur ne liste que les entrées partageant la clé de liaison T21 de
+  l'œuvre en cours.
+- Pour une série, la mémorisation s'applique à toute la série, par profil
+  (décision étape 1) : un changement explicite sur un épisode ultérieur
+  écrase la préférence mémorisée pour le reste de la série.
+- Le sélecteur n'existe que dans le lecteur, jamais en présélection depuis
+  la fiche média (décision étape 1).
+- N'apparaît pas dans le lecteur des contenus téléchargés hors ligne
+  (décision étape 2).
+
+## 7.4 Cas limites
+
+- **Une seule version disponible** pour une œuvre : le bouton « Version »
+  n'apparaît pas ou est désactivé (détail d'implémentation renvoyé à
+  l'étape 3, sans différence de comportement observable pour
+  l'utilisateur).
+- **Versions aux attributs identiques** (ex. deux entrées « VF · HD ») :
+  affichées telles quelles dans la liste, sans distinction supplémentaire —
+  l'utilisateur choisit entre deux entrées qui paraissent identiques
+  (limite acceptée : la clé de liaison T21 ne garantit pas l'unicité des
+  attributs entre versions).
+- **Changement de version explicite en cours de série** : la préférence
+  s'applique aux épisodes suivants même non encore ouverts.
+- **Version cible elle-même défaillante dès l'ouverture** : traitée comme
+  un échec de changement (7.5), retour à la version précédente.
+
+## 7.5 Gestion des erreurs
+
+- Échec technique lors du changement de version (flux injoignable, timeout,
+  erreur de lecture immédiate) : retour automatique et silencieux à la
+  version précédente, à la même position, avec un message bref à l'écran
+  (ex. « Cette version n'est pas disponible, retour à la version
+  précédente. »). Jamais d'écran noir, jamais d'enchaînement automatique
+  vers une troisième version (décision étape 1).
+- Catalogue indisponible au moment d'ouvrir le sélecteur (absence de
+  connexion, service en erreur) : le bouton reste accessible, la liste
+  affiche un état vide ou un message d'indisponibilité temporaire, sans
+  jamais interrompre la lecture en cours.
+
+## 7.6 Critères d'acceptation
+
+- Une vignette de film ou de série affiche au maximum deux badges (langue,
+  qualité), jamais plus, jamais un compteur.
+- Depuis le lecteur, le bouton « Version » liste toutes les entrées
+  partageant la clé de liaison T21 de l'œuvre en cours, avec la version
+  active identifiée.
+- Choisir une autre version reprend la lecture à la même position (ou près
+  de la fin si la cible est plus courte), sans repasser par la fiche.
+- Un changement de version qui échoue revient à la version précédente, à la
+  même position, avec un message — jamais un écran noir.
+- Pour une série, le choix de version se maintient sur les épisodes
+  suivants sans nouvelle sélection, par profil.
+- Le sélecteur n'apparaît pas dans le lecteur des contenus téléchargés hors
+  ligne.
 
 ---
 
