@@ -3,7 +3,7 @@
 ## Informations générales
 
 Status:
-ARCHITECTURE
+TASK BREAKDOWN
 
 Created:
 2026-08-15
@@ -458,7 +458,200 @@ flowchart TD
 
 # 10. Plan de développement
 
-_À compléter — étape 4._
+F44 se livre après T22 : le contrat backend de classification existe déjà
+pour de vrai, aucune tâche n'a besoin de point d'extension. Point d'ordre de
+déploiement à respecter (§9.3, risque déjà identifié) : **le backend doit
+être déployé avant l'application** — un ancien serveur sans le champ
+`max_age_rating` doit répondre `null` (non bridé), jamais faire échouer
+l'appel. La tâche 1 doit donc être vérifiée compatible avant que la tâche 6
+ne soit livrée en production.
+
+- [ ] 1. Backend — champ `maxAgeRating` du profil
+
+Objectif:
+Ajouter la colonne et l'exposer dans l'API profil existante (§8.1), sans
+endpoint dédié au PIN — le backend ne connaît jamais le PIN.
+
+Fichiers:
+- migration PostgreSQL — **vérifier le numéro réellement disponible dans
+  `backend/migrations/` avant d'écrire** (règle T21 §8.5, T22 ajoute déjà
+  une migration dans ce lot)
+- `ProfileRepository`/`Service`/`Presenter`, `ProfileAction`, `Validator`
+  côté backend
+- `backend/openapi.yaml`
+
+Validation:
+Tests backend : validation stricte des cinq valeurs autorisées (`0, 10, 12,
+16, 18`) et de `null`, CRUD profil incluant le nouveau champ, contrôle IDOR
+existant toujours respecté (un profil ne modifie que ses propres données).
+Un payload sans `maxAgeRating` (ancien client) crée un profil non bridé,
+jamais une erreur.
+
+---
+
+- [ ] 2. Android — modèle d'âge partagé et classification T22
+
+Objectif:
+Poser `AgeRating` (§8.1) et `ContentClassificationRepository` qui consomme
+le contrat T22 réel (déjà livré) sous l'identité canonique et ses TTL
+(§8.2).
+
+Fichiers:
+- `domain/model/AgeRating.kt` (nouveau)
+- `data/repository/ContentClassificationRepository.kt` (nouveau)
+- `data/local/entity/ProfileEntity.kt`, `domain/model/Profile.kt`
+  (`maxAgeRating: Int?`)
+- migration Room — **vérifier le numéro réellement disponible dans
+  `AppDatabase.kt` avant d'écrire** (règle T21 §8.5)
+
+Validation:
+Test unitaire central : pour un profil non bridé, aucun appel à
+`ContentClassificationRepository` n'est déclenché (§8.2 — « garantit aucun
+surcoût sur le parcours adulte »), vérifiable par un mock qui échoue le
+test s'il est sollicité. Test de migration Room. Une classification absente
+ou `null` du backend n'est jamais convertie en « Tous publics ».
+
+---
+
+- [ ] 3. Android — `ParentalPinStore`
+
+Objectif:
+Stockage chiffré du PIN (§8.3) : sel, PBKDF2-HMAC-SHA256 120 000
+itérations, comparaison à temps constant, anti-bruteforce (5 échecs → 30 s,
+doublement jusqu'à 15 min).
+
+Fichiers:
+- `data/security/ParentalPinStore.kt` (nouveau)
+- tests unitaires associés (nouveau)
+
+Validation:
+Tests avec horloge fausse (jamais d'horloge réelle dans un test) : séquence
+exacte de temporisation sur échecs consécutifs, remise à zéro sur PIN
+correct, résistance à un retour d'horloge (combinaison échéance murale +
+durée monotone, §8.3). Aucun test ne vérifie la résistance à un appareil
+rooté (hors modèle de menace assumé, §8.3/§9.3).
+
+---
+
+- [ ] 4. Android — `ParentalAccessPolicy` et grant one-shot
+
+Objectif:
+Règle d'accès pure (§8.4) : `Allowed`/`PinRequired`, `OneShotPlaybackGrant`
+en mémoire lié à `profileId + mediaUid + requestNonce`, jamais persisté ni
+réutilisable pour un autre média.
+
+Fichiers:
+- `domain/model/ParentalAccessPolicy.kt` (nouveau)
+- `domain/model/OneShotPlaybackGrantStore.kt` (nouveau, en mémoire)
+- tests unitaires associés (nouveau)
+
+Validation:
+Tests JVM purs : profil non bridé toujours `Allowed` sans appel
+classification ; contenu trop mature vs non classifié produisent des
+`BlockReason` distincts ; un grant consommé n'autorise ni une seconde
+lecture du même média ni un autre média ; la modification du niveau
+autorisé exige une autorisation séparée qui n'accepte pas un grant de
+lecture (§8.4).
+
+---
+
+- [ ] 5. Android — garde câblée dans lecture et téléchargement
+
+Objectif:
+Appeler `ParentalAccessPolicy` dans les use cases qui lancent réellement la
+lecture et le téléchargement (§8.4), pas seulement dans le composable —
+pour qu'un deep link ou une reprise ne puisse pas contourner la règle.
+
+Fichiers:
+- use cases de lancement de lecture et de téléchargement concernés
+- `data/download/` (garde sur `DownloadRequest`, §8.4 et §8.7 — la création
+  d'un nouveau téléchargement est gardée, un `DownloadedMediaEntity`
+  existant ne l'est pas, écart déjà documenté §7.4)
+
+Validation:
+Tests d'intégration légers vérifiant que la garde s'applique bien depuis
+chaque point d'entrée existant vers la lecture (pas seulement l'écran
+fiche principal) et depuis la création d'un `DownloadRequest`. Un
+téléchargement dont la classification est absente ou T22 indisponible est
+refusé (règle défensive, §8.4), sans mise en file d'attente pour retry
+automatique.
+
+---
+
+- [ ] 6. Android — UI : gestion de profil, écran de refus, saisie PIN
+
+Objectif:
+Sélecteur de niveau protégé par PIN, création du PIN à la première
+activation, écran de refus avec les deux raisons distinctes, saisie PIN
+mobile/TV avec état temporisé visible (§8.6).
+
+Fichiers:
+- écrans/ViewModel de gestion des profils
+- écran de refus et composant de saisie PIN (nouveau)
+- fiches VOD/séries (déclenchement de la décision avant l'action Play)
+- `strings.xml` FR/EN
+
+Validation:
+Tests de ViewModel (mobile/TV, sans appareil) : les deux raisons
+`TOO_MATURE`/`UNCLASSIFIED` affichent des messages distincts ; l'état
+temporisé du PIN store se reflète dans l'UI sans détail exploitable sur la
+cause de l'échec (§8.8) ; bandes-annonces et vignettes ne déclenchent
+jamais la policy (décision étape 2).
+
+---
+
+- [ ] 7. Android — réinitialisation du PIN par OTP
+
+Objectif:
+Brancher le flow OTP existant en mode réauthentification (§8.5), fenêtre de
+session fraîche de 5 minutes, aucune réinitialisation possible hors ligne
+ou backend indisponible.
+
+Fichiers:
+- écran/ViewModel de réinitialisation (nouveau, réutilisant le flow OTP
+  existant)
+
+Validation:
+Tests avec le flow OTP mocké : réinitialisation acceptée seulement dans la
+fenêtre de fraîcheur, refusée hors ligne avec le PIN existant intact,
+refusée si le backend est indisponible sans jamais supprimer
+silencieusement le PIN en place.
+
+---
+
+- [ ] 8. Documentation — mise à jour AGENTS.md
+
+Objectif:
+Documenter l'écart de périmètre assumé (§2 : PIN/restriction parentale,
+explicitement hors périmètre par défaut) une fois la fonctionnalité livrée,
+conformément à l'engagement pris dans la description du ticket.
+
+Fichiers:
+- `AGENTS.md` (section Périmètre strict du projet)
+
+Validation:
+Relecture manuelle : la ligne d'exclusion « code PIN / restriction
+parentale par profil » est retirée ou nuancée pour refléter F44 comme
+exception désormais implémentée.
+
+---
+
+- [ ] 9. Non-régression globale
+
+Objectif:
+Vérifier l'ensemble avant review, en particulier l'ordre de déploiement
+backend-avant-app (§9.3) et l'absence de surcoût pour les profils non
+bridés.
+
+Fichiers:
+- l'ensemble des fichiers listés en §8.10
+
+Validation:
+`./gradlew assembleDebug`, `./gradlew testDebugUnitTest`, `./gradlew
+lintDebug` verts côté Android ; suite backend verte. Test explicite
+qu'un ancien client (backend déployé mais app pas encore mise à jour, ou
+l'inverse) ne provoque aucune erreur bloquante — seulement une absence de
+bridage tant que les deux ne sont pas alignés.
 
 ---
 

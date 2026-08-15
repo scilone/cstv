@@ -3,7 +3,7 @@
 ## Informations générales
 
 Status:
-ARCHITECTURE
+TASK BREAKDOWN
 
 Created:
 2026-08-15
@@ -457,7 +457,225 @@ flowchart TD
 
 # 10. Plan de développement
 
-_À compléter — étape 4._
+Dernier ticket du lot (Arbitrages structurants). À ce stade, T23, F40 et F42
+sont déjà livrés : leurs points d'extension (T23 §10 tâche 6, F40 §10 tâche
+6, F42 §10 tâche 6) existent et attendent d'être branchés pour de vrai — ce
+n'est qu'ici que ça se fait, pas avant. La tâche 1 est un **spike go/no-go
+obligatoire avant toute tâche UI** (§6, §9.3) : le risque technique
+principal du ticket (TS sans PCR/PTS exploitables) doit être tranché tôt.
+
+- [ ] 1. Spike go/no-go — adapters HLS et TS
+
+Objectif:
+Prouver, avant d'engager le reste du ticket, que les deux adapters (§8.4,
+§8.5) sont réalisables sur des flux réels du catalogue : lecture
+simultanée/écriture, seek à -30 s, pause au moins 2 minutes, reprise, et
+éviction du point le plus ancien.
+
+Fichiers:
+- prototype non définitif, à jeter ou à faire évoluer vers `TsTimeshiftEngine`
+
+Validation:
+Sur un flux HLS et un flux TS réels du catalogue : les quatre
+comportements ci-dessus sont démontrés. **Porte de sortie explicite** : si
+le flux TS ne contient pas de PCR/PTS exploitables, la conclusion est
+consignée dans les Notes de développement (§11) et la session se repliera
+sur « live sans timeshift » pour ce type de flux (§8.5) — décision à
+signaler avant de poursuivre, pas après coup.
+
+---
+
+- [ ] 2. `TimeshiftSession` — abstraction et factory
+
+Objectif:
+Poser l'interface commune (§8.3) et `TimeshiftSessionFactory` qui choisit
+l'adapter selon le type de source détecté par Media3.
+
+Fichiers:
+- `data/timeshift/TimeshiftSession.kt`, `TimeshiftWindow.kt`,
+  `TimeshiftSessionFactory.kt` (nouveau)
+
+Validation:
+Test unitaire : un type de source inconnu ou chiffré non supporté désactive
+les commandes timeshift sans empêcher la lecture live normale (§8.3).
+
+---
+
+- [ ] 3. `HlsTimeshiftSession`
+
+Objectif:
+Adapter HLS (§8.4) : indexation des segments consommés, manifeste local
+glissant, lecture via `DataSource` virtuel.
+
+Fichiers:
+- `data/timeshift/hls/HlsTimeshiftSession.kt`, `HlsSegmentIndex.kt`
+  (nouveau)
+- tests unitaires avec fixtures de playlists (nouveau)
+
+Validation:
+Tests JVM avec fixtures de playlists successives (§8.10) : segments retirés
+du manifeste distant restent lisibles depuis le manifeste local tant qu'ils
+sont dans le cache, discontinuités gérées. Une playlist chiffrée/DRM non
+rejouable est déclarée non compatible plutôt que de promettre une fenêtre
+erronée (§8.4).
+
+---
+
+- [ ] 4. `TsTimeshiftSession` et `TimeshiftTsEngine`
+
+Objectif:
+Adapter TS progressif (§8.5) : source tee, anneau de fichiers FIFO,
+indexation PCR/PTS sans décodage, reprise à un point indexé.
+
+Fichiers:
+- `data/timeshift/ts/TsTimeshiftSession.kt`, `TsTimestampIndexer.kt`,
+  `TimeshiftTsEngine.kt`, `TimeshiftTsDataSource.kt` (nouveau)
+- tests unitaires avec fixtures binaires `.ts` versionnées (nouveau)
+
+Validation:
+Tests JVM (§8.10) : indexation correcte de fixtures `.ts` de petite taille,
+rotation FIFO, seek borné, transition ancien→live. Si le spike (tâche 1) a
+conclu à l'absence de PCR/PTS exploitables sur un flux donné, ce composant
+se replie sur « live sans timeshift » pour ce flux plutôt que de segmenter
+des octets non indexés (§8.5) — comportement testé explicitement.
+
+---
+
+- [ ] 5. `TimeshiftCache` — budget disque et éviction
+
+Objectif:
+Cache disque distinct du cache de téléchargement (§8.6) : budget calculé
+depuis le débit mesuré, éviction FIFO, purge sur fermeture/changement de
+chaîne/bascule F40/crash détecté.
+
+Fichiers:
+- `data/timeshift/TimeshiftCache.kt` (nouveau)
+- tests unitaires associés (nouveau)
+
+Validation:
+Tests JVM : calcul du budget (`bitrate × profondeur × 1.20`, borné par 20 %
+de l'espace libre et 2 Gio, plancher 64 Mio), éviction du segment le plus
+ancien en premier avec mise à jour atomique de l'index, purge des
+répertoires orphelins de plus de 6 h au lancement. Les téléchargements hors
+ligne ne sont jamais touchés (test négatif explicite, §8.6).
+
+---
+
+- [ ] 6. `LivePlaybackService` — propriété du lecteur live
+
+Objectif:
+Le refactor central du ticket (§8.2, arbitrage ratifié) : un
+`MediaSessionService` possède l'ExoPlayer live et la session timeshift ;
+`PlayerScreen` s'y connecte par `MediaController` et n'instancie plus son
+propre ExoPlayer. **Ne concerne que le lecteur live** : `VodPlayerScreen`
+et `SeriesPlayerScreen` restent sur le `PlaybackEngineController` direct de
+T23, sans service de premier plan (aucun besoin de survivre en
+arrière-plan pour ces écrans).
+
+Fichiers:
+- `playback/LivePlaybackService.kt` (nouveau)
+- `presentation/player/PlayerScreen.kt` (connexion par `MediaController`)
+- `AndroidManifest.xml` (service, `FOREGROUND_SERVICE_MEDIA_PLAYBACK`)
+- `presentation/player/core/ExoPlayerCore.kt` (adapté si la fabrique est
+  partagée avec le service)
+
+Validation:
+Non-régression manuelle et par les tests existants du lecteur live : une
+lecture normale se comporte comme avant. Test : mise en arrière-plan,
+extinction d'écran ou perte d'activité ne ferme pas la session (§8.2) ;
+seule la fermeture explicite (`STOP_CHANNEL`) libère le flux et purge le
+cache. Notification de lecture et wakelock gérés par Media3, pas par du
+code applicatif (§9.2).
+
+---
+
+- [ ] 7. Commandes et UI — barre de fenêtre glissante
+
+Objectif:
+Barre de progression en temps absolu, bouton « Revenir au direct », gestion
+du point de pause évincé (§8.7).
+
+Fichiers:
+- composant transport partagé mobile/TV (nouveau ou adapté de l'existant)
+- `presentation/player/PlayerUiComponents.kt`, `PlayerScreen.kt`
+- `SettingsManager.kt`, `SettingsState/ViewModel/Screen` (profondeur
+  réglable)
+- `strings.xml` FR/EN
+
+Validation:
+Tests de ViewModel : bouton « Revenir au direct » visible dès que le
+décalage dépasse 3 secondes, position bornée dans la fenêtre lors d'un
+seek, message bref lors d'une reprise au point le plus ancien après
+éviction. Réglage de profondeur appliqué à la prochaine session, jamais
+rétroactivement. Vérification manuelle D-pad mobile/TV, hors critères
+automatisés.
+
+---
+
+- [ ] 8. Câblage réel des points d'extension T23, F40 et F42
+
+Objectif:
+Brancher pour de vrai ce que T23, F40 et F42 ont laissé en points
+d'extension à leur propre livraison (§8.8) : purge/recréation de session
+sur bascule F40, `seekToWallClock` pour F42 quand l'heure demandée est déjà
+dans la fenêtre locale, bornage `BEHIND_LIVE_WINDOW` au point local le plus
+ancien puis au live edge.
+
+Fichiers:
+- `presentation/player/core/LiveQualityController.kt` (F40 — remplace le
+  no-op par l'appel réel à `TimeshiftSession.close(purge)`)
+- `domain/live/StartOverAvailability.kt`, `playback/CatchupSession.kt`
+  (F42 — remplace le faux fournisseur de tampon local par
+  `TimeshiftSession` réel)
+- `presentation/player/core/PlaybackRecoveryCoordinator.kt` (T23 — position
+  de tampon fournie au lieu du live edge par défaut)
+
+Validation:
+Les tests d'intégration écrits par T23 §10 tâche 6, F40 §10 tâche 6 et F42
+§10 tâche 6 avec de faux consommateurs sont **remplacés ou complétés** par
+des tests avec les vraies implémentations F41. Comportement observable
+inchangé pour l'utilisateur par rapport à ce que ces tickets décrivaient
+déjà (F40 : bascule qui ferme et purge avant de préparer le nouveau flux,
+§8.8 ; F42 : reprise au point le plus ancien du tampon si le catch-up panel
+n'est pas éligible).
+
+---
+
+- [ ] 9. Documentation — mise à jour AGENTS.md
+
+Objectif:
+Documenter l'écart de périmètre assumé (§2 : catch-up/timeshift,
+explicitement hors périmètre par défaut). **Coordonner avec F42**, qui
+documente le même écart pour sa propre part (F42 §10, dernière tâche) —
+une seule mise à jour, pas deux qui se marchent dessus.
+
+Fichiers:
+- `AGENTS.md` (section Périmètre strict du projet)
+
+Validation:
+Relecture manuelle : la ligne d'exclusion « catch-up/timeshift » est
+retirée ou nuancée pour refléter F41 et F42 comme exception désormais
+implémentée, sans doublon avec la modification déjà faite par F42 si elle a
+été livrée en premier.
+
+---
+
+- [ ] 10. Non-régression globale
+
+Objectif:
+Vérifier l'ensemble avant review — c'est le ticket qui concentre le plus de
+risque de régression du lot (arbitrage étape 3).
+
+Fichiers:
+- l'ensemble des fichiers listés en §8.11
+
+Validation:
+`./gradlew assembleDebug`, `./gradlew testDebugUnitTest`, `./gradlew
+lintDebug` verts. Tests de lecture live, VOD et série tous verts (VOD/série
+ne doivent montrer aucune régression malgré le refactor limité au live).
+Aucune nouvelle table Room ni dépendance tierce (§8.11). Vérification
+manuelle sur box Android TV bas de gamme : pas de saccade audio/vidéo
+imputable à l'écriture continue du tampon, hors critères automatisés.
 
 ---
 

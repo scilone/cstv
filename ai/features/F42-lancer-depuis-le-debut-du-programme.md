@@ -3,7 +3,7 @@
 ## Informations générales
 
 Status:
-ARCHITECTURE
+TASK BREAKDOWN
 
 Created:
 2026-08-15
@@ -123,6 +123,7 @@ multi-chaînes, hors périmètre et incompatible avec les limites de connexions.
 | Résolution de l'instant de départ | Aucune analyse de date texte : `EpgCacheEntity` stocke déjà `startTimestamp`/`endTimestamp` en epoch, alimentés par `parseJsonTimestamp` depuis `start_timestamp`. Le `ProgramStartResolver` travaille donc exclusivement en epoch UTC, ce qui supprime toute ambiguïté de fuseau côté domaine — la conversion éventuelle reste confinée au builder d'URL. |
 | Interaction avec F40 | Sur ce panel, TF1 HD est archivable et TF1 SD ne l'est pas : un repli automatique de qualité ferait perdre la capacité de rattrapage en silence. **Tranché : quand une session catch-up est en cours, F40 ne considère que les variantes déclarant `tv_archive = 1`.** Si aucune n'est disponible, F40 ne bascule pas et laisse T23 puis la gestion d'erreur normale opérer — interrompre la session pour cause d'instabilité serait pire que la subir. En sélection manuelle pendant une session catch-up, les variantes sans archive restent visibles mais désactivées, avec la raison affichée. Reporté à l'identique dans F40. |
 | F42 pour l'étape 4 | **Débloqué.** La capacité du panel étant établie, l'inconnue résiduelle (format d'URL) est confinée à une classe remplaçable et se calibre pendant l'implémentation, avec accès au panel. Elle ne justifie plus de retenir le ticket. |
+| Ordre F42 avant F41 | **Correction de cohérence.** F41 a été tranché, après cette étape 3, pour être livré en dernier du lot (Arbitrages structurants de F41). Or la spécification technique ci-dessous (§8.5, §8.6, §9.2) mentionne `LivePlaybackService` et `TimeshiftWindow`, qui sont des composants **de F41**, non livrés au moment où F42 se construit. F42 s'appuie donc sur le `PlaybackEngineController` partagé de T23 (déjà livré) et sur `PlayerScreen` tels qu'ils existent à ce stade — pas sur un service de premier plan qui n'existe pas encore. `CatchupSession` définit son propre modèle de fenêtre temporelle (structurellement proche du futur `TimeshiftWindow` de F41, sans en dépendre). Quand F41 se livre, il absorbe `CatchupSession` dans `LivePlaybackService` au même titre que le reste du lecteur live — c'est le sens même de son refactor, déjà accepté comme le risque principal de ce ticket. §8.5, §8.6 et §9.2 sont corrigés en conséquence. |
 
 ---
 
@@ -339,10 +340,11 @@ Depuis le **lecteur déjà ouvert**, le resolver choisit :
    l'étape 2 ;
 3. sinon action masquée.
 
-Depuis une **liste de chaînes**, aucune `TimeshiftSession` n'existe pour une
-chaîne non ouverte. L'action « Lancer depuis le début » est donc affichée
-uniquement si le catch-up panel est éligible. Ouvrir la chaîne pour commencer un
-tampon vide ne permettrait pas de remonter et n'est pas présenté comme repli.
+Depuis une **liste de chaînes**, aucun tampon local n'existe pour une chaîne
+non ouverte — ni celui de F41 une fois livré, ni aucun équivalent avant. L'action
+« Lancer depuis le début » est donc affichée uniquement si le catch-up panel
+est éligible. Ouvrir la chaîne pour commencer un tampon vide ne permettrait
+pas de remonter et n'est pas présenté comme repli.
 
 `StartOverAvailability` est calculé dans `LiveTvViewModel` à partir de la ligne
 catalogue + EPG, et recalculé dans le service au clic pour éviter une action
@@ -352,9 +354,13 @@ devenue périmée.
 
 - le menu d'appui long reçoit une action conditionnelle ;
 - le lecteur reçoit la même action dans ses contrôles lorsqu'elle est disponible ;
-- une `CatchupSession` expose `TimeshiftWindow`, réutilisée par la barre F41 ;
+- `CatchupSession` expose son propre modèle de fenêtre temporelle (curseur
+  absolu, bornes de rétention) — pas un `TimeshiftWindow` de F41, qui n'existe
+  pas encore à ce stade de la livraison (voir Arbitrages structurants,
+  « Ordre F42 avant F41 ») ;
 - Play/Pause, seek et « Revenir au direct » transitent par le
-  `LivePlaybackService` ;
+  `PlaybackEngineController` partagé de T23 (déjà livré), pas par un service
+  de premier plan qui n'existe pas encore ;
 - le titre du programme reste celui de l'EPG courant au démarrage, puis suit
   l'EPG correspondant à `playbackEpochMs` si le cache contient la fenêtre.
 
@@ -409,8 +415,12 @@ flowchart TD
 - **DTO/catalogue** : capacité déclarée et rétention ;
 - **ProgramStartResolver** : cohérence EPG, marge et bornes ;
 - **URL adapter** : format panel et secret redaction ;
-- **CatchupSession** : fenêtres, poursuite différée et bascule live ;
-- **F41** : repli uniquement pour la chaîne déjà enregistrée ;
+- **CatchupSession** : fenêtres, poursuite différée et bascule live, posée
+  sur le `PlaybackEngineController` de T23 — pas sur le `LivePlaybackService`
+  de F41, livré après (voir Arbitrages structurants) ;
+- **F41** (une fois livré) : repli uniquement pour la chaîne déjà
+  enregistrée, et absorption de `CatchupSession` dans son refactor du
+  lecteur live ;
 - **UI** : disponibilité exacte par point d'entrée.
 
 ## 9.3 Risques
@@ -427,7 +437,152 @@ flowchart TD
 
 # 10. Plan de développement
 
-_À compléter — étape 4._
+F42 se livre après T21/T22/T23/F39/F40, mais **avant F41** (ordre du lot).
+Toutes les tâches ci-dessous construisent donc sur le
+`PlaybackEngineController` de T23, jamais sur le `LivePlaybackService` de
+F41 qui n'existe pas encore — voir la correction de cohérence dans les
+Arbitrages structurants. La tâche 6 pose le point d'extension que F41
+branchera plus tard, même principe que T23 §10 tâche 6 et F40 §10 tâche 6.
+
+- [ ] 1. Données de capacité catch-up
+
+Objectif:
+Ajouter `tv_archive`/`tv_archive_duration` au DTO et aux entités catalogue
+(§8.1), avec backfill par défaut.
+
+Fichiers:
+- `data/remote/dto/LiveStreamDto.kt`
+- `data/local/entity/LiveStreamEntity.kt`, `domain/model/LiveStream.kt`
+- migration Room — **vérifier le numéro réellement disponible dans
+  `AppDatabase.kt` avant d'écrire** (règle T21 §8.5)
+
+Fichiers modifiés:
+- `data/local/db/AppDatabase.kt`, `Migrations.kt`
+
+Validation:
+Tests DTO sur des réponses « sales » (champ absent, valeur non entière —
+AGENTS.md § Stratégie de tests). Test de migration : backfill
+`false`/`null` sur les lignes existantes. Une panne temporaire (404/403) ne
+modifie jamais la capacité persistée (§8.7).
+
+---
+
+- [ ] 2. `ProgramStartResolver`
+
+Objectif:
+Résoudre l'instant de départ demandé à partir du programme EPG courant
+(§8.2) : marge de sécurité, bornes de rétention, rejet d'un début futur.
+
+Fichiers:
+- `domain/live/ProgramStartResolver.kt` (nouveau)
+- tests unitaires associés (nouveau)
+
+Validation:
+Tests JVM avec horloge fixe : marge de 2 minutes appliquée, bornage à
+`now - retention` et `now - 5s`, rejet d'un début futur de plus d'une
+minute, titre affiché toujours celui du vrai `startEpochMs` (jamais
+décalé par la marge). Travail exclusivement en epoch UTC, aucune conversion
+de fuseau dans cette couche (§8.2).
+
+---
+
+- [ ] 3. `XtreamCatchupUrlBuilder`
+
+Objectif:
+Construire l'URL timeshift (§8.3) comme port remplaçable, credentials
+jamais journalisés.
+
+Fichiers:
+- `data/catchup/XtreamCatchupUrlBuilder.kt` (nouveau)
+- tests unitaires associés (nouveau)
+
+Validation:
+Test d'encodage des segments de chemin. Test confirmant que l'URL complète
+n'apparaît dans aucun log (OkHttp interceptor redaction, §8.7). **Calibrage
+contre le panel réel avant de considérer la tâche terminée** : le format
+exact (heure locale vs UTC, voir vérification faite à l'étape 3) doit être
+confirmé par un essai réel, pas seulement supposé.
+
+---
+
+- [ ] 4. `StartOverAvailability` — éligibilité par point d'entrée
+
+Objectif:
+Calculer la disponibilité de l'action (§8.5) : catch-up panel éligible
+(capacité + `has_archive` du programme EPG visé), sinon néant depuis une
+liste, sinon repli local **seulement depuis le lecteur** sur une session
+déjà active.
+
+Fichiers:
+- `domain/live/StartOverAvailability.kt` (nouveau)
+- `presentation/livetv/LiveTvViewModel.kt` (calcul pour l'affichage du menu)
+- tests unitaires associés (nouveau)
+
+Validation:
+Tests couvrant la matrice complète des cas limites (§7.4) : chaîne sans
+EPG, chaîne avec EPG mais sans catch-up ni session active, chaîne avec
+catch-up mais programme non archivé (`has_archive: 0`), chaîne déjà ouverte
+avec repli local disponible. Recalcul au clic pour éviter une action
+devenue périmée entre l'ouverture du menu et la sélection (§8.5).
+
+---
+
+- [ ] 5. `CatchupSession` — lecture différée par fenêtres
+
+Objectif:
+Fenêtres chaînées de 15 minutes sur le `PlaybackEngineController` de T23
+(§8.4, corrigé) : curseur absolu, préchargement de la fenêtre suivante,
+bascule automatique au direct sous 5 secondes de décalage, bouton « Revenir
+au direct » explicite.
+
+Fichiers:
+- `playback/CatchupSession.kt` (nouveau)
+- `presentation/player/PlayerScreen.kt` (intégration des contrôles)
+- tests unitaires associés (nouveau)
+
+Validation:
+Tests JVM avec moteur de lecture faux (patron `FakePlaybackEngine` de T23) :
+chaînage correct des fenêtres, fin prématurée d'une fenêtre traitée comme
+un repli (voir tâche 4), retour au direct forcé par le bouton, bascule
+automatique sous le seuil de 5 secondes. Aucune concaténation de segments
+de bitrate/codec différents (§8.4, interdit en V1).
+
+---
+
+- [ ] 6. Point d'extension pour F41 — sans implémentation F41
+
+Objectif:
+Exposer le seam que F41 branchera à sa propre livraison : reprise du
+tampon local en repli quand le catch-up panel n'est pas éligible, et futur
+transfert de `CatchupSession` sous `LivePlaybackService`. Aucune logique
+F41 réelle n'est écrite ici.
+
+Fichiers:
+- `domain/live/StartOverAvailability.kt`, `playback/CatchupSession.kt`
+  (interfaces d'extension)
+
+Validation:
+Test avec un faux fournisseur de tampon local, vérifiant qu'il est consulté
+au bon moment (uniquement depuis le lecteur, sur une session active) et que
+son absence ne casse rien — comportement identique à aujourd'hui, où le
+repli n'existe simplement pas encore.
+
+---
+
+- [ ] 7. Non-régression globale
+
+Objectif:
+Vérifier l'ensemble avant review.
+
+Fichiers:
+- l'ensemble des fichiers listés en §8.9
+
+Validation:
+`./gradlew assembleDebug`, `./gradlew testDebugUnitTest`, `./gradlew
+lintDebug` verts. Aucune nouvelle dépendance Gradle (§8.7). AGENTS.md mis à
+jour pour documenter l'écart de périmètre assumé (catch-up/timeshift),
+comme engagé en §2 de la fiche — à coordonner avec la même mise à jour
+prévue par F41 pour ne pas se marcher dessus.
 
 ---
 

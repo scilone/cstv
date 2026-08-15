@@ -3,7 +3,7 @@
 ## Informations générales
 
 Status:
-ARCHITECTURE
+TASK BREAKDOWN
 
 Created:
 2026-08-15
@@ -419,7 +419,175 @@ flowchart TD
 
 # 10. Plan de développement
 
-_À compléter — étape 4._
+Aucune dépendance à un autre ticket du lot (§Dépendances). Les tâches 1 et 2
+sont un socle Kotlin pur, testable sans Media3 ni Room — à faire en premier
+et à fiabiliser avant de toucher au chemin audio réel.
+
+- [ ] 1. Fingerprinter pur — signatures spectrales et codec binaire
+
+Objectif:
+Implémenter la chaîne PCM → signatures (§8.2) comme fonctions pures : FFT
+radix-2, énergie par bandes, signature 64 bits, et le codec binaire de
+sérialisation des blobs.
+
+Fichiers:
+- `domain/intro/AudioFingerprinter.kt`, FFT et codec binaire (nouveau,
+  package `domain/intro/`)
+- tests unitaires et fixtures PCM synthétiques (nouveau)
+
+Validation:
+Tests JVM sur PCM synthétique (§8.7) : signature stable et reproductible
+pour un même signal, buffers FFT réutilisés (pas de nouvelle allocation par
+trame — vérifiable par relecture). Codec binaire : round-trip
+encodage/décodage sans perte sur un jeu de signatures.
+
+---
+
+- [ ] 2. `SeasonIntroMatcher` — comparaison et seuils d'acceptation
+
+Objectif:
+Comparer deux jeux de signatures et décider `MATCH`/`NO_MATCH` selon les
+cinq critères de §8.2 (durée du segment, position, couverture, marge sur le
+second décalage, deux épisodes distincts minimum).
+
+Fichiers:
+- `domain/intro/SeasonIntroMatcher.kt` (nouveau)
+- tests unitaires associés (nouveau)
+
+Validation:
+Tests JVM sur PCM synthétique couvrant les scénarios de §8.7 : intro
+commune décalée, changement de volume, bruit léger, silence, dialogues
+semblables sans intro (ne doit pas déclencher de faux positif), intros
+réellement différentes. Chaque critère de rejet testé isolément (segment
+trop court, couverture insuffisante, marge de décalage insuffisante).
+
+---
+
+- [ ] 3. Modèle Room — empreintes et détections de saison
+
+Objectif:
+Créer `EpisodeAudioFingerprintEntity` et `SeasonIntroDetectionEntity`
+(§8.3), avec gestion de version d'algorithme (une empreinte d'une version
+antérieure est ignorée et recalculée, pas migrée).
+
+Fichiers:
+- entités + DAO (nouveau)
+- migration Room — **vérifier le numéro réellement disponible dans
+  `AppDatabase.kt` avant d'écrire** (règle T21 §8.5)
+
+Fichiers modifiés:
+- `data/local/db/AppDatabase.kt`, `Migrations.kt`
+
+Validation:
+Test de migration et de création fraîche. Test DAO : upsert d'une
+empreinte, lecture des empreintes récentes d'une saison, remplacement d'une
+détection existante. Une empreinte à `algorithmVersion` obsolète n'est
+jamais lue comme valide par le matcher.
+
+---
+
+- [ ] 4. `IntroDetectionRepository` — orchestration de l'analyse
+
+Objectif:
+Enchaîner upsert de l'empreinte courante, chargement des empreintes
+récentes de la saison, comparaison jusqu'à seuil, persistance d'une seule
+détection par saison (§8.4).
+
+Fichiers:
+- `domain/intro/IntroDetectionRepository.kt` (nouveau, ou
+  `data/repository/` selon convention du module)
+- tests unitaires associés (nouveau)
+
+Validation:
+Tests avec DAO fake ou Room in-memory : premier épisode analysé ne produit
+aucune détection observable ; second épisode compatible produit une
+détection persistée et arrête les comparaisons suivantes pour cette saison
+(§8.4) ; une empreinte partielle de moins de 15 secondes n'est pas
+persistée ; deux épisodes visionnés dans le désordre produisent le même
+résultat (cas limite §7.4).
+
+---
+
+- [ ] 5. `IntroFingerprintAudioProcessor` — intégration Media3
+
+Objectif:
+Brancher l'acquisition PCM dans `DefaultAudioSink` via `ExoPlayerCore`
+(§8.1), avec le court-circuit hors séries ratifié à l'étape 3 (Arbitrages
+structurants) : le processor doit toujours être présent dans la chaîne
+audio commune, mais rester inerte pour tout média qui n'est pas un épisode
+de série.
+
+Fichiers:
+- `presentation/player/core/IntroFingerprintAudioProcessor.kt` (nouveau)
+- `presentation/player/core/ExoPlayerCore.kt` (fabrique de renderers/audio
+  sink)
+
+Validation:
+Test unitaire confirmant que le buffer transmis au sink n'est jamais altéré
+(comparaison octet à octet avant/après passage dans le processor). Test
+confirmant l'inertie totale (aucun calcul déclenché) sur un film, une
+chaîne en direct ou un téléchargement — c'est le critère qui matérialise
+l'arbitrage étape 3. Vérification manuelle qu'aucune saccade audio
+n'apparaît sur box bas de gamme, hors critères automatisés (AGENTS.md).
+
+---
+
+- [ ] 6. UI — bouton « Passer l'intro » et signalement
+
+Objectif:
+Afficher/masquer le bouton selon la position de lecture (§8.5), câbler le
+saut, et l'action « Signaler une intro incorrecte » qui efface détection et
+empreintes sources de la saison.
+
+Fichiers:
+- composant bouton (nouveau)
+- `presentation/player/SeriesPlayerScreen.kt` et son ViewModel
+- `strings.xml` FR/EN
+
+Validation:
+Tests de ViewModel (mobile/TV, sans appareil) : bouton visible seulement
+dans la fenêtre `[startMs-500, endMs]`, saut exact à `endMs`, pas de
+réapparition après un retour en arrière dans la même lecture (§8.5), action
+« Signaler » visible uniquement si une détection existe pour la saison, et
+efface bien détection + empreintes sources en une transaction.
+
+---
+
+- [ ] 7. Benchmark de performance et feature flag de sécurité
+
+Objectif:
+Mesurer le coût CPU/mémoire du pipeline complet (§8.7) et décider, sur la
+base du seuil défini dans la fiche (2 secondes de CPU pour 12 minutes de
+signatures), si la fonctionnalité part activée ou derrière un feature flag.
+
+Fichiers:
+- benchmark JVM (nouveau)
+- point d'activation conditionnelle (flag existant du projet, ou nouveau
+  selon convention)
+
+Validation:
+Le benchmark s'exécute en JVM pur, sans appareil (AGENTS.md — une mesure
+sur device réel n'est pas un critère de validation agent, seulement une
+vérification manuelle complémentaire). Résultat consigné dans les Notes de
+développement (§11) : si le seuil est dépassé, le flag est câblé désactivé
+par défaut et le fait est signalé explicitement à la review, pas silencié.
+
+---
+
+- [ ] 8. Non-régression globale
+
+Objectif:
+Vérifier que l'ajout du processor audio ne dégrade aucune lecture
+existante, série ou non.
+
+Fichiers:
+- l'ensemble des fichiers listés en §8.8
+
+Validation:
+`./gradlew assembleDebug`, `./gradlew testDebugUnitTest`, `./gradlew
+lintDebug` verts. Tests de lecture existants (VOD, direct, séries)
+inchangés. Aucune nouvelle dépendance Gradle, aucune nouvelle permission
+(§8.6).
 
 ---
 
