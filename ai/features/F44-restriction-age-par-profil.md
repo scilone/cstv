@@ -3,7 +3,7 @@
 ## Informations générales
 
 Status:
-ANALYSIS
+SPECIFICATION
 
 Created:
 2026-08-15
@@ -68,6 +68,17 @@ faite et le PIN est retenu : AGENTS.md doit être mis à jour lors de la livrais
 | Chaînes en direct | Hors périmètre : aucune source de classification fiable pour le direct. |
 | Plateformes | Mobile et Android TV dès la première livraison. |
 
+## Décisions produit prises à l'étape 2
+
+| Sujet | Décision |
+|---|---|
+| Portée du PIN | Un seul PIN pour l'appareil, commun à tous les profils non bridés. |
+| Durée du déverrouillage ponctuel | La lecture en cours uniquement — la restriction se réapplique à la relecture ultérieure du même média. |
+| Création d'un profil | Non bridé par défaut ; le bridage est une action explicite ultérieure. |
+| Contenus téléchargés hors ligne | Le niveau autorisé est vérifié **au moment du téléchargement** (impossible de télécharger un contenu au-dessus du niveau du profil) ; **pas de revalidation à la lecture** d'un fichier déjà téléchargé. **Écart assumé** : un contenu téléchargé avant que le profil ne soit bridé (ou avant un abaissement du niveau autorisé) reste lisible hors ligne sans PIN — contredit partiellement l'objectif « restriction non contournable », accepté comme limite connue de la V1 après confirmation explicite. |
+| Bandes-annonces et vignettes | Seule la lecture du média principal est bloquée ; les bandes-annonces ne sont pas concernées par la restriction. |
+| PIN oublié | Réinitialisation via le compte CSTV : l'utilisateur principal, ré-authentifié, réinitialise le PIN depuis les Paramètres. |
+
 ---
 
 # 5. Hypothèses
@@ -91,20 +102,150 @@ faite et le PIN est retenu : AGENTS.md doit être mis à jour lors de la livrais
 
 | Question | À trancher à l'étape |
 |---|---|
-| Le PIN est-il unique pour l'appareil, ou propre à chaque profil non bridé ? | 2 |
-| Un déverrouillage ponctuel vaut-il pour la seule lecture en cours, pour la session, ou définitivement pour ce média ? | 2 |
-| Que se passe-t-il à la création d'un profil : niveau demandé d'emblée, ou profil non bridé par défaut ? | 2 |
-| Que faire des contenus téléchargés hors ligne et de la reprise de lecture d'un média devenu interdit ? | 2 |
-| Le blocage s'applique-t-il aussi aux bandes-annonces et aux vignettes d'aperçu ? | 2 |
-| PIN oublié : quelle procédure de récupération (compte CSTV, réinitialisation de l'application) ? | 2 |
 | Le réglage d'âge et le PIN sont-ils synchronisés dans le cloud avec le profil (F34) ? | 3 |
 | Combien de tentatives de PIN avant temporisation ? | 3 |
+| Comment vérifier le niveau autorisé au moment du téléchargement quand la classification n'est pas encore connue (délai T22) : bloquer le téléchargement par défensif, ou l'autoriser en l'absence d'information ? | 3 |
+| Faut-il, à terme, une action explicite pour re-vérifier/purger les téléchargements existants après un abaissement du niveau autorisé d'un profil, pour réduire l'écart documenté ci-dessus (étape 2) ? | 3 |
 
 ---
 
 # 7. Spécification fonctionnelle
 
-_À compléter — étape 2._
+## 7.1 User stories
+
+- En tant que parent, je veux confier un profil à mon enfant sans lui
+  donner accès à l'ensemble du catalogue.
+- En tant que parent, je veux que l'absence d'information sur un contenu le
+  bloque par défaut plutôt que de l'autoriser par erreur.
+- En tant qu'enfant sur un profil bridé, je ne dois pas pouvoir contourner
+  la restriction depuis mon propre profil, ni en modifiant le niveau
+  autorisé ni en devinant le PIN d'un adulte.
+- En tant qu'adulte du foyer, je veux débloquer ponctuellement un contenu
+  pour mon enfant sans devoir changer durablement les réglages du profil.
+
+## 7.2 Parcours utilisateur
+
+**Ouverture d'une fiche depuis un profil bridé**
+
+1. Le profil bridé ouvre la fiche d'un film ou d'une série.
+2. L'application récupère la classification d'âge de l'œuvre (via T22).
+3. Si la classification dépasse le niveau autorisé du profil, ou si elle
+   est inconnue (règle défensive, décision étape 1), la lecture est
+   refusée : un écran explique le refus, avec un message distinct selon
+   qu'il s'agit d'un contenu explicitement trop mature ou d'un contenu non
+   classifié.
+4. Le média reste visible et accessible depuis les listes et la recherche
+   (décision étape 1) ; seule la lecture est bloquée.
+
+**Déverrouillage ponctuel**
+
+1. Depuis l'écran de refus, un adulte saisit le PIN à 4 chiffres de
+   l'appareil (décision étape 2 : un seul PIN, commun à tous les profils
+   non bridés).
+2. Le PIN correct débloque la lecture en cours uniquement (décision
+   étape 2) : rouvrir plus tard le même média depuis ce profil redemande le
+   PIN.
+
+**Modification du niveau autorisé d'un profil**
+
+1. Un adulte accède aux réglages du profil bridé.
+2. Modifier le niveau autorisé exige la saisie du PIN (décision étape 1).
+3. Le nouveau niveau s'applique immédiatement aux prochaines ouvertures de
+   fiche ; il ne revalide pas rétroactivement les téléchargements déjà
+   présents (voir 7.3).
+
+**Création d'un profil**
+
+1. Un profil est créé non bridé par défaut (décision étape 2) : aucune
+   étape supplémentaire n'est ajoutée au parcours de création existant.
+2. Le bridage se fait ensuite, explicitement, depuis les réglages du
+   profil, au moment où l'utilisateur en a l'usage réel.
+
+**Téléchargement depuis un profil bridé**
+
+1. Le profil bridé tente de télécharger un film ou un épisode.
+2. Si la classification de l'œuvre dépasse le niveau autorisé (ou est
+   inconnue — règle défensive), le téléchargement est refusé au même titre
+   que la lecture (décision étape 2).
+3. Un contenu déjà présent sur l'appareil avant le bridage du profil, ou
+   téléchargé avant un abaissement ultérieur du niveau autorisé, reste
+   lisible hors ligne sans revalidation (écart documenté en 7.3).
+
+## 7.3 Règles métier
+
+- Règle défensive : classification inconnue = lecture refusée, avec un
+  message distinct de celui d'un contenu explicitement trop mature
+  (décision étape 1).
+- Échelle : Tous publics, 10, 12, 16, 18 (certifications françaises TMDB via
+  T22) — décision étape 1.
+- Visibilité : le média reste toujours visible dans les listes et la
+  recherche, seule la lecture est bloquée (décision étape 1).
+- Séries : classification de la série entière, pas de granularité par
+  saison ou épisode (décision étape 1).
+- Chaînes en direct hors périmètre (décision étape 1).
+- PIN à 4 chiffres, unique par appareil, requis pour : débloquer
+  ponctuellement une lecture, et modifier le niveau autorisé d'un profil
+  (décisions étape 1 et 2).
+- Le niveau autorisé est vérifié au téléchargement, pas revalidé à la
+  lecture d'un contenu déjà téléchargé (décision étape 2) — voir écart
+  assumé ci-dessous.
+- Les bandes-annonces et les vignettes d'aperçu ne sont pas concernées par
+  la restriction (décision étape 2) : seule la lecture du média principal
+  est bloquée.
+- PIN oublié : réinitialisation via le compte CSTV, après une nouvelle
+  authentification de l'utilisateur principal (décision étape 2).
+
+## 7.4 Cas limites et écarts assumés
+
+- **Contenu téléchargé avant le bridage du profil, ou avant un abaissement
+  du niveau autorisé** : reste lisible hors ligne sans PIN (décision
+  étape 2, confirmée après signalement explicite de l'écart avec l'objectif
+  « restriction non contournable »). Traité comme une limite connue de la
+  V1, pas une omission — à documenter dans le contenu livré à l'utilisateur
+  final (aide, notes de version) si le PO le juge utile à l'étape 9.
+- **Classification indisponible au moment du téléchargement** (T22 non
+  encore répondu, cache serveur froid) : traitement exact renvoyé à
+  l'étape 3 (voir Questions ouvertes) — la règle défensive suggère un refus
+  par défaut, cohérent avec le reste de la fonctionnalité.
+- **Œuvre dont l'appariement T21/T22 échoue** (pas de correspondance
+  trouvée) : traitée comme une classification inconnue, donc refusée
+  (règle défensive, décision étape 1) — risque déjà identifié comme
+  hypothèse à mesurer avant l'étape 3.
+- **Profil bridé après que du contenu a déjà été visionné mais pas
+  téléchargé** : la reprise de lecture en streaming applique la nouvelle
+  restriction immédiatement, à la différence du hors ligne.
+- **PIN saisi incorrectement plusieurs fois** : nombre de tentatives et
+  temporisation renvoyés à l'étape 3.
+
+## 7.5 Critères d'acceptation
+
+- Un profil bridé ne peut pas lire un contenu dont la classification
+  dépasse son niveau autorisé, ni un contenu non classifié.
+- Le message affiché distingue un contenu explicitement trop mature d'un
+  contenu non classifié.
+- Le média reste visible dans les listes et la recherche depuis un profil
+  bridé, seule sa lecture est bloquée.
+- Le PIN correct débloque la lecture en cours uniquement ; rouvrir le même
+  média plus tard redemande le PIN.
+- Modifier le niveau autorisé d'un profil exige le PIN.
+- Un profil nouvellement créé est non bridé.
+- Un téléchargement au-dessus du niveau autorisé d'un profil bridé est
+  refusé au moment de la demande.
+- La réinitialisation du PIN passe par une nouvelle authentification du
+  compte CSTV.
+
+## 7.6 Gestion des erreurs
+
+- Service de classification indisponible (T22 en échec) au moment
+  d'ouvrir une fiche : traité comme une classification inconnue — lecture
+  refusée par défaut (règle défensive), jamais un accès autorisé par erreur
+  réseau.
+- PIN incorrect : message clair de refus, sans indiquer si le profil ou le
+  PIN lui-même est en cause — pas de stack trace, pas de détail technique
+  (AGENTS.md § Gestion des erreurs).
+- Échec de la réinitialisation du PIN via le compte CSTV (identifiants
+  invalides, service injoignable) : message explicite, le PIN existant
+  reste actif tant que la réinitialisation n'a pas abouti.
 
 ---
 
