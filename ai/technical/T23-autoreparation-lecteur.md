@@ -3,7 +3,7 @@
 ## Informations générales
 
 Status:
-SPECIFICATION
+ARCHITECTURE
 
 Created:
 2026-08-15
@@ -98,11 +98,14 @@ chaîne en direct.
 
 # 6. Questions ouvertes
 
-| Question | À trancher à l'étape |
+| Point traité à l'étape 3 | Décision |
 |---|---|
-| Comment articuler T23 et F40 sur une chaîne en direct : quel mécanisme s'essaie en premier ? | 3 |
-| Où stocker la configuration mémorisée : extension de `TrackPreferenceEntity` ou nouvelle table ? | 3 |
-| Comment tester la séquence de façon automatisée sans appareil connecté (contrainte AGENTS.md) ? | 3 |
+| Ordre avec F40 | Qualification commune de l'erreur : réseau/buffering va directement à F40 ; décodage déclenche T23 sur le flux courant. F40 ne change de variante qu'après épuisement de T23. Les deux machines ne tournent jamais en parallèle. |
+| Persistance | Nouvelle table `playback_repair_profiles`, liée à `mediaUid` et non à `TrackPreferenceEntity`. La réparation dépend de l'appareil et du fichier ; la préférence de piste existante dépend du profil et de l'utilisateur. |
+| Tests | Machine d'états et fabrique de stratégies derrière des interfaces pures, testées avec un faux moteur. Aucun test ne requiert codec Android, émulateur ou appareil. |
+| Décodeur actuel | Le lecteur préfère déjà FFmpeg pour l'audio et autorise son repli pour la vidéo. L'étape « FFmpeg » signifie donc une reconstruction explicite avec stratégie logiciel-préféré pour le type de piste fautif, pas un simple rejeu de la configuration actuelle. |
+
+Aucune question bloquante ne reste ouverte pour l'étape 4.
 
 ---
 
@@ -199,13 +202,213 @@ dans la configuration qui a fonctionné.
 
 # 8. Spécification technique
 
-_À compléter — étape 3._
+## 8.1 Constat sur le lecteur actuel
+
+`ExoPlayerCore.kt` construit aujourd'hui `NextRenderersFactory` avec FFmpeg
+préféré pour l'audio, vidéo matérielle prioritaire et
+`enableDecoderFallback = true`. T23 ne doit pas prétendre « activer FFmpeg » en
+rejouant ce même builder. Il introduit des stratégies explicites :
+
+```kotlin
+enum class DecoderStrategy { DEFAULT, SOFTWARE_PREFERRED }
+
+data class PlaybackRepairPlan(
+    val decoderStrategy: DecoderStrategy,
+    val disabledTrack: TrackFingerprint? = null,
+    val preferredAudio: TrackFingerprint? = null
+)
+```
+
+`SOFTWARE_PREFERRED` ne force que le type de renderer identifié en erreur. Pour
+une erreur vidéo, la priorité logicielle n'est utilisée qu'après l'échec du
+matériel, car B16 a déjà démontré qu'une vidéo FFmpeg préférée pouvait produire
+une image corrompue. Pour une erreur audio, elle confirme explicitement le
+renderer NextLib et ne change pas la politique vidéo.
+
+## 8.2 Extraction d'un contrôleur partagé
+
+Les trois lecteurs (`PlayerScreen`, `VodPlayerScreen`, `SeriesPlayerScreen`)
+cessent de porter seuls la création et le rejeu de l'ExoPlayer. Un
+`PlaybackEngineController` commun possède :
+
+- la fabrique d'ExoPlayer paramétrée par `PlaybackRepairPlan` ;
+- le `MediaItem`, la position à restaurer et l'état de lecture ;
+- la qualification des `PlaybackException` ;
+- les pistes disponibles et leurs empreintes stables ;
+- le cycle stop/release/rebuild/prepare ;
+- les callbacks UI neutres (`Loading`, `Playing`, `FinalFailure`).
+
+La couche Compose observe cet état mais ne décide ni de l'étape suivante ni du
+profil à persister. Le contrôleur conserve le même `MediaSource.Factory` réseau
+ou cache hors ligne que le lecteur d'origine.
+
+## 8.3 Qualification des erreurs
+
+`PlaybackFailureClassifier` mappe les codes Media3 et, lorsqu'elle est
+disponible, la `ExoPlaybackException` :
+
+- `DECODER_INIT`, `DECODING_FAILED`, `AUDIO_TRACK_INIT_FAILED`, format non
+  supporté et erreur renderer → `DECODER` ;
+- timeout HTTP, code de réponse, DNS, source introuvable → `NETWORK_SOURCE` ;
+- `BEHIND_LIVE_WINDOW` → récupération live existante, hors T23 ;
+- défaut non qualifiable → `UNKNOWN`, sans déclenchement automatique pour éviter
+  de masquer une panne réseau par trois reconstructions coûteuses.
+
+Le classifieur retourne si possible le type de piste et un `TrackFingerprint`
+composé de `trackType`, `language`, `mimeType`, `codecs`, `channelCount`,
+`roleFlags` et `label`. Aucun index de `TrackGroup` n'est persisté : il peut
+changer entre deux ouvertures.
+
+## 8.4 Machine d'états de réparation
+
+Séquence maximale pour une erreur de décodage :
+
+1. `SOFTWARE_PREFERRED` ;
+2. même stratégie avec la piste fautive désactivée par
+   `TrackSelectionParameters` ;
+3. piste fautive réactivée si nécessaire et sélection de la première piste
+   audio différente, ordonnée par préférence de langue existante puis par
+   support codec.
+
+Chaque essai repart du même `MediaItem` et restaure :
+
+- VOD/épisode/téléchargement : `min(positionAvantErreur, duration-2s)` ;
+- direct : position par défaut/live edge, sauf si F41 fournit une position de
+  tampon valide ;
+- `playWhenReady` et vitesse de lecture existants.
+
+Un essai est déclaré réussi après `STATE_READY` puis trois secondes sans
+nouvelle erreur renderer (ou après le premier rendu vidéo et une sortie audio
+observables si ces callbacks sont disponibles). Timeout : 8 secondes par
+essai, 24 secondes maximum pour la séquence. Le timeout est annulé dès que la
+coroutine de lecture est annulée ou que l'utilisateur ferme le lecteur.
+
+Un profil mémorisé est essayé directement lors d'une nouvelle lecture. S'il
+échoue, il est supprimé puis la séquence repart depuis la stratégie par défaut ;
+une mise à jour système ou un changement de pistes se répare donc sans bouton
+« oublier ».
+
+## 8.5 Persistance locale
+
+Nouvelle entité :
+
+```kotlin
+@Entity(
+    tableName = "playback_repair_profiles",
+    foreignKeys = [ForeignKey(
+        entity = MediaRefEntity::class,
+        parentColumns = ["mediaUid"],
+        childColumns = ["mediaUid"],
+        onDelete = ForeignKey.CASCADE
+    )],
+    indices = [Index("mediaUid", unique = true)]
+)
+data class PlaybackRepairProfileEntity(
+    @PrimaryKey val mediaUid: Long,
+    val decoderStrategy: String,
+    val disabledTrackJson: String?,
+    val preferredAudioJson: String?,
+    val updatedAt: Long,
+    val schemaVersion: Int = 1
+)
+```
+
+`mediaUid` apporte déjà l'isolation `accountKey + kind + providerId` et évite
+les collisions entre deux panels. La table n'a pas de `profileId` et n'est pas
+ajoutée à la synchronisation cloud. Elle est créée dans la prochaine migration
+Room disponible, avec son DAO et son repository. `MediaRefDao.purgeUnreferenced`
+doit inclure cette nouvelle table.
+
+## 8.6 Coordination F40 et F39
+
+Un seul `PlaybackRecoveryCoordinator` arbitre :
+
+- erreur réseau/instabilité live → F40 peut changer de variante ;
+- erreur de décodage → T23 tente de réparer la variante courante ;
+- T23 épuisé sur live automatique → F40 passe à la variante suivante ;
+- changement explicite F39 → la cible bénéficie de T23 ; le rollback F39
+  n'intervient qu'après l'échec final du moteur, pas au premier renderer error.
+
+Chaque changement de média/variante réinitialise la machine en mémoire. Un
+identifiant de tentative monotonique protège contre les callbacks tardifs d'un
+ExoPlayer déjà libéré.
+
+## 8.7 Sécurité, performance et observabilité
+
+- aucune URL, piste ou codec du catalogue dans les logs de production ; seuls
+  type d'erreur, numéro d'étape, durée et résultat sont journalisés ;
+- une seule instance ExoPlayer active : l'ancienne est libérée avant la
+  reconstruction ;
+- les `TrackSelectionOverride` sont recalculés à partir de l'empreinte, jamais
+  réutilisés avec un `TrackGroup` obsolète ;
+- la base ne stocke aucun secret et les profils sont bornés à une ligne par
+  `mediaUid` ;
+- la séquence ne se déclenche jamais sur une simple mise en mémoire tampon.
+
+## 8.8 Tests automatisés
+
+Tests JVM purs : classification des erreurs, ordre des plans, timeout,
+annulation, succès mémorisé, profil obsolète, absence de piste alternative,
+position restaurée, interaction T23/F40 et rollback F39. `FakePlaybackEngine`
+émet `Ready`, `RendererFailure` et `SourceFailure` de façon déterministe.
+
+Les détails Media3 non exécutables en JVM sont contenus dans des adapters minces
+et validés par compilation. Les critères de validation du ticket ne réclament
+ni appareil, ni émulateur, conformément à `AGENTS.md`.
+
+## 8.9 Fichiers impactés ou nouveaux
+
+**Nouveaux** : `presentation/player/core/PlaybackEngineController.kt`,
+`PlaybackRecoveryCoordinator.kt`, `PlaybackFailureClassifier.kt`,
+`domain/model/PlaybackRepairPlan.kt`, entité/DAO/repository
+`PlaybackRepairProfile*`, migration et tests.
+
+**Modifiés** : `ExoPlayerCore.kt`, `PlayerDecoderPolicy.kt`, `PlayerScreen.kt`,
+`VodPlayerScreen.kt`, `SeriesPlayerScreen.kt`, `AppDatabase.kt`,
+`Migrations.kt`, `AppModule.kt`, `MediaRefDao.kt`, règles R8 seulement si un
+nouveau type réfléchi est introduit (a priori aucune).
+
+Aucune nouvelle dépendance Gradle : Media3 et NextLib déjà présents suffisent.
 
 ---
 
 # 9. Architecture
 
-_À compléter — étape 3._
+## 9.1 États
+
+```mermaid
+stateDiagram-v2
+    [*] --> DefaultPlayback
+    DefaultPlayback --> Software: Decoder error
+    Software --> TrackDisabled: Failure
+    TrackDisabled --> AlternateAudio: Failure
+    Software --> Stable: Ready 3s
+    TrackDisabled --> Stable: Ready 3s
+    AlternateAudio --> Stable: Ready 3s
+    AlternateAudio --> FinalFailure: Failure or timeout
+    Stable --> [*]
+```
+
+## 9.2 Responsabilités
+
+- **Engine factory** : construit exactement une instance selon un plan.
+- **Failure classifier** : distingue décodage, source, live-window et inconnu.
+- **Recovery coordinator** : machine d'états, délais, restauration et arbitrage
+  avec F39/F40.
+- **Repair repository** : mémorisation appareil+média, sans logique de lecture.
+- **Compose** : affichage du chargement et du message final, sans jargon.
+
+## 9.3 Risques
+
+- certains appareils remontent des erreurs trop génériques : dans ce cas T23 ne
+  s'active pas automatiquement plutôt que de retarder toutes les pannes réseau ;
+- forcer FFmpeg vidéo peut reproduire l'image corrompue B16 : stratégie de
+  dernier recours seulement et succès confirmé par stabilité, jamais nouveau
+  défaut global ;
+- les pistes peuvent changer : empreinte tolérante et invalidation immédiate du
+  profil mémorisé ;
+- trois reconstructions sont coûteuses : budget total borné à 24 secondes et
+  annulation stricte à la sortie du lecteur.
 
 ---
 

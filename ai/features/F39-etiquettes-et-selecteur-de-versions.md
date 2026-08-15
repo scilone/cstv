@@ -3,7 +3,7 @@
 ## Informations générales
 
 Status:
-SPECIFICATION
+ARCHITECTURE
 
 Created:
 2026-08-15
@@ -100,10 +100,13 @@ premier coup), le sélecteur en aval (corriger sans perdre sa place).
 
 # 6. Questions ouvertes
 
-| Question | À trancher à l'étape |
+| Point traité à l'étape 3 | Décision |
 |---|---|
-| Où mémoriser la version préférée d'une série : extension de `TrackPreferenceEntity` ou nouvelle table ? | 3 |
-| Faut-il masquer le bouton « Version » ou l'afficher désactivé quand une seule version existe pour l'œuvre en cours ? | 3 |
+| Préférence de série | Nouvelle table `series_version_preferences`, indexée par profil et clé de liaison. `TrackPreferenceEntity` reste dédiée aux langues audio/sous-titres d'un média précis. |
+| Une seule version | Le bouton « Version » est masqué. Un contrôle désactivé n'apporte aucune action et alourdit la navigation D-pad. |
+| Épisode équivalent | Une version de série n'est sélectionnable que si elle contient le même couple saison/épisode ; les versions incomplètes sont filtrées avant affichage. |
+
+Aucune question bloquante ne reste ouverte pour l'étape 4.
 
 ---
 
@@ -212,13 +215,186 @@ premier coup), le sélecteur en aval (corriger sans perdre sa place).
 
 # 8. Spécification technique
 
-_À compléter — étape 3._
+## 8.1 Contrat fourni par T21
+
+F39 consomme exclusivement `linkKey`, `releaseYear`, `languageTag` et
+`qualityTag` persistés par T21. Aucun parsing du libellé Xtream n'est autorisé
+dans les écrans ou le lecteur.
+
+Les modèles `VodStream`, `SeriesStream` et les projections de cartes exposent un
+`MediaVersionLabel(language, quality)`. Le formatage (`VF`, `VOSTFR`, `4K`...)
+est centralisé dans un mapper UI et n'utilise jamais le fragment brut pour la
+V1 ; le fragment brut reste disponible pour diagnostic/évolutions.
+
+## 8.2 Accès aux versions
+
+Nouvelles requêtes DAO, indexées par `linkKey` :
+
+```sql
+SELECT * FROM vod_streams
+WHERE linkKey = :linkKey
+  AND (:year IS NULL OR :year <= 0 OR releaseYear IS NULL
+       OR releaseYear <= 0 OR releaseYear = :year)
+ORDER BY qualityRank DESC, streamId ASC;
+```
+
+Le rang qualité est calculé côté Kotlin depuis `qualityTag` pour ne pas ajouter
+une septième colonne T21 ; les groupes ne contiennent que quelques lignes. Les
+séries utilisent la même règle dans `SeriesDao`.
+
+Pour un épisode, `SeriesVersionResolver` :
+
+1. charge les séries compatibles par `linkKey` et année ;
+2. demande à `SeriesDao` l'épisode de même `seasonNum + episodeNum` pour chaque
+   série candidate ;
+3. élimine les candidates sans épisode équivalent ;
+4. construit un `PlayableVersion` avec l'URL Xtream et les attributs d'affichage.
+
+Cette résolution est locale et ne déclenche pas `get_series_info` pendant la
+lecture. Une série dont les épisodes ne sont pas encore en cache n'est donc pas
+proposée jusqu'à l'ouverture/enrichissement normal de sa fiche.
+
+## 8.3 Persistance de la préférence série
+
+```kotlin
+@Entity(
+    tableName = "series_version_preferences",
+    primaryKeys = ["profileId", "linkKey"],
+    foreignKeys = [ForeignKey(
+        entity = ProfileEntity::class,
+        parentColumns = ["id"],
+        childColumns = ["profileId"],
+        onDelete = ForeignKey.CASCADE
+    )],
+    indices = [Index("profileId"), Index("linkKey")]
+)
+data class SeriesVersionPreferenceEntity(
+    val profileId: Int,
+    val linkKey: String,
+    val preferredSeriesId: Int,
+    val updatedAt: Long
+)
+```
+
+La préférence est locale et par profil, cohérente avec la décision produit.
+Elle n'est pas synchronisée tant qu'aucun namespace cloud correspondant n'est
+spécifié. Si la série préférée ou l'épisode équivalent n'existe plus, le
+resolver retombe sur la série ouverte et supprime paresseusement la préférence
+obsolète.
+
+## 8.4 Badges dans les listes
+
+Les projections `VodStreamListRow` et `SeriesStreamListRow` sélectionnent les
+deux tags T21. Le mapper construit zéro, un ou deux badges dans l'ordre langue
+puis qualité. Les cartes communes de l'accueil, catalogue, recherche et favoris
+reçoivent la même liste de badges afin d'éviter quatre implémentations
+divergentes.
+
+Les badges n'ajoutent aucune requête par carte. Les données viennent de la
+projection couvrante/du flux de liste existant. L'index couvrant T9 n'est pas
+élargi par F39 : T21 décide explicitement des colonnes de projection, et le coût
+est vérifié avec `EXPLAIN QUERY PLAN` avant livraison. Si l'ajout fait perdre la
+couverture de l'onglet « Tout », l'index T9 est étendu une seule fois dans la
+migration T21.
+
+## 8.5 Sélecteur et bascule transactionnelle
+
+`VersionSelectorSheet` réutilise le composant et le focus des sélecteurs audio
+et sous-titres. Il reçoit une liste déjà résolue ; la version active est
+identifiée par son identifiant fournisseur, pas par son libellé.
+
+`MediaVersionSwitchController` réalise la bascule :
+
+1. capture média courant, position, `playWhenReady`, vitesse et préférences de
+   pistes ;
+2. prépare la cible sans effacer cet instantané ;
+3. attend `STATE_READY` avec un timeout de 8 secondes ; T23 peut exécuter sa
+   réparation dans ce délai global avant de conclure à l'échec ;
+4. obtient la durée réelle et cherche à
+   `min(positionSource, max(0, durationCible-2s))` ;
+5. après trois secondes stables, valide la cible et, pour une série, persiste la
+   préférence ;
+6. sur échec, reconstruit la source précédente et restaure sa position ; la
+   préférence n'est jamais modifiée.
+
+Une génération de switch empêche une réponse tardive de la cible A d'écraser
+une cible B choisie ensuite. Pendant le chargement, le sélecteur est fermé et
+les nouveaux changements sont ignorés jusqu'au succès/rollback.
+
+## 8.6 Intégration des lecteurs
+
+- `VodPlayerScreen` obtient les versions via un `VodVersionsViewModel` ou le
+  ViewModel VOD existant et délègue la bascule au contrôleur partagé ;
+- `SeriesPlayerScreen` résout l'épisode équivalent et applique la préférence de
+  série avant de construire le premier `MediaItem` ;
+- le lecteur hors ligne reçoit `versionsEnabled = false`, donc ne crée ni
+  requête DAO ni bouton ;
+- un groupe de zéro/une candidate masque le bouton ; deux candidates ou plus
+  l'affichent.
+
+## 8.7 Performance, compatibilité et erreurs
+
+- toutes les requêtes de groupe passent par l'index `linkKey` de T21 ;
+- aucune pagination : un plafond défensif de 20 versions protège d'une clé
+  anormalement large, avec log agrégé ;
+- aucune nouvelle dépendance ;
+- les médias favoris ou historiques reconstruits depuis `MediaRef` doivent
+  rejoindre leur entité catalogue pour obtenir les tags et la clé ; sans ligne
+  catalogue, ils restent lisibles mais sans badges/sélecteur ;
+- le message de rollback est une ressource localisée et ne contient aucun
+  détail réseau ou codec.
+
+## 8.8 Tests automatisés
+
+Tests DAO SQLite des groupes, années, ordre et épisode équivalent ; tests du
+resolver de préférence obsolète ; tests des badges 0/1/2 ; tests purs du
+switch controller (succès, durée plus courte, timeout, rollback, double clic,
+interaction T23) ; tests de ViewModel mobile/TV sans appareil.
+
+## 8.9 Fichiers impactés ou nouveaux
+
+**Nouveaux** : `SeriesVersionPreferenceEntity.kt`, DAO/repository associé,
+`SeriesVersionResolver.kt`, `MediaVersionSwitchController.kt`,
+`VersionSelectorSheet.kt` et tests.
+
+**Modifiés** : `AppDatabase.kt`, `Migrations.kt`, `AppModule.kt`, `VodDao.kt`,
+`SeriesDao.kt`, `CatalogListRow.kt`, modèles VOD/série, mappers repositories,
+cartes partagées des listes, `VodPlayerScreen.kt`, `SeriesPlayerScreen.kt`,
+ViewModels VOD/série, ressources `strings.xml` FR/EN et tests existants.
 
 ---
 
 # 9. Architecture
 
-_À compléter — étape 3._
+## 9.1 Flux de lecture
+
+```mermaid
+flowchart TD
+    A["Média courant"] --> B["DAO par linkKey"]
+    B --> C["Filtre année / épisode"]
+    C --> D["VersionSelectorSheet"]
+    D --> E["SwitchController"]
+    E -->|Ready| F["Valider + préférence série"]
+    E -->|Échec| G["Restaurer source et position"]
+```
+
+## 9.2 Responsabilités
+
+- **T21/DAO** : identité des groupes et attributs ;
+- **Resolvers** : compatibilité année, présence de l'épisode et préférence ;
+- **UI** : badges et choix, aucune orchestration réseau ;
+- **Switch controller** : transaction de lecture et rollback ;
+- **Repository de préférence** : état profil+série uniquement.
+
+## 9.3 Dépendances et risques
+
+- T21 est strictement bloquant ;
+- le montage de deux versions peut différer : le seek est borné mais aucun
+  recalage sémantique n'est possible en V1 ;
+- une série alternative incomplète est volontairement masquée pour l'épisode
+  courant ;
+- la bascule doit rester compatible avec T23 : un seul contrôleur de moteur,
+  pas deux listeners concurrents.
 
 ---
 

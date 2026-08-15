@@ -3,7 +3,7 @@
 ## Informations générales
 
 Status:
-SPECIFICATION
+ARCHITECTURE
 
 Created:
 2026-08-15
@@ -99,10 +99,14 @@ permet à l'utilisateur averti d'en faire son défaut.
 
 # 6. Questions ouvertes
 
-| Question | À trancher à l'étape |
+| Point traité à l'étape 3 | Décision |
 |---|---|
-| Comment ordonner deux variantes dont les attributs sont identiques (ex. deux flux « HD ») ? | 3 |
-| Faut-il masquer le bouton « Qualité » ou l'afficher désactivé quand une chaîne n'a aucune variante ? | 3 |
+| Variantes de même qualité | Ordre stable : rang qualité décroissant, puis `num`, puis `streamId`. En mode automatique, une variante déjà essayée ne l'est plus durant la session, même si son étiquette est identique. |
+| Chaîne sans variante | Le bouton « Qualité » est masqué lorsqu'il n'existe qu'un flux exploitable. |
+| T23 | Une erreur de décodage est réparée par T23 sur la variante courante ; une erreur réseau ou l'épuisement de T23 autorise F40 à passer à la variante suivante. |
+| F41 | Toute bascule de qualité clôt et purge le tampon local courant, puis démarre un nouveau tampon au direct sur la nouvelle variante. Deux encodages ne sont pas concaténés dans une même fenêtre temporelle. |
+
+Aucune question bloquante ne reste ouverte pour l'étape 4.
 
 ---
 
@@ -228,13 +232,173 @@ permet à l'utilisateur averti d'en faire son défaut.
 
 # 8. Spécification technique
 
-_À compléter — étape 3._
+## 8.1 Résolution et ordre des variantes
+
+`LiveVariantRepository` interroge `LiveTvDao` par `linkKey` T21 et retourne des
+`LiveVariant` contenant flux, qualité normalisée, rang et identité stable.
+
+Ordre déterministe :
+
+1. `UHD_4K > FHD > HD > SD > UNKNOWN` ;
+2. numéro de chaîne `num` croissant (`0`/absent en dernier) ;
+3. `streamId` croissant.
+
+Deux variantes portant la même qualité restent deux candidates distinctes. Un
+`attemptedStreamIds` de session interdit toute oscillation ou nouvel essai d'un
+flux déjà rejeté. Une liste d'une seule candidate masque le bouton et désactive
+la machine automatique sans état d'erreur.
+
+## 8.2 État de session
+
+`LiveQualitySession` est créé à chaque ouverture de chaîne logique :
+
+```kotlin
+data class LiveQualitySession(
+    val linkKey: String,
+    val mode: QualityMode,
+    val candidates: List<LiveVariant>,
+    val attempted: Set<Int>,
+    val measurements: Map<Int, VariantMeasurement>,
+    val automaticDisabledByUser: Boolean
+)
+```
+
+Il ne survit ni au zapping ni à la fermeture du lecteur. Le choix manuel met
+`automaticDisabledByUser = true` pour cette session seulement et ne modifie pas
+le réglage global.
+
+Le réglage `liveQualityModeDefault` est stocké dans `SettingsManager` sous forme
+de booléen/enum stable, exposé par `SettingsState` et modifiable dans
+`SettingsScreen`. Il n'est pas lié au profil et s'applique aux prochaines
+ouvertures.
+
+## 8.3 Mesure de stabilité
+
+`LiveStabilityMonitor`, branché sur un unique `Player.Listener`, mesure :
+
+- succès d'ouverture (`STATE_READY`) et délai d'ouverture ;
+- transitions vers `STATE_BUFFERING` après le premier `READY` ;
+- durée cumulée de buffering ;
+- erreur finale qualifiée par `PlaybackFailureClassifier` T23.
+
+Une deque d'horodatages monotoniques conserve uniquement les événements des
+120 dernières secondes. Le cinquième buffering déclenche un repli. Les
+transitions initiales `IDLE → BUFFERING → READY` ne comptent pas comme coupure.
+Deux événements séparés par moins de 500 ms sont fusionnés pour absorber les
+callbacks dupliqués.
+
+## 8.4 Machine automatique
+
+1. ouvre la première candidate triée ;
+2. sur erreur réseau/source ou seuil 5/120 s, clôt sa mesure et sélectionne la
+   candidate non essayée suivante ;
+3. sur erreur de décodage, délègue à T23 ; F40 n'avance qu'après son échec final ;
+4. ne remonte jamais en qualité et ne réessaie jamais un `streamId` ;
+5. après épuisement, choisit la « moins mauvaise » par score lexicographique :
+   `a atteint READY` d'abord, puis moins de coupures, puis moindre durée de
+   buffering, puis meilleur délai d'ouverture, puis rang qualité ;
+6. réouvre cette candidate une seule fois. Si elle échoue totalement, le message
+   d'erreur standard du lecteur est affiché.
+
+Chaque tentative porte un token de génération. Les callbacks de l'ancien flux
+sont ignorés après la bascule. Un cooldown de 3 secondes après `READY` évite de
+compter les transitions induites par la reconstruction elle-même.
+
+## 8.5 Bascule manuelle et UI
+
+`QualitySelectorSheet` réutilise les patterns de focus du lecteur. La variante
+active est identifiée par `streamId`; les doublons de libellé sont conservés
+dans l'ordre stable. Le choix manuel :
+
+- invalide la machine automatique de la session ;
+- arrête l'ancienne source ;
+- demande au contrôleur de lecture partagé de préparer la nouvelle ;
+- affiche le chargement existant et ne conserve aucune position live ;
+- en cas d'échec, laisse le comportement d'erreur existant, sans lancer un
+  autre repli automatique puisque l'utilisateur a explicitement repris la main.
+
+Le toast/snackbar de repli automatique est une ressource brève localisée, par
+exemple « Qualité réduite pour stabiliser la lecture », sans nom de codec ni
+URL.
+
+## 8.6 Coordination avec T23 et F41
+
+`PlaybackRecoveryCoordinator` est l'unique arbitre d'une erreur :
+
+- `NETWORK_SOURCE` ou instabilité → F40 ;
+- `DECODER` → T23, puis F40 si aucune réparation ne réussit ;
+- `BEHIND_LIVE_WINDOW` → retour au direct/F41, pas changement de qualité.
+
+Une bascule F40 appelle `TimeshiftSession.close(PURGE)` avant de préparer le
+nouveau flux. Une fois la variante `READY`, F41 crée un nouveau tampon. La barre
+timeshift revient donc au direct avec une fenêtre vide ; concaténer des segments
+de bitrate, codec ou timestamps différents est explicitement interdit en V1.
+
+## 8.7 Performance, logs et compatibilité
+
+- requête locale indexée par `linkKey`, plafond défensif de 20 variantes ;
+- aucune persistance de mesures et aucune nouvelle table ;
+- structures de mesure bornées (deque maximale pratique de quelques dizaines
+  d'événements) ;
+- logs agrégés par `streamId` hashé : raison, rang, temps d'ouverture, coupures,
+  résultat ; aucune URL/identifiant de connexion ;
+- pas de nouvelle dépendance ; mobile et TV partagent ViewModel/controller, seul
+  le composant de focus diffère déjà dans l'UI.
+
+## 8.8 Tests automatisés
+
+Tests DAO de groupement/ordre ; tests de la fenêtre 5/120 s et fusion 500 ms ;
+machine auto avec erreurs, doublons, épuisement et score ; choix manuel qui coupe
+l'automatisme ; nouvelle session qui repart de la meilleure ; coordination
+T23/F41 ; tests de `SettingsViewModel`. Tout le temps passe par un `Clock` faux.
+
+## 8.9 Fichiers impactés ou nouveaux
+
+**Nouveaux** : `LiveVariantRepository.kt`, `LiveQualitySession.kt`,
+`LiveStabilityMonitor.kt`, `LiveQualityController.kt`,
+`QualitySelectorSheet.kt` et tests.
+
+**Modifiés** : `LiveTvDao.kt`, `LiveTvRepository.kt`/impl,
+`LiveTvViewModel.kt`, `PlayerScreen.kt`, contrôleur de lecture partagé,
+`SettingsManager.kt`, `SettingsState.kt`, `SettingsViewModel.kt`,
+`SettingsScreen.kt`, ressources FR/EN et tests associés.
 
 ---
 
 # 9. Architecture
 
-_À compléter — étape 3._
+## 9.1 Orchestration
+
+```mermaid
+stateDiagram-v2
+    [*] --> BestVariant
+    BestVariant --> Stable: READY
+    BestVariant --> Repair: Decoder error
+    Repair --> Stable: T23 success
+    Repair --> LowerVariant: T23 exhausted
+    Stable --> LowerVariant: 5 buffers / 120s
+    LowerVariant --> Stable: READY
+    LowerVariant --> LeastBad: Candidates exhausted
+    LeastBad --> [*]
+```
+
+## 9.2 Responsabilités
+
+- **Variant repository** : groupe et ordre ;
+- **Stability monitor** : événements Media3, sans décision de produit ;
+- **Quality controller** : session, candidats, score et choix manuel ;
+- **Recovery coordinator** : exclusivité T23/F40/F41 ;
+- **UI** : sélection et message discret.
+
+## 9.3 Risques
+
+- faux positif de buffering : exclusion du démarrage, fusion et fenêtre
+  monotone ;
+- boucle entre qualités : ensemble `attempted` et token de génération ;
+- toutes les variantes mauvaises : score déterministe puis une dernière
+  tentative bornée ;
+- perte du timeshift lors d'une bascule : choix explicite nécessaire pour
+  garantir la cohérence des timestamps et des codecs.
 
 ---
 

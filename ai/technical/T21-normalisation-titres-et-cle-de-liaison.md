@@ -3,7 +3,7 @@
 ## Informations générales
 
 Status:
-SPECIFICATION
+ARCHITECTURE
 
 Created:
 2026-08-15
@@ -114,13 +114,15 @@ par clé de liaison.
 
 # 6. Questions ouvertes
 
-| Question | À trancher à l'étape |
+| Point traité à l'étape 3 | Décision |
 |---|---|
-| Les colonnes ajoutées doivent-elles être indexées dès la V1, ou seulement quand F39/F40 les interrogeront ? | 3 |
-| Le recalcul en migration se fait-il en SQL pur ou en Kotlin (lecture/écriture par lots) ? | 3 |
-| `TitleNormalizer` est-il étendu ou remplacé par un nouveau composant, et que devient l'appariement TMDB existant ? | 3 |
-| La clé de liaison films/séries est-elle une valeur unique par entrée (titre seul, transitive, avec le filtrage par année appliqué uniquement à la lecture par F39/F40), ou une valeur qui encode l'année quand elle est connue (groupes strictement séparés en base, mais alors une entrée sans année ne rejoint plus naturellement les deux) ? La règle produit « année absente n'empêche pas le regroupement » n'est pas transitive quand une entrée sans année sert de pont entre deux années différentes — impacte le modèle de données (voir 7.4). | 3 |
-| Comment départager deux marqueurs de la même catégorie présents simultanément dans un libellé (ex. un flux étiqueté à la fois « HD » et « 4K ») : le plus qualitatif prime-t-il toujours, ou est-ce un signe de libellé mal formé à traiter autrement ? | 3 |
+| Indexation | Les clés de liaison sont indexées dès T21 sur les trois tables. F39 et F40 en dépendent immédiatement et une livraison intermédiaire sans lecteur de clé ne justifie pas une seconde migration. |
+| Recalcul de l'existant | Migration Room en Kotlin, paginée par clé primaire et exécutée dans la transaction de migration ; SQLite ne dispose pas des expressions régulières nécessaires pour reproduire le parseur. |
+| Composant de normalisation | Un nouveau `MediaTitleParser` retourne un résultat structuré. `TitleNormalizer` devient une façade compatible qui délègue au parseur, puis les appelants sont migrés progressivement. |
+| Clé et année | `linkKey` encode uniquement le titre canonique. L'année reste une colonne séparée et le filtrage est appliqué par paire dans les DAO consommateurs : une année absente reste compatible, deux années connues différentes ne le sont pas. |
+| Marqueurs contradictoires | Règle déterministe : la valeur de rang le plus élevé est retenue, avec son fragment brut (`2160p/4K > FHD/1080p > HD/720p > SD`). Les autres fragments sont retirés du titre mais non persistés en V1. |
+
+Aucune question bloquante ne reste ouverte pour l'étape 4.
 
 ---
 
@@ -241,13 +243,209 @@ Pour chaque libellé source, dans cet ordre :
 
 # 8. Spécification technique
 
-_À compléter — étape 3._
+## 8.1 Choix structurants
+
+La normalisation devient un service de domaine pur, sans dépendance Android :
+
+- `MediaTitleParser.parse(rawTitle, mediaKind, releaseYear)` produit un
+  `ParsedMediaTitle` immuable ;
+- `TitleNormalizer.normalize()` est conservé comme façade de compatibilité et
+  délègue au nouveau parseur ;
+- le résultat est calculé aux frontières d'entrée du catalogue, puis stocké ;
+  aucun composable et aucun matcher ne reparsent le libellé brut ;
+- la liste des marqueurs et leur rang sont centralisés dans le parseur, pas
+  dupliqués dans les repositories ou les écrans.
+
+Types proposés :
+
+```kotlin
+data class ParsedMediaTitle(
+    val cleanTitle: String,
+    val linkKey: String,
+    val language: MediaLanguage?,
+    val languageRaw: String?,
+    val quality: MediaQuality?,
+    val qualityRaw: String?
+)
+
+enum class MediaQuality(val rank: Int) {
+    SD(10), HD(20), FHD(30), UHD_4K(40)
+}
+```
+
+Les valeurs Room sont des codes stables en minuscules (`vf`, `vostfr`,
+`multi`, `sd`, `hd`, `fhd`, `uhd_4k`) et non les noms Kotlin des enums, afin
+de permettre un renommage de code sans migration de données.
+
+## 8.2 Modèle Room
+
+Les colonnes suivantes sont ajoutées à `vod_streams`, `series_streams` et
+`live_streams` :
+
+| Colonne | Type | Règle |
+|---|---|---|
+| `cleanTitle` | `TEXT NOT NULL DEFAULT ''` | Titre d'affichage nettoyé ; repli sur le libellé source si le nettoyage produit moins de deux caractères. |
+| `linkKey` | `TEXT NOT NULL DEFAULT ''` | Clé canonique, non réversible, dérivée de `cleanTitle`. |
+| `languageTag` | `TEXT NULL` | Valeur normalisée de langue/version. |
+| `languageRaw` | `TEXT NULL` | Fragment exact extrait du libellé. |
+| `qualityTag` | `TEXT NULL` | Valeur normalisée de qualité. |
+| `qualityRaw` | `TEXT NULL` | Fragment exact extrait du libellé. |
+
+Un index simple `Index(value = ["linkKey"])` est créé sur chacune des trois
+tables. L'année n'est pas incluse dans l'index : les groupes sont petits et la
+règle de compatibilité avec une année absente ne se traduit pas par une clé
+composite correcte. Les index couvrants T9 existants restent inchangés pour ne
+pas multiplier leur taille ; seuls les champs `languageTag` et `qualityTag`
+sont ajoutés aux projections de listes qui doivent afficher les badges de F39.
+
+La clé est produite par : minuscules avec `Locale.ROOT`, décomposition Unicode
+NFD, suppression des diacritiques, ponctuation ramenée à un espace, espaces
+réduits, puis SHA-256 tronqué à 128 bits encodé en hexadécimal. Le titre
+canonique n'est donc pas dupliqué dans chaque index. Une clé de singleton
+défensive utilise le préfixe `invalid:` suivi du type et de l'identifiant
+fournisseur lorsque le titre est vide ou invalide.
+
+## 8.3 Règle de compatibilité des années
+
+`linkKey` reste transitive et indépendante de l'année. Les requêtes de versions
+chargent les quelques lignes partageant la clé, puis appliquent :
+
+```kotlin
+fun yearsAreCompatible(left: Int?, right: Int?): Boolean =
+    left == null || left <= 0 || right == null || right <= 0 || left == right
+```
+
+Le filtre est toujours évalué contre le média courant, jamais entre tous les
+éléments du groupe. Ainsi, deux œuvres datées différemment ne se présentent pas
+l'une comme version directe de l'autre, tandis qu'une entrée non datée peut
+rejoindre une entrée datée conformément à la décision produit. Cette limite
+non transitive est couverte par des tests explicites et ne doit pas être
+transformée en regroupement global en mémoire.
+
+## 8.4 Écriture pendant les synchronisations
+
+Les mappers de `LiveTvRepositoryImpl`, `VodRepositoryImpl` et
+`SeriesRepositoryImpl` appellent le parseur avant de construire les entités.
+Les méthodes `insertStreamsWithFts` continuent de réaliser une seule écriture
+transactionnelle ; la normalisation est effectuée hors transaction sur
+`Dispatchers.Default`, puis les entités prêtes sont insérées par lots.
+
+Les enrichissements ultérieurs (`get_vod_info`, `get_series_info`) ne recalculent
+pas le titre lorsqu'ils ajoutent `releaseYear`. La clé ne change pas ; seule la
+compatibilité par année est évaluée à la lecture. Cela évite de déplacer un
+média entre groupes au milieu d'une session.
+
+## 8.5 Migration Room 28 → 29
+
+`MIGRATION_28_29` :
+
+1. ajoute les six colonnes avec leurs valeurs par défaut ;
+2. crée les trois index `linkKey` ;
+3. parcourt chaque table par pages de 500 lignes, ordonnées par clé primaire ;
+4. calcule `ParsedMediaTitle` en Kotlin et met à jour chaque page avec un
+   `SupportSQLiteStatement` préparé réutilisable ;
+5. laisse la transaction Room englober l'ensemble de la migration : aucune base
+   partiellement normalisée ne devient visible.
+
+Le parcours par clé (`WHERE streamId > ? ORDER BY streamId LIMIT 500`, ou
+`seriesId`) évite `OFFSET` et les gros `CursorWindow`. Aucune erreur d'une ligne
+ne doit annuler le reste du lot : le repli défensif produit le titre source et
+une clé singleton. La migration ne fait aucun appel réseau et ne touche ni aux
+favoris, ni aux positions, ni aux téléchargements.
+
+Budget de performance : le parseur ne compile aucune regex par ligne, toutes les
+expressions sont précompilées. Cible indicative sur un catalogue de 100 000
+entrées : moins de 10 secondes sur un appareil bas de gamme ; au-delà de
+30 secondes sur le benchmark JVM/SQLite de référence, l'implémentation doit être
+optimisée avant livraison, sans basculer vers une migration asynchrone qui
+laisserait les colonnes incohérentes.
+
+## 8.6 Appariement TMDB
+
+`TmdbCatalogMatcher.CatalogCandidate` reçoit `normalizedTitle` depuis les
+modèles persistés. `prepareMovies` et `prepareSeries` ne doivent plus appeler
+`TitleNormalizer` pour les données Room. Une surcharge interne conservée pour
+les tests ou les objets externes peut encore parser une valeur brute, mais elle
+n'est jamais utilisée par le chemin catalogue de production.
+
+`ApproximateTitleMatcher` reste inchangé. L'année continue d'être fournie par
+`releaseYear` avec le repli historique `yearFromTitle` uniquement lorsque la
+colonne n'a pas encore été enrichie ; ce repli n'affecte pas `linkKey`.
+
+## 8.7 Compatibilité, sécurité et observabilité
+
+- aucune donnée IPTV n'est envoyée au backend ; le traitement reste local ;
+- aucune nouvelle dépendance Gradle ;
+- les codes d'attribut inconnus sont ignorés, jamais désérialisés par `enumValueOf` ;
+- un compteur debug agrégé (`parsed`, `fallback`, `multipleMarkers`) peut être
+  journalisé sans inclure les titres ni les URLs ;
+- la migration est couverte par un test SQLite réel et la création fraîche par
+  un test de schéma Room/SQL selon le patron existant.
+
+## 8.8 Fichiers impactés ou nouveaux
+
+**Nouveaux**
+
+- `domain/model/MediaTitleParser.kt`
+- `domain/model/ParsedMediaTitle.kt`
+- `domain/model/MediaLanguage.kt`
+- `domain/model/MediaQuality.kt`
+- tests unitaires associés et `Migration28To29SqlTest.kt`
+
+**Modifiés**
+
+- `domain/model/TitleNormalizer.kt`
+- `domain/model/TmdbCatalogMatcher.kt`
+- `domain/model/LiveStream.kt`, `VodStream.kt`, `SeriesStream.kt`
+- `data/local/entity/LiveStreamEntity.kt`, `VodStreamEntity.kt`,
+  `SeriesStreamEntity.kt`
+- `data/local/dao/LiveTvDao.kt`, `VodDao.kt`, `SeriesDao.kt`,
+  `CatalogListRow.kt`
+- `data/local/db/AppDatabase.kt`, `Migrations.kt`
+- `data/repository/LiveTvRepositoryImpl.kt`, `VodRepositoryImpl.kt`,
+  `SeriesRepositoryImpl.kt`
+- les tests de mapping, DAO et synchronisation existants concernés.
 
 ---
 
 # 9. Architecture
 
-_À compléter — étape 3._
+## 9.1 Flux de données
+
+```mermaid
+flowchart TD
+    A["DTO Xtream"] --> B["MediaTitleParser"]
+    B --> C["Entité enrichie"]
+    C --> D["Room + index linkKey"]
+    D --> E["F39 / F40"]
+    D --> F["TmdbCatalogMatcher"]
+```
+
+## 9.2 Responsabilités
+
+- **`MediaTitleParser`** : lexique, extraction, nettoyage, choix du marqueur
+  dominant et génération de la clé ; fonction pure et déterministe.
+- **Repositories catalogue** : orchestrent le calcul une fois, avant
+  persistance, sans contenir de règle de parsing.
+- **Room/DAO** : stockent et retrouvent les groupes par `linkKey`, puis exposent
+  l'année nécessaire à la compatibilité par paire.
+- **Consommateurs** : F39 et F40 choisissent les versions ; le matcher TMDB
+  consomme le titre déjà normalisé. Aucun consommateur ne reconstruit la clé.
+- **Migration** : applique exactement le même parseur que la synchronisation,
+  garantissant l'identité du résultat entre anciennes et nouvelles lignes.
+
+## 9.3 Dépendances et risques
+
+- dépendance fonctionnelle sortante vers F39, F40 et T22 ; aucune dépendance
+  logicielle nouvelle ;
+- risque principal : faux positif lorsqu'un marqueur appartient réellement au
+  titre. La délimitation stricte par token et les fixtures issues du catalogue
+  réel sont la protection V1 ;
+- risque de démarrage long pendant la migration, maîtrisé par pagination,
+  statements préparés et benchmark obligatoire ;
+- la non-transitivité de l'année est volontaire : toute tentative future de
+  matérialiser un groupe unique devra faire l'objet d'une nouvelle décision
+  produit.
 
 ---
 

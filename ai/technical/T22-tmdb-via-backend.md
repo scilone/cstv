@@ -3,7 +3,7 @@
 ## Informations générales
 
 Status:
-SPECIFICATION
+ARCHITECTURE
 
 Created:
 2026-08-15
@@ -98,14 +98,18 @@ Le backend existe déjà, avec authentification, quotas et durcissement HTTP
 
 # 6. Questions ouvertes
 
-| Question | À trancher à l'étape |
+| Point traité à l'étape 3 | Décision |
 |---|---|
-| Quelles durées de validité précises par type de donnée ? | 3 |
-| L'appariement titre/année reste-t-il calculé dans l'application (T21) avec un simple relais de recherche, ou passe-t-il entièrement côté serveur ? | 3 |
-| Migration de la clé TMDB vers les secrets de production (`~/.cstv-production.env`) et retrait de `local.properties`. | 3 |
-| Faut-il une règle `-keep` ProGuard pour la nouvelle interface Retrofit (obligation AGENTS.md) et un versionnage du contrat backend ? | 3 |
-| Durée exacte du cache local applicatif (décision étape 2 : « quelques heures ») et faut-il l'aligner sur les mêmes clés de cache que le serveur ou utiliser un TTL fixe indépendant ? | 3 |
-| Quel contrat de réponse quand le backend n'a pas d'enrichissement à fournir (TMDB indisponible en interne, œuvre non trouvée) : code HTTP dédié, champ « statut » explicite, ou réponse vide ? | 3 |
+| TTL serveur | Tendances et populaires : 6 h ; recherche/appariement : 7 j ; bandes-annonces : 7 j ; fiches et classifications : 30 j ; absence de résultat : 24 h. Une copie périmée peut être servie 7 jours de plus si TMDB est indisponible. |
+| Appariement | La normalisation et la sélection dans le catalogue IPTV restent locales (T21). Le backend résout uniquement la requête produit `type + titre + année` vers une identité média canonique et ses métadonnées. Aucun catalogue IPTV n'est envoyé au serveur. |
+| Secret TMDB | Clé exclusivement dans `TMDB_API_TOKEN` du backend et dans `~/.cstv-production.env`. Suppression du champ `BuildConfig.TMDB_API_KEY`, du provider Hilt et de toute lecture de `local.properties` côté app. |
+| Contrat et R8 | API versionnée sous `/v1/catalog`; nouvelle interface Retrofit `CstvCatalogApiService` avec règle `-keep` explicite. Les DTO n'exposent aucun nom de champ TMDB. |
+| Cache local | TTL fixe de 4 h, indépendant du TTL serveur. Il amortit une session et sert le mode dégradé sans dupliquer les règles de fraîcheur du fournisseur. |
+| Absence d'enrichissement | Réponse HTTP 200 avec `status = matched|not_found` et `item` nullable. Les pannes du fournisseur sont des 502/503 côté backend, ou une réponse cache périmée marquée `stale`; elles ne sont jamais confondues avec `not_found`. |
+
+Aucune question technique bloquante ne reste ouverte. La mise en production
+reste conditionnée au respect de la licence TMDB applicable au projet et à
+l'attribution officielle dans l'écran À propos.
 
 ---
 
@@ -195,13 +199,250 @@ clé TMDB dans l'APK.
 
 # 8. Spécification technique
 
-_À compléter — étape 3._
+## 8.1 Frontière de fournisseur
+
+Le backend introduit un port fournisseur :
+
+```php
+interface MediaMetadataProvider
+{
+    public function trending(string $locale): array;
+    public function popular(string $kind, int $page, string $locale): array;
+    public function match(string $kind, string $title, ?int $year, string $locale): ?array;
+    public function videos(string $canonicalId, string $locale): array;
+}
+```
+
+`TmdbMediaMetadataProvider` est le seul composant qui connaît les routes, les
+identifiants et les champs TMDB. Les actions HTTP, le cache et l'application ne
+manipulent que des modèles produit (`CatalogItem`, `MediaMatch`,
+`TrailerCandidate`, `AgeRating`). Le `canonicalId` retourné à l'app est une
+chaîne opaque versionnée ; l'app la persiste ou la retransmet sans l'interpréter.
+
+Le client HTTP serveur repose sur `ext-curl`, ajouté explicitement à
+`backend/composer.json` et à l'image/validation d'environnement. Aucun SDK TMDB
+tiers n'est ajouté. Connexion 3 s, timeout total 8 s, TLS obligatoire, deux
+tentatives maximum uniquement sur erreurs réseau/429/5xx avec backoff et jitter.
+La clé est envoyée en en-tête `Authorization: Bearer`, jamais dans les URLs ni
+les logs.
+
+## 8.2 Contrat HTTP CSTV
+
+Toutes les routes sont protégées par le middleware JWT existant :
+
+| Route | Usage |
+|---|---|
+| `GET /v1/catalog/trending?locale=fr-FR` | Tendances hebdomadaires. |
+| `GET /v1/catalog/popular?kind=movie|series&page=1&locale=fr-FR` | Populaires paginés. |
+| `POST /v1/catalog/matches` | Résolution d'une œuvre par `kind`, `title`, `year`, `locale`. |
+| `GET /v1/catalog/items/{canonicalId}/videos?locale=fr-FR` | Bande-annonce et vidéos candidates. |
+
+`POST /matches` évite les titres dans la query string et donc dans les access
+logs. Le backend normalise la clé de cache mais ne conserve pas de catalogue
+IPTV ni de relation utilisateur ↔ média.
+
+Réponse d'appariement :
+
+```json
+{
+  "status": "matched",
+  "item": {
+    "id": "opaque-id",
+    "kind": "movie",
+    "title": "Titre",
+    "originalTitle": "Original title",
+    "releaseYear": 2024,
+    "overview": "…",
+    "rating": 7.4,
+    "posterUrl": "https://…",
+    "backdropUrl": "https://…",
+    "ageRatingFr": 12
+  },
+  "cache": {"stale": false}
+}
+```
+
+`ageRatingFr` vaut `0`, `10`, `12`, `16`, `18` ou `null`. Les URLs d'images
+sont complètes, HTTPS et issues de la configuration fournisseur côté backend ;
+le contrat ne renvoie jamais `poster_path` ou une base URL TMDB.
+
+Les erreurs du fournisseur ne sont pas converties en `not_found` : si aucune
+copie périmée n'est disponible, le backend répond avec l'erreur CSTV
+`CATALOG_PROVIDER_UNAVAILABLE` (503) ou `CATALOG_PROVIDER_BAD_RESPONSE` (502).
+L'application mappe ces réponses vers l'absence silencieuse d'enrichissement.
+
+## 8.3 Cache serveur partagé
+
+Migration PostgreSQL `006_media_metadata_cache.sql` :
+
+```sql
+CREATE TABLE media_metadata_cache (
+    cache_key VARCHAR(255) PRIMARY KEY,
+    payload JSONB NOT NULL,
+    result_status VARCHAR(16) NOT NULL,
+    expires_at TIMESTAMPTZ NOT NULL,
+    stale_until TIMESTAMPTZ NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX media_metadata_cache_expiry_idx
+    ON media_metadata_cache (expires_at);
+```
+
+La clé est un SHA-256 de `contractVersion|operation|locale|arguments
+normalisés`. Le payload ne contient aucune donnée personnelle. Un verrou
+advisory PostgreSQL par `cache_key` empêche le *cache stampede* : un seul appel
+TMDB remplit une clé froide, les requêtes concurrentes relisent ensuite le
+résultat. Le traitement suit `fresh → refresh → stale-if-error → erreur`.
+
+TTL :
+
+| Donnée | TTL frais | Cache négatif |
+|---|---:|---:|
+| Tendances / populaires | 6 h | n/a |
+| Appariement titre + année | 7 j | 24 h |
+| Vidéos / bande-annonce | 7 j | 24 h |
+| Fiche / classification FR | 30 j | 24 h |
+
+Toute valeur positive peut être servie jusqu'à 7 jours après expiration en cas
+de panne fournisseur, avec `cache.stale = true`. Une tâche opportuniste purge
+les lignes dont `stale_until` est dépassé ; aucun cron n'est requis en V1.
+
+## 8.4 Cache et repositories Android
+
+Une interface Retrofit dédiée `CstvCatalogApiService` utilise le Retrofit CSTV
+existant (`@Named("cstv")`) et son authentification. Les DTO vivent dans
+`data/remote/dto/CatalogDtos.kt` et sont immédiatement mappés vers des modèles
+de domaine.
+
+Les repositories `TrendingRepositoryImpl`, `PopularRepositoryImpl` et
+`TrailerRepositoryImpl` ne dépendent plus de `TmdbApiService` ni d'une clé.
+Leurs caches existants sont conservés, renommés pour retirer `tmdb` de leurs
+clés, et utilisent un TTL positif fixe de 4 heures. Le cache négatif local des
+bandes-annonces est ramené à 4 heures ; le backend porte désormais le cache
+négatif long. Une réponse locale expirée n'est utilisée que pendant une erreur
+réseau dans la limite de 24 heures, marquée en mémoire comme donnée de repli.
+
+T21 reste responsable du titre canonique local et de l'appariement avec les
+entrées IPTV. Le backend retourne l'identité et les métadonnées de l'œuvre ;
+`TmdbCatalogMatcher` est renommé ultérieurement en `CatalogMatcher` ou reçoit
+des types fournisseur-neutres, mais l'algorithme de correspondance au catalogue
+reste dans l'application.
+
+## 8.5 Secret, configuration et build
+
+- `Config` ajoute `tmdbApiToken`, obligatoire en production, nullable en test
+  pour permettre un faux provider ;
+- `.env.example` ajoute `TMDB_API_TOKEN=` sans valeur ;
+- `~/.cstv-production.env` reçoit la vraie valeur via le processus de
+  déploiement, jamais via Git ;
+- `app/build.gradle.kts` supprime la lecture `TMDB_API_KEY` et le
+  `buildConfigField` correspondant ;
+- `TmdbApiService.kt`, `@TmdbApiKey` et `provideTmdbApiService` sont supprimés ;
+- `app/proguard-rules.pro` remplace la règle TMDB par une règle explicite pour
+  `CstvCatalogApiService` ;
+- l'API reste sous `/v1`; toute rupture future du schéma produit impose `/v2`
+  ou une nouvelle représentation compatible, jamais l'exposition du JSON TMDB.
+
+La documentation officielle TMDB impose l'attribution et distingue l'usage
+commercial de l'usage développeur. L'écran À propos doit conserver le logo et
+la mention officielle. La livraison commerciale nécessite la licence adaptée ;
+le relais serveur et ses TTL ne valent pas autorisation juridique implicite.
+
+## 8.6 Sécurité, quotas et observabilité
+
+- validation stricte de `kind`, `locale`, `page`, longueur de titre (200) et
+  plage d'année ;
+- rate limit par compte/IP sur `/matches` afin d'éviter que le backend ne
+  devienne un proxy arbitraire ;
+- `canonicalId` est validé par le codec interne et ne devient jamais une URL ;
+- logs structurés : opération, hit/miss/stale, durée, statut fournisseur,
+  jamais le token ni le titre brut ;
+- métriques minimales : taux de hit, appels sortants, 429/5xx, latence p95,
+  taille et ancienneté du cache ;
+- réponse `Cache-Control: private, max-age=300` au client : le cache applicatif
+  reste maître et aucun proxy partagé ne mélange les réponses authentifiées.
+
+## 8.7 Tests automatisés
+
+Backend : tests unitaires du mapping fournisseur, TTL, clés de cache et
+stale-if-error ; tests d'intégration PostgreSQL du verrou/cache ; tests
+fonctionnels des quatre routes avec faux provider, authentification, validation,
+`matched`, `not_found`, 502 et 503. Aucun test ne contacte TMDB.
+
+Android : tests des DTO/mappers, des repositories cache frais/périmé/repli, de
+l'absence d'appel direct, de la dégradation silencieuse et du matcher avec les
+types neutres. Le build release vérifie que `TMDB_API_KEY` et
+`api.themoviedb.org` ne sont plus présents dans les artefacts textuels générés.
+
+## 8.8 Fichiers impactés ou nouveaux
+
+**Backend nouveaux** : `Catalog/MediaMetadataProvider.php`,
+`Catalog/TmdbMediaMetadataProvider.php`, `Catalog/TmdbClient.php`,
+`Catalog/MediaMetadataCacheRepository.php`, `Catalog/CatalogService.php`,
+`Http/Action/CatalogAction.php`, migration `006_media_metadata_cache.sql` et
+tests associés.
+
+**Backend modifiés** : `composer.json`, `composer.lock`, `Bootstrap.php`,
+`Shared/Config.php`, `.env.example`, `openapi.yaml`, scripts/configuration de
+déploiement.
+
+**Android nouveaux** : `data/remote/api/CstvCatalogApiService.kt`,
+`data/remote/dto/CatalogDtos.kt`, modèles et mappers produit neutres.
+
+**Android modifiés/supprimés** : `AppModule.kt`, `build.gradle.kts`,
+`proguard-rules.pro`, `TrendingRepositoryImpl.kt`, `PopularRepositoryImpl.kt`,
+`TrailerRepositoryImpl.kt`, `TmdbCatalogMatcher.kt` et ses consommateurs ;
+suppression de `TmdbApiService.kt` et des DTO exclusivement fournisseur qui ne
+sont plus utilisés.
 
 ---
 
 # 9. Architecture
 
-_À compléter — étape 3._
+## 9.1 Flux nominal et dégradé
+
+```mermaid
+sequenceDiagram
+    participant App as Application
+    participant API as Backend CSTV
+    participant Cache as Cache PostgreSQL
+    participant Provider as TMDB
+    App->>API: Requête catalogue authentifiée
+    API->>Cache: Lecture de la clé normalisée
+    alt Cache frais
+        Cache-->>API: Payload produit
+    else Cache froid ou expiré
+        API->>Provider: Appel fournisseur
+        Provider-->>API: Réponse brute
+        API->>Cache: Modèle produit + TTL
+    else Fournisseur indisponible
+        Cache-->>API: Dernière valeur stale
+    end
+    API-->>App: Contrat CSTV fournisseur-neutre
+```
+
+## 9.2 Responsabilités
+
+- **Application** : cache court, affichage, dégradation silencieuse et
+  rapprochement avec le catalogue local T21 ; aucune connaissance de TMDB.
+- **Actions/Service catalogue** : validation, contrat HTTP et orchestration
+  cache/fournisseur ; aucune logique spécifique TMDB dans les contrôleurs.
+- **Provider TMDB** : traduction unique du fournisseur vers le modèle produit.
+- **Cache PostgreSQL** : mutualisation, verrou anti-stampede, cache négatif et
+  stale-if-error.
+- **Configuration** : secret et licence gérés au déploiement backend.
+
+## 9.3 Risques et garde-fous
+
+- quota/429 : cache partagé, verrou par clé, backoff borné et métriques ;
+- croissance PostgreSQL : payloads compacts, TTL, purge opportuniste et index
+  d'expiration ;
+- changement TMDB : seul l'adapter fournisseur change ; contrat `/v1/catalog`
+  et tests fonctionnels protègent l'app ;
+- indisponibilité backend : caches locaux puis absence d'enrichissement, jamais
+  blocage de navigation ou de lecture ;
+- conformité : attribution obligatoire et validation de la licence avant
+  production commerciale.
 
 ---
 

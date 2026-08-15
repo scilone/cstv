@@ -3,7 +3,7 @@
 ## Informations générales
 
 Status:
-SPECIFICATION
+ARCHITECTURE
 
 Created:
 2026-08-15
@@ -96,10 +96,16 @@ lors de la livraison.
 
 # 6. Questions ouvertes
 
-| Question | À trancher à l'étape |
+| Point traité à l'étape 3 | Décision |
 |---|---|
-| Le tampon survit-il à un changement de qualité déclenché par F40 sur la même chaîne ? | 3 |
-| Faisabilité réelle avec Media3 et le cache Media3 existant, sur flux HLS et flux TS bruts. | 3 |
+| Faisabilité Media3 | Le `SimpleCache` existant ne suffit pas : Media3 ne permet le seek que dans la fenêtre d'un live adaptatif, et un live progressif TS n'expose qu'une position. F41 nécessite un tampon/MediaSource dédié. |
+| Protocoles | Deux adapters : HLS conserve les segments et un manifeste local glissant ; TS brut écrit un anneau de paquets avec index PCR/PTS et le rejoue via une source timeshift dédiée. Aucun fichier de téléchargement permanent n'est réutilisé. |
+| Arrière-plan | Le lecteur live et le tampon sont possédés par un `MediaSessionService` de type `mediaPlayback`; l'écran Compose devient contrôleur. C'est nécessaire pour continuer lorsque l'activité passe en arrière-plan. |
+| Changement F40 | Le tampon est purgé et recommence au direct à chaque changement de variante/qualité. |
+| Dépendances | Aucune bibliothèque tierce supplémentaire ; Media3/NextLib existants et APIs Android suffisent. La première tâche d'implémentation devra être un spike des deux adapters avant l'UI. |
+
+Aucune question d'architecture ne reste ouverte. Le support TS constitue
+néanmoins le risque technique principal et un critère go/no-go d'implémentation.
 
 ---
 
@@ -222,13 +228,221 @@ lors de la livraison.
 
 # 8. Spécification technique
 
-_À compléter — étape 3._
+## 8.1 Conclusion de faisabilité
+
+La documentation Media3 distingue :
+
+- les lives adaptatifs (HLS), qui possèdent une fenêtre dynamique dans laquelle
+  `Player.seekTo` fonctionne ;
+- les lives progressifs, qui n'ont pas de fenêtre et ne se lisent qu'à une
+  position.
+
+Le cache à la volée de Media3 conserve des octets et aide à relire un média,
+mais il n'étend pas le manifeste HLS du fournisseur et ne transforme pas un TS
+progressif en timeline seekable. `OfflineDownloadUtil` est en outre un cache
+permanent `NoOpCacheEvictor`, conçu pour les téléchargements : le partager avec
+un anneau live ferait entrer les deux politiques d'éviction en conflit.
+
+F41 introduit donc une couche timeshift autonome, avec cache et index propres.
+Références techniques : documentation Android Media3 « Live streaming » et
+« Network stacks / Caching media ».
+
+## 8.2 Propriété du lecteur et cycle de vie
+
+Un nouveau `LivePlaybackService : MediaSessionService` possède :
+
+- l'ExoPlayer live ;
+- la `TimeshiftSession` active ;
+- la notification de lecture et le wakelock gérés par Media3 ;
+- le changement de chaîne/qualité ;
+- les commandes play, pause, seek et retour au direct.
+
+`PlayerScreen` se connecte au service par `MediaController` et n'instancie plus
+son propre ExoPlayer. La fermeture explicite du lecteur envoie `STOP_CHANNEL`,
+qui libère le flux, ferme le service et purge le cache. Une simple mise en
+arrière-plan, extinction d'écran ou perte de l'activité ne ferme pas la session.
+
+Le manifeste ajoute le service, `FOREGROUND_SERVICE` et
+`FOREGROUND_SERVICE_MEDIA_PLAYBACK` selon le niveau Android, avec
+`foregroundServiceType="mediaPlayback"`. Aucune permission de stockage : les
+fichiers restent dans `context.cacheDir/cstv_timeshift`.
+
+## 8.3 Abstraction de session
+
+```kotlin
+interface TimeshiftSession : Closeable {
+    val window: StateFlow<TimeshiftWindow>
+    fun mediaSource(): MediaSource
+    suspend fun seekToWallClock(epochMs: Long)
+    suspend fun seekToLiveEdge()
+    suspend fun close(purge: Boolean)
+}
+
+data class TimeshiftWindow(
+    val oldestEpochMs: Long,
+    val liveEdgeEpochMs: Long,
+    val playbackEpochMs: Long,
+    val effectiveDepthMs: Long,
+    val isAtLiveEdge: Boolean
+)
+```
+
+`TimeshiftSessionFactory` inspecte le type de source effectivement détecté par
+Media3 : HLS → `HlsTimeshiftSession`, MPEG-TS progressif →
+`TsTimeshiftSession`. Un type inconnu ou chiffré non supporté désactive les
+commandes timeshift mais laisse la lecture live normale fonctionner.
+
+## 8.4 Adapter HLS
+
+`HlsTimeshiftSession` intercepte les chargements du manifeste et des segments :
+
+1. chaque snapshot de playlist est parsé par l'intégration HLS Media3 ;
+2. les segments consommés sont écrits une seule fois dans le cache timeshift via
+   un `CacheDataSource` dédié ;
+3. un `HlsSegmentIndex` conserve URI/cacheKey, séquence, début absolu, durée et
+   discontinuité ;
+4. un manifeste local synthétique glissant référence tous les segments encore
+   présents, y compris ceux retirés du manifeste distant ;
+5. `HlsMediaSource` lit ce manifeste via un `DataSource` virtuel
+   `cstv-timeshift://session/index.m3u8`, sans serveur HTTP local.
+
+Les balises de chiffrement et clés HLS sont conservées uniquement dans le cache
+de session. Les playlists avec DRM ou clés non rejouables après expiration sont
+déclarées non compatibles plutôt que de promettre un retour arrière erroné.
+
+## 8.5 Adapter MPEG-TS progressif
+
+`TsTimeshiftSession` utilise une source tee : les mêmes octets reçus par le
+lecteur sont transmis au décodeur et écrits dans un anneau de fichiers. Aucune
+seconde connexion Xtream n'est ouverte.
+
+- segments physiques de 8 MiB, bornés par une politique FIFO ;
+- écriture alignée sur paquets TS de 188 octets ;
+- `TsTimestampIndexer` lit PAT/PMT et PCR/PTS à la volée, sans décoder audio ou
+  vidéo, et enregistre les offsets des points de reprise ;
+- lors d'un seek, `TimeshiftTsDataSource` démarre au point indexé précédent,
+  réinjecte les tables programme nécessaires, lit les anciens segments puis
+  rejoint l'anneau en cours d'écriture ;
+- la timeline affichée est celle de `TimeshiftWindow`, pas la durée déclarée par
+  le `ProgressiveMediaSource`.
+
+Ce composant est isolé derrière `TimeshiftTsEngine` afin que son parseur/indexeur
+soit testable en JVM avec des fixtures `.ts`. Le spike initial doit prouver :
+lecture simultanée/écriture, seek à -30 s, pause au moins 2 min, reprise et
+éviction du point le plus ancien. Si le TS réel ne contient pas de PCR/PTS
+exploitables, la session se replie sur lecture live sans timeshift ; elle ne
+segmente jamais arbitrairement des octets non indexés.
+
+## 8.6 Cache disque et profondeur effective
+
+Un singleton `TimeshiftCache` distinct du cache de téléchargement utilise un
+répertoire unique par session et une limite en octets recalculée depuis le débit
+mesuré sur les 30 premières secondes :
+
+`targetBytes = bitrateBytesPerSecond × configuredDepthSeconds × 1.20`.
+
+La limite effective est le minimum de cette cible, 20 % de l'espace libre au
+démarrage et 2 Gio. Un plancher de 64 Mio permet une petite fenêtre ; en dessous,
+la session reste live sans timeshift. L'éviction FIFO retire d'abord les
+segments les plus anciens et met à jour atomiquement l'index. La profondeur
+affichée provient des timestamps réellement présents, jamais du réglage nominal.
+
+Une purge est exécutée : fermeture, changement de chaîne, bascule F40, crash
+détecté au lancement suivant (répertoires orphelins de plus de 6 h). Les
+téléchargements hors ligne ne sont jamais touchés.
+
+## 8.7 Commandes et UI
+
+La barre de progression live travaille en temps absolu : gauche =
+`oldestEpochMs`, droite = `liveEdgeEpochMs`. Les actions :
+
+- Play/Pause → commande MediaController ; l'ingestion continue pendant la pause ;
+- seek → position absolue bornée dans la fenêtre ;
+- « Revenir au direct » → `seekToLiveEdge`, visible lorsque le décalage dépasse
+  3 secondes ;
+- point de pause évincé → reprise à `oldestEpochMs` et message bref localisé ;
+- profondeur modifiée en Paramètres → valeur lue lors de la prochaine session.
+
+Le composant transport partagé est utilisé sur mobile et TV ; la TV conserve les
+règles D-pad existantes. Le live edge est recalculé depuis le flux, pas depuis
+l'horloge seule.
+
+## 8.8 Interaction F40 et F42
+
+- F40 ferme/purge la session avant de changer de variante, puis en crée une
+  nouvelle après `READY` ; mélanger deux encodages est interdit ;
+- F42 peut demander `seekToWallClock(programStart)` si l'heure est déjà dans la
+  fenêtre locale ; sinon il résout une source catch-up distante ;
+- une erreur `BEHIND_LIVE_WINDOW` borne la position au plus ancien point local
+  encore présent, puis au live edge si le cache ne peut plus la servir.
+
+## 8.9 Performance et sécurité
+
+- aucune deuxième connexion au panel ;
+- écriture séquentielle, parsing TS sans décodage, index compact en mémoire et
+  checkpoint atomique sur disque ;
+- buffers d'I/O réutilisés, aucune copie complète de segment en RAM ;
+- noms de fichiers aléatoires et répertoire app-privé ; aucune URL/credential
+  dans les fichiers d'index ou logs ;
+- profondeur bornée en octets et en temps, avec surveillance d'erreurs disque ;
+- une erreur d'ingestion désactive le timeshift mais n'arrête pas le live.
+
+## 8.10 Tests automatisés
+
+Tests purs de calcul de budget, fenêtre glissante, éviction, seek borné,
+purge/corruption et modèle UI. HLS : fixtures de playlists successives,
+discontinuités et segments retirés. TS : fixtures binaires versionnées de petite
+taille pour index PCR/PTS, rotation, seek et passage ancien→live. Service et
+contrôleur sont testés derrière interfaces ; aucun appareil/émulateur requis.
+
+## 8.11 Fichiers impactés ou nouveaux
+
+**Nouveaux** : package `data/timeshift/` (`TimeshiftSession`, factory, cache,
+adapters HLS/TS, index), `playback/LivePlaybackService.kt`, contrôleur live,
+modèles de fenêtre, composants UI et tests/fixtures.
+
+**Modifiés** : `AndroidManifest.xml`, `ExoPlayerCore.kt`, `PlayerScreen.kt`,
+`PlayerUiComponents.kt`, navigation live, `SettingsManager.kt`,
+`SettingsState/ViewModel/Screen`, ressources FR/EN, `AppModule.kt` si nécessaire.
+
+Aucune table Room ni dépendance tierce supplémentaire.
 
 ---
 
 # 9. Architecture
 
-_À compléter — étape 3._
+## 9.1 Architecture
+
+```mermaid
+flowchart TD
+    A["Flux Xtream unique"] --> B["Timeshift adapter"]
+    B --> C["ExoPlayer / MediaSessionService"]
+    B --> D["Anneau disque + index"]
+    D --> B
+    E["PlayerScreen / MediaController"] --> C
+    E --> F["Barre de fenêtre glissante"]
+    B --> F
+```
+
+## 9.2 Responsabilités
+
+- **Service live** : durée de vie en arrière-plan, ExoPlayer et commandes ;
+- **Adapters HLS/TS** : transformer les octets déjà consommés en fenêtre
+  rejouable ;
+- **Cache/index** : budget, ordre temporel, éviction et purge ;
+- **MediaController/UI** : interaction et rendu de la fenêtre ;
+- **Settings** : profondeur nominale pour les nouvelles sessions.
+
+## 9.3 Risques et portes de sortie
+
+- TS sans timestamps fiables : timeshift désactivé pour ce flux, live préservé ;
+- playlist HLS chiffrée/DRM non rejouable : pas de fausse promesse de fenêtre ;
+- I/O lente : réduction automatique de profondeur, jamais blocage du thread de
+  lecture ;
+- service tué par le système : purge au prochain lancement, pas de reprise PVR ;
+- complexité élevée : spike protocoles obligatoire avant tout travail UI et
+  architecture gardée derrière une interface afin de pouvoir retirer un adapter
+  sans réécrire le lecteur.
 
 ---
 

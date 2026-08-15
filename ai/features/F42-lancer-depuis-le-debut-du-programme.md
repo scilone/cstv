@@ -3,7 +3,7 @@
 ## Informations générales
 
 Status:
-SPECIFICATION
+ARCHITECTURE
 
 Created:
 2026-08-15
@@ -99,11 +99,17 @@ est faite : AGENTS.md doit être mis à jour lors de la livraison.
 
 # 6. Questions ouvertes
 
-| Question | À trancher à l'étape |
+| Point traité à l'étape 3 | Décision |
 |---|---|
-| Vérification du support réel du flux décalé par le panel, et forme exacte de l'URL. | 3 |
-| Valeur exacte de la marge de sécurité appliquée avant l'heure de début EPG. | 3 |
-| Comment le contrôle de lecture se comporte-t-il en poursuite différée au-delà de la fin du programme (bouton « Revenir au direct » équivalent à celui de F41, barre de progression) ? | 3 |
+| Support panel | Détecté par chaîne via `tv_archive` et `tv_archive_duration` du catalogue Xtream, puis validé par la première ouverture catch-up. Aucune capacité globale n'est supposée. |
+| URL | Adapter `XtreamCatchupUrlBuilder` pour le format timeshift du panel (`/timeshift/{user}/{password}/{duration}/{start}/{streamId}.ts`), isolé et remplaçable si le serveur annonce un format différent. |
+| Marge EPG | 2 minutes avant le début annoncé, bornées par la rétention disponible et jamais dans le futur. |
+| Poursuite différée | Le catch-up est consommé par fenêtres chaînées ; lorsqu'une fenêtre se termine, la suivante est devenue archivée. Le bouton et la barre utilisent le même modèle temporel que F41. |
+| Repli local depuis une liste | Impossible si la chaîne n'était pas déjà ouverte : F41 n'enregistre qu'une session active. Depuis une liste sans session existante, seul le catch-up panel peut proposer « depuis le début ». Le repli local n'existe que depuis le lecteur actif. |
+
+Le dernier point corrige une impossibilité de la spécification fonctionnelle :
+conserver trente minutes de toutes les chaînes en arrière-plan serait un PVR
+multi-chaînes, hors périmètre et incompatible avec les limites de connexions.
 
 ---
 
@@ -219,13 +225,167 @@ est faite : AGENTS.md doit être mis à jour lors de la livraison.
 
 # 8. Spécification technique
 
-_À compléter — étape 3._
+## 8.1 Données de capacité
+
+`LiveStreamDto` ajoute les champs Xtream tolérants :
+
+```kotlin
+@SerializedName("tv_archive") val tvArchive: Int? = null
+@SerializedName("tv_archive_duration") val tvArchiveDurationDays: Int? = null
+```
+
+Ils sont mappés dans `LiveStreamEntity`/`LiveStream` sous forme
+`catchupAvailable: Boolean` et `catchupRetentionDays: Int?`, avec colonnes Room
+et migration de backfill par défaut (`false`/`null`). La synchronisation suivante
+met les valeurs à jour ; aucune requête individuelle par carte.
+
+Une chaîne est éligible au catch-up si : drapeau actif, rétention positive, EPG
+courant cohérent, début demandé dans la rétention et credentials disponibles.
+Le premier 404/403/format illisible marque uniquement ce `streamId` comme
+`unsupported` pour la session ; le catalogue persistant n'est pas modifié sur
+une panne temporaire.
+
+## 8.2 Résolution de l'instant de départ
+
+`ProgramStartResolver` reçoit le programme EPG courant et l'heure monotone/UTC :
+
+1. rejette un début absent ou futur de plus d'une minute ;
+2. calcule `requested = program.startEpochMs - 2 minutes` ;
+3. borne à `now - retention` puis à `now - 5 secondes` ;
+4. conserve le vrai `program.startEpochMs` pour l'affichage, la marge ne change
+   pas le libellé utilisateur.
+
+Les timestamps sont convertis dans le fuseau/format exigé par le panel seulement
+dans l'adapter URL. Le domaine reste en epoch UTC et ne dépend pas du fuseau de
+l'appareil.
+
+## 8.3 Construction des URLs
+
+`XtreamCatchupUrlBuilder` utilise la base Xtream et les credentials déjà détenus
+localement :
+
+`{base}/timeshift/{username}/{password}/{durationMinutes}/{yyyy-MM-dd:HH-mm}/{streamId}.ts`
+
+Les segments de chemin sont encodés ; l'URL n'est jamais journalisée. La durée
+demandée est une fenêtre de 15 minutes, avec un minimum couvrant la marge. Le
+builder est un port : si le panel réel expose une variante (`streaming/timeshift`
+ou paramètres query), seul son adapter change.
+
+L'application ne lance aucun `curl` ou probe indépendant. La validation est la
+préparation normale du premier `MediaItem`, avec timeout de 8 secondes et
+qualification d'erreur par le lecteur.
+
+## 8.4 Lecture différée par fenêtres
+
+`CatchupSession` maintient un curseur absolu et une file d'au plus deux fenêtres
+de 15 minutes : la fenêtre lue et la suivante. À l'approche de la fin, elle
+construit l'URL de la tranche suivante, désormais située dans le passé, et
+l'ajoute au player. Les périodes sont concaténées sans modifier la position
+absolue affichée.
+
+Cette stratégie permet de poursuivre en différé : pendant que l'utilisateur
+regarde une tranche ancienne, la suivante devient disponible dans l'archive.
+Lorsque le décalage descend sous 5 secondes, le contrôleur bascule sur le direct
+normal et F41 redémarre son tampon local. Un bouton « Revenir au direct » peut
+forcer cette bascule à tout moment.
+
+Si le panel ne permet pas le chaînage ou renvoie une fin prématurée :
+
+1. F41 est utilisé si une fenêtre locale de la session active couvre la position ;
+2. sinon la lecture bascule au direct avec un message bref, sans écran noir.
+
+## 8.5 Repli F41 et points d'entrée
+
+Depuis le **lecteur déjà ouvert**, le resolver choisit :
+
+1. catch-up panel si le début EPG est dans sa rétention ;
+2. sinon F41 si `oldestEpochMs < now - 5s`, sous le libellé distinct décidé à
+   l'étape 2 ;
+3. sinon action masquée.
+
+Depuis une **liste de chaînes**, aucune `TimeshiftSession` n'existe pour une
+chaîne non ouverte. L'action « Lancer depuis le début » est donc affichée
+uniquement si le catch-up panel est éligible. Ouvrir la chaîne pour commencer un
+tampon vide ne permettrait pas de remonter et n'est pas présenté comme repli.
+
+`StartOverAvailability` est calculé dans `LiveTvViewModel` à partir de la ligne
+catalogue + EPG, et recalculé dans le service au clic pour éviter une action
+devenue périmée.
+
+## 8.6 UI et commandes
+
+- le menu d'appui long reçoit une action conditionnelle ;
+- le lecteur reçoit la même action dans ses contrôles lorsqu'elle est disponible ;
+- une `CatchupSession` expose `TimeshiftWindow`, réutilisée par la barre F41 ;
+- Play/Pause, seek et « Revenir au direct » transitent par le
+  `LivePlaybackService` ;
+- le titre du programme reste celui de l'EPG courant au démarrage, puis suit
+  l'EPG correspondant à `playbackEpochMs` si le cache contient la fenêtre.
+
+## 8.7 Erreurs, performance et sécurité
+
+- une seule source catch-up active ; préchargement limité à une fenêtre pour ne
+  pas consommer une connexion supplémentaire durable ;
+- timeouts et erreurs panel ne modifient jamais la capacité persistée ;
+- credentials uniquement dans le builder/source réseau, URLs redacted dans
+  OkHttp et logs ;
+- EPG incohérent → action absente, jamais seek approximatif ;
+- cache/positions F41 restent locaux, aucun appel backend CSTV ;
+- aucune nouvelle dépendance.
+
+## 8.8 Tests automatisés
+
+Tests DTO et migration ; `ProgramStartResolver` (futur, marge, rétention,
+fuseaux) ; builder URL avec encodage/redaction ; disponibilité liste vs lecteur ;
+chaînage des fenêtres, EOF, catch-up refusé, repli F41 et retour direct. Le
+player est faux, aucun appel au panel réel dans les tests.
+
+## 8.9 Fichiers impactés ou nouveaux
+
+**Nouveaux** : `data/catchup/XtreamCatchupUrlBuilder.kt`,
+`domain/live/ProgramStartResolver.kt`, `StartOverAvailability.kt`,
+`playback/CatchupSession.kt` et tests.
+
+**Modifiés** : `LiveStreamDto.kt`, `LiveStreamEntity.kt`, `LiveStream.kt`,
+`LiveTvDao.kt`, `AppDatabase.kt`, `Migrations.kt`, repositories/mappers live,
+`LiveTvViewModel.kt`, composants de menu d'appui long, `PlayerScreen.kt`,
+`LivePlaybackService`, composants timeshift F41 et ressources FR/EN.
 
 ---
 
 # 9. Architecture
 
-_À compléter — étape 3._
+## 9.1 Sélection de source
+
+```mermaid
+flowchart TD
+    A["Action depuis le début"] --> B{"Catch-up panel ?"}
+    B -->|Oui| C["CatchupSession chaînée"]
+    B -->|Non| D{"Tampon F41 existant ?"}
+    D -->|Oui, lecteur actif| E["Seek au plus ancien point"]
+    D -->|Non| F["Action indisponible"]
+    C --> G["Contrôles temporels F41"]
+    E --> G
+```
+
+## 9.2 Responsabilités
+
+- **DTO/catalogue** : capacité déclarée et rétention ;
+- **ProgramStartResolver** : cohérence EPG, marge et bornes ;
+- **URL adapter** : format panel et secret redaction ;
+- **CatchupSession** : fenêtres, poursuite différée et bascule live ;
+- **F41** : repli uniquement pour la chaîne déjà enregistrée ;
+- **UI** : disponibilité exacte par point d'entrée.
+
+## 9.3 Risques
+
+- le format timeshift Xtream varie selon les panels : adapter isolé et validation
+  par la vraie préparation ;
+- le panel peut annoncer une archive inutilisable : repli session, sans polluer
+  la base ;
+- l'EPG peut être faux : marge 2 minutes et rejets stricts ;
+- le repli local depuis une liste était techniquement impossible : le périmètre
+  est corrigé explicitement au lieu de simuler une fonctionnalité vide.
 
 ---
 

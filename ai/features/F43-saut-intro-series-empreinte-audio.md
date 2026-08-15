@@ -3,7 +3,7 @@
 ## Informations générales
 
 Status:
-SPECIFICATION
+ARCHITECTURE
 
 Created:
 2026-08-15
@@ -95,11 +95,15 @@ doit être précédé d'une validation technique.
 
 # 6. Questions ouvertes
 
-| Question | À trancher à l'étape |
+| Point traité à l'étape 3 | Décision |
 |---|---|
-| Choix de l'algorithme d'empreinte et faisabilité sans nouvelle dépendance lourde. | 3 |
-| Validation de faisabilité (coût CPU, données, précision) avant engagement de l'étape 3. | 3 |
-| Où et sous quelle forme exposer l'action « Signaler une détection erronée » (menu contextuel sur la série, écran Paramètres, les deux) ? | 3 |
+| Acquisition audio | Capture du PCM déjà décodé pendant la lecture via un `AudioProcessor` Media3. Aucun second téléchargement, aucune requête HTTP Range et aucune connexion supplémentaire au panel. |
+| Algorithme | Empreinte locale par signatures spectrales : mono 8 kHz, trames FFT, hash perceptuel et recherche d'un décalage commun. Implémentation Kotlin pure, versionnée, sans dépendance lourde. |
+| Faisabilité | Mémoire et données bornées : empreinte calculée en streaming sur les 12 premières minutes, stockage des seuls hashes. Le traitement CPU lourd quitte immédiatement le thread audio. |
+| Signalement erroné | Action dans le menu du lecteur série, visible uniquement lorsqu'une détection existe pour la saison. Pas d'entrée globale dans Paramètres. |
+
+Aucune question bloquante ne reste ouverte. La précision et le budget CPU
+restent protégés par un seuil conservateur : en cas de doute, aucun bouton.
 
 ---
 
@@ -204,13 +208,199 @@ doit être précédé d'une validation technique.
 
 # 8. Spécification technique
 
-_À compléter — étape 3._
+## 8.1 Acquisition sans trafic supplémentaire
+
+La faisabilité ne dépend plus des requêtes partielles du panel. Le renderer audio
+produit déjà du PCM pour l'`AudioSink`; un `IntroFingerprintAudioProcessor`
+non bloquant reçoit une copie bornée des premières minutes de chaque épisode.
+
+Le processor :
+
+- n'altère jamais le buffer transmis au sink ;
+- downmixe en mono et échantillonne à 8 kHz ;
+- pousse de petits blocs dans un canal borné consommé sur `Dispatchers.Default` ;
+- abandonne silencieusement des blocs si le calcul prend du retard plutôt que de
+  bloquer l'audio ;
+- s'arrête à 12 minutes de position média ou dès qu'une empreinte complète est
+  finalisée.
+
+`ExoPlayerCore` configure le processor dans le `DefaultAudioSink` utilisé par la
+fabrique de renderers. NextLib continue de décoder les codecs non supportés ; le
+processor ne dépend que du PCM final et fonctionne donc aussi sur une lecture
+hors ligne. L'analyse n'ouvre aucune URL et ne consomme aucune donnée mobile en
+plus de la lecture demandée.
+
+## 8.2 Empreinte versionnée
+
+Pipeline `algorithmVersion = 1` :
+
+1. mono PCM 16 bits à 8 kHz ;
+2. fenêtres de 2048 échantillons, pas de 1024, fenêtre de Hann ;
+3. FFT radix-2 Kotlin réutilisant ses buffers ;
+4. énergie logarithmique agrégée en 32 bandes ;
+5. signature 64 bits par trame à partir des variations temporelles et
+   fréquentielles ;
+6. stockage `(timeMs, signature)` uniquement.
+
+À environ huit signatures par seconde, douze minutes représentent moins de
+6 000 signatures, soit moins de 100 Kio par épisode avec les timestamps. Aucun
+PCM complet n'est conservé.
+
+`SeasonIntroMatcher` compare deux épisodes : il regroupe les signatures dont la
+distance de Hamming est inférieure ou égale à 8, vote pour leur décalage
+temporel, puis recherche la plus longue séquence continue au décalage dominant.
+Une détection est acceptée seulement si :
+
+- segment commun entre 15 secondes et 5 minutes ;
+- début du segment dans les 12 premières minutes ;
+- couverture d'au moins 85 % des fenêtres du segment ;
+- second meilleur décalage au moins 20 % moins bien noté ;
+- deux épisodes distincts minimum.
+
+Les bornes sont élargies au dernier bloc audio concordant puis arrondies à
+100 ms. Un résultat sous le seuil reste `NO_MATCH` et ne produit aucun bouton.
+
+## 8.3 Modèle Room
+
+```kotlin
+@Entity(tableName = "episode_audio_fingerprints",
+    primaryKeys = ["accountKey", "episodeId", "algorithmVersion"])
+data class EpisodeAudioFingerprintEntity(
+    val accountKey: String,
+    val episodeId: Int,
+    val seriesId: Int,
+    val seasonNum: Int,
+    val algorithmVersion: Int,
+    val signatures: ByteArray,
+    val analyzedDurationMs: Long,
+    val createdAt: Long
+)
+
+@Entity(tableName = "season_intro_detections",
+    primaryKeys = ["accountKey", "seriesId", "seasonNum"])
+data class SeasonIntroDetectionEntity(
+    val accountKey: String,
+    val seriesId: Int,
+    val seasonNum: Int,
+    val algorithmVersion: Int,
+    val startMs: Long,
+    val endMs: Long,
+    val confidence: Double,
+    val sourceEpisodeCount: Int,
+    val updatedAt: Long
+)
+```
+
+Les données sont propres au compte IPTV et à l'appareil, sans `profileId`, car
+le contenu audio de la saison est identique pour tous les profils. Elles ne
+sont pas synchronisées. Les blobs utilisent un codec binaire interne stable :
+version, compteur, puis deltas varint de temps et signatures 64 bits. Pas de
+JSON volumineux.
+
+Lorsqu'une empreinte d'une version d'algorithme antérieure est lue, elle est
+ignorée et recalculée à la prochaine lecture. Une migration de blob n'est pas
+nécessaire.
+
+## 8.4 Orchestration de l'analyse
+
+`IntroDetectionRepository` reçoit les hashes finalisés :
+
+1. upsert de l'empreinte de l'épisode ;
+2. charge au maximum trois autres empreintes récentes de la même saison ;
+3. compare jusqu'à obtenir un match au-dessus du seuil ;
+4. persiste une seule détection de saison ;
+5. cesse les comparaisons tant que cette détection existe.
+
+L'analyse du premier épisode ne produit aucun bouton. Dès la seconde empreinte
+compatible, la détection devient observable par `SeriesPlayerViewModel`. Les
+épisodes ultérieurs réutilisent les bornes sans nouveau calcul, conformément à
+la décision produit.
+
+La charge est annulée si le média change ; une empreinte partielle de moins de
+15 secondes n'est pas persistée. Le calcul a une priorité de coroutine basse et
+ne tourne jamais sur le thread main ou le callback audio.
+
+## 8.5 UI et signalement
+
+Le bouton « Passer l'intro » est affiché si : série/season correspondante,
+detection présente, `currentPosition` compris entre `startMs - 500` et
+`endMs`. L'action cherche à `endMs` et disparaît immédiatement. Elle ne
+réapparaît pas si l'utilisateur revient en arrière au cours de la même lecture,
+afin d'éviter un bouton insistant ; elle réapparaît à une lecture ultérieure.
+
+Le menu d'actions du lecteur série affiche « Signaler une intro incorrecte »
+uniquement lorsqu'une détection existe. L'action supprime la détection et les
+empreintes sources de la saison dans une transaction, puis autorise une nouvelle
+analyse à partir de la lecture suivante. Elle n'envoie aucune donnée au backend.
+
+## 8.6 Performance, compatibilité et sécurité
+
+- canal audio borné à quelques blocs, buffers/FFT réutilisés ;
+- aucune donnée audio brute persistée ;
+- calcul limité à 12 minutes puis arrêté ;
+- maximum quatre empreintes chargées pour une comparaison ;
+- cache app-privé Room, aucune permission et aucune donnée réseau nouvelle ;
+- logs : durée, confiance et résultat seulement, jamais signatures ou titres ;
+- pas de dépendance native/ABI supplémentaire, donc pas d'augmentation massive
+  de l'APK ni de conflit avec NextLib.
+
+## 8.7 Tests automatisés et seuil de validation
+
+Le processor est séparé de l'algorithme pur. Tests JVM avec PCM synthétique :
+intro commune décalée, changement de volume, bruit léger, silence, dialogues
+semblables sans intro et intros différentes. Tests du codec binaire, du matcher,
+de l'orchestration premier/deuxième épisode, invalidation et état du bouton.
+
+Un benchmark JVM vérifie mémoire bornée et temps de calcul. Il ne remplace pas
+une mesure appareil, interdite comme critère agent par `AGENTS.md`; si le
+benchmark dépasse 2 secondes de CPU pour 12 minutes de signatures sur la CI de
+référence, F43 reste derrière un feature flag désactivé jusqu'à optimisation.
+
+## 8.8 Fichiers impactés ou nouveaux
+
+**Nouveaux** : package `domain/intro/` (fingerprinter, FFT, matcher, codec),
+`IntroFingerprintAudioProcessor.kt`, entités/DAO/repository Room,
+`IntroDetectionController.kt`, composants UI et tests/fixtures PCM.
+
+**Modifiés** : `ExoPlayerCore.kt`/fabrique audio sink,
+`SeriesPlayerScreen.kt` et ViewModel, `AppDatabase.kt`, `Migrations.kt`,
+`AppModule.kt`, ressources FR/EN et tests du lecteur.
+
+Aucune dépendance Gradle nouvelle.
 
 ---
 
 # 9. Architecture
 
-_À compléter — étape 3._
+## 9.1 Pipeline
+
+```mermaid
+flowchart TD
+    A["PCM déjà décodé"] --> B["AudioProcessor non bloquant"]
+    B --> C["Signatures spectrales"]
+    C --> D["Room par épisode"]
+    D --> E["Matcher de saison"]
+    E --> F["Bornes d'intro"]
+    F --> G["Bouton Passer l'intro"]
+```
+
+## 9.2 Responsabilités
+
+- **AudioProcessor** : acquisition bornée sans perturber la sortie ;
+- **Fingerprinter** : PCM vers signatures versionnées ;
+- **Matcher** : segment commun et confiance ;
+- **Repository Room** : empreintes et résultat local ;
+- **Controller/UI** : cycle de lecture, bouton et invalidation.
+
+## 9.3 Risques
+
+- CPU sur petites box : travail hors thread audio, limites strictes et feature
+  flag de sécurité ;
+- faux positifs : seuil conservateur et absence de bouton sous le seuil ;
+- générique variable : absence de match, comportement attendu ;
+- changements d'algorithme : `algorithmVersion` invalide sans migration fragile ;
+- aucune hypothèse de HTTP Range ne subsiste : la faisabilité dépend seulement
+  du PCM réellement lu par l'utilisateur.
 
 ---
 
