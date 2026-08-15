@@ -3,7 +3,7 @@
 ## Informations générales
 
 Status:
-ANALYSIS
+SPECIFICATION
 
 Created:
 2026-08-15
@@ -65,6 +65,16 @@ lors de la livraison.
 | Dépendance à l'EPG | Aucune. Fonctionnalité entièrement locale. |
 | Plateformes | Mobile et Android TV dès la première livraison. |
 
+## Décisions produit prises à l'étape 2
+
+| Sujet | Décision |
+|---|---|
+| Pause au-delà de la profondeur du tampon | Reprise au point le plus ancien encore disponible, plutôt qu'un retour forcé au direct. |
+| Interface de retour en arrière | Barre de progression à fenêtre glissante représentant le tampon disponible, pas des sauts fixes de N secondes. |
+| Bouton « Revenir au direct » | Explicite, visible dès que la position n'est plus la plus récente, près des contrôles de lecture. |
+| Application en arrière-plan / écran éteint | Le tampon continue d'enregistrer tant que la chaîne reste ouverte ; seule sa fermeture réelle le purge. |
+| Espace disque insuffisant | Réduction automatique et silencieuse de la profondeur effective, sans désactiver la fonctionnalité ni afficher d'erreur. |
+
 ---
 
 # 5. Hypothèses
@@ -88,11 +98,6 @@ lors de la livraison.
 
 | Question | À trancher à l'étape |
 |---|---|
-| Que se passe-t-il quand le tampon est plein pendant une pause : reprise décalée du point le plus ancien disponible, ou retour forcé au direct ? | 2 |
-| Quelle interface pour le retour en arrière : barre de progression avec fenêtre glissante, ou sauts de N secondes ? | 2 |
-| Faut-il un bouton « Revenir au direct » explicite, et où l'afficher ? | 2 |
-| Comportement quand l'application passe en arrière-plan ou que l'écran s'éteint : le tampon continue-t-il ? | 2 |
-| Espace disque insuffisant : réduction automatique de la profondeur, ou désactivation avec message ? | 2 |
 | Le tampon survit-il à un changement de qualité déclenché par F40 sur la même chaîne ? | 3 |
 | Faisabilité réelle avec Media3 et le cache Media3 existant, sur flux HLS et flux TS bruts. | 3 |
 
@@ -100,7 +105,118 @@ lors de la livraison.
 
 # 7. Spécification fonctionnelle
 
-_À compléter — étape 2._
+## 7.1 User stories
+
+- En tant qu'utilisateur qui regarde le direct, je veux pouvoir mettre sur
+  pause pour répondre à une interruption, sans manquer ce qui se joue
+  pendant ce temps.
+- En tant qu'utilisateur qui vient de rater une action (but, réplique,
+  scène), je veux revenir de quelques instants en arrière sans quitter le
+  direct pour de bon.
+- En tant qu'utilisateur en différé, je veux revenir au direct d'un geste
+  simple dès que je le souhaite.
+
+## 7.2 Parcours utilisateur
+
+**Mise en pause et reprise**
+
+1. Dès l'ouverture d'une chaîne, l'application enregistre le flux reçu dans
+   un tampon local de 30 minutes par défaut (réglable dans les Paramètres).
+2. L'utilisateur met la lecture en pause à tout moment.
+3. Il la reprend : la lecture continue exactement où elle a été arrêtée,
+   pas au direct.
+4. Si la pause a duré plus longtemps que la profondeur du tampon (le point
+   de pause a été évincé), la reprise se fait au point le plus ancien
+   encore disponible dans le tampon (décision étape 2), pas un retour forcé
+   au direct.
+
+**Retour en arrière**
+
+1. Pendant la lecture (en pause ou non), l'utilisateur ouvre une barre de
+   progression à fenêtre glissante représentant le tampon disponible
+   (jusqu'à 30 minutes, moins si la chaîne vient d'être ouverte ou si
+   l'espace disque a réduit la profondeur effective — décision étape 2).
+2. Il déplace le curseur vers un instant déjà diffusé et reprend la lecture
+   à cet instant.
+3. Tant que la position n'est pas la plus récente disponible, un bouton
+   « Revenir au direct » reste visible près des contrôles de lecture
+   (décision étape 2).
+4. L'utilisateur appuie sur ce bouton pour revenir instantanément au direct.
+
+**Continuité en arrière-plan**
+
+1. L'utilisateur quitte l'écran de lecture (mise en veille, changement
+   d'application) sans fermer la chaîne.
+2. Le tampon continue d'enregistrer tant que la chaîne reste ouverte
+   (décision étape 2).
+3. À son retour, l'utilisateur retrouve le tampon intact : le direct et les
+   30 dernières minutes (ou la profondeur réglée) sont toujours disponibles.
+4. Fermer réellement la chaîne (quitter le lecteur, changer de chaîne) purge
+   le tampon (décision étape 1) : rouvrir la même chaîne redémarre un
+   tampon vide.
+
+## 7.3 Règles métier
+
+- L'enregistrement démarre dès l'ouverture de la chaîne, pas seulement au
+  premier appui sur Pause (décision étape 1) — c'est ce qui permet le retour
+  en arrière sans avoir mis en pause au préalable.
+- Profondeur par défaut : 30 minutes, réglable dans les Paramètres (décision
+  étape 1).
+- Le tampon est strictement local à l'appareil et à la session de visionnage
+  de la chaîne ; il ne dépend d'aucun service ni EPG du fournisseur.
+- Le tampon est purgé au changement ou à la fermeture de la chaîne — jamais
+  conservé entre deux chaînes différentes (décision étape 1, pour rester
+  distinct d'un enregistrement PVR hors périmètre).
+- Une réduction automatique de la profondeur effective, en cas d'espace
+  disque insuffisant, ne désactive jamais la fonctionnalité (décision
+  étape 2) : le retour en arrière reste possible sur une fenêtre plus
+  courte que le réglage choisi.
+
+## 7.4 Cas limites
+
+- **Pause dépassant la profondeur du tampon** : reprise au point le plus
+  ancien disponible (décision étape 2), pas un saut forcé au direct — voir
+  7.2.
+- **Réglage de la profondeur modifié dans les Paramètres pendant une chaîne
+  déjà ouverte** : s'applique à la prochaine ouverture de chaîne, pas
+  rétroactivement au tampon déjà en cours de constitution.
+- **Zapping fréquent** : chaque changement de chaîne purge et redémarre le
+  tampon (décision étape 1) — pas de retour en arrière possible dans les
+  premières secondes suivant l'ouverture d'une nouvelle chaîne, le temps que
+  le tampon se constitue.
+- **Espace disque qui se libère après une réduction automatique** : la
+  profondeur effective peut se réétendre progressivement vers le réglage
+  choisi, sans action de l'utilisateur (détail exact du comportement
+  progressif renvoyé à l'étape 3, sans impact sur le principe).
+
+## 7.5 Critères d'acceptation
+
+- Mettre en pause puis reprendre restitue exactement la même image, sans
+  saut vers le direct.
+- Une barre de progression à fenêtre glissante permet de revenir à un
+  instant précis des dernières minutes diffusées, jusqu'à la profondeur
+  réglée.
+- Le bouton « Revenir au direct » est visible dès que la position n'est
+  plus la plus récente, et ramène instantanément au direct.
+- Quitter l'écran de lecture sans fermer la chaîne (arrière-plan, écran
+  éteint) ne fait perdre aucune portion du tampon.
+- Fermer la chaîne purge le tampon ; la rouvrir démarre un nouveau tampon
+  vide.
+- Un espace disque insuffisant réduit silencieusement la profondeur
+  effective sans jamais désactiver la fonctionnalité ni afficher d'erreur.
+
+## 7.6 Gestion des erreurs
+
+- Espace disque insuffisant : dégradation silencieuse par réduction de la
+  profondeur effective (décision étape 2), jamais de message d'erreur
+  bloquant.
+- Écriture sur le cache disque en échec (device plein malgré la réduction,
+  erreur système) : le direct continue d'être lisible normalement, seule la
+  fonctionnalité de pause/retour en arrière se dégrade — jamais
+  d'interruption du direct lui-même pour une cause liée au tampon.
+- Perte du flux source pendant l'enregistrement (déconnexion réseau) :
+  traitée comme une erreur de lecture classique du direct (comportement
+  existant), le tampon conserve ce qui a été enregistré jusque-là.
 
 ---
 
