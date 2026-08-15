@@ -107,6 +107,14 @@ restent protégés par un seuil conservateur : en cas de doute, aucun bouton.
 
 ---
 
+## Arbitrages structurants ratifiés à l'étape 3
+
+| Sujet | Décision |
+|---|---|
+| Insertion dans le chemin audio | L'`IntroFingerprintAudioProcessor` est installé dans la chaîne audio commune d'`ExoPlayerCore`, mais **court-circuité dès que le média lu n'est pas un épisode de série** : aucun coût CPU ni risque sur les films, le direct et les téléchargements. Le processor ne doit jamais dépendre du type de média pour *fonctionner*, seulement pour *s'activer* (voir §8.1). |
+
+---
+
 # 7. Spécification fonctionnelle
 
 ## 7.1 User stories

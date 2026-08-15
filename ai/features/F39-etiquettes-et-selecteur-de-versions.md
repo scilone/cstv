@@ -110,6 +110,14 @@ Aucune question bloquante ne reste ouverte pour l'étape 4.
 
 ---
 
+## Arbitrages structurants ratifiés à l'étape 3
+
+| Sujet | Décision |
+|---|---|
+| Catalogue pas encore normalisé | T21 recalcule le stock existant **en tâche de fond après le démarrage** (décision ratifiée à l'étape 3 de T21, qui révise son étape 1). Une entrée dont `linkKey` est encore vide n'affiche **aucun badge** et masque le bouton « Version » : comportement strictement identique à celui déjà prévu pour une entrée sans attribut détecté, donc aucune surface UI ni aucun message d'attente supplémentaire. Une requête par `linkKey` ignore toujours les valeurs vides, pour ne jamais regrouper entre elles toutes les entrées non traitées. |
+
+---
+
 # 7. Spécification fonctionnelle
 
 ## 7.1 User stories

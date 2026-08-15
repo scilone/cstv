@@ -81,7 +81,7 @@ par clé de liaison.
 | Portée V1 | Données uniquement. Aucune étiquette, aucun filtre, aucun regroupement de vignettes dans cette tâche. |
 | Clé de liaison films/séries | Titre nettoyé seul ; deux entrées sont **séparées** si leurs années de sortie sont toutes deux connues et différentes. L'année absente n'empêche pas le regroupement. |
 | Clé de liaison chaînes | Retrait des seuls marqueurs de qualité connus (`HD`, `FHD`, `UHD`, `4K`, `SD`, `1080p`…). « TF1 Séries Films » reste distincte de « TF1 ». Pas de regroupement agressif (préfixes pays, numéros, suffixes libres). |
-| Reprise de l'existant | Recalcul en base pendant la migration Room, au premier lancement après mise à jour. Pas de colonnes vides en attente de synchronisation, pas de resynchronisation complète forcée. |
+| Reprise de l'existant | ~~Recalcul en base pendant la migration Room, au premier lancement après mise à jour. Pas de colonnes vides en attente de synchronisation~~ — **révisé à l'étape 3** : recalcul en tâche de fond après le démarrage, pour ne pas geler l'ouverture de l'app (voir §8.5). Pas de resynchronisation complète forcée : cette partie reste valable. |
 | Plateformes | Sans objet (aucune surface UI). |
 | Ordre de livraison | Premier ticket du lot, avant F39 et F40. |
 
@@ -104,9 +104,12 @@ par clé de liaison.
   pas nécessaire.
 - Le nombre de versions par œuvre reste faible (quelques unités), donc une
   requête par clé de liaison reste peu coûteuse.
-- Le recalcul complet en migration reste dans une durée acceptable au démarrage
-  sur box Android TV. À mesurer à l'étape 3 ; si ce n'est pas le cas, un
-  traitement en tâche de fond avec indicateur de progression sera arbitré.
+- ~~Le recalcul complet en migration reste dans une durée acceptable au
+  démarrage sur box Android TV.~~ **Hypothèse écartée à l'étape 3** : le
+  risque de geler l'ouverture de l'application a été jugé inacceptable sans
+  attendre de le mesurer. Le traitement passe en tâche de fond, mais **sans**
+  l'indicateur de progression envisagé ici — l'état transitoire est rendu
+  indiscernable d'un catalogue sans versions alternatives (voir §8.5.2).
 - Le catalogue conserve des libellés stables entre deux synchronisations : la
   clé de liaison d'une entrée ne change pas d'une synchro à l'autre.
 
@@ -126,6 +129,15 @@ Aucune question bloquante ne reste ouverte pour l'étape 4.
 
 ---
 
+## Arbitrages structurants ratifiés à l'étape 3
+
+| Sujet | Décision |
+|---|---|
+| Recalcul du catalogue existant | **En tâche de fond après le démarrage** (WorkManager), pas dans la migration Room. Révise la décision d'étape 1 : le gel du démarrage sur box Android TV a été jugé inacceptable face à un état transitoire non observable. Voir §8.5. |
+| État transitoire assumé | Une partie du catalogue reste sans `linkKey` le temps du traitement. F39 et F40 le traitent comme une entrée sans attribut (pas de badge, pas de bouton), sans écran d'attente ni indicateur de progression. |
+
+---
+
 # 7. Spécification fonctionnelle
 
 ## 7.1 Résultat attendu
@@ -142,9 +154,11 @@ Le calcul a lieu à deux moments :
 1. **Synchronisation courante** : pour chaque entrée reçue via
    `get_live_streams`, `get_vod_streams`, `get_series`, avant persistance en
    base Room.
-2. **Reprise de l'existant** : pendant la migration Room qui suit la mise à
-   jour de l'application, pour chaque entrée déjà en cache — sans appel
-   réseau (décision étape 1).
+2. **Reprise de l'existant** : en tâche de fond après le premier démarrage qui
+   suit la mise à jour, pour chaque entrée déjà en cache — sans appel réseau
+   (décision d'étape 1 révisée à l'étape 3, voir §8.5). La migration Room
+   elle-même n'ajoute que les colonnes et les index, sans rien calculer, afin
+   de ne pas geler l'ouverture de l'application.
 
 Pour chaque libellé source, dans cet ordre :
 
@@ -223,9 +237,14 @@ Pour chaque libellé source, dans cet ordre :
 - Deux entrées de même titre nettoyé mais années connues différentes ne sont
   jamais proposées comme versions l'une de l'autre par les fonctionnalités
   consommatrices (F39, F40).
-- Le catalogue déjà en cache est recalculé pendant la migration Room sans
-  appel réseau ni perte des favoris, de l'historique, des positions de
-  lecture ou des téléchargements existants.
+- Le catalogue déjà en cache est recalculé en tâche de fond après le
+  démarrage, sans appel réseau ni perte des favoris, de l'historique, des
+  positions de lecture ou des téléchargements existants.
+- Le premier démarrage suivant la mise à jour n'est pas ralenti de façon
+  perceptible : la migration Room ne calcule rien.
+- Un recalcul interrompu (arrêt de l'application, redémarrage de l'appareil)
+  reprend là où il s'était arrêté, sans repartir de zéro ni laisser d'entrée
+  définitivement non normalisée.
 - L'appariement TMDB (`TmdbCatalogMatcher`, `ApproximateTitleMatcher`)
   consomme le titre nettoyé stocké sans le recalculer à chaque appel.
 
@@ -357,28 +376,68 @@ média entre groupes au milieu d'une session.
 > fiche. Vérifier la version réelle dans `AppDatabase.kt` avant d'écrire la
 > migration, jamais la valeur citée dans un ticket.
 
-`MIGRATION_28_29` (sous réserve de la numérotation ci-dessus) :
+> **Révision de la décision d'étape 1 (ratifiée à l'étape 3).** L'étape 1
+> prévoyait le recalcul complet *pendant* la migration, donc au démarrage.
+> Arbitrage soumis et tranché : **le recalcul se fait en tâche de fond après
+> le démarrage**, pour ne pas geler l'ouverture de l'application sur box
+> Android TV. La ligne « Reprise de l'existant » du tableau d'étape 1 est
+> remplacée par cette décision. Conséquence acceptée : la base traverse un
+> état transitoire où les colonnes ne sont pas encore calculées, ce que
+> l'étape 1 avait écarté — F39 et F40 doivent donc gérer cet état (voir 8.5.2).
 
-1. ajoute les six colonnes avec leurs valeurs par défaut ;
+La migration Room se limite au **schéma** :
+
+1. ajoute les six colonnes avec leurs valeurs par défaut (`''` / `NULL`) ;
 2. crée les trois index `linkKey` ;
-3. parcourt chaque table par pages de 500 lignes, ordonnées par clé primaire ;
-4. calcule `ParsedMediaTitle` en Kotlin et met à jour chaque page avec un
-   `SupportSQLiteStatement` préparé réutilisable ;
-5. laisse la transaction Room englober l'ensemble de la migration : aucune base
-   partiellement normalisée ne devient visible.
+3. ne calcule rien et ne parcourt aucune ligne : elle reste quasi instantanée
+   quelle que soit la taille du catalogue.
 
-Le parcours par clé (`WHERE streamId > ? ORDER BY streamId LIMIT 500`, ou
-`seriesId`) évite `OFFSET` et les gros `CursorWindow`. Aucune erreur d'une ligne
-ne doit annuler le reste du lot : le repli défensif produit le titre source et
-une clé singleton. La migration ne fait aucun appel réseau et ne touche ni aux
-favoris, ni aux positions, ni aux téléchargements.
+### 8.5.1 Recalcul en tâche de fond
+
+Un `CatalogNormalizationWorker` (WorkManager, déjà utilisé pour la synchro
+planifiée) reprend le travail après le démarrage :
+
+- déclenché une fois après la migration, contrainte batterie non faible, sans
+  contrainte réseau — le traitement est purement local ;
+- parcourt chaque table par pages de 500 lignes ordonnées par clé primaire
+  (`WHERE streamId > ? ORDER BY streamId LIMIT 500`, ou `seriesId`), ce qui
+  évite `OFFSET` et les gros `CursorWindow` ;
+- calcule `ParsedMediaTitle` en Kotlin et écrit chaque page avec un
+  `SupportSQLiteStatement` préparé réutilisable, **une transaction par page** :
+  interrompu (arrêt de l'app, redémarrage), il reprend à la page suivante au
+  lieu de tout refaire ;
+- publie un état d'avancement observable (`pending` / `running` / `done`)
+  persisté, afin que les consommateurs sachent si la donnée est exploitable ;
+- aucune erreur d'une ligne n'annule le reste du lot : le repli défensif
+  produit le titre source et une clé singleton ;
+- aucun appel réseau ; ne touche ni aux favoris, ni aux positions, ni aux
+  téléchargements.
+
+Les entrées écrites par une synchronisation normale sont, elles, toujours
+normalisées à l'écriture (voir 8.4) : le worker ne concerne que le stock
+préexistant.
+
+### 8.5.2 État transitoire côté consommateurs
+
+Tant que le worker n'a pas terminé, une partie du catalogue a `linkKey = ''` :
+
+- **F39** n'affiche pas de badge et masque le bouton « Version » pour une
+  entrée non encore normalisée — comportement identique à celui déjà prévu
+  pour une entrée sans attribut détecté, donc sans surface UI nouvelle ;
+- **F40** masque de même le bouton « Qualité » pour une chaîne non encore
+  normalisée ;
+- **aucun écran d'erreur ni indicateur de progression** n'est ajouté : l'état
+  est indiscernable d'un catalogue sans versions alternatives, ce qui reste
+  cohérent avec l'objectif « aucun changement de comportement observable ».
+
+Une requête par `linkKey` ignore systématiquement les valeurs vides, pour ne
+jamais regrouper entre elles toutes les entrées non encore traitées.
 
 Budget de performance : le parseur ne compile aucune regex par ligne, toutes les
 expressions sont précompilées. Cible indicative sur un catalogue de 100 000
-entrées : moins de 10 secondes sur un appareil bas de gamme ; au-delà de
-30 secondes sur le benchmark JVM/SQLite de référence, l'implémentation doit être
-optimisée avant livraison, sans basculer vers une migration asynchrone qui
-laisserait les colonnes incohérentes.
+entrées : moins de 10 secondes de traitement cumulé sur un appareil bas de
+gamme. Ce budget n'est plus bloquant pour le démarrage, mais reste le seuil
+au-delà duquel l'implémentation doit être optimisée.
 
 ## 8.6 Appariement TMDB
 
@@ -400,7 +459,12 @@ colonne n'a pas encore été enrichie ; ce repli n'affecte pas `linkKey`.
 - un compteur debug agrégé (`parsed`, `fallback`, `multipleMarkers`) peut être
   journalisé sans inclure les titres ni les URLs ;
 - la migration est couverte par un test SQLite réel et la création fraîche par
-  un test de schéma Room/SQL selon le patron existant.
+  un test de schéma Room/SQL selon le patron existant ;
+- le `CatalogNormalizationWorker` est couvert par des tests JVM : reprise après
+  interruption au milieu du parcours, idempotence (relancer sur un catalogue
+  déjà normalisé ne change rien), et repli défensif sur une ligne en erreur
+  sans annuler le lot. Aucun test ne requiert d'appareil connecté, conformément
+  à AGENTS.md.
 
 ## 8.8 Fichiers impactés ou nouveaux
 
@@ -410,7 +474,10 @@ colonne n'a pas encore été enrichie ; ce repli n'affecte pas `linkKey`.
 - `domain/model/ParsedMediaTitle.kt`
 - `domain/model/MediaLanguage.kt`
 - `domain/model/MediaQuality.kt`
-- tests unitaires associés et `Migration28To29SqlTest.kt`
+- `data/worker/CatalogNormalizationWorker.kt` (recalcul du stock existant en
+  tâche de fond) et son état d'avancement persisté
+- tests unitaires associés, tests du worker et test SQL de la migration de
+  schéma (nom à aligner sur la version réellement attribuée à la livraison)
 
 **Modifiés**
 
@@ -451,8 +518,11 @@ flowchart TD
   l'année nécessaire à la compatibilité par paire.
 - **Consommateurs** : F39 et F40 choisissent les versions ; le matcher TMDB
   consomme le titre déjà normalisé. Aucun consommateur ne reconstruit la clé.
-- **Migration** : applique exactement le même parseur que la synchronisation,
-  garantissant l'identité du résultat entre anciennes et nouvelles lignes.
+- **Migration Room** : ajoute colonnes et index, sans aucun calcul, pour ne
+  pas peser sur le démarrage.
+- **`CatalogNormalizationWorker`** : applique exactement le même parseur que
+  la synchronisation, garantissant l'identité du résultat entre anciennes et
+  nouvelles lignes ; reprenable, une transaction par page.
 
 ## 9.3 Dépendances et risques
 

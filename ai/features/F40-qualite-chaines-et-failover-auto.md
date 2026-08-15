@@ -110,6 +110,14 @@ Aucune question bloquante ne reste ouverte pour l'étape 4.
 
 ---
 
+## Arbitrages structurants ratifiés à l'étape 3
+
+| Sujet | Décision |
+|---|---|
+| Catalogue pas encore normalisé | T21 recalcule le stock existant **en tâche de fond après le démarrage** (décision ratifiée à l'étape 3 de T21, qui révise son étape 1). Une chaîne dont `linkKey` est encore vide masque le bouton « Qualité » et ne déclenche aucun repli automatique : comportement identique à celui d'une chaîne sans variante, déjà spécifié. Aucun message d'attente n'est affiché. Une requête par `linkKey` ignore toujours les valeurs vides. |
+
+---
+
 # 7. Spécification fonctionnelle
 
 ## 7.1 User stories

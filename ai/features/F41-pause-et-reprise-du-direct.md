@@ -109,6 +109,15 @@ néanmoins le risque technique principal et un critère go/no-go d'implémentati
 
 ---
 
+## Arbitrages structurants ratifiés à l'étape 3
+
+| Sujet | Décision |
+|---|---|
+| Propriété du lecteur | **Validé** : `LivePlaybackService : MediaSessionService` devient propriétaire de l'ExoPlayer live, `PlayerScreen` s'y connecte par `MediaController`. C'est la seule façon de tenir la décision d'étape 2 « le tampon continue en arrière-plan », maintenue explicitement par le PO. Gain annexe : notification de lecture, wakelock et cycle de vie enfin standardisés via Media3. |
+| Ordre de livraison | **F41 est livré tard dans le lot**, après les tickets sans risque de régression (T21, T22, F39, F40, T23). Motif : ce ticket réécrit la propriété du lecteur direct et concentre le risque de régression du lot ; il ne doit pas déstabiliser des fonctionnalités livrées en parallèle. F42 n'en est pas bloqué pour son mode principal (catch-up panel), seulement pour son repli local. |
+
+---
+
 # 7. Spécification fonctionnelle
 
 ## 7.1 User stories

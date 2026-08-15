@@ -113,6 +113,16 @@ l'attribution officielle dans l'écran À propos.
 
 ---
 
+## Arbitrages structurants ratifiés à l'étape 3
+
+| Sujet | Décision |
+|---|---|
+| Nouvelle dépendance backend | `ext-curl` ajouté à `backend/composer.json` — validé. **À vérifier avant la livraison** : que l'extension est bien activée sur l'hébergement alwaysdata, faute de quoi le déploiement échouera après coup. `composer.lock` doit être régénéré selon la procédure ciblée d'AGENTS.md, jamais par un `composer update` général. |
+| Nouvelle surface d'API | 4 routes `/v1/catalog` (tendances, populaires, appariement, vidéos) derrière le middleware JWT existant — validé. |
+| Cache serveur | Table PostgreSQL `media_metadata_cache` partagée entre tous les utilisateurs, sans donnée personnelle — validé. |
+
+---
+
 # 7. Spécification fonctionnelle
 
 ## 7.1 Résultat attendu

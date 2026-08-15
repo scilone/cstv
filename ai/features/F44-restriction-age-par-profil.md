@@ -112,6 +112,15 @@ Aucune question bloquante ne reste ouverte pour l'étape 4.
 
 ---
 
+## Arbitrages structurants ratifiés à l'étape 3
+
+| Sujet | Décision |
+|---|---|
+| Synchronisation du niveau d'âge | **Synchronisé dans le cloud** avec le profil (colonne backend `max_age_rating`, exposée dans l'API profils) : un profil enfant reste bridé sur tous les appareils du foyer. Complète la décision d'étape 1, qui ne tranchait que le cas du PIN. |
+| Synchronisation du PIN | **Jamais** : le PIN reste local et chiffré sur l'appareil, le backend ne le connaît pas et ne peut pas le révéler. Conséquence acceptée : le PIN se saisit une fois par appareil. |
+
+---
+
 # 7. Spécification fonctionnelle
 
 ## 7.1 User stories

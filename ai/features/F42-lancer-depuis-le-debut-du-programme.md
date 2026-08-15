@@ -113,6 +113,15 @@ multi-chaînes, hors périmètre et incompatible avec les limites de connexions.
 
 ---
 
+## Arbitrages structurants ratifiés à l'étape 3
+
+| Sujet | Décision |
+|---|---|
+| Support réel du flux décalé | **En attente de vérification sur le panel réel** avant d'engager l'étape 4. L'hypothèse d'étape 1 (« hypothèse la plus risquée du ticket, à vérifier avant l'étape 3 ») n'a pas été levée : l'étape 3 l'a contournée par une détection au runtime (`tv_archive`) et un builder d'URL isolé, mais le format d'URL reste supposé. Trois vérifications à faire : présence de `tv_archive: 1` dans `get_live_streams`, puis essai du format `/timeshift/{user}/{pass}/{durée}/{début}/{streamId}.ts`, puis de la variante `/streaming/timeshift.php?...`. |
+| Conséquence si l'hypothèse tombe | F42 perd son mode principal. Le repli local F41 ne le remplace pas : il n'existe que depuis le lecteur, sur une chaîne déjà ouverte (voir §7.3). Le ticket devrait alors être réévalué sur le fond, pas seulement adapté. |
+
+---
+
 # 7. Spécification fonctionnelle
 
 ## 7.1 User stories
