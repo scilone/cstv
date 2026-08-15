@@ -50,11 +50,12 @@ class StateDisplayJoinSqlTest {
             )
             statement.execute(
                 "CREATE TABLE vod_streams (streamId INTEGER NOT NULL PRIMARY KEY, name TEXT NOT NULL, " +
-                    "streamIcon TEXT, categoryId TEXT NOT NULL, plot TEXT, duration TEXT, containerExtension TEXT, releaseYear INTEGER)"
+                    "streamIcon TEXT, categoryId TEXT NOT NULL, plot TEXT, duration TEXT, containerExtension TEXT, " +
+                    "releaseYear INTEGER, genre TEXT)"
             )
             statement.execute(
                 "CREATE TABLE series_streams (seriesId INTEGER NOT NULL PRIMARY KEY, name TEXT NOT NULL, " +
-                    "cover TEXT, categoryId TEXT NOT NULL)"
+                    "cover TEXT, categoryId TEXT NOT NULL, genre TEXT)"
             )
             statement.execute(
                 "CREATE TABLE series_episodes (episodeId INTEGER NOT NULL PRIMARY KEY, seriesId INTEGER NOT NULL, " +
@@ -144,7 +145,7 @@ class StateDisplayJoinSqlTest {
         DriverManager.getConnection("jdbc:sqlite::memory:").use { connection ->
             connection.createSchema()
             connection.createStatement().use { statement ->
-                statement.execute("INSERT INTO series_streams(seriesId, name, cover, categoryId) VALUES (50, 'Série', NULL, '1')")
+                statement.execute("INSERT INTO series_streams(seriesId, name, cover, categoryId, genre) VALUES (50, 'Série', NULL, '1', 'Drame')")
                 statement.execute(
                     "INSERT INTO series_episodes(episodeId, seriesId, seasonNum, episodeNum, title, containerExtension) " +
                         "VALUES (700, 50, 1, 1, 'E1', 'mkv')"
@@ -157,6 +158,8 @@ class StateDisplayJoinSqlTest {
             assertEquals(1, rows.size)
             assertEquals("E1", rows.single()["title"])
             assertEquals(50, (rows.single()["seriesId"] as Number).toInt())
+            // Le genre vient de la série parente : un épisode n'en porte pas.
+            assertEquals("Drame", rows.single()["genre"])
 
             connection.createStatement().use { it.execute("DELETE FROM series_episodes WHERE episodeId = 700") }
 

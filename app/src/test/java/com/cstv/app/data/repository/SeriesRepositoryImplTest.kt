@@ -259,7 +259,8 @@ class SeriesRepositoryImplTest {
         val savedPosition = com.cstv.app.data.local.dao.PlaybackListRow(
             providerId = 555, kind = "episode", positionMs = 1200000L, durationMs = 2700000L,
             lastAccessedAt = 999999999L, title = null, coverUrl = null, containerExtension = null,
-            seriesId = 123, episodeNum = 1, seasonNum = 1, plot = null, duration = null, releaseDate = null, categoryId = null
+            seriesId = 123, episodeNum = 1, seasonNum = 1, plot = null, duration = null, releaseDate = null, categoryId = null,
+            genre = null
         )
         whenever(vodDao.getAllPlaybackPositions(activeProfileId, accountKey)).thenReturn(listOf(savedPosition))
 
@@ -612,6 +613,6 @@ class SeriesRepositoryImplTest {
     private fun playbackRow(positionMs: Long, durationMs: Long) = com.cstv.app.data.local.dao.PlaybackListRow(
         providerId = 1, kind = "episode", positionMs = positionMs, durationMs = durationMs, lastAccessedAt = 1L,
         title = null, coverUrl = null, containerExtension = null, seriesId = null, episodeNum = null,
-        seasonNum = null, plot = null, duration = null, releaseDate = null, categoryId = null
+        seasonNum = null, plot = null, duration = null, releaseDate = null, categoryId = null, genre = null
     )
 }

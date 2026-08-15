@@ -396,7 +396,8 @@ class VodRepositoryImplTest {
         val row = com.cstv.app.data.local.dao.PlaybackListRow(
             providerId = 123, kind = "movie", positionMs = 1_000L, durationMs = 5_000L, lastAccessedAt = 1L,
             title = "Film", coverUrl = null, containerExtension = null, seriesId = null, episodeNum = null,
-            seasonNum = null, plot = null, duration = null, releaseDate = null, categoryId = "action"
+            seasonNum = null, plot = null, duration = null, releaseDate = null, categoryId = "action",
+            genre = "Action, Thriller"
         )
         whenever(vodDao.getAllPlaybackPositions(activeProfileId, accountKey)).thenReturn(listOf(row))
         whenever(vodDao.observeAllPlaybackPositions(activeProfileId, accountKey)).thenReturn(flowOf(listOf(row)))
@@ -404,6 +405,10 @@ class VodRepositoryImplTest {
 
         assertEquals("action", repository.getAllPlaybackPositions().single().categoryId)
         assertEquals("action", repository.observeAllPlaybackPositions().first().single().categoryId)
+        // Non-régression : sans le genre du catalogue joint, la reprise de lecture
+        // reconstruisait une fiche affichant « Inconnu » sous le titre du lecteur.
+        assertEquals("Action, Thriller", repository.getAllPlaybackPositions().single().genre)
+        assertEquals("Action, Thriller", repository.observeAllPlaybackPositions().first().single().genre)
     }
 
     @Test

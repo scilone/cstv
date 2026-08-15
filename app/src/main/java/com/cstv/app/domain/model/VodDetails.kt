@@ -1,5 +1,12 @@
 package com.cstv.app.domain.model
 
+/**
+ * Repli posé par les repositories quand le panel Xtream ne fournit pas un champ
+ * texte de la fiche. C'est une sentinelle interne, jamais un genre réel : elle
+ * ne doit pas remonter à l'affichage (voir [VodDetails.displayGenre]).
+ */
+const val UNKNOWN_METADATA = "Inconnu"
+
 data class VodDetails(
     val streamId: Int,
     val name: String,
@@ -21,6 +28,15 @@ data class VodDetails(
      */
     val isMetadataIncomplete: Boolean = false
 ) {
+    /**
+     * Genre à afficher, ou `null` quand il n'y en a pas à montrer : le champ est
+     * vide, ou il porte la sentinelle [UNKNOWN_METADATA]. Une reprise de lecture
+     * et une fiche reconstruite depuis le cache court-circuitent toutes deux
+     * `get_vod_info`, et affichaient « Inconnu » sous le titre du lecteur.
+     */
+    val displayGenre: String?
+        get() = genre.trim().takeIf { it.isNotEmpty() && !it.equals(UNKNOWN_METADATA, ignoreCase = true) }
+
     /**
      * Build play URL for VOD / Movie:
      * {baseUrl}/movie/{username}/{password}/{stream_id}.{extension}

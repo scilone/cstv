@@ -666,7 +666,8 @@ class VodRepositoryImpl @Inject constructor(
         plot = plot,
         duration = duration,
         releaseDate = releaseDate,
-        categoryId = categoryId
+        categoryId = categoryId,
+        genre = genre
     )
 
     override suspend fun getStreamById(streamId: Int): VodStream? {

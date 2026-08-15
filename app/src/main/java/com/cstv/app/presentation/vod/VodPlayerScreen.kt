@@ -783,9 +783,9 @@ fun VodPlayerScreen(
                             Spacer(modifier = Modifier.width(12.dp))
                             ResolutionBadge(width = videoWidth, height = videoHeight)
                         }
-                        if (details.genre.isNotBlank()) {
+                        details.displayGenre?.let { genre ->
                             Text(
-                                text = details.genre,
+                                text = genre,
                                 color = MaterialTheme.colorScheme.primary,
                                 fontSize = 13.sp,
                                 maxLines = 1,

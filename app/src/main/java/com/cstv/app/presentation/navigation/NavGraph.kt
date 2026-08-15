@@ -280,7 +280,11 @@ fun AppNavGraph(
                         director = "Inconnu",
                         actors = "Inconnu",
                         releaseDate = "Inconnu",
-                        genre = "Inconnu",
+                        // Genre repris du catalogue en cache : la reprise court-circuite
+                        // `get_vod_info`, et le littéral « Inconnu » s'affichait tel quel
+                        // sous le titre dans le lecteur. Vide plutôt qu'« Inconnu » quand
+                        // le catalogue ne le connaît pas : le lecteur masque alors la ligne.
+                        genre = position.genre.orEmpty(),
                         plot = position.plot ?: "Aucun résumé disponible.",
                         rating = "0",
                         coverBig = position.coverUrl,

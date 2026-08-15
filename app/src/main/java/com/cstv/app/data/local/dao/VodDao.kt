@@ -30,6 +30,9 @@ data class PlaybackListRow(
     val duration: String?,
     val releaseDate: String?,
     val categoryId: String?,
+    /** Genre du catalogue joint : le lecteur l'affiche sur une reprise, où aucun
+     *  appel `get_vod_info` n'a eu lieu. Vient de la série pour un épisode. */
+    val genre: String?,
 )
 
 data class PlaybackPositionValues(val positionMs: Long, val durationMs: Long)
@@ -42,14 +45,15 @@ internal const val PLAYBACK_LIST_QUERY = """
     SELECT r.providerId AS providerId, r.kind AS kind, pp.positionMs AS positionMs, pp.durationMs AS durationMs,
            pp.lastAccessedAt AS lastAccessedAt, s.name AS title, s.streamIcon AS coverUrl, s.containerExtension AS containerExtension,
            NULL AS seriesId, NULL AS episodeNum, NULL AS seasonNum, s.plot AS plot, s.duration AS duration,
-           CAST(s.releaseYear AS TEXT) AS releaseDate, s.categoryId AS categoryId
+           CAST(s.releaseYear AS TEXT) AS releaseDate, s.categoryId AS categoryId, s.genre AS genre
       FROM playback_positions pp JOIN media_refs r ON r.mediaUid = pp.mediaUid
       JOIN vod_streams s ON s.streamId = r.providerId
      WHERE pp.profileId = :profileId AND r.accountKey = :accountKey AND r.kind = 'movie'
     UNION ALL
     SELECT r.providerId, r.kind, pp.positionMs, pp.durationMs, pp.lastAccessedAt,
            e.title, e.movieImage, e.containerExtension,
-           e.seriesId, e.episodeNum, e.seasonNum, e.plot, e.duration, e.releaseDate, ss.categoryId
+           e.seriesId, e.episodeNum, e.seasonNum, e.plot, e.duration, e.releaseDate, ss.categoryId,
+           ss.genre
       FROM playback_positions pp JOIN media_refs r ON r.mediaUid = pp.mediaUid
       JOIN series_episodes e ON e.episodeId = r.providerId
       JOIN series_streams ss ON ss.seriesId = e.seriesId

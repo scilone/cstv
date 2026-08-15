@@ -73,7 +73,7 @@ class DetectNewEpisodesUseCaseTest {
             seriesId = seriesId,
             episodeNum = episodeNum,
             seasonNum = season,
-            plot = null, duration = null, releaseDate = null, categoryId = null
+            plot = null, duration = null, releaseDate = null, categoryId = null, genre = null
         )
 
     @Before

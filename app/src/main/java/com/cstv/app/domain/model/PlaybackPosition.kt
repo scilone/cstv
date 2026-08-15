@@ -15,5 +15,6 @@ data class PlaybackPosition(
     val plot: String? = null,
     val duration: String? = null,
     val releaseDate: String? = null,
-    val categoryId: String? = null
+    val categoryId: String? = null,
+    val genre: String? = null
 )
