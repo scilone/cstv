@@ -43,6 +43,7 @@ import com.cstv.app.data.local.storage.CstvSessionManager
 import com.cstv.app.data.local.storage.CstvSessionManagerImpl
 import com.cstv.app.data.remote.CstvErrorMapper
 import com.cstv.app.data.remote.api.CstvApiService
+import com.cstv.app.data.remote.api.CstvCatalogApiService
 import com.cstv.app.data.remote.api.CstvIptvCredentialsApiService
 import com.cstv.app.data.remote.api.CstvPlaybackLockApiService
 import com.cstv.app.data.remote.api.CstvAuthInterceptor
@@ -387,6 +388,7 @@ object AppModule {
     }
 
     @Provides @Singleton fun provideCstvApiService(@javax.inject.Named("cstv") retrofit: Retrofit): CstvApiService = retrofit.create(CstvApiService::class.java)
+    @Provides @Singleton fun provideCstvCatalogApiService(@javax.inject.Named("cstv") retrofit: Retrofit): CstvCatalogApiService = retrofit.create(CstvCatalogApiService::class.java)
     @Provides @Singleton fun provideCstvIptvCredentialsApiService(@javax.inject.Named("cstv") retrofit: Retrofit): CstvIptvCredentialsApiService = retrofit.create(CstvIptvCredentialsApiService::class.java)
     @Provides @Singleton fun provideCstvPlaybackLockApiService(@javax.inject.Named("cstv") retrofit: Retrofit): CstvPlaybackLockApiService = retrofit.create(CstvPlaybackLockApiService::class.java)
     @Provides @Singleton fun provideCstvObjectsApiService(@javax.inject.Named("cstvObjects") retrofit: Retrofit): CstvObjectsApiService = retrofit.create(CstvObjectsApiService::class.java)
@@ -585,71 +587,36 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideTmdbApiService(
-        gson: Gson
-    ): com.cstv.app.data.remote.api.TmdbApiService {
-        val loggingInterceptor = HttpLoggingInterceptor().apply {
-            level = if (BuildConfig.DEBUG) {
-                HttpLoggingInterceptor.Level.BODY
-            } else {
-                HttpLoggingInterceptor.Level.NONE
-            }
-        }
-        val client = OkHttpClient.Builder()
-            .addInterceptor(loggingInterceptor)
-            .connectTimeout(10, TimeUnit.SECONDS)
-            .readTimeout(10, TimeUnit.SECONDS)
-            .build()
-
-        return Retrofit.Builder()
-            .baseUrl("https://api.themoviedb.org/3/")
-            .client(client)
-            .addConverterFactory(GsonConverterFactory.create(gson))
-            .build()
-            .create(com.cstv.app.data.remote.api.TmdbApiService::class.java)
-    }
-
-    @Provides
-    @TmdbApiKey
-    fun provideTmdbApiKey(): String {
-        return BuildConfig.TMDB_API_KEY
-    }
-
-    @Provides
-    @Singleton
     fun provideTrendingRepository(
         @ApplicationContext context: Context,
-        tmdbApiService: com.cstv.app.data.remote.api.TmdbApiService,
-        @TmdbApiKey apiKey: String,
+        catalogApiService: CstvCatalogApiService,
         gson: Gson
     ): com.cstv.app.domain.repository.TrendingRepository {
-        return com.cstv.app.data.repository.TrendingRepositoryImpl(context, tmdbApiService, apiKey, gson)
+        return com.cstv.app.data.repository.TrendingRepositoryImpl(context, catalogApiService, gson)
     }
 
     @Provides
     @Singleton
     fun providePopularRepository(
         @ApplicationContext context: Context,
-        tmdbApiService: com.cstv.app.data.remote.api.TmdbApiService,
-        @TmdbApiKey apiKey: String,
+        catalogApiService: CstvCatalogApiService,
         gson: Gson
     ): com.cstv.app.domain.repository.PopularRepository {
-        return com.cstv.app.data.repository.PopularRepositoryImpl(context, tmdbApiService, apiKey, gson)
+        return com.cstv.app.data.repository.PopularRepositoryImpl(context, catalogApiService, gson)
     }
 
     @Provides
     @Singleton
     fun provideTrailerRepository(
         xtreamApiService: XtreamApiService,
-        tmdbApiService: com.cstv.app.data.remote.api.TmdbApiService,
+        catalogApiService: CstvCatalogApiService,
         credentialsManager: CredentialsManager,
         requestGate: XtreamRequestGate,
-        @TmdbApiKey apiKey: String,
         trailerCacheDao: com.cstv.app.data.local.dao.TrailerCacheDao,
         timeProvider: com.cstv.app.domain.util.TimeProvider,
         @javax.inject.Named("applicationScope") applicationScope: kotlinx.coroutines.CoroutineScope
     ): com.cstv.app.domain.repository.TrailerRepository =
-        com.cstv.app.data.repository.TrailerRepositoryImpl(xtreamApiService, tmdbApiService, credentialsManager, requestGate, apiKey, trailerCacheDao, timeProvider, applicationScope)
+        com.cstv.app.data.repository.TrailerRepositoryImpl(xtreamApiService, catalogApiService, credentialsManager, requestGate, trailerCacheDao, timeProvider, applicationScope)
 
     // --- F12 : détection et notification de nouveaux épisodes ---
 
@@ -759,7 +726,3 @@ object AppModule {
         impl: com.cstv.app.data.update.AndroidPackageInstaller
     ): com.cstv.app.domain.update.PackageInstallerGateway = impl
 }
-
-@javax.inject.Qualifier
-@Retention(AnnotationRetention.BINARY)
-annotation class TmdbApiKey

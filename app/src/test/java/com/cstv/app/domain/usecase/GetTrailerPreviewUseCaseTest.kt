@@ -25,7 +25,7 @@ class GetTrailerPreviewUseCaseTest {
     @Test
     fun invokesRepositoryForTheRequestedMedia() = runTest {
         val repository = mock<TrailerRepository>()
-        val media = TrailerMedia.Movie(catalogId = 42, tmdbId = 27205)
+        val media = TrailerMedia.Movie(catalogId = 42, canonicalId = "movie:27205")
         val expected = TrailerPreview(media, TrailerSource.YouTube("dQw4w9WgXcQ"))
         whenever(repository.getTrailerPreview(media)).thenReturn(expected)
 

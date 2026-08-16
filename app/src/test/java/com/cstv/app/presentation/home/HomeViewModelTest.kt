@@ -1046,7 +1046,7 @@ class HomeViewModelTest {
     }
 
     private fun trendingMovie(streamId: Int, tmdbId: Int) = TrendingCatalogItem(
-        trendingTitle = TrendingTitle(tmdbId, "Movie $streamId", true, 2026, null),
+        trendingTitle = TrendingTitle("movie:$tmdbId", "Movie $streamId", true, 2026, null),
         matchedMovie = VodStream(streamId, "Movie $streamId", null, null, null, "movies")
     )
 }

@@ -22,10 +22,7 @@
 -keep,allowobfuscation,allowshrinking interface retrofit2.Call
 -keep,allowobfuscation,allowshrinking class retrofit2.Response
 -keep interface com.cstv.app.data.remote.api.XtreamApiService { *; }
-# TmdbApiService (Feature F1) : même pattern (interface Retrofit suspend fun),
-# même besoin de règle explicite — sans elle, R8 casse le call adapter
-# générique en release et l'appel TMDB throw au chargement de l'Accueil.
--keep interface com.cstv.app.data.remote.api.TmdbApiService { *; }
+-keep interface com.cstv.app.data.remote.api.CstvCatalogApiService { *; }
 -keep interface com.cstv.app.data.remote.api.CstvApiService { *; }
 -keep interface com.cstv.app.data.remote.api.CstvObjectsApiService { *; }
 -keep interface com.cstv.app.data.remote.api.CstvIptvCredentialsApiService { *; }

@@ -128,7 +128,7 @@ fun HomeTrendingCarouselTv(
 
     // La clé inclut la slide courante : changer de tendance annule l'aperçu en
     // cours et repart d'une temporisation complète.
-    LaunchedEffect(previewEligible, currentItem?.trendingTitle?.tmdbId) {
+    LaunchedEffect(previewEligible, currentItem?.trendingTitle?.canonicalId) {
         if (!previewEligible || currentItem == null) {
             onPreviewContextEnded()
             return@LaunchedEffect
@@ -262,8 +262,8 @@ private fun HomeTrendingSlideTv(
     val movieId = item.matchedMovie?.streamId
     val seriesId = item.matchedSeries?.seriesId
     val media = when {
-        movieId != null -> TrailerMedia.Movie(movieId, item.trendingTitle.tmdbId)
-        seriesId != null -> TrailerMedia.Series(seriesId, item.trendingTitle.tmdbId)
+        movieId != null -> TrailerMedia.Movie(movieId, item.trendingTitle.canonicalId)
+        seriesId != null -> TrailerMedia.Series(seriesId, item.trendingTitle.canonicalId)
         else -> null
     }
     val preview = (trailerPreview as? TrailerPreviewUiState.Playing)?.preview

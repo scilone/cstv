@@ -1,7 +1,8 @@
 package com.cstv.app.domain.model
 
 data class TrendingTitle(
-    val tmdbId: Int,
+    /** Opaque backend identity: only persisted or sent back to `/videos`. */
+    val canonicalId: String?,
     val title: String,
     val isMovie: Boolean,
     val year: Int?,
@@ -13,6 +14,9 @@ data class TrendingTitle(
      */
     val backdropUrl: String? = null
 ) {
+    @Deprecated("Tests and legacy cache only; production receives canonicalId from CSTV")
+    constructor(tmdbId: Int, title: String, isMovie: Boolean, year: Int?, posterUrl: String?, backdropUrl: String? = null) :
+        this(if (isMovie) "movie:$tmdbId" else "series:$tmdbId", title, isMovie, year, posterUrl, backdropUrl)
     /**
      * URL à utiliser dans un cadre large (Hero Card, carrousel) : le poster
      * TMDB est un portrait, son recadrage en 16/9 coupe systématiquement le

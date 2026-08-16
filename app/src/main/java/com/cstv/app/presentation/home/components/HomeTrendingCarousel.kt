@@ -100,9 +100,9 @@ fun HomeTrendingCarousel(
     var lifecycleStarted by remember(lifecycleOwner) {
         mutableStateOf(lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED))
     }
-    var pageStableForPreview by remember(activeItem?.trendingTitle?.tmdbId) { mutableStateOf(false) }
+    var pageStableForPreview by remember(activeItem?.trendingTitle?.canonicalId) { mutableStateOf(false) }
 
-    LaunchedEffect(activeItem?.trendingTitle?.tmdbId, pagerState.isScrollInProgress, lifecycleStarted) {
+    LaunchedEffect(activeItem?.trendingTitle?.canonicalId, pagerState.isScrollInProgress, lifecycleStarted) {
         pageStableForPreview = false
         if (activeItem == null || pagerState.isScrollInProgress || !lifecycleStarted) {
             onPreviewContextEnded()

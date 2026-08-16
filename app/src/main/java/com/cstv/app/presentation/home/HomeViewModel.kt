@@ -204,8 +204,8 @@ class HomeViewModel @Inject constructor(
     }
 
     private fun TrendingCatalogItem.toTrailerMedia(): TrailerMedia? = when {
-        matchedMovie != null -> TrailerMedia.Movie(matchedMovie.streamId, trendingTitle.tmdbId)
-        matchedSeries != null -> TrailerMedia.Series(matchedSeries.seriesId, trendingTitle.tmdbId)
+        matchedMovie != null -> TrailerMedia.Movie(matchedMovie.streamId, trendingTitle.canonicalId)
+        matchedSeries != null -> TrailerMedia.Series(matchedSeries.seriesId, trendingTitle.canonicalId)
         else -> null
     }
 
@@ -574,10 +574,10 @@ class HomeViewModel @Inject constructor(
                 } else {
                     val newList = if (isExpired && current.trendingList.isNotEmpty()) {
                         val existingIds = current.trendingList
-                            .map { it.trendingTitle.tmdbId to it.trendingTitle.isMovie }
+                            .map { it.trendingTitle.canonicalId to it.trendingTitle.isMovie }
                             .toSet()
                         val uniqueRefreshed = refreshed.filter {
-                            (it.trendingTitle.tmdbId to it.trendingTitle.isMovie) !in existingIds
+                            (it.trendingTitle.canonicalId to it.trendingTitle.isMovie) !in existingIds
                         }
                         current.trendingList + uniqueRefreshed
                     } else {

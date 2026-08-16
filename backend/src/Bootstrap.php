@@ -7,6 +7,12 @@ namespace Cstv\Backend;
 use Cstv\Backend\Account\AccountRepository;
 use Cstv\Backend\Account\IptvCredentialsRepository;
 use Cstv\Backend\Account\IptvCredentialsService;
+use Cstv\Backend\Catalog\CatalogService;
+use Cstv\Backend\Catalog\CatalogMatchThrottleRepository;
+use Cstv\Backend\Catalog\MediaMetadataProvider;
+use Cstv\Backend\Catalog\MediaMetadataCacheRepository;
+use Cstv\Backend\Catalog\TmdbClient;
+use Cstv\Backend\Catalog\TmdbMediaMetadataProvider;
 use Cstv\Backend\Auth\AuthService;
 use Cstv\Backend\Auth\JwtService;
 use Cstv\Backend\Auth\LogOtpSender;
@@ -14,6 +20,7 @@ use Cstv\Backend\Auth\MailOtpSender;
 use Cstv\Backend\Auth\OtpRepository;
 use Cstv\Backend\Database\Connection;
 use Cstv\Backend\Http\Action\AuthAction;
+use Cstv\Backend\Http\Action\CatalogAction;
 use Cstv\Backend\Http\Action\HealthAction;
 use Cstv\Backend\Http\Action\IptvCredentialsAction;
 use Cstv\Backend\Http\Action\MeAction;
@@ -39,7 +46,7 @@ use Slim\Routing\RouteCollectorProxy;
 
 final class Bootstrap
 {
-    public static function createApp(?Config $config = null, ?PDO $pdo = null): App
+    public static function createApp(?Config $config = null, ?PDO $pdo = null, ?MediaMetadataProvider $catalogProvider = null): App
     {
         $config ??= Config::fromEnvironment();
         $pdo ??= Connection::create($config);
@@ -77,6 +84,14 @@ final class Bootstrap
             $config->playbackLockTtlSeconds,
             $config->playbackLockHeartbeatSeconds,
         );
+        // Tests may boot the authenticated API without a provider token. The catalog endpoints
+        // then fail as an enrichment outage instead of exposing a development secret.
+        $catalog = new CatalogService(
+            $pdo,
+            new MediaMetadataCacheRepository($pdo),
+            $catalogProvider ?? new TmdbMediaMetadataProvider(new TmdbClient($config->tmdbApiToken ?? '')),
+            new CatalogMatchThrottleRepository($pdo),
+        );
 
         $app = AppFactory::create();
         $app->get('/health', new HealthAction($pdo));
@@ -88,7 +103,8 @@ final class Bootstrap
         $objectAction = new ObjectAction($objectService, $config->maxObjectSizeBytes);
         $iptvCredentialsAction = new IptvCredentialsAction($iptvCredentials, $config->maxIptvCredentialsBytes);
         $playbackLockAction = new PlaybackLockAction($playbackLocks);
-        $app->group('/v1', function (RouteCollectorProxy $group) use ($profiles, $profileAction, $objectAction, $iptvCredentialsAction, $playbackLockAction): void {
+        $catalogAction = new CatalogAction($catalog);
+        $app->group('/v1', function (RouteCollectorProxy $group) use ($profiles, $profileAction, $objectAction, $iptvCredentialsAction, $playbackLockAction, $catalogAction): void {
             $group->get('/me', new MeAction($profiles));
             $group->get('/account/iptv-credentials', [$iptvCredentialsAction, 'get']);
             $group->put('/account/iptv-credentials', [$iptvCredentialsAction, 'put']);
@@ -96,6 +112,10 @@ final class Bootstrap
             $group->post('/account/playback-lock', [$playbackLockAction, 'acquire']);
             $group->post('/account/playback-lock/heartbeat', [$playbackLockAction, 'heartbeat']);
             $group->delete('/account/playback-lock', [$playbackLockAction, 'release']);
+            $group->get('/catalog/trending', [$catalogAction, 'trending']);
+            $group->get('/catalog/popular', [$catalogAction, 'popular']);
+            $group->post('/catalog/matches', [$catalogAction, 'match']);
+            $group->get('/catalog/items/{canonicalId}/videos', [$catalogAction, 'videos']);
             $group->get('/profiles', [$profileAction, 'list']);
             $group->post('/profiles', [$profileAction, 'create']);
             $group->patch('/profiles/{profileId}', [$profileAction, 'update']);

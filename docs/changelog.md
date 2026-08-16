@@ -2,6 +2,14 @@
 
 ## À venir — non publiée
 
+## [v1.85.0] - 2026-08-16
+### ♻️ Centralisation des appels TMDB dans le backend (T22)
+* **Retrait de la clé API TMDB de l'application** : l'APK n'embarque plus de clé API externe et ne communique plus directement avec `api.themoviedb.org`. Tous les appels (tendances, populor, bandes-annonces, appariements) sont désormais centralisés, sécurisés et rationalisés par le backend CSTV via le préfixe `/v1/catalog`.
+* **Identifiants canoniques opacifiés** : découplage total de l'application vis-à-vis du fournisseur de métadonnées. L'application manipule désormais uniquement un `canonicalId` sous forme de chaîne (`String`), s'abstenant de toute interprétation ou dépendance envers les identifiants numériques TMDB sous-jacents.
+* **Cache serveur intelligent par paliers d'âge** : optimisation majeure de la rétention des informations sur le serveur PostgreSQL pour maximiser les performances et la fraîcheur. Les durées de vie de cache sont calculées dynamiquement selon l'âge réel de l'œuvre (7 jours pour les films/séries de moins d'un an, 30 jours de 1 à 4 ans inclus, 90 jours de 5 à 9 ans inclus, et 180 jours pour les œuvres de 10 ans et plus).
+* **Résilience et protection concurrentielle (Anti-Stampede)** : intégration d'un mécanisme de verrou logique consultatif Postgres pour éviter que des requêtes concurrentes froides ne mitraillent TMDB. Support du mode dégradé *Stale-If-Error* pour servir une copie périmée si le fournisseur externe est en panne ou limité par quota.
+* **Sécurité & Rate Limiting** : sécurisation systématique des routes d'enrichissement par middleware JWT et bridage strict des tentatives d'appariement (`/matches`) par compte et par adresse IP afin d'interdire tout abuse du serveur comme proxy.
+
 ## [v1.84.0] - 2026-08-16
 ### ♻️ Normalisation des titres, extraction des attributs et clé de liaison entre médias (T21)
 * **Fondation données, aucun écran modifié** : chaque film, série et chaîne du cache Room porte désormais un titre nettoyé (`cleanTitle`), ses attributs extraits (langue/version, qualité) et une clé de liaison (`linkKey`) calculés une seule fois à la synchronisation — prépare le sélecteur de versions et les badges qualité des tickets suivants (F39, F40), sans aucun changement visible dans cette version.

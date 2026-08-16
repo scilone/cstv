@@ -1,10 +1,9 @@
 package com.cstv.app.data.repository
 
 import com.cstv.app.data.local.storage.CredentialsManager
-import com.cstv.app.data.remote.api.TmdbApiService
+import com.cstv.app.data.remote.api.CstvCatalogApiService
 import com.cstv.app.data.remote.api.XtreamApiService
 import com.cstv.app.data.remote.api.XtreamRequestGate
-import com.cstv.app.di.TmdbApiKey
 import com.cstv.app.domain.model.TrailerMedia
 import com.cstv.app.domain.model.TrailerPreview
 import com.cstv.app.domain.model.TrailerSource
@@ -25,17 +24,16 @@ import com.cstv.app.domain.util.TimeProvider
 @Singleton
 class TrailerRepositoryImpl @Inject constructor(
     private val xtreamApiService: XtreamApiService,
-    private val tmdbApiService: TmdbApiService,
+    private val catalogApiService: CstvCatalogApiService,
     private val credentialsManager: CredentialsManager,
     private val requestGate: XtreamRequestGate,
-    @TmdbApiKey private val tmdbApiKey: String,
     private val trailerCacheDao: TrailerCacheDao,
     private val timeProvider: TimeProvider,
     @Named("applicationScope") private val applicationScope: CoroutineScope
 ) : TrailerRepository {
 
     private data class CacheKey(val mediaType: String, val catalogId: Int)
-    private data class Resolution(val preview: TrailerPreview?, val tmdbId: Int?, val cacheable: Boolean)
+    private data class Resolution(val preview: TrailerPreview?, val cacheable: Boolean)
     private val cache = object : LinkedHashMap<CacheKey, TrailerPreview?>(32, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<CacheKey, TrailerPreview?>) = size > 32
     }
@@ -71,15 +69,15 @@ class TrailerRepositoryImpl @Inject constructor(
                         }.info?.youtubeTrailer
                     }
                 }
-                normalizeYouTubeId(fromXtream)?.let { Resolution(it.toPreview(media), media.tmdbId, true) }
-                    ?: tmdbFallback(media, stored?.resolvedTmdbId)
+                normalizeYouTubeId(fromXtream)?.let { Resolution(it.toPreview(media), true) }
+                    ?: catalogFallback(media)
             } catch (error: Exception) {
                 if (error is CancellationException) throw error
-                Resolution(null, null, false)
+                Resolution(null, false)
             }
             synchronized(cache) { cache[key] = resolution.preview }
             if (resolution.cacheable) runCatching {
-                trailerCacheDao.upsert(TrailerCacheEntity(key.mediaType, key.catalogId, (resolution.preview?.source as? TrailerSource.YouTube)?.videoId, "youtube", resolution.tmdbId, timeProvider.nowMillis()))
+                trailerCacheDao.upsert(TrailerCacheEntity(key.mediaType, key.catalogId, (resolution.preview?.source as? TrailerSource.YouTube)?.videoId, "youtube", null, timeProvider.nowMillis()))
             }
             resolution.preview
         }
@@ -95,26 +93,22 @@ class TrailerRepositoryImpl @Inject constructor(
         runCatching { trailerCacheDao.delete(media.cacheKey().mediaType, media.catalogId) }
     }
 
-    // Pas de recherche TMDB par titre : deviner le tmdbId d'un média IPTV à
+    // Pas de recherche fournisseur par titre : deviner l'identité d'un média IPTV à
     // partir de son titre est trop peu fiable pour le coût (un appel de
-    // recherche par média, en plus de celui des vidéos). Seul un tmdbId déjà
-    // connu (Accueil, ou résolu et mis en cache par une session antérieure)
+    // recherche par média, en plus de celui des vidéos). Seul un identifiant
+    // canonique déjà connu depuis le backend déclenche l'unique appel `videos`.
     // déclenche l'unique appel `videos`.
-    private suspend fun tmdbFallback(media: TrailerMedia, cachedTmdbId: Int? = null): Resolution {
-        if (tmdbApiKey.isBlank()) return Resolution(null, null, false)
-        // Aucun tmdbId connu : aucune résolution n'a réellement été tentée. Le
+    private suspend fun catalogFallback(media: TrailerMedia): Resolution {
+        // Aucun identifiant canonique connu : aucune résolution n'a réellement été tentée. Le
         // marquer comme un échec le figerait pour toute la durée du TTL négatif
-        // (7 jours), y compris après qu'un passage par l'Accueil ait fait
-        // connaître le tmdbId du média — le trailer ne se relançait alors plus
+        // (4 heures), y compris après qu'un passage par l'Accueil ait fait
+        // connaître l'identifiant canonique du média — le trailer ne se relançait alors plus
         // jamais depuis la fiche.
-        val tmdbId = media.tmdbId ?: cachedTmdbId ?: return Resolution(null, null, false)
-        val videos = when (media) {
-            is TrailerMedia.Movie -> tmdbApiService.getMovieVideos(tmdbId, tmdbApiKey).results
-            is TrailerMedia.Series -> tmdbApiService.getSeriesVideos(tmdbId, tmdbApiKey).results
-        }.orEmpty()
+        val canonicalId = media.canonicalId ?: return Resolution(null, false)
+        val videos = catalogApiService.videos(canonicalId).items.orEmpty()
         val video = videos.firstOrNull { it.site.equals("YouTube", true) && it.type.equals("Trailer", true) && it.official == true }
             ?: videos.firstOrNull { it.site.equals("YouTube", true) && it.type.equals("Trailer", true) }
-        return Resolution(normalizeYouTubeId(video?.key)?.toPreview(media), tmdbId, true)
+        return Resolution(normalizeYouTubeId(video?.key)?.toPreview(media), true)
     }
 
     private fun String.toPreview(media: TrailerMedia) = TrailerPreview(media, TrailerSource.YouTube(this))
@@ -122,7 +116,7 @@ class TrailerRepositoryImpl @Inject constructor(
     /**
      * Le cache est indexé sur (type, identifiant catalogue) mais mémorise le
      * `TrailerPreview` complet, `media` compris. Or le même film est demandé
-     * avec un `tmdbId` depuis l'Accueil et sans depuis sa fiche : rendre tel
+     * avec un identifiant canonique depuis l'Accueil et sans depuis sa fiche : rendre tel
      * quel le preview mis en cache par l'Accueil faisait échouer le test
      * `preview.media == trailerMedia` de la fiche, qui n'affichait alors aucun
      * trailer malgré une résolution réussie. Le preview rendu porte donc
@@ -134,7 +128,7 @@ class TrailerRepositoryImpl @Inject constructor(
     private fun TrailerMedia.cacheKey() = CacheKey(if (this is TrailerMedia.Movie) "movie" else "series", catalogId)
 
     companion object {
-        private const val NEGATIVE_TTL_MS = 7L * 24 * 60 * 60 * 1000
+        private const val NEGATIVE_TTL_MS = 4L * 60 * 60 * 1000
         /** Accepte uniquement un ID YouTube ou les URLs youtube.com/youtu.be reconnues. */
         internal fun normalizeYouTubeId(value: String?): String? {
             val raw = value?.trim()?.takeIf { it.isNotEmpty() } ?: return null

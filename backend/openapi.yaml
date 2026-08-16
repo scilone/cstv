@@ -15,7 +15,74 @@ tags:
   - name: Profiles
   - name: Objects
   - name: IptvCredentials
+  - name: Catalog
 paths:
+  /v1/catalog/trending:
+    get:
+      tags: [Catalog]
+      summary: Shared catalog trends
+      security: [{ bearerAuth: [] }]
+      parameters: [{name: locale, in: query, schema: {type: string, enum: [fr-FR, en-US], default: fr-FR}}]
+      responses:
+        '200': {description: Product catalog items}
+        '401': {$ref: '#/components/responses/Error'}
+        '422': {$ref: '#/components/responses/Error'}
+        '502': {$ref: '#/components/responses/Error'}
+        '503': {$ref: '#/components/responses/Error'}
+  /v1/catalog/popular:
+    get:
+      tags: [Catalog]
+      summary: Shared popular catalog items
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - {name: kind, in: query, required: true, schema: {type: string, enum: [movie, series]}}
+        - {name: page, in: query, schema: {type: integer, minimum: 1, maximum: 20, default: 1}}
+        - {name: locale, in: query, schema: {type: string, enum: [fr-FR, en-US], default: fr-FR}}
+      responses:
+        '200': {description: Product catalog items}
+        '401': {$ref: '#/components/responses/Error'}
+        '422': {$ref: '#/components/responses/Error'}
+        '502': {$ref: '#/components/responses/Error'}
+        '503': {$ref: '#/components/responses/Error'}
+  /v1/catalog/matches:
+    post:
+      tags: [Catalog]
+      summary: Resolve a product catalog item
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [kind, title]
+              properties:
+                kind: {type: string, enum: [movie, series]}
+                title: {type: string, minLength: 1, maxLength: 200}
+                year: {type: integer, minimum: 1888}
+                locale: {type: string, enum: [fr-FR, en-US]}
+      responses:
+        '200': {description: Matched or not-found item}
+        '401': {$ref: '#/components/responses/Error'}
+        '415': {$ref: '#/components/responses/Error'}
+        '422': {$ref: '#/components/responses/Error'}
+        '429': {$ref: '#/components/responses/Error'}
+        '502': {$ref: '#/components/responses/Error'}
+        '503': {$ref: '#/components/responses/Error'}
+  /v1/catalog/items/{canonicalId}/videos:
+    get:
+      tags: [Catalog]
+      summary: Catalog videos
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - {name: canonicalId, in: path, required: true, schema: {type: string}}
+        - {name: locale, in: query, schema: {type: string, enum: [fr-FR, en-US], default: fr-FR}}
+      responses:
+        '200': {description: Video candidates}
+        '401': {$ref: '#/components/responses/Error'}
+        '422': {$ref: '#/components/responses/Error'}
+        '502': {$ref: '#/components/responses/Error'}
+        '503': {$ref: '#/components/responses/Error'}
   /health:
     get:
       tags: [Health]

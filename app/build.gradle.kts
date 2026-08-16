@@ -13,7 +13,6 @@ val localPropertiesFile = rootProject.file("local.properties")
 if (localPropertiesFile.exists()) {
     localPropertiesFile.inputStream().use { localProperties.load(it) }
 }
-val tmdbApiKey = System.getenv("TMDB_API_KEY") ?: localProperties.getProperty("TMDB_API_KEY") ?: ""
 val cstvBaseUrl = System.getenv("CSTV_BASE_URL") ?: localProperties.getProperty("CSTV_BASE_URL") ?: ""
 
 // Signature de release. La release se fabrique sur le poste de développement
@@ -42,15 +41,14 @@ android {
         // Phase 39 : synchronisés avec le dernier tag git poussé (voir AGENTS.md,
         // section "Checklist avant de conclure une tâche"). versionCode dérivé du
         // SemVer : major*10_000 + minor*100 + patch (marge de 0-99 par segment).
-        versionCode = 18_400
-        versionName = "1.84.0"
+        versionCode = 18_500
+        versionName = "1.85.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
             useSupportLibrary = true
         }
         resourceConfigurations.addAll(setOf("fr", "en"))
-        buildConfigField("String", "TMDB_API_KEY", "\"$tmdbApiKey\"")
         buildConfigField("String", "CSTV_BASE_URL", "\"$cstvBaseUrl\"")
     }
 

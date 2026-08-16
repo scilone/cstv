@@ -3,7 +3,7 @@
 ## Informations générales
 
 Status:
-VALIDATED
+RELEASED
 
 Created:
 2026-08-15
@@ -1064,12 +1064,28 @@ des étapes 9 et 10, non demandées ici.
 - `docs/features.md` / `docs/user-guide.md` : non modifiés, comme pour T20 — aucune surface
   UI nouvelle (§7.1).
 
+## Étape 10 — 2026-08-16 — Livraison Git et compilation
+
+- Commit `f2171798` sur `main`, tag annoté `v1.84.0` poussé sur `origin`.
+- `./scripts/release-local.sh` : tests ciblés + `lintDebug` verts, `assembleRelease` réussi,
+  signature vérifiée, APK copié dans `releases/app-release.apk` et amendé au commit.
+- `git push origin main` a d'abord été rejeté (deux commits `AI_DEVELOPMENT_WORKFLOW.md` publiés
+  entretemps sur `origin/main`, sans recouvrement de fichiers avec ce ticket) : rebase propre,
+  tag recréé sur le nouveau commit, push refait avec succès.
+- Publication de la Release GitHub (`gh release create`) bloquée par le classifieur de
+  permissions auto (action outward-facing) : tag et APK sont prêts sur `origin`, la commande
+  reste à lancer manuellement ou avec une autorisation explicite (voir §13).
+
 ---
 
 # 13. Release
 
-Version :
+Version : v1.84.0
 
-Commit :
+Commit : f2171798 (`main`, tag annoté `v1.84.0`, poussé sur `origin`)
 
-Date :
+Date : 2026-08-16
+
+Release GitHub : **non publiée** — `gh release create v1.84.0 --title "Release v1.84.0"
+--generate-notes app/build/outputs/apk/release/app-release.apk` bloqué par le classifieur de
+permissions auto ; à lancer manuellement.

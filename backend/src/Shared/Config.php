@@ -36,6 +36,7 @@ final readonly class Config
         public int $maxIptvCredentialsBytes,
         public int $playbackLockTtlSeconds,
         public int $playbackLockHeartbeatSeconds,
+        public ?string $tmdbApiToken,
     ) {
     }
 
@@ -100,6 +101,10 @@ final readonly class Config
         if ($environment === 'production' && $containsDevelopmentKey) {
             throw new InvalidArgumentException('Development IPTV credentials encryption key must be replaced in production.');
         }
+        $tmdbApiToken = self::nullableString('TMDB_API_TOKEN');
+        if ($environment === 'production' && $tmdbApiToken === null) {
+            throw new InvalidArgumentException('TMDB_API_TOKEN must be configured in production.');
+        }
 
         return new self(
             appEnv: $environment,
@@ -128,6 +133,7 @@ final readonly class Config
             maxIptvCredentialsBytes: self::integer('MAX_IPTV_CREDENTIALS_BYTES', 4096, 1, 65_536),
             playbackLockTtlSeconds: self::integer('PLAYBACK_LOCK_TTL_SECONDS', 90, 30, 3600),
             playbackLockHeartbeatSeconds: self::integer('PLAYBACK_LOCK_HEARTBEAT_SECONDS', 30, 5, 1800),
+            tmdbApiToken: $tmdbApiToken,
         );
     }
 

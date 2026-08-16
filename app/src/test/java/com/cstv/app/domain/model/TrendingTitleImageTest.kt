@@ -18,7 +18,7 @@ class TrendingTitleImageTest {
 
 
     private fun title(poster: String?, backdrop: String?) = TrendingTitle(
-        tmdbId = 1,
+        canonicalId = "movie:1",
         title = "Dune",
         isMovie = true,
         year = 2021,
@@ -53,7 +53,7 @@ class TrendingTitleImageTest {
         // Le cache persistant des tendances est du JSON Gson : les entrées
         // existantes ne portent pas `backdropUrl` et doivent rester exploitables.
         val legacyJson = """
-            {"tmdbId":42,"title":"Old","isMovie":false,"year":2019,"posterUrl":"https://p/x.jpg"}
+            {"canonicalId":"series:42","title":"Old","isMovie":false,"year":2019,"posterUrl":"https://p/x.jpg"}
         """.trimIndent()
 
         val parsed = Gson().fromJson(legacyJson, TrendingTitle::class.java)
