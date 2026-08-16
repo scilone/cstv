@@ -392,7 +392,7 @@ Ne pas définir d'architecture technique.
 
 ## Modèle recommandé
 
-Gemini 3.5 Flash / Sonnet 5 (medium) / GPT-5.6 Luna (medium)
+GPT-5.6 Luna (medium) / Gemini 3.5 Flash / Sonnet 5 (medium)
 
 </details>
 
@@ -472,7 +472,7 @@ restent à la main de l'agent : ils n'ont pas à être soumis.
 
 ## Modèle recommandé
 
-GPT 5.6-Sol (high) / Opus 5 (high)
+Opus 5 (high) / GPT 5.6-Sol (high)
 
 </details>
 
@@ -697,7 +697,7 @@ Ajouter :
 
 ## Modèle recommandé
 
-Sonnet 5 (low) / Gemini 3.5 Flash / GPT-5.6 Luna (low)
+GPT-5.6 Luna (low) / Sonnet 5 (low) / Gemini 3.5 Flash
 
 </details>
 
