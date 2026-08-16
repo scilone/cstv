@@ -150,7 +150,11 @@ open class GetRecommendationsUseCase @Inject constructor(
             }
 
             val movieHistoryIds = allHistory.filter { it.type == "movie" }.map { it.streamId.toString() }.toSet()
-            val seriesHistoryIds = allHistory.filter { it.type == "series" && it.seriesId != null }.map { it.seriesId.toString() }.toSet()
+            // B31 : PlaybackPosition.type vaut "movie" ou "episode" (jamais
+            // "series", voir sa doc) — ce filtre ne matchait jamais rien, les
+            // séries de l'historique n'entraient donc jamais dans le calcul
+            // des recommandations.
+            val seriesHistoryIds = allHistory.filter { it.type == "episode" && it.seriesId != null }.map { it.seriesId.toString() }.toSet()
 
             val ratings = try { mediaRatingRepository.getAllRatings() } catch (e: Exception) {
                 if (e is CancellationException) throw e

@@ -168,9 +168,12 @@ class SeriesViewModel @Inject constructor(
                     emptySet()
                 }
 
-                // Get only "series" type playback positions
+                // B31 : PlaybackPosition.type vaut "movie" ou "episode" (jamais
+                // "series", voir sa doc) — un filtre sur "series" ne matche
+                // jamais rien, la rangée « Continuer à regarder » de l'écran
+                // Séries restait donc toujours vide.
                 val seriesPositions = allPositions.filter { pos ->
-                    pos.type == "series" && pos.positionMs > 0 && pos.positionMs < (pos.durationMs - 15000L)
+                    pos.type == "episode" && pos.positionMs > 0 && pos.positionMs < (pos.durationMs - 15000L)
                 }
 
                 // Voir VodViewModel : la catégorie vient de la position (T9), pas

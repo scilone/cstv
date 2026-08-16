@@ -52,7 +52,7 @@ class GetRecommendationsUseCaseTest {
         // Only 2 items in history (< 3 threshold)
         val history = listOf(
             PlaybackPosition(streamId = 10, positionMs = 1000L, durationMs = 5000L, lastAccessedAt = 0L, type = "movie"),
-            PlaybackPosition(streamId = 20, positionMs = 1000L, durationMs = 5000L, lastAccessedAt = 0L, type = "series", seriesId = 99)
+            PlaybackPosition(streamId = 20, positionMs = 1000L, durationMs = 5000L, lastAccessedAt = 0L, type = "episode", seriesId = 99)
         )
         whenever(vodRepository.getAllPlaybackPositions()).thenReturn(history)
 

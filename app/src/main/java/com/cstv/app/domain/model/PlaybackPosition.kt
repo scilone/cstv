@@ -7,7 +7,12 @@ data class PlaybackPosition(
     val lastAccessedAt: Long,
     val title: String? = null,
     val coverUrl: String? = null,
-    val type: String? = null, // "movie" or "series"
+    // "movie" ou "episode" (jamais "series" : reflète `media_refs.kind`, passé
+    // tel quel à `ViewingHistoryRepositoryImpl.removeFromContinueWatching` comme
+    // paramètre `kind` de la suppression — le confondre avec la convention
+    // "movie"/"series" de `FavoriteItem.type` a déjà cassé plusieurs filtres
+    // silencieusement (B31).
+    val type: String? = null,
     val containerExtension: String? = null,
     val seriesId: Int? = null,
     val episodeNum: Int? = null,

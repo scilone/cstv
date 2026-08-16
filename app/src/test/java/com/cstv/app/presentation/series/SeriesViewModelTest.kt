@@ -83,7 +83,7 @@ class SeriesViewModelTest {
     fun test_resumeSeries_observesAndFiltersCorrectly() = runTest(testDispatcher) {
         val positions = listOf(
             PlaybackPosition(101, 1000L, 50000L, System.currentTimeMillis(), "Movie 101", "cover1", "movie", "mp4"),
-            PlaybackPosition(201, 1000L, 50000L, System.currentTimeMillis(), "Episode 201", "cover2", "series", "mp4", seriesId = 1001)
+            PlaybackPosition(201, 1000L, 50000L, System.currentTimeMillis(), "Episode 201", "cover2", "episode", "mp4", seriesId = 1001)
         )
 
         whenever(vodRepository.observeAllPlaybackPositions()).thenReturn(flowOf(positions))

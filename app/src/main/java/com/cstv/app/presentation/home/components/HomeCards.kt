@@ -62,8 +62,9 @@ fun HomeResumeWatchingCard(
     } else 0f
 
     // Phase 55 : ligne meta = "S01E03 · {temps restant}" en accent, sous le titre.
+    // B31 : PlaybackPosition.type vaut "movie" ou "episode" (jamais "series").
     val metaText = buildString {
-        if (position.type == "series") {
+        if (position.type == "episode") {
             EpisodeLabel.format(position.seasonNum, position.episodeNum)?.let { append(it) }
         }
         if (position.durationMs > 0) {
