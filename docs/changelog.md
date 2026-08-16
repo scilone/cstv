@@ -2,6 +2,16 @@
 
 ## À venir — non publiée
 
+## [v1.84.0] - 2026-08-16
+### ♻️ Normalisation des titres, extraction des attributs et clé de liaison entre médias (T21)
+* **Fondation données, aucun écran modifié** : chaque film, série et chaîne du cache Room porte désormais un titre nettoyé (`cleanTitle`), ses attributs extraits (langue/version, qualité) et une clé de liaison (`linkKey`) calculés une seule fois à la synchronisation — prépare le sélecteur de versions et les badges qualité des tickets suivants (F39, F40), sans aucun changement visible dans cette version.
+* **`MediaTitleParser`** : nouveau composant pur qui détecte les marqueurs connus (`VF`, `VOSTFR`, `MULTI`, `4K`, `HD`…), quelle que soit leur position et leur casse, produit un titre nettoyé fidèle au libellé source et une clé de liaison canonique (SHA-256 tronqué) qui rapproche les entrées désignant la même œuvre (« Film X VF 1080p » / « Film X MULTI 4K ») sans jamais confondre deux œuvres d'années différentes.
+* **Migration Room 28 → 29** : ajoute six colonnes et un index `linkKey` sur `vod_streams`, `series_streams` et `live_streams`, strictement structurelle (aucune ligne parcourue, démarrage non ralenti). Le catalogue déjà en cache est rattrapé par un `CatalogNormalizationWorker` en tâche de fond après le démarrage, repris par pages en cas d'interruption, sans appel réseau ni perte des favoris, positions de lecture ou téléchargements existants.
+* **Appariement TMDB accéléré** : `TmdbCatalogMatcher` consomme désormais le titre nettoyé déjà stocké au lieu de le recalculer à chaque appel.
+
+### 🐛 Correctifs de Bugs
+* **HUD du lecteur VOD qui se refermait aussitôt sur pause (télécommande TV)** : sur Android TV, la touche OK ouvrait bien le HUD lors d'une mise en pause, mais son relâchement (`KeyUp`) tombait dans un `Modifier.clickable` resté câblé sur l'ancien geste tactile, qui rebasculait aussitôt `showControls` à `false` — le HUD se refermait donc instantanément au lieu de rester ouvert le temps de la pause. Remplacé par un `pointerInput`/`detectTapGestures` qui ne réagit qu'aux événements pointeur, à l'image du lecteur Live qui n'avait pas ce défaut.
+
 ## [v1.83.0] - 2026-08-14
 ### ✨ Écran de chargement du premier remplissage du catalogue (F38)
 * **Écran de chargement dédié** : Affichage d'un écran de chargement plein écran indiquant l'étape en cours et la progression (de 1/6 à 6/6) entre l'authentification/sélection de profil et l'accès au catalogue.

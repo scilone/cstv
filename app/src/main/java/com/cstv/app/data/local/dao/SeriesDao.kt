@@ -65,6 +65,17 @@ interface SeriesDao {
         offset: Int
     ): List<SeriesStreamEntity>
 
+    /** T21 backfill: an empty key is the durable cursor; never group it at read time. */
+    @Query("SELECT * FROM series_streams WHERE linkKey = '' ORDER BY seriesId LIMIT :limit")
+    suspend fun getUnnormalizedStreams(limit: Int): List<SeriesStreamEntity>
+
+    /** Updates only T21 columns and only still-pending rows: a concurrent sync wins. */
+    @Query("UPDATE series_streams SET cleanTitle = :cleanTitle, linkKey = :linkKey, languageTag = :languageTag, languageRaw = :languageRaw, qualityTag = :qualityTag, qualityRaw = :qualityRaw WHERE seriesId = :seriesId AND linkKey = ''")
+    suspend fun applyNormalization(seriesId: Int, cleanTitle: String, linkKey: String, languageTag: String?, languageRaw: String?, qualityTag: String?, qualityRaw: String?)
+
+    @Query("SELECT * FROM series_streams WHERE linkKey = :linkKey AND linkKey != '' ORDER BY seriesId ASC")
+    suspend fun getStreamsByLinkKey(linkKey: String): List<SeriesStreamEntity>
+
     @Query("SELECT * FROM series_streams WHERE categoryId = :categoryId ORDER BY orderIndex ASC")
     fun observeStreamsByCategory(categoryId: String): Flow<List<SeriesStreamEntity>>
 

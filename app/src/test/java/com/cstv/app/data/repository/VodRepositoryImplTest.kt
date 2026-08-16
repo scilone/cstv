@@ -692,6 +692,8 @@ class VodRepositoryImplTest {
         assertEquals("Un résumé", persisted.plot)
         assertEquals("mkv", persisted.containerExtension)
         assertNotNull(persisted.detailsCachedAt)
+        assertEquals("Film", persisted.cleanTitle)
+        assertTrue(persisted.linkKey.isNotBlank())
     }
 
     /**

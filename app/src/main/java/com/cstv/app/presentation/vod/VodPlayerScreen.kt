@@ -463,10 +463,19 @@ fun VodPlayerScreen(
     }
 
     fun togglePlayPause() {
+        // `isPlaying` est aussi mis à jour de façon synchrone ici : le listener
+        // ExoPlayer (onIsPlayingChanged) le fera aussi, mais son callback est
+        // asynchrone (poste sur le looper). Sans cette valeur synchrone, le
+        // LaunchedEffect d'auto-masquage de PlayerOverlayHost pouvait démarrer
+        // avec l'ancien `isPlaying` (encore `true` juste après une pause) et
+        // programmer un masquage à 5 s avant que le listener ne corrige l'état
+        // — l'overlay se refermait alors en pleine pause.
         if (exoPlayer.isPlaying) {
             exoPlayer.pause()
+            isPlaying = false
         } else {
             exoPlayer.play()
+            isPlaying = true
         }
         showControls = true
     }
@@ -557,7 +566,16 @@ fun VodPlayerScreen(
             .focusable()
             .then(
                 if (isTv) {
-                    Modifier.clickable { showControls = !showControls }
+                    // `clickable` répond aussi à la touche OK (Entrée/DPadCenter)
+                    // sur son relâchement (KeyUp) : notre gestion custom du pad ne
+                    // consomme que le KeyDown (pause + ouverture du HUD), donc le
+                    // KeyUp qui suit tombait dans ce `clickable` et refermait le
+                    // HUD aussitôt (`!showControls`). `pointerInput` ne réagit
+                    // qu'aux événements pointeur (télécommande air mouse / souris),
+                    // jamais aux touches — même pattern que le lecteur Live.
+                    Modifier.pointerInput(Unit) {
+                        detectTapGestures(onTap = { showControls = !showControls })
+                    }
                 } else {
                     // Mobile : simple tap = bascule du HUD ; double-tap sur une
                     // moitié d'écran = saut de 10 s dans ce sens, à condition que

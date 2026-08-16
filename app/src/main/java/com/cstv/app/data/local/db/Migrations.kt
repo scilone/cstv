@@ -675,6 +675,37 @@ val MIGRATION_27_28 = object : Migration(27, 28) {
     }
 }
 
+/** T21: schema-only migration. Existing catalogue rows are normalized lazily by WorkManager. */
+val MIGRATION_28_29 = object : Migration(28, 29) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        migration28To29Statements().forEach(db::execSQL)
+    }
+}
+
+internal fun migration28To29Statements(): List<String> = listOf(
+    "ALTER TABLE live_streams ADD COLUMN cleanTitle TEXT NOT NULL DEFAULT ''",
+    "ALTER TABLE live_streams ADD COLUMN linkKey TEXT NOT NULL DEFAULT ''",
+    "ALTER TABLE live_streams ADD COLUMN languageTag TEXT",
+    "ALTER TABLE live_streams ADD COLUMN languageRaw TEXT",
+    "ALTER TABLE live_streams ADD COLUMN qualityTag TEXT",
+    "ALTER TABLE live_streams ADD COLUMN qualityRaw TEXT",
+    "CREATE INDEX IF NOT EXISTS index_live_streams_linkKey ON live_streams(linkKey)",
+    "ALTER TABLE vod_streams ADD COLUMN cleanTitle TEXT NOT NULL DEFAULT ''",
+    "ALTER TABLE vod_streams ADD COLUMN linkKey TEXT NOT NULL DEFAULT ''",
+    "ALTER TABLE vod_streams ADD COLUMN languageTag TEXT",
+    "ALTER TABLE vod_streams ADD COLUMN languageRaw TEXT",
+    "ALTER TABLE vod_streams ADD COLUMN qualityTag TEXT",
+    "ALTER TABLE vod_streams ADD COLUMN qualityRaw TEXT",
+    "CREATE INDEX IF NOT EXISTS index_vod_streams_linkKey ON vod_streams(linkKey)",
+    "ALTER TABLE series_streams ADD COLUMN cleanTitle TEXT NOT NULL DEFAULT ''",
+    "ALTER TABLE series_streams ADD COLUMN linkKey TEXT NOT NULL DEFAULT ''",
+    "ALTER TABLE series_streams ADD COLUMN languageTag TEXT",
+    "ALTER TABLE series_streams ADD COLUMN languageRaw TEXT",
+    "ALTER TABLE series_streams ADD COLUMN qualityTag TEXT",
+    "ALTER TABLE series_streams ADD COLUMN qualityRaw TEXT",
+    "CREATE INDEX IF NOT EXISTS index_series_streams_linkKey ON series_streams(linkKey)"
+)
+
 /**
  * Instructions de la migration 27→28, renvoyées plutôt qu'exécutées ici pour que
  * `Migration27To28SqlTest` puisse les rejouer sur un SQLite en mémoire via sqlite-jdbc — motif déjà
@@ -893,4 +924,4 @@ internal fun migration27To28Statements(): List<String> = listOf(
     "INSERT OR REPLACE INTO db_maintenance (task, requestedAt) VALUES ('vacuum', ${System.currentTimeMillis()})",
 )
 
-val ALL_MIGRATIONS = arrayOf(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28)
+val ALL_MIGRATIONS = arrayOf(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29)

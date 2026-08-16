@@ -18,7 +18,8 @@ import androidx.room.PrimaryKey
                 "epgChannelId", "num", "categoryId"
             ]
         ),
-        Index(value = ["categoryId", "num"])
+        Index(value = ["categoryId", "num"]),
+        Index(value = ["linkKey"])
     ]
 )
 data class LiveStreamEntity(
@@ -31,5 +32,11 @@ data class LiveStreamEntity(
     val cachedAt: Long,
     /** Voir [VodStreamEntity.categoryRank] : rang au sein de la catégorie. */
     @ColumnInfo(defaultValue = "0") val categoryRank: Int = 0,
-    @ColumnInfo(defaultValue = "''") val searchText: String = ""
+    @ColumnInfo(defaultValue = "''") val searchText: String = "",
+    @ColumnInfo(defaultValue = "''") val cleanTitle: String = "",
+    @ColumnInfo(defaultValue = "''") val linkKey: String = "",
+    val languageTag: String? = null,
+    val languageRaw: String? = null,
+    val qualityTag: String? = null,
+    val qualityRaw: String? = null
 )

@@ -50,6 +50,25 @@ Les écrans catalogue lisent des `Flow` Room et ne déclenchent pas directement 
 
 Depuis l'évolution **T7**, la durée de validité (fraîcheur) du catalogue n'est plus fixée à une valeur statique de 24 heures. Elle est calculée dynamiquement au runtime par `CatalogSyncManagerImpl` en interrogeant la fréquence de synchronisation (`DAILY`, `WEEKLY`, `MONTHLY`, `DISABLED`) configurée par l'utilisateur dans `SettingsManager`. Si le catalogue est expiré selon ce paramètre et que l'appareil est connecté à Internet (détection active via `NetworkMonitor`), l'application lance silencieusement et de manière asynchrone `syncIfStale()` sans perturber la navigation, sans bloquer l'UI par un loader, et sans faire apparaître de bannière d'erreur en cas d'échec transitoire. Le bandeau `OfflineBanner` est déconnecté de l'historique d'échecs de synchronisation et se fonde uniquement sur l'état de connectivité réseau réelle : il ne s'affiche plus que comme un simple indicateur informatif lorsque l'appareil est hors ligne.
 
+#### Normalisation des titres et clé de liaison (T21)
+
+Avant toute persistance Room, `LiveTvRepositoryImpl`, `VodRepositoryImpl` et `SeriesRepositoryImpl`
+font passer chaque libellé Xtream par `MediaTitleParser.parse(rawTitle, mediaKind, releaseYear)`,
+fonction pure et déterministe sans dépendance Android. Elle détecte les marqueurs de langue/version
+(`VF`, `VOSTFR`, `MULTI`…) et de qualité (`HD`, `4K`…) quelle que soit leur position ou leur casse,
+produit un `cleanTitle` fidèle au libellé source (marqueurs et ponctuation orpheline retirés) et une
+`linkKey` — forme canonique (minuscules, diacritiques supprimés, sans année) hachée en SHA-256 tronqué
+— qui rapproche les entrées désignant la même œuvre ou la même chaîne. Deux entrées ne partagent la
+clé que si leurs années connues, quand les deux existent, coïncident (`yearsAreCompatible`) ; l'année
+reste une colonne séparée, jamais intégrée à la clé, pour ne pas casser le regroupement lorsqu'un seul
+libellé la porte. `TitleNormalizer` est conservé comme façade de compatibilité qui délègue au parseur,
+et `TmdbCatalogMatcher` consomme désormais `cleanTitle`/`linkKey` déjà stockés plutôt que de reparser
+à chaque appel. Le catalogue déjà en cache au moment de la migration Room 28 → 29 (schéma seul, sans
+calcul) est rattrapé par `CatalogNormalizationWorker`, un `WorkManager` qui parcourt chaque table par
+pages de 500 lignes ordonnées par clé primaire, une transaction par page ; `linkKey = ''` sert de
+curseur persistant du travail restant, sans entité de progression dédiée. T21 ne modifie aucun écran :
+la donnée sert de fondation à F39 (sélecteur de versions) et F40 (qualité des chaînes).
+
 #### C. Couche Présentation (`presentation/`)
 Responsable de l'interface utilisateur. Elle utilise **Jetpack Compose** pour l'UI.
 * **ViewModels** : Un ViewModel par écran. Il gère l'état de l'interface (StateFlow) et interagit avec la couche Domaine. Zéro logique métier directe dans les Composables.

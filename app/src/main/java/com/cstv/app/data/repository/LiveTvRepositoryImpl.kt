@@ -11,6 +11,7 @@ import com.google.gson.JsonElement
 import com.cstv.app.data.local.dao.LiveTvDao
 import com.cstv.app.data.local.entity.LiveCategoryEntity
 import com.cstv.app.data.local.entity.LiveStreamEntity
+import com.cstv.app.data.local.entity.withParsedTitle
 import com.cstv.app.data.local.entity.EpgCacheEntity
 import com.cstv.app.data.local.storage.CredentialsManager
 import com.cstv.app.data.remote.api.XtreamApiService
@@ -21,6 +22,8 @@ import com.cstv.app.domain.model.LiveCategory
 import com.cstv.app.domain.model.LiveEpgProgram
 import com.cstv.app.domain.model.LiveEpgNowNext
 import com.cstv.app.domain.model.LiveStream
+import com.cstv.app.domain.model.MediaTitleKind
+import com.cstv.app.domain.model.MediaTitleParser
 import com.cstv.app.domain.network.NetworkMonitor
 import com.cstv.app.domain.repository.LiveTvRepository
 import com.cstv.app.domain.sync.CloudSyncManager
@@ -44,7 +47,8 @@ class LiveTvRepositoryImpl @Inject constructor(
     private fun LiveCategoryEntity.toDomain() = LiveCategory(categoryId, categoryName, parentId)
 
     private fun LiveStreamEntity.toDomain() =
-        LiveStream(streamId, name, streamIcon, epgChannelId, num, categoryId)
+        LiveStream(streamId, name, streamIcon, epgChannelId, num, categoryId,
+            cleanTitle, linkKey, languageTag, languageRaw, qualityTag, qualityRaw)
 
     // --- Lecture locale ---
 
@@ -126,6 +130,7 @@ class LiveTvRepositoryImpl @Inject constructor(
             // invisible in every section, so skip it instead.
             val itemCategoryId = dto.categoryId ?: categoryId.takeIf { it != ALL_CATEGORIES }
             if (id != null && name != null && itemCategoryId != null) {
+                val parsedTitle = MediaTitleParser.parse(name, MediaTitleKind.LIVE, providerId = id)
                 LiveStreamEntity(
                     streamId = id,
                     name = name,
@@ -134,7 +139,7 @@ class LiveTvRepositoryImpl @Inject constructor(
                     num = dto.num ?: 0,
                     categoryId = itemCategoryId,
                     cachedAt = currentTime
-                )
+                ).withParsedTitle(parsedTitle)
             } else null
         }.let(::withCategoryRanks)
 

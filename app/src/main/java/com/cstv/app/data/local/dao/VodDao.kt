@@ -121,6 +121,17 @@ interface VodDao {
         offset: Int
     ): List<VodStreamEntity>
 
+    /** T21 backfill: an empty key is the durable cursor; never group it at read time. */
+    @Query("SELECT * FROM vod_streams WHERE linkKey = '' ORDER BY streamId LIMIT :limit")
+    suspend fun getUnnormalizedStreams(limit: Int): List<VodStreamEntity>
+
+    /** Updates only T21 columns and only still-pending rows: a concurrent sync wins. */
+    @Query("UPDATE vod_streams SET cleanTitle = :cleanTitle, linkKey = :linkKey, languageTag = :languageTag, languageRaw = :languageRaw, qualityTag = :qualityTag, qualityRaw = :qualityRaw WHERE streamId = :streamId AND linkKey = ''")
+    suspend fun applyNormalization(streamId: Int, cleanTitle: String, linkKey: String, languageTag: String?, languageRaw: String?, qualityTag: String?, qualityRaw: String?)
+
+    @Query("SELECT * FROM vod_streams WHERE linkKey = :linkKey AND linkKey != '' ORDER BY streamId ASC")
+    suspend fun getStreamsByLinkKey(linkKey: String): List<VodStreamEntity>
+
     @Query("SELECT * FROM vod_streams WHERE categoryId = :categoryId ORDER BY orderIndex ASC")
     fun observeStreamsByCategory(categoryId: String): Flow<List<VodStreamEntity>>
 

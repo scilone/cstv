@@ -12,7 +12,13 @@ data class VodStream(
     val actors: String? = null,
     val director: String? = null,
     /** Blob local normalisé, réutilisé par la recherche avancée. */
-    val searchText: String = ""
+    val searchText: String = "",
+    val cleanTitle: String = "",
+    val linkKey: String = "",
+    val languageTag: String? = null,
+    val languageRaw: String? = null,
+    val qualityTag: String? = null,
+    val qualityRaw: String? = null
 ) {
     /**
      * Build play URL for VOD / Movie:

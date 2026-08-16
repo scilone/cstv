@@ -36,7 +36,11 @@ object TmdbCatalogMatcher {
             CatalogCandidate(
                 item = movie,
                 id = movie.streamId,
-                normalizedTitle = TitleNormalizer.normalize(movie.name),
+                // `cleanTitle` is computed once at catalogue ingress (T21). The
+                // fallback exists only for external/test objects and pre-backfill rows.
+                normalizedTitle = movie.cleanTitle.takeIf { it.isNotBlank() }
+                    ?.let(MediaTitleParser::canonicalize)
+                    ?: TitleNormalizer.normalize(movie.name),
                 releaseYear = movie.releaseYear?.takeIf { it > 0 } ?: yearFromTitle(movie.name)
             )
         }
@@ -46,7 +50,9 @@ object TmdbCatalogMatcher {
             CatalogCandidate(
                 item = stream,
                 id = stream.seriesId,
-                normalizedTitle = TitleNormalizer.normalize(stream.name),
+                normalizedTitle = stream.cleanTitle.takeIf { it.isNotBlank() }
+                    ?.let(MediaTitleParser::canonicalize)
+                    ?: TitleNormalizer.normalize(stream.name),
                 releaseYear = stream.releaseYear?.takeIf { it > 0 } ?: yearFromTitle(stream.name)
             )
         }

@@ -10,6 +10,7 @@ import com.cstv.app.data.local.entity.PlaybackPositionEntity
 import com.cstv.app.data.local.entity.VodCategoryEntity
 import com.cstv.app.data.local.dao.VodStreamListRow
 import com.cstv.app.data.local.entity.VodStreamEntity
+import com.cstv.app.data.local.entity.withParsedTitle
 import com.cstv.app.data.local.storage.CredentialsManager
 import com.cstv.app.data.remote.api.XtreamApiService
 import com.cstv.app.data.remote.api.RequestPriority
@@ -22,6 +23,8 @@ import com.cstv.app.domain.model.InvalidCredentialsException
 import com.cstv.app.domain.model.VodCategory
 import com.cstv.app.domain.model.VodDetails
 import com.cstv.app.domain.model.VodStream
+import com.cstv.app.domain.model.MediaTitleKind
+import com.cstv.app.domain.model.MediaTitleParser
 import com.cstv.app.domain.model.ReleaseYearParser
 import com.cstv.app.domain.repository.VodRepository
 import com.cstv.app.domain.sync.CloudSyncManager
@@ -276,7 +279,8 @@ class VodRepositoryImpl @Inject constructor(
 
     private fun VodStreamEntity.toDomain() = VodStream(
         streamId, name, streamIcon, rating, added, categoryId, genre,
-        releaseYear?.takeIf { it > 0 }, actors, director, searchText
+        releaseYear?.takeIf { it > 0 }, actors, director, searchText,
+        cleanTitle, linkKey, languageTag, languageRaw, qualityTag, qualityRaw
     )
 
     override fun observeVodCategories(): Flow<List<VodCategory>> =
@@ -389,6 +393,7 @@ class VodRepositoryImpl @Inject constructor(
             val itemCategoryId = dto.categoryId ?: categoryId.takeIf { it != ALL_CATEGORIES }
             if (id != null && name != null && itemCategoryId != null) {
                 val existing = existingById[id]
+                val parsedTitle = MediaTitleParser.parse(name, MediaTitleKind.VOD, existing?.releaseYear, id)
                 VodStreamEntity(
                     streamId = id,
                     name = name,
@@ -407,7 +412,7 @@ class VodRepositoryImpl @Inject constructor(
                     duration = existing?.duration,
                     containerExtension = existing?.containerExtension,
                     detailsCachedAt = existing?.detailsCachedAt
-                )
+                ).withParsedTitle(parsedTitle)
             } else null
         }
 
@@ -586,6 +591,13 @@ class VodRepositoryImpl @Inject constructor(
                     duration = duration,
                     containerExtension = extension,
                     detailsCachedAt = System.currentTimeMillis()
+                ).withParsedTitle(
+                    MediaTitleParser.parse(
+                        cachedStream.name,
+                        MediaTitleKind.VOD,
+                        ReleaseYearParser.parseYear(releaseDate) ?: 0,
+                        cachedStream.streamId
+                    )
                 )
             ))
         }

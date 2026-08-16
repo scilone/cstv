@@ -31,7 +31,8 @@ import androidx.room.PrimaryKey
                 "rating", "added", "categoryId", "genre", "releaseYear"
             ]
         ),
-        Index(value = ["categoryId", "orderIndex"])
+        Index(value = ["categoryId", "orderIndex"]),
+        Index(value = ["linkKey"])
     ]
 )
 data class VodStreamEntity(
@@ -60,5 +61,11 @@ data class VodStreamEntity(
     val duration: String? = null,
     val containerExtension: String? = null,
     val detailsCachedAt: Long? = null,
-    @ColumnInfo(defaultValue = "''") val searchText: String = ""
+    @ColumnInfo(defaultValue = "''") val searchText: String = "",
+    @ColumnInfo(defaultValue = "''") val cleanTitle: String = "",
+    @ColumnInfo(defaultValue = "''") val linkKey: String = "",
+    val languageTag: String? = null,
+    val languageRaw: String? = null,
+    val qualityTag: String? = null,
+    val qualityRaw: String? = null
 )

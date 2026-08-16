@@ -12,6 +12,7 @@ import com.cstv.app.data.local.dao.VodDao
 import com.cstv.app.data.local.entity.SeriesCategoryEntity
 import com.cstv.app.data.local.dao.SeriesStreamListRow
 import com.cstv.app.data.local.entity.SeriesStreamEntity
+import com.cstv.app.data.local.entity.withParsedTitle
 import com.cstv.app.data.local.storage.CredentialsManager
 import com.cstv.app.data.remote.api.RequestPriority
 import com.cstv.app.data.remote.api.XtreamApiService
@@ -209,7 +210,8 @@ class SeriesRepositoryImpl @Inject constructor(
 
     private fun SeriesStreamEntity.toDomain() = SeriesStream(
         seriesId, name, cover, rating, added, categoryId, genre,
-        releaseYear?.takeIf { it > 0 }, actors, director, searchText
+        releaseYear?.takeIf { it > 0 }, actors, director, searchText,
+        cleanTitle, linkKey, languageTag, languageRaw, qualityTag, qualityRaw
     )
 
     // --- Lecture locale ---
@@ -329,6 +331,7 @@ class SeriesRepositoryImpl @Inject constructor(
             val itemCategoryId = dto.categoryId ?: categoryId.takeIf { it != ALL_CATEGORIES }
             if (id != null && name != null && itemCategoryId != null) {
                 val existing = existingById[id]
+                val parsedTitle = MediaTitleParser.parse(name, MediaTitleKind.SERIES, existing?.releaseYear, id)
                 SeriesStreamEntity(
                     seriesId = id,
                     name = name,
@@ -345,7 +348,7 @@ class SeriesRepositoryImpl @Inject constructor(
                     releaseYear = existing?.releaseYear,
                     plot = existing?.plot,
                     detailsCachedAt = existing?.detailsCachedAt
-                )
+                ).withParsedTitle(parsedTitle)
             } else null
         }
 
@@ -600,6 +603,13 @@ class SeriesRepositoryImpl @Inject constructor(
                     releaseYear = ReleaseYearParser.parseYear(releaseDate) ?: 0,
                     plot = plot,
                     detailsCachedAt = now
+                ).withParsedTitle(
+                    MediaTitleParser.parse(
+                        cachedSeries.name,
+                        MediaTitleKind.SERIES,
+                        ReleaseYearParser.parseYear(releaseDate) ?: 0,
+                        cachedSeries.seriesId
+                    )
                 )
             ))
         }

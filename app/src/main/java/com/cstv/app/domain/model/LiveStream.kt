@@ -6,7 +6,13 @@ data class LiveStream(
     val streamIcon: String?,
     val epgChannelId: String?,
     val num: Int,
-    val categoryId: String
+    val categoryId: String,
+    val cleanTitle: String = "",
+    val linkKey: String = "",
+    val languageTag: String? = null,
+    val languageRaw: String? = null,
+    val qualityTag: String? = null,
+    val qualityRaw: String? = null
 ) {
     /**
      * Build play URL for Live Stream:

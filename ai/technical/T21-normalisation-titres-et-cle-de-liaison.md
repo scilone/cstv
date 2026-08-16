@@ -3,7 +3,7 @@
 ## Informations générales
 
 Status:
-TASK BREAKDOWN
+VALIDATED
 
 Created:
 2026-08-15
@@ -139,6 +139,19 @@ Aucune question bloquante ne reste ouverte pour l'étape 4.
 
 ---
 
+## Décisions produit prises à l'étape 6
+
+Arbitrages soumis à la suite de la review technique (voir §12).
+
+| Sujet | Décision |
+|---|---|
+| Titre d'affichage et clé de liaison (M1, M2) | **Séparés.** `cleanTitle` redevient fidèle au libellé source : seuls les marqueurs détectés et la ponctuation devenue orpheline sont retirés ; ponctuation et année sont conservées. `linkKey` reste calculé sur une forme canonique dont l'année est retirée, afin de préserver le regroupement des versions dont un seul libellé porte l'année (« Odyssée 2016 » / « Odyssée (2016) » / « Odyssee.2016.MULTI »). Le risque d'homonymie d'un titre contenant réellement une année (« Blade Runner 2049 ») est **assumé comme limite V1**, au même titre que le risque « marqueur légitime dans le titre » déjà accepté en §7.6 ; il s'atténue dès que `releaseYear` est enrichi, via `yearsAreCompatible`. |
+| Marqueurs de langue sur les chaînes (m2) | **§7.5 fait foi** : le parseur ne retire que les marqueurs de qualité quand `mediaKind == LIVE`. Deux flux linguistiques distincts d'une même chaîne restent des chaînes distinctes, conformément à la décision d'étape 1 (« pas de regroupement agressif »). |
+| État d'avancement du worker (m4) | **`linkKey = ''` EST l'état persisté.** Aucune entité ni clé DataStore supplémentaire : le curseur durable ne peut pas se désynchroniser de la donnée, et §8.5.2 n'exige d'aucun consommateur qu'il affiche l'avancement. §8.5.1 et la tâche 7 sont révisées en ce sens. |
+| Projections de listes (m6) | **Report explicite vers F39.** `CatalogListRow` n'est pas modifié par T21 : aucun écran ne lit encore `languageTag`/`qualityTag`, et §8.2 lie cet ajout aux badges de F39. Évite d'élargir les index couvrants T9 sans consommateur. |
+
+---
+
 # 7. Spécification fonctionnelle
 
 ## 7.1 Résultat attendu
@@ -180,6 +193,9 @@ Pour chaque libellé source, dans cet ordre :
   enrichie au fil des observations sur le catalogue réel (hypothèse étape 1).
 - **Qualité** (liste fermée, insensible à la casse) : `4K`, `UHD`, `2160p`,
   `FHD`, `1080p`, `HD`, `720p`, `SD`.
+- **Marqueurs VOD/séries non persistés** : `HDR`, `X265`, `X264`, `H265`,
+  `H264`, `3D`, `FR`, `EN` sont retirés pour l'appariement et la clé, sans
+  devenir des attributs affichables. Ils ne sont jamais retirés des chaînes.
 - Chaque catégorie retient au plus une valeur par entrée. En cas de plusieurs
   marqueurs de la même catégorie dans un même libellé, le plus qualitatif
   prime par défaut (`4K` avant `HD`) — comportement exact à confirmer étape 3
@@ -407,8 +423,9 @@ planifiée) reprend le travail après le démarrage :
   `SupportSQLiteStatement` préparé réutilisable, **une transaction par page** :
   interrompu (arrêt de l'app, redémarrage), il reprend à la page suivante au
   lieu de tout refaire ;
-- publie un état d'avancement observable (`pending` / `running` / `done`)
-  persisté, afin que les consommateurs sachent si la donnée est exploitable ;
+- utilise `linkKey = ''` comme état persistant du travail restant : aucune
+  entité de progression n'est nécessaire et les consommateurs excluent déjà
+  cette valeur de leurs regroupements ;
 - aucune erreur d'une ligne n'annule le reste du lot : le repli défensif
   produit le titre source et une clé singleton ;
 - aucun appel réseau ; ne touche ni aux favoris, ni aux positions, ni aux
@@ -548,7 +565,7 @@ dépendance Android, testable isolément avant de toucher à Room. Les tâches 4
 deviennent nécessaires. La tâche 8 est indépendante des autres et peut se
 faire en parallèle dès que la tâche 3 est livrée.
 
-- [ ] 1. Modèles de domaine (langue, qualité, résultat de parsing)
+- [x] 1. Modèles de domaine (langue, qualité, résultat de parsing)
 
 Objectif:
 Poser les types purs sur lesquels tout le reste s'appuie, sans logique
@@ -566,7 +583,7 @@ dupliqué et que chacun reste stable si l'ordre des entrées de l'enum change.
 
 ---
 
-- [ ] 2. `MediaTitleParser` — extraction, nettoyage, clé de liaison
+- [x] 2. `MediaTitleParser` — extraction, nettoyage, clé de liaison
 
 Objectif:
 Implémenter la fonction pure `parse(rawTitle, mediaKind, releaseYear)` :
@@ -591,7 +608,7 @@ performance à ce stade).
 
 ---
 
-- [ ] 3. Compatibilité par année et fonction `yearsAreCompatible`
+- [x] 3. Compatibilité par année et fonction `yearsAreCompatible`
 
 Objectif:
 Implémenter la règle de séparation par année (§8.3) comme fonction pure,
@@ -611,7 +628,7 @@ différentes et incompatibles entre elles) — cf. §8.3, ne doit jamais être
 
 ---
 
-- [ ] 4. Entités et DAO Room — nouvelles colonnes et index
+- [x] 4. Entités et DAO Room — nouvelles colonnes et index
 
 Objectif:
 Ajouter les six colonnes (`cleanTitle`, `linkKey`, `languageTag`,
@@ -632,7 +649,7 @@ test dédié à ce stade : les entités ne sont pas encore écrites nulle part.
 
 ---
 
-- [ ] 5. Migration Room — schéma seul (numéro à vérifier avant d'écrire)
+- [x] 5. Migration Room — schéma seul (numéro à vérifier avant d'écrire)
 
 Objectif:
 Poser la migration qui ajoute colonnes et index, sans aucun calcul — voir
@@ -654,7 +671,7 @@ ligne existante. Migration mesurée quasi instantanée quel que soit le volume
 
 ---
 
-- [ ] 6. Intégration à l'écriture de synchronisation
+- [x] 6. Intégration à l'écriture de synchronisation
 
 Objectif:
 Appeler `MediaTitleParser` dans les mappers avant persistance, pour que
@@ -674,7 +691,7 @@ synchronisation existants (`./gradlew testDebugUnitTest`).
 
 ---
 
-- [ ] 7. `CatalogNormalizationWorker` — recalcul du stock existant
+- [x] 7. `CatalogNormalizationWorker` — recalcul du stock existant
 
 Objectif:
 Recalculer en tâche de fond les entrées déjà en cache au moment de la mise à
@@ -683,8 +700,7 @@ reprenable après interruption, état d'avancement persisté.
 
 Fichiers:
 - `data/worker/CatalogNormalizationWorker.kt` (nouveau)
-- état d'avancement persisté (nouvelle entité/DataStore selon convention
-  existante du module `worker`)
+- pas d'entité/DataStore : `linkKey = ''` est le curseur persistant ;
 - déclenchement après migration (`AppModule.kt` ou point d'amorçage existant
   des workers planifiés)
 - tests unitaires du worker (nouveau)
@@ -698,7 +714,7 @@ performance (§8.5.2) sur un catalogue volumineux, à titre indicatif.
 
 ---
 
-- [ ] 8. Bascule de l'appariement TMDB sur le titre stocké
+- [x] 8. Bascule de l'appariement TMDB sur le titre stocké
 
 Objectif:
 `TmdbCatalogMatcher` consomme `cleanTitle`/`linkKey` persistés au lieu
@@ -718,7 +734,7 @@ catalogue de production (vérifiable par recherche dans le code).
 
 ---
 
-- [ ] 9. Non-régression et nettoyage final
+- [x] 9. Non-régression et nettoyage final
 
 Objectif:
 Vérifier l'ensemble du ticket avant review : build, tests, absence de
@@ -738,17 +754,315 @@ périmée, indépendamment de ce ticket).
 
 # 11. Notes de développement
 
+## Étape 5 — 2026-08-16
+
+- Ajout du parseur pur `MediaTitleParser`, de ses types stables et de la règle
+  de compatibilité des années. La clé est un SHA-256 tronqué à 128 bits du
+  titre canonique ; une clé `invalid:<kind>:<id>` protège les libellés vides.
+- Schéma bumpé de 28 à 29 : six colonnes et un index `linkKey` par table
+  catalogue. `MIGRATION_28_29` est strictement structurelle ; le test SQL
+  vérifie conservation des lignes, valeurs par défaut et index.
+- Les synchronisations Live, VOD et séries enrichissent maintenant les entités
+  avant leur écriture. `TmdbCatalogMatcher` consomme `cleanTitle` déjà stocké,
+  avec un repli limité aux objets externes et au stock non encore rattrapé.
+- `CatalogNormalizationWorker` traite le stock 28 par pages de 500 sans réseau.
+  `linkKey = ''` matérialise le travail restant : chaque page est transactionnelle
+  et une synchronisation concurrente garde priorité grâce aux `UPDATE ... AND
+  linkKey = ''` ciblés.
+- Tests ajoutés : parseur/années/codes, migration SQLite et reprise/idempotence
+  de la boucle de rattrapage. `testDebugUnitTest` a d'abord révélé trois
+  régressions de compatibilité du matcher ; elles sont corrigées et le rerun
+  ciblé est vert. `assembleDebug` a produit l'APK debug. La vérification lint
+  complète reste à obtenir : les lancements ont été interrompus par la session
+  d'exécution avant la tâche `lintDebug`, sans nouveau rapport exploitable.
+
+## Étape 7 — 2026-08-16 — Corrections de review
+
+- `cleanTitle` conserve désormais l'année et la ponctuation du libellé ; la
+  clé et le matching TMDB emploient séparément une forme canonique sans année.
+  Les titres dont l'année fait partie du nom conservent ainsi un affichage
+  fidèle, tout en regroupant les variantes attendues.
+- La façade historique ne construit plus de clé, le hachage du worker emploie
+  un digest par thread et un encodage hexadécimal sans formatage par octet.
+- Le worker respecte l'annulation, journalise les échecs et isole une ligne
+  défectueuse avec son repli défensif ; les enrichissements VOD/séries
+  recalculent les colonnes T21 avant leur upsert, afin de ne pas réintroduire
+  un `linkKey` vide après un passage concurrent du worker.
+- Les mappages Room sont centralisés, les langues restent dans l'identité LIVE,
+  et les tests couvrent la non-transitivité des années, les variantes LIVE,
+  le repli du worker, l'écriture normalisée et les trois tables de migration.
+- `testDebugUnitTest` et `assembleDebug` sont verts après correction. Le
+  lancement `lintDebug` s'arrête anormalement dans l'environnement d'exécution
+  après la compilation Kotlin, sans rapport lint ni verdict Gradle ; la tâche
+  9 reste donc ouverte et l'étape 8 n'est pas engagée.
+
 ---
 
 # 12. Review
 
+## Étape 6 — 2026-08-16 — Review technique
+
+### Vérifications factuelles
+
+| Contrôle | Résultat |
+|---|---|
+| `./gradlew testDebugUnitTest` | 1039 tests, 0 échec, 0 erreur, 0 ignoré |
+| `./gradlew lintDebug --rerun-tasks` | `BUILD SUCCESSFUL` — aucune erreur, aucun avertissement nouveau (seul `w:` restant : `CstvAuthRepositoryImpl.kt:80`, pré-existant) |
+| `compileDebugKotlin` | OK (schéma Room accepté à la compilation) |
+
+Le point resté ouvert à l'étape 5 (« la vérification lint complète reste à obtenir ») est
+donc levé.
+
+### Ce qui est solide
+
+- Migration `MIGRATION_28_29` strictement structurelle, `IF NOT EXISTS` sur les index,
+  noms d'index conformes à ceux que Room génère (`index_<table>_linkKey`), ajoutée à
+  `ALL_MIGRATIONS`, version bumpée. Aucun parcours de ligne : l'objectif « démarrage non
+  ralenti » est atteint.
+- Garde `WHERE … AND linkKey = ''` sur les trois `applyNormalization` : une synchronisation
+  concurrente l'emporte toujours sur le rattrapage, et `linkKey = ''` sert de curseur durable
+  sans table d'état supplémentaire — la reprise après interruption est correcte par construction.
+- Les trois seuls points de construction d'entité catalogue (`LiveTvRepositoryImpl:133`,
+  `VodRepositoryImpl:396`, `SeriesRepositoryImpl:334`) normalisent tous ; les chemins
+  d'enrichissement `get_vod_info`/`get_series_info` passent par `copy()` et préservent donc la
+  clé, conformément à §8.4.
+- `CatalogNormalizationWorker` suit la convention `@EntryPoint` du projet (identique à
+  `DatabaseSyncWorker`), sans `@HiltWorker` ni `WorkerFactory` à câbler.
+- Aucune dépendance Gradle ajoutée, aucune donnée catalogue envoyée au backend, requêtes de
+  lecture par clé excluant systématiquement `''` (§8.5.2).
+
+---
+
 ## Critique
+
+Aucun problème critique. Ni perte de données, ni risque de crash, ni régression fonctionnelle
+observable n'a été identifié.
+
+---
 
 ## Majeur
 
+### M1 — `cleanTitle` retire l'année : deux œuvres distinctes peuvent partager la même `linkKey`
+
+**Description.** `MediaTitleParser.parse` (l. 83-86) supprime, pour VOD et SERIES, tout token
+`19xx`/`20xx` du titre nettoyé — comportement hérité de l'ancien `TitleNormalizer`, où il
+servait uniquement à l'appariement TMDB. Or `linkKey` dérive désormais de `cleanTitle`.
+« Blade Runner 2049 » produit donc la même clé que « Blade Runner » ; idem « Space 1999 » /
+« Space », « Death Race 2000 » / « Death Race ».
+
+**Impact.** Viole le critère d'acceptation §7.7 « Deux œuvres distinctes de titres différents
+ne partagent jamais la même clé ». Le garde-fou `yearsAreCompatible` ne rattrape rien tant que
+`releaseYear` n'est pas enrichi — état majoritaire du catalogue, la colonne n'étant remplie que
+par `get_vod_info` à la consultation — et §7.4 pose explicitement qu'une année absente ne bloque
+jamais le regroupement. F39 proposerait donc « Blade Runner » comme version de
+« Blade Runner 2049 ».
+
+**Correction attendue.** Décorréler le titre servant au matching TMDB (qui doit continuer à
+retirer l'année, sans quoi « Gladiator 2000 » cesse d'apparier « Gladiator ») du titre servant à
+la liaison. Voir arbitrage à l'étape 6.
+
+### M2 — `cleanTitle` n'est pas un titre d'affichage : toute la ponctuation est écrasée
+
+**Description.** `removableSeparators` (l. 79) remplace `| - _ / + . [ ] ( ) : { }` par des
+espaces sur **l'intégralité** du libellé, alors que §7.2 ne prévoit que la normalisation de la
+« ponctuation résiduelle laissée par le retrait ». « Spider-Man: No Way Home » devient
+« Spider Man No Way Home » ; « |FR| TF1 HD » devient « FR TF1 ».
+
+**Impact.** §8.2 définit `cleanTitle` comme le « titre d'affichage nettoyé », que F39 est censé
+exposer. Soit F39 l'affiche et les titres perdent leur typographie, soit il ne l'affiche pas et
+la colonne fait doublon avec `canonicalize`, qui refait déjà ce travail pour la clé.
+
+**Correction attendue.** Laisser `cleanTitle` fidèle au libellé source moins les marqueurs
+détectés (et la ponctuation devenue orpheline), la normalisation agressive restant confinée à
+`canonicalize`. Alternative : acter que `cleanTitle` n'est pas destiné à l'affichage et corriger
+§8.2 en conséquence. Même arbitrage que M1.
+
+### M3 — `TitleNormalizer.normalize()` calcule puis jette une clé SHA-256 à chaque appel
+
+**Description.** La façade appelle `MediaTitleParser.parse()`, qui calcule systématiquement
+`linkKey` (SHA-256 + 16 `String.format("%02x")`) avant que la façade n'en conserve que
+`cleanTitle`. Or `normalize()` reste présent sur des chemins chauds :
+`ApproximateTitleMatcher.computeSimilarity` (l. 6-7), `TmdbCatalogMatcher.yearFromTitle`
+(l. 71) — appelée pour **chaque** ligne de catalogue non encore enrichie dans `prepareMovies` /
+`prepareSeries` — et `findBestMatches` (l. 81).
+
+**Impact.** Régression de performance nette sur l'appariement TMDB, alors que T21 avait pour
+objectif de le rendre plus rapide (§3, §7.7). Le coût s'ajoute exactement là où le catalogue est
+le moins enrichi, c'est-à-dire après une installation neuve.
+
+**Correction attendue.** Extraire la partie nettoyage (`cleanTitleOf(raw, kind)`) sans calcul de
+clé, ou rendre `linkKey` paresseux dans `ParsedMediaTitle`.
+
+### M4 — Le budget de performance du rattrapage est menacé par la génération hexadécimale
+
+**Description.** `hashKey` (l. 110-113) instancie `MessageDigest.getInstance("SHA-256")` **par
+ligne**, puis convertit les 16 octets par 16 appels à `"%02x".format(it)`.
+
+**Impact.** `String.format` coûte de l'ordre de la microseconde ; à 16 appels par ligne,
+100 000 entrées représentent 1,6 million de formatages, soit plusieurs secondes de CPU pur sur
+box Android TV — face au budget explicite de §8.5.2 (« moins de 10 secondes de traitement cumulé
+sur un appareil bas de gamme »). Le budget n'est plus bloquant pour le démarrage, mais il reste
+le seuil au-delà duquel la fiche impose une optimisation.
+
+**Correction attendue.** `MessageDigest` en `ThreadLocal` (l'objet n'est pas thread-safe) et
+conversion hexadécimale par table de caractères.
+
+### M5 — `catch (_: Exception)` avale `CancellationException` dans `doWork`
+
+**Description.** `CatalogNormalizationWorker.doWork` (l. 46) capture toute `Exception`, y compris
+l'annulation coopérative émise quand WorkManager stoppe le worker : celui-ci répond alors
+`Result.retry()` au lieu de laisser l'annulation se propager. `DatabaseSyncWorker` et les
+repositories du projet appliquent partout le motif inverse (`if (e is CancellationException)
+throw e`).
+
+**Impact.** Annulation non honorée, réenfilement parasite après un arrêt volontaire, et masquage
+total de toute erreur réelle : aucune trace n'est écrite alors que le projet dispose de
+`IptvLog`.
+
+**Correction attendue.** Relancer `CancellationException` et journaliser l'échec avant
+`Result.retry()`.
+
+### M6 — Couverture de tests en retrait de ce qu'exigeait le découpage de l'étape 4
+
+**Description.** Quatre garde-fous explicitement demandés manquent :
+
+- **Tâche 3** imposait « un test explicite de non-transitivité » de `yearsAreCompatible` (A sans
+  année compatible avec B et C, B et C incompatibles entre elles). `MediaTitleParserTest` ne
+  couvre que les quatre cas simples.
+- **Tâche 7** imposait un test de « repli défensif sur une ligne en erreur sans annuler le lot » :
+  absent. Le seul test du worker exerce `drainPages` avec des lambdas factices ; ni
+  `applyNormalization` (dont la garde `AND linkKey = ''` est le cœur de la protection contre la
+  synchronisation concurrente) ni `getUnnormalizedStreams` ne sont exercées, alors que le patron
+  sqlite-jdbc du projet permettrait de le faire sans appareil connecté.
+- **Tâche 6** imposait « une entrée synchronisée porte un `cleanTitle`/`linkKey` calculés » :
+  aucun test de mapping ou de synchronisation n'a été ajouté ni modifié.
+- **Tâche 5** imposait un test de création fraîche du schéma, et `Migration28To29SqlTest`
+  n'assertionne que `vod_streams` : ni `live_streams` ni `series_streams` ne sont vérifiées,
+  colonnes comme index.
+
+**Impact.** Les trois régressions de compatibilité du matcher signalées dans les notes de l'étape
+5 montrent que ces chemins bougent réellement ; ils restent aujourd'hui sans filet.
+
+**Correction attendue.** Ajouter les quatre tests manquants.
+
+---
+
 ## Mineur
 
+### m1 — `MediaTitleParser.parse` déclare `releaseYear` sans jamais l'utiliser
+
+Le paramètre est transmis par `VodRepositoryImpl`, `SeriesRepositoryImpl` et le worker, mais le
+corps de `parse` ne le lit nulle part. Le comportement est conforme à §8.3 (la clé ignore
+l'année) ; c'est la signature qui laisse croire l'inverse. Retirer le paramètre, ou documenter en
+KDoc pourquoi il est volontairement ignoré.
+
+### m2 — Les marqueurs de langue sont retirés aussi sur les chaînes
+
+§7.5 prescrit, pour la clé de liaison des chaînes, « le retrait des **seuls** marqueurs de
+qualité ». `parse` applique `languageMarkers` quel que soit `mediaKind` (l. 57-61). Deux flux
+distincts d'un même panel — « Ciné+ VF » et « Ciné+ VO » — seraient fusionnés sous une seule
+clé. Sauter `languageMarkers` quand `mediaKind == LIVE`, ou amender §7.5.
+
+### m3 — La liste `ignoredVodTokens` n'apparaît nulle part dans la fiche
+
+`HDR`, `X265`, `X264`, `H265`, `H264`, `3D`, `FR`, `EN` sont retirés du titre VOD/séries, alors
+que §7.3 ne connaît que langue et qualité. Le comportement est légitime (héritage
+`TitleNormalizer`, nécessaire au matching TMDB) mais non spécifié : le reporter en §7.3, pour que
+F39 sache ce qui disparaît du titre sans être persisté.
+
+### m4 — L'état d'avancement persisté prévu par §8.5.1 n'existe pas
+
+La fiche prévoyait un état observable `pending` / `running` / `done` persisté ; l'implémentation
+utilise `linkKey = ''` comme état implicite. Le choix se défend (§8.5.2 n'exige d'aucun
+consommateur qu'il affiche l'avancement, et le curseur durable est de fait plus simple), mais il
+diverge de §8.5.1 et de la tâche 7. À trancher : implémenter, ou réviser la fiche.
+
+### m5 — Course perdante entre l'enrichissement et le rattrapage
+
+`VodRepositoryImpl:589` et `SeriesRepositoryImpl:603` enrichissent via
+`insertStreams(listOf(cached.copy(...)))`, c'est-à-dire un upsert de ligne **complète** construit
+à partir d'une lecture antérieure. Si le worker normalise la ligne entre cette lecture et
+l'upsert, l'upsert réécrit `linkKey = ''` et annule le travail. La garde `AND linkKey = ''` ne
+protège que le sens inverse. Impact transitoire seulement — le worker est réenfilé à chaque
+`onCreate` et rattrapera la ligne au démarrage suivant. Correction : `UPDATE` ciblé sur les
+seules colonnes enrichies, ou relecture dans la même transaction.
+
+### m6 — `CatalogListRow.kt` n'a pas été modifié alors que la tâche 4 le listait
+
+§8.2 prévoyait d'ajouter `languageTag`/`qualityTag` aux projections de listes. Les écrans passent
+par `VodStreamListRow` / `LiveStreamListRow` / `SeriesStreamListRow` : les objets domaine qu'ils
+produisent porteront donc toujours `cleanTitle` et `linkKey` vides. Sans conséquence en T21
+(aucun consommateur), mais F39 en aura besoin. À acter comme report explicite vers F39, ou à
+compléter maintenant.
+
+### m7 — Six copies du même mappage de colonnes
+
+Le bloc `cleanTitle = …, linkKey = …, languageTag = parsed.language?.storageCode, …` est répété
+dans les trois repositories et dans les trois extensions `withParsedTitle` du worker. §8.4
+prévoyait au contraire un point d'écriture unique côté DAO (`insertStreams`), à l'image de
+`searchText`. Factoriser en une extension partagée `ParsedMediaTitle.applyTo(entity)`.
+
+### m8 — `scheduleCatalogNormalization` avale l'exception sans journaliser
+
+`IptvApplication` l. 124-129 : `catch (_: Exception) {}` avec un commentaire sur l'absence de
+WorkManager en test JVM. En production, un échec d'enfilement resterait totalement invisible et
+le rattrapage ne se ferait jamais. Journaliser via `IptvLog.e`.
+
+### m9 — `withContext(Dispatchers.Default)` sans effet dans le worker
+
+`doWork` d'un `CoroutineWorker` s'exécute déjà sur `Dispatchers.Default`. Le `withContext` des
+trois méthodes `normalizeXxx` ne déporte rien. Sans conséquence, mais trompeur : le retirer, ou
+basculer explicitement le worker sur `Dispatchers.IO` comme le fait `DatabaseSyncWorker`.
+
+---
+
 ## Corrections demandées
+
+À traiter à l'étape 7, dans cet ordre :
+
+1. M1 + M2 — décorréler titre d'affichage et titre de liaison (selon l'arbitrage ci-dessous).
+2. M3 + M4 — supprimer le calcul de clé inutile dans la façade, optimiser `hashKey`.
+3. M5 — `CancellationException` relancée, échec journalisé.
+4. M6 — quatre tests manquants ajoutés.
+5. m1, m3, m5, m7, m8, m9 — corrections directes, sans arbitrage.
+6. m2 — le parseur ne retire plus les marqueurs de langue sur `LIVE`.
+7. m4 et m6 — pas de code : réviser §8.5.1 et la tâche 7 (`linkKey = ''` est l'état
+   persisté), et acter en §8.2 / tâche 4 le report de `CatalogListRow` vers F39.
+
+Arbitrages correspondants : voir *Décisions produit prises à l'étape 6*.
+
+Une fois ces corrections appliquées, la tâche 9 du plan de développement peut être cochée :
+son contrôle (`assembleDebug`, `testDebugUnitTest`, `lintDebug`) est déjà vert sur l'état
+actuel, mais devra être rejoué après les corrections.
+
+## Étape 8 — 2026-08-16 — Validation finale
+
+**Statut : `VALIDATED`.** Les corrections de l'étape 7 et l'ensemble du
+comportement interne de T21 sont validés par les contrôles automatisés.
+
+| Contrôle | Résultat | Portée de la preuve |
+|---|---|---|
+| Intégrité du diff | `git diff --check` vert | Aucun espace final ni marqueur de conflit dans le changement T21. |
+| Câblage de production | Vérifié | Les trois synchronisations normalisent les entités, la migration 28 → 29 est enregistrée, le worker est enfilé au démarrage et le matcher TMDB lit `cleanTitle` persistant avec son repli explicitement limité. |
+| Tests JVM | `./gradlew --no-daemon --max-workers=1 testDebugUnitTest` — `BUILD SUCCESSFUL` (46 s) | Non-régression automatisée du parseur, de la migration, du worker, des synchronisations et du matcher, avec les sources finales. |
+| Build debug | `./gradlew --no-daemon --max-workers=1 assembleDebug` — `BUILD SUCCESSFUL` (17 s) | Compilation et génération de l'APK debug confirmées. |
+| Lint | `./gradlew --no-daemon --max-workers=1 lintDebug` — `BUILD SUCCESSFUL` (11 s) | Le parseur utilise bien l'initialisation manuelle compatible API 21 ; l'erreur `ThreadLocal.withInitial` lue dans un ancien rapport ne s'applique pas à l'état final. |
+| Appareil / émulateur | Hors critère et indisponible | T21 n'a aucune surface UI et AGENTS.md impose une validation entièrement automatisée. L'ADB SDK est présent, mais son daemon ne peut pas ouvrir son socket dans cet environnement (`Operation not permitted`). |
+
+Le ticket n'engage ni documentation globale, ni commit, ni release : ces activités relèvent
+des étapes 9 et 10, non demandées ici.
+
+## Étape 9 — 2026-08-16 — Documentation
+
+- `docs/changelog.md` : entrée `v1.84.0` (T21, fondation données sans écran modifié) —
+  parseur, migration 28 → 29, worker de rattrapage, bascule TMDB. Entrée séparée pour le
+  correctif HUD lecteur VOD/TV (`clickable` répondant au `KeyUp` de la touche OK et refermant
+  aussitôt le HUD ouvert par la pause), livré dans la même release mais hors périmètre T21.
+- `docs/architecture.md` : nouveau paragraphe « Normalisation des titres et clé de liaison
+  (T21) » sous la couche données, décrivant le pipeline `MediaTitleParser` →
+  entité enrichie → Room/`linkKey` → worker de rattrapage → consommateurs.
+- `docs/features.md` / `docs/user-guide.md` : non modifiés, comme pour T20 — aucune surface
+  UI nouvelle (§7.1).
 
 ---
 

@@ -70,7 +70,7 @@ import com.cstv.app.data.local.dao.DbMaintenanceDao
         CategoryRefEntity::class,
         DbMaintenanceEntity::class
     ],
-    version = 28,
+    version = 29,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

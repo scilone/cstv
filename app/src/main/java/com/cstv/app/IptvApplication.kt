@@ -11,6 +11,7 @@ import com.cstv.app.data.update.UpdateApkStore
 import com.cstv.app.data.local.storage.SyncFrequency
 import com.cstv.app.data.util.DiagnosticManager
 import com.cstv.app.data.worker.DatabaseSyncWorker
+import com.cstv.app.data.worker.CatalogNormalizationWorker
 import com.cstv.app.data.worker.SyncScheduling
 import com.cstv.app.di.IptvLog
 import dagger.hilt.android.HiltAndroidApp
@@ -59,6 +60,7 @@ class IptvApplication : Application(), ImageLoaderFactory {
         }
         scheduleDefaultBackgroundSync()
         warmUpDatabase()
+        scheduleCatalogNormalization()
         purgeObsoleteAppUpdateApks()
         runDatabaseMaintenance()
     }
@@ -115,6 +117,16 @@ class IptvApplication : Application(), ImageLoaderFactory {
                 .onFailure {
                     IptvLog.d("PERF", "Ouverture de la base au démarrage impossible : ${it.message}")
                 }
+        }
+    }
+
+    /** T21: local-only post-migration work; it is a no-op after the empty-key backlog is drained. */
+    private fun scheduleCatalogNormalization() {
+        try {
+            CatalogNormalizationWorker.enqueue(this)
+        } catch (exception: Exception) {
+            // WorkManager is intentionally absent from regular JVM tests.
+            IptvLog.e("T21", "Planification du rattrapage des titres impossible", exception)
         }
     }
 

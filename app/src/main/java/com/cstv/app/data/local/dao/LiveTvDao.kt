@@ -94,6 +94,17 @@ interface LiveTvDao {
     @Query("SELECT * FROM live_streams WHERE streamId = :streamId LIMIT 1")
     suspend fun getStreamById(streamId: Int): LiveStreamEntity?
 
+    /** T21 backfill: an empty key is the durable cursor; never group it at read time. */
+    @Query("SELECT * FROM live_streams WHERE linkKey = '' ORDER BY streamId LIMIT :limit")
+    suspend fun getUnnormalizedStreams(limit: Int): List<LiveStreamEntity>
+
+    /** Updates only T21 columns and only still-pending rows: a concurrent sync wins. */
+    @Query("UPDATE live_streams SET cleanTitle = :cleanTitle, linkKey = :linkKey, languageTag = :languageTag, languageRaw = :languageRaw, qualityTag = :qualityTag, qualityRaw = :qualityRaw WHERE streamId = :streamId AND linkKey = ''")
+    suspend fun applyNormalization(streamId: Int, cleanTitle: String, linkKey: String, languageTag: String?, languageRaw: String?, qualityTag: String?, qualityRaw: String?)
+
+    @Query("SELECT * FROM live_streams WHERE linkKey = :linkKey AND linkKey != '' ORDER BY num ASC")
+    suspend fun getStreamsByLinkKey(linkKey: String): List<LiveStreamEntity>
+
     @Query("DELETE FROM live_streams WHERE categoryId = :categoryId")
     suspend fun clearStreamsByCategory(categoryId: String)
 
