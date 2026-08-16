@@ -8,6 +8,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.Renderer
@@ -91,6 +94,34 @@ fun rememberManagedExoPlayer(useOfflineCache: Boolean): ExoPlayer {
             exoPlayer.clearVideoSurface()
             exoPlayer.release()
         }
+    }
+
+    // Sur Android TV, la touche Home ramène l'Activity en arrière-plan
+    // (ON_STOP) sans forcément la détruire : sans ce hook, l'ExoPlayer
+    // continuait de jouer hors écran (son en tâche de fond). On coupe la
+    // lecture sur ON_STOP et on la reprend sur ON_START seulement si elle
+    // était active au moment du passage en arrière-plan (ne pas relancer une
+    // lecture que l'utilisateur avait lui-même mise en pause).
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(exoPlayer, lifecycleOwner) {
+        var wasPlayingBeforeStop = false
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_STOP -> {
+                    wasPlayingBeforeStop = exoPlayer.isPlaying
+                    exoPlayer.pause()
+                }
+                Lifecycle.Event.ON_START -> {
+                    if (wasPlayingBeforeStop) {
+                        wasPlayingBeforeStop = false
+                        exoPlayer.play()
+                    }
+                }
+                else -> Unit
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     return exoPlayer

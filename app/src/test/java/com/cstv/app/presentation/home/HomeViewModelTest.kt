@@ -1049,4 +1049,53 @@ class HomeViewModelTest {
         trendingTitle = TrendingTitle("movie:$tmdbId", "Movie $streamId", true, 2026, null),
         matchedMovie = VodStream(streamId, "Movie $streamId", null, null, null, "movies")
     )
+
+    // --- Non-régression : reprise d'une série depuis « Continuer à regarder »
+    // doit exposer les vrais épisodes (next/previous) et non une fiche vide ---
+
+    private fun seriesEpisode(id: Int, seasonNum: Int, episodeNum: Int) = SeriesEpisode(
+        id = id,
+        episodeNum = episodeNum,
+        title = "Épisode $episodeNum",
+        containerExtension = "mp4",
+        plot = "",
+        duration = "00:42:00",
+        releaseDate = "2026-01-01",
+        seasonNum = seasonNum
+    )
+
+    @Test
+    fun loadSeriesDetailsForResume_returnsFullEpisodesMapFromRepository() = runTest {
+        stubReactiveSources()
+        stubEmptyCategoryPreferences()
+        val episodes = mapOf(1 to listOf(seriesEpisode(10, 1, 1), seriesEpisode(11, 1, 2)))
+        val details = SeriesDetails(
+            seriesId = 42,
+            name = "Série Test",
+            cover = null,
+            rating = "0",
+            seasons = emptyList(),
+            episodes = episodes
+        )
+        whenever(seriesRepository.getSeriesDetails(42)).thenReturn(details)
+
+        viewModel = createViewModel()
+        val result = viewModel.loadSeriesDetailsForResume(42)
+
+        assertEquals(episodes, result?.episodes)
+        viewModel.viewModelScope.cancel()
+    }
+
+    @Test
+    fun loadSeriesDetailsForResume_returnsNullWhenRepositoryFails() = runTest {
+        stubReactiveSources()
+        stubEmptyCategoryPreferences()
+        whenever(seriesRepository.getSeriesDetails(42)).thenThrow(RuntimeException("hors ligne"))
+
+        viewModel = createViewModel()
+        val result = viewModel.loadSeriesDetailsForResume(42)
+
+        assertNull(result)
+        viewModel.viewModelScope.cancel()
+    }
 }

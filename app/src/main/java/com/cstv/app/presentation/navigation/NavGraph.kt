@@ -301,9 +301,13 @@ fun AppNavGraph(
                     }
                 },
                 onPlayResumeWatchingSeries = { position ->
+                    // Fiche synthétique (fallback) construite depuis PlaybackPosition seul,
+                    // utilisée si le catalogue complet de la série n'est pas récupérable
+                    // (hors ligne, série absente du cache). Sans les épisodes réels, next/
+                    // previous restent indisponibles dans ce cas, comme avant ce correctif.
                     val sName = position.title?.substringBefore(" - ") ?: "Série"
                     val epTitle = position.title?.substringAfter(" - ")?.substringAfter(" ") ?: "Épisode"
-                    val episode = SeriesEpisode(
+                    val fallbackEpisode = SeriesEpisode(
                         id = position.streamId,
                         episodeNum = position.episodeNum ?: 1,
                         title = epTitle,
@@ -315,7 +319,7 @@ fun AppNavGraph(
                         durationMs = position.durationMs,
                         seasonNum = position.seasonNum ?: 1
                     )
-                    val details = SeriesDetails(
+                    val fallbackDetails = SeriesDetails(
                         seriesId = position.seriesId ?: 0,
                         name = sName,
                         cover = position.coverUrl,
@@ -326,8 +330,19 @@ fun AppNavGraph(
                     homeViewModel.requestPlayback(
                         com.cstv.app.domain.model.DownloadedItem.episodeContentId(position.streamId)
                     ) {
-                        onActiveEpisodeChanged(episode)
-                        onActiveSeriesDetailsChanged(details)
+                        // Détails complets (même source que la catégorie « Tout » des séries)
+                        // pour retrouver l'épisode en cours dans sa vraie place de la carte
+                        // `episodes` : c'est ce qui permet au lecteur d'afficher/enchaîner
+                        // épisode suivant/précédent, absent depuis la reprise Accueil jusqu'ici.
+                        val fullDetails = position.seriesId?.let { homeViewModel.loadSeriesDetailsForResume(it) }
+                        val realEpisode = fullDetails?.episodes?.values
+                            ?.flatten()
+                            ?.firstOrNull { it.id == position.streamId }
+                            // Position de lecture toujours reprise depuis PlaybackPosition,
+                            // absente du catalogue (elle n'est jamais persistée sur SeriesEpisode).
+                            ?.copy(resumePositionMs = position.positionMs, durationMs = position.durationMs)
+                        onActiveEpisodeChanged(realEpisode ?: fallbackEpisode)
+                        onActiveSeriesDetailsChanged(fullDetails ?: fallbackDetails)
                         navController.navigate("series_player")
                     }
                 },

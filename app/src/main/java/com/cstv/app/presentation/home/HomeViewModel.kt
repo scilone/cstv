@@ -150,7 +150,25 @@ class HomeViewModel @Inject constructor(
      * [contentId] suit la convention des téléchargements (`movie_123`,
      * `episode_456`) ; `null` pour un flux Live, jamais téléchargeable.
      */
-    fun requestPlayback(contentId: String?, onAllowed: () -> Unit) {
+    /**
+     * Détails complets d'une série (avec la carte `episodes` peuplée), pour la
+     * reprise depuis « Continuer à regarder » sur l'Accueil : sans ça, le
+     * lecteur reçoit une `SeriesDetails` synthétique à `episodes = emptyMap()`
+     * et n'affiche jamais les boutons épisode suivant/précédent (voir
+     * [com.cstv.app.domain.model.computeNextEpisode]). `null` en cas d'échec
+     * (série absente du cache, pas de connexion) : l'appelant retombe alors
+     * sur la fiche synthétique construite depuis `PlaybackPosition`.
+     */
+    suspend fun loadSeriesDetailsForResume(seriesId: Int): com.cstv.app.domain.model.SeriesDetails? {
+        return try {
+            seriesRepository.getSeriesDetails(seriesId)
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            null
+        }
+    }
+
+    fun requestPlayback(contentId: String?, onAllowed: suspend () -> Unit) {
         viewModelScope.launch {
             when (canPlayContentUseCase(contentId)) {
                 com.cstv.app.domain.usecase.PlaybackAvailability.Allowed -> onAllowed()
