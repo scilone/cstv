@@ -392,7 +392,7 @@ Ne pas définir d'architecture technique.
 
 ## Modèle recommandé
 
-Gemini 3.5 Flash / Haiku 4.5
+Gemini 3.5 Flash / Sonnet 5 (medium) / GPT-5.6 Luna (medium)
 
 </details>
 
@@ -432,7 +432,7 @@ rédigeant la spécification suit le même chemin.
 
 ## Modèle recommandé
 
-Sonnet 5 / GPT 5.6-Terra
+Sonnet 5 (high) / GPT 5.6-Terra (medium)
 
 </details>
 
@@ -472,7 +472,7 @@ restent à la main de l'agent : ils n'ont pas à être soumis.
 
 ## Modèle recommandé
 
-GPT 5.6-Sol / Opus 4.8
+GPT 5.6-Sol (high) / Opus 5 (high)
 
 </details>
 
@@ -514,7 +514,7 @@ Tests unitaires présents.
 
 ## Modèle recommandé
 
-Sonnet 5 / GPT 5.6-Terra
+Sonnet 5 (medium) / GPT 5.6-Terra (medium)
 
 </details>
 
@@ -549,7 +549,7 @@ Ne pas modifier le périmètre sans validation.
 
 ## Modèle recommandé
 
-GPT 5.6-Terra / Sonnet 5
+GPT 5.6-Terra (medium) / Sonnet 5 (high)
 
 </details>
 
@@ -602,7 +602,7 @@ Chaque problème doit contenir :
 
 ## Modèle recommandé
 
-Opus 4.8 / GPT 5.6-Sol
+Opus 5 (xHigh) / GPT 5.6-Sol (high)
 
 </details>
 
@@ -633,7 +633,7 @@ Status: RESOLVED
 
 ## Modèle recommandé
 
-GPT 5.6-Terra / Sonnet 5
+GPT 5.6-Terra (medium) / Sonnet 5 (high)
 
 </details>
 
@@ -663,7 +663,7 @@ Status: VALIDATED
 
 ## Modèle recommandé
 
-Sonnet 5 / GPT 5.6-Sol
+Sonnet 5 (medium) / GPT 5.6-Terra (high)
 
 </details>
 
@@ -697,7 +697,7 @@ Ajouter :
 
 ## Modèle recommandé
 
-Haiku 4.5 / Gemini 3.5 Flash
+Sonnet 5 (low) / Gemini 3.5 Flash / GPT-5.6 Luna (low)
 
 </details>
 
