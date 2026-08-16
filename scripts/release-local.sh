@@ -133,6 +133,12 @@ git tag -a "$tag" -m "Release $tag"
 git push origin main
 git push origin "$tag"
 
+# --- Déploiement automatique du backend si des modifications y sont présentes ---
+if git diff --name-only HEAD~1 HEAD | grep -q "^backend/"; then
+    step "Déploiement automatique du backend (modifications détectées dans backend/)"
+    ./scripts/deploy-backend.sh
+fi
+
 gh release create "$tag" \
     --title "Release $tag" \
     --generate-notes \

@@ -207,8 +207,9 @@ tag, puis crée la Release GitHub avec notes générées et APK attaché
 
 ## Déploiement du backend (alwaysdata)
 
-La release Android ne déploie **pas** le backend. Après avoir committé et poussé
-les modifications backend sur `main`, déploie explicitement avec :
+La release Android déploie **automatiquement** le backend si des modifications y sont détectées dans le commit de release (via `scripts/release-local.sh`). 
+
+Pour un déploiement manuel ou en dehors d'un processus de release, déploie explicitement avec :
 
 ```bash
 scripts/deploy-backend.sh --dry-run # prévisualisation rsync, sans modification distante
