@@ -73,11 +73,12 @@ interface SeriesDao {
     @Query("UPDATE series_streams SET cleanTitle = :cleanTitle, linkKey = :linkKey, languageTag = :languageTag, languageRaw = :languageRaw, qualityTag = :qualityTag, qualityRaw = :qualityRaw WHERE seriesId = :seriesId AND linkKey = ''")
     suspend fun applyNormalization(seriesId: Int, cleanTitle: String, linkKey: String, languageTag: String?, languageRaw: String?, qualityTag: String?, qualityRaw: String?)
 
-    /** F39 §8.2 : voir VodDao.getStreamsByLinkKey — même règle année/plafond, tri qualité côté Kotlin. */
+    /** F39 §8.2, correction F39-R8 : voir VodDao.getStreamsByLinkKey — même tri SQL par qualité avant `LIMIT`. */
     @Query(
         "SELECT * FROM series_streams WHERE linkKey = :linkKey AND linkKey != '' " +
             "AND (:year IS NULL OR :year <= 0 OR releaseYear IS NULL OR releaseYear <= 0 OR releaseYear = :year) " +
-            "ORDER BY seriesId ASC LIMIT :limit"
+            "ORDER BY (CASE qualityTag WHEN 'uhd_4k' THEN 40 WHEN 'fhd' THEN 30 WHEN 'hd' THEN 20 WHEN 'sd' THEN 10 ELSE 0 END) DESC, " +
+            "seriesId ASC LIMIT :limit"
     )
     suspend fun getStreamsByLinkKey(linkKey: String, year: Int?, limit: Int): List<SeriesStreamEntity>
 

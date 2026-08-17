@@ -385,6 +385,36 @@ Si un autre appareil du foyer décide de prendre la main sur votre lecture en co
 * **Zapping & Épisodes** : Changer de chaîne en direct (zapping) ou enchaîner les épisodes d'une même série conserve votre verrou actif sans aucune interruption ni micro-coupure réseau.
 * **Mode hors-ligne** : La lecture de vos films ou épisodes téléchargés ne se connecte jamais au serveur de votre fournisseur. Elle n'est donc soumise à aucun verrou et ne bloquera jamais les autres écrans de la maison.
 
+---
+
+## 21. Gestion des versions : langues et qualités (F39)
+
+Il arrive souvent que votre fournisseur IPTV propose une même œuvre dans différentes langues (VF, VOSTFR, MULTI, etc.) ou qualités (HD, 4K, SD, etc.). Pour éviter la confusion, CSTV IPTV rassemble ces différentes versions sous une même identité visuelle.
+
+### 🏷️ Repérage immédiat (Étiquettes dans les listes)
+Lorsque vous parcourez l'Accueil, les catalogues, la recherche ou vos favoris, chaque vignette de film ou de série affiche instantanément jusqu'à deux étiquettes dans un coin de la pochette (par exemple : « VF · 4K », « VOSTFR · HD », etc.). Cela vous permet de repérer immédiatement la version qui vous intéresse sans avoir à ouvrir chaque fiche.
+* **Top 10** : Pour le carrousel Top 10 de l'Accueil, les badges se décalent proprement en haut au centre de la carte afin de ne jamais encombrer le grand chiffre de rang.
+
+### 🎞️ Sélection avant lecture (Fiche média)
+Lorsque vous ouvrez la fiche détaillée d'un film ou d'une série :
+* Si l'œuvre possède d'autres alternatives de versions, un bouton dédié **« Versions »** s'affiche à côté de vos actions (Favoris, J'aime/Je n'aime pas).
+* Cliquez sur ce bouton pour ouvrir un panneau (une bottom sheet sur mobile ou une modale sur TV) listant toutes les langues et qualités disponibles de l'œuvre.
+* Sélectionner une version actualise instantanément toute la fiche (résumé, note, pochette) avec les données de la version sélectionnée. Vous pouvez alors lancer directement la lecture de la bonne version !
+
+### 🔄 Changement à la volée pendant la lecture (Sélecteur du lecteur)
+Si vous découvrez pendant le visionnage d'un film ou d'un épisode que la langue n'est pas la bonne ou que le flux présente un défaut de qualité, vous pouvez en changer à tout moment :
+1. Ouvrez les contrôles du lecteur.
+2. Cliquez sur le bouton **« Version »** (placé à côté des réglages de pistes audio et de sous-titres).
+3. Sélectionnez la version désirée.
+4. Le lecteur bascule instantanément sur la nouvelle version **en reprenant exactement à la même position de lecture** (ou près de la fin si la version choisie est plus courte).
+
+### 📺 Mémorisation automatique pour les séries
+Lorsque vous changez manuellement de version pour un épisode de série, l'application enregistre intelligemment votre préférence pour toute la série. Les épisodes suivants (que vous les lanciez manuellement ou qu'ils s'enchaînent de manière automatique) démarreront automatiquement dans votre version préférée pour le profil actif.
+
+### 🛡️ Sécurité anti-écrans noirs
+Si la version cible que vous sélectionnez présente un défaut technique de diffusion (serveur en panne, flux momentanément indisponible, etc.), l'application s'en rend compte immédiatement : elle effectue un **rollback automatique** pour vous ramener sur la version précédente à la même position, accompagnée d'un message informatif clair. Vous ne restez jamais devant un écran noir !
+
+
 
 
 

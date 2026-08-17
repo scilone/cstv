@@ -2,6 +2,16 @@
 
 ## À venir — non publiée
 
+## [v1.86.3] - 2026-08-17
+### ✨ Étiquettes de version et sélecteur de versions dans le lecteur (F39)
+* **Étiquettes dans les listes** : Affiche automatiquement des badges de langue et de qualité (ex. « VF · 4K ») sur les vignettes de films et de séries dans toutes les listes (Accueil, catalogues, recherche, favoris) pour faciliter le choix dès le premier coup d'œil.
+* **Sélecteur de versions dans le lecteur** : Bouton « Version » intégré dans les barres d'actions des lecteurs de films et d'épisodes de séries, à côté des sélecteurs de pistes audio/sous-titres. Il permet de basculer instantanément d'une version à l'autre en conservant de façon transparente la position de lecture (seek borné).
+* **Mémorisation de la préférence de série** : La version choisie pour une série est automatiquement enregistrée par profil utilisateur, assurant que les épisodes enchaînés (mode binge-watching) ou lancés ultérieurement s'ouvrent directement dans la version préférée.
+* **Sélecteur de versions sur les fiches média (Évolution PO)** : Un bouton dédié « Versions » apparaît sur les fiches de détails des films et des séries possédant plusieurs alternatives de flux. Cliquer dessus ouvre une bottom sheet (modale sur TV) permettant d'actualiser entièrement la fiche avec les caractéristiques de la version choisie avant de lancer la lecture.
+* **Résilience et robustesse transactionnelle** : Protection absolue contre les écrans noirs. En cas d'échec technique lors d'un changement de version (flux injoignable, erreur décodeur, etc.), le contrôleur effectue un rollback automatique et silencieux vers la version et la position d'origine avec affichage d'un message localisé clair.
+* **Intégration d'architecture unifiée** : Coexistence harmonieuse avec le contrôleur d'auto-réparation technique de lecture (T23) en veillant à ce qu'un seul pilote de moteur soit actif à la fois.
+* **Précision géométrique des badges** : Les étiquettes ne recouvrent pas le grand chiffre des rangs Top 10 mais se décalent proprement en haut à droite des vignettes pour une lisibilité impeccable.
+
 ## [v1.85.0] - 2026-08-16
 ### ♻️ Centralisation des appels TMDB dans le backend (T22)
 * **Retrait de la clé API TMDB de l'application** : l'APK n'embarque plus de clé API externe et ne communique plus directement avec `api.themoviedb.org`. Tous les appels (tendances, populor, bandes-annonces, appariements) sont désormais centralisés, sécurisés et rationalisés par le backend CSTV via le préfixe `/v1/catalog`.

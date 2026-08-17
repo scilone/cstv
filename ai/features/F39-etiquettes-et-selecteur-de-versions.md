@@ -3,7 +3,7 @@
 ## Informations générales
 
 Status:
-TASK BREAKDOWN
+RELEASED
 
 Created:
 2026-08-15
@@ -81,6 +81,12 @@ premier coup), le sélecteur en aval (corriger sans perdre sa place).
 | Version cible plus courte que la position courante | Reprise près de la fin de la version cible, plutôt qu'au début ou refus du changement. |
 | Version en cours dans la liste du sélecteur | Affichée et marquée comme active, comme les sélecteurs de pistes audio et sous-titres existants. |
 | Sélecteur en lecture hors ligne | Hors périmètre : n'apparaît pas dans le lecteur des contenus téléchargés, qui n'a qu'une seule version présente sur l'appareil. |
+
+## Décisions produit prises à l'étape 7
+
+| Sujet | Décision |
+|---|---|
+| Libellé d'une version sans aucun attribut détecté (F39-R7) | Libellé fixe et localisé « Version standard », cohérent avec la limite déjà acceptée en §7.4 (versions aux attributs identiques indiscernables) — jamais le libellé Xtream brut, y compris dans ce cas limite. |
 
 ---
 
@@ -658,31 +664,279 @@ Aucune nouvelle dépendance Gradle (§8.7).
   `onActiveVodDetailsChanged`.
 - Vert : `assembleDebug`, `testDebugUnitTest` (suite complète), `lintDebug`.
 
-## F39 — état final de cette livraison
+## F39 — état final de cette livraison (avant review)
 
 Les 7 tâches de la fiche sont livrées. Seule limite connue, documentée plus haut (tâche 5) : la
 préférence de version série mémorisée n'est pas encore relue automatiquement à l'ouverture d'un
 épisode enchaîné (binge) — seul un choix explicite dans le sélecteur du lecteur l'applique. Aucune
 release (`scripts/release-local.sh`) n'a été lancée à ce stade ; à faire sur confirmation explicite.
 
+## Étape 7 — 2026-08-17 — Corrections de review
+
+Les huit constats de la review (§12, F39-R1 à F39-R8) sont corrigés, Critique/Majeur/Mineur inclus.
+
+- **F39-R1 (bascule/T23 non coordonnées)** : `MediaVersionSwitchController.switchTo()` observe
+  désormais un seul flux en continu (plus de `firstOrNull` qui coupait la souscription au premier
+  événement) — un `Failure` avant `Ready` n'interrompt plus l'attente sous le budget global de 8 s
+  (laisse une réparation T23 aboutir), et un `Failure` pendant la fenêtre de stabilité de 3 s fait
+  désormais échouer la bascule au lieu d'être silencieusement ignoré. Le rollback distingue
+  maintenant `RolledBack` (source précédente confirmée `Ready`) de `RollbackFailed` (restauration
+  au mieux tentée quand même, §7.5). Côté écran (`VodPlayerScreen`/`SeriesPlayerScreen`), le
+  listener permanent ne délègue plus à `PlaybackRecoverySession.handleError` tant qu'une bascule
+  F39 est en cours (`isSwitchingVersion`) — un seul pilote du moteur à la fois (§9.3).
+- **F39-R2 (préférence série jamais appliquée)** : nouveau `SeriesVersionSwitchCoordinator`
+  (pur, testable JVM) résout la préférence mémorisée à l'ouverture de l'écran **et** à chaque
+  enchaînement d'épisode (binge), avant de préparer le premier `MediaItem` — résolution locale
+  uniquement (§8.2), jamais en lecture hors ligne. La limite notée en tâche 5 est levée.
+- **F39-R3 (identité de version non atomique)** : `currentEpisode`/`currentVersionSeriesId`
+  (série) changent désormais toujours ensemble, portés par le coordinator ; rollback, reprise
+  (position), verrou de lecture, cible de réparation T23 et cache hors-ligne s'appuient tous sur
+  cette même identité. `PlayableVersionTarget` porte maintenant un `cacheKey` explicite, posé sur
+  le `MediaItem` par l'engine — perdu par la bascule d'origine. Correction étendue à
+  `VodPlayerScreen` par cohérence (même défaut structurel : verrou/reprise/T23 restaient attachés
+  au `streamId` d'ouverture plutôt qu'à la version réellement jouée).
+- **F39-R4 (couverture de tests insuffisante)** : nouveaux tests JVM déterministes — contrôleur
+  (échec après `Ready`, échec pendant la stabilité, réparation T23 réussie sous 8 s, rollback
+  lui-même en échec), `SeriesVersionSwitchCoordinatorTest` (A → B réussi puis B → C en échec avec
+  assertion sur l'identité restaurée, préférence à l'ouverture, binge préféré, hors ligne sans
+  résolution), et tris/plafonds VOD/séries au niveau repository.
+- **F39-R5 (mobile sans bottom sheet)** : `VersionSelectorSheet` distingue désormais
+  `ModalBottomSheet` (mobile) et `AlertDialog` (TV) derrière la même API (`isTv`), contenu
+  factorisé, câblée aux quatre appelants (deux lecteurs, deux fiches).
+- **F39-R6 (badges masqués sur les rangées Top 10)** : le badge de version n'est plus masqué sur
+  ces rangées ; il se replie en haut-centre (le rang Top 10 occupe tout le coin bas-gauche via
+  `TopRankBadge`, jusqu'à 158dp de haut) au lieu de disparaître. Politique extraite en fonction
+  pure `versionBadgeCorner()`, couverte par un test JVM dédié.
+- **F39-R7 (repli sur le libellé Xtream brut)** : nouveau `mediaVersionSelectorLabel()` centralisé,
+  câblé sur les quatre sélecteurs — repli sur un libellé fixe et localisé (« Version standard »,
+  décision produit étape 7 ci-dessus) quand aucun attribut n'est détecté, jamais sur le nom Xtream.
+- **F39-R8 (plafond avant tri qualité, diagnostic peu fiable)** : les DAO trient désormais par rang
+  qualité en SQL avant `LIMIT` (répliquant `mediaQualityRank`) ; le repository interroge
+  `limit + 1` pour détecter une troncature réelle et journalise un compteur agrégé
+  (`MediaVersionCapDiagnostics`) sans `linkKey`, au lieu d'un log répété exposant la clé en clair.
+- Vert : `assembleDebug`, `testDebugUnitTest` (suite complète), `lintDebug`.
+
+## Étape 8 — 2026-08-17 — Validation finale
+
+**Statut : `VALIDATED`.** Les corrections de l'étape 7 (F39-R1 à F39-R8) et l'ensemble du
+comportement de F39 sont couverts par les contrôles automatisés du projet.
+
+| Contrôle | Résultat |
+|---|---|
+| Comportement attendu / règles métier | Les sept tâches du plan de développement (§10) restent conformes à la spécification fonctionnelle (§7) ; les huit constats de review sont résolus sans réduction de périmètre. |
+| Absence de régression | `./gradlew assembleDebug testDebugUnitTest lintDebug` : `BUILD SUCCESSFUL`, suite complète verte, aucune nouvelle dépendance Gradle (§8.7). |
+| Tests validés | Nouveaux tests JVM ciblés F39-R1/R4 (contrôleur, stabilité, rollback en échec), F39-R2/R3 (`SeriesVersionSwitchCoordinatorTest` : ouverture avec préférence, binge, hors ligne, A→B→C), F39-R6 (`VersionBadgeCornerTest`), F39-R7 (libellé centralisé), F39-R8 (tri qualité avant plafond, repository VOD/série) — tous verts, en plus de la suite existante. |
+| Expérience utilisateur | Mobile (`ModalBottomSheet`) et TV (`AlertDialog`) distincts pour le sélecteur (F39-R5) ; badge de version jamais masqué, y compris Top 10 (F39-R6) ; message de rollback unique et sans détail technique dans tous les cas d'échec (F39-R1). |
+| Qualité technique | Identité de version jouable atomique côté lecteurs (série via `SeriesVersionSwitchCoordinator`, VOD par cohérence directe) ; un seul pilote du moteur de lecture à la fois entre F39 et T23 (§9.3). |
+
+Limites déjà actées et non couvertes par cette validation (hors périmètre F39, inchangées) :
+absence de test device/émulateur (stratégie du projet, AGENTS.md) — focus D-pad et rendu visuel
+mobile/TV non prouvés par l'automatisation. Aucune release (`scripts/release-local.sh`) n'a été
+lancée à ce stade ; à faire sur confirmation explicite (étape 10, hors périmètre de cette étape).
+
 ---
 
 # 12. Review
 
+Review Status: **RESOLVED** (corrections F39-R1 à F39-R8 appliquées à l'étape 7, voir §11)
+
+Date: 2026-08-17
+
 ## Critique
+
+Aucun constat critique.
 
 ## Majeur
 
+### F39-R1 — La fenêtre dite « stable » ne surveille plus le lecteur et entre en concurrence avec T23
+
+**Description :** `MediaVersionSwitchController.switchTo()` arrête de collecter
+`prepareTarget()` au premier `Ready`, puis exécute un simple `delay(3_000)` avant
+de valider. L'annulation de la collecte retire immédiatement le listener de
+`ExoMediaVersionSwitchEngine` : une erreur pendant ces trois secondes n'est donc
+plus visible par le contrôleur et peut conduire à `Switched`. À l'inverse, une
+erreur avant `Ready` émet immédiatement `Failure` alors que le listener permanent
+de `VodPlayerScreen`/`SeriesPlayerScreen` lance simultanément la réparation T23 :
+le rollback F39 et la réparation T23 pilotent alors le même moteur sans
+coordination. Enfin, `rollback()` restaure position/lecture même si la source
+précédente n'a jamais retrouvé `Ready`, puis annonce quand même `RolledBack`.
+
+**Impact :** une cible qui échoue juste après `Ready` peut être validée et sa
+préférence série enregistrée ; une réparation T23 tardive peut réécraser la
+source restaurée ; un rollback lui-même défaillant est présenté comme réussi.
+Le contrat « trois secondes stables », le délai global de 8 s laissant T23
+réparer et la garantie de ne jamais laisser un écran noir ne sont pas tenus.
+
+**Correction attendue :** unifier l'orchestration F39/T23 autour d'un seul état
+de bascule : conserver l'observation jusqu'au terme réel de la fenêtre de
+stabilité, laisser une réparation T23 autorisée produire un nouveau `Ready`
+dans le délai global, annuler/ignorer toute réparation devenue obsolète avant
+le rollback, et ne déclarer celui-ci réussi qu'après `Ready` de la source
+précédente. Ajouter des tests déterministes pour erreur après `Ready`, réparation
+T23 réussie dans les 8 s, rollback concurrent et rollback lui-même en échec.
+
+### F39-R2 — La préférence de série enregistrée n'est jamais appliquée à l'épisode suivant
+
+**Description :** `SeriesViewModel.getPreferredEpisodeVersion()` et
+`SeriesVersionResolver.resolvePreferred()` existent et sont testés isolément,
+mais aucun chemin de production ne les appelle. À chaque changement d'épisode,
+`SeriesPlayerScreen` remet `currentVersionSeriesId` au `seriesId` initial,
+charge seulement la liste via `getEpisodeVersions()`, puis prépare directement
+l'URL de `currentEpisode` appartenant à la série ouverte.
+
+**Impact :** après un choix explicite, l'épisode suivant — automatique ou lancé
+depuis les contrôles — repart sur la version d'origine. La décision produit de
+mémoriser la version pour toute la série et le critère d'acceptation « sans
+nouvelle sélection, par profil » sont directement violés.
+
+**Correction attendue :** résoudre et appliquer la candidate préférée avant de
+construire chaque premier `MediaItem`, ouverture initiale comprise, sans appel
+réseau implicite ; aligner l'identité active sur la candidate réellement lue et
+conserver le repli paresseux prévu si elle est obsolète. Couvrir au minimum
+ouverture avec préférence, binge vers l'épisode suivant, préférence obsolète et
+mode hors ligne sans résolution de versions.
+
+### F39-R3 — Après une bascule série réussie, l'état courant reste attaché à l'épisode source
+
+**Description :** le succès ne met à jour que `currentVersionSeriesId`.
+`currentEpisode` reste l'épisode de la série d'origine et sert encore à
+construire `previousTarget`, à la sauvegarde/clé du tracker de position, au
+verrou de lecture et à la cible de réparation T23. Un changement ultérieur
+depuis B vers C construit donc la prétendue source précédente avec l'URL de A.
+
+**Impact :** si B → C échoue, le rollback revient à A au lieu de B. Pendant la
+lecture de B, la progression et les mécanismes de récupération restent associés
+à l'identifiant d'épisode A, ce qui peut restaurer la mauvaise source ou
+enregistrer un état incohérent avec le flux réellement lu.
+
+**Correction attendue :** maintenir un état de version jouable courant
+atomique (série + épisode équivalent + URL/identité), le remplacer seulement
+après succès et l'utiliser partout où la source courante intervient : rollback,
+reprise, cache, verrou, T23 et enchaînement. Ajouter un test d'intégration pur
+A → B réussi puis B → C en échec, ainsi que des assertions sur l'identité
+sauvegardée et transmise à T23.
+
+### F39-R4 — Les tests verts ne couvrent pas l'intégration qui porte les contrats essentiels
+
+**Description :** les tests du contrôleur s'arrêtent au premier `Ready` et ne
+peuvent pas émettre une erreur pendant la stabilité. Le test nommé interaction
+T23 ne fait qu'émettre `Ready` à 7,9 s sans exercer `PlaybackRecoverySession`.
+Aucun test de l'écran/coordinator lecteur ne vérifie l'application de la
+préférence, les changements série successifs, le masquage hors ligne, le bouton
+à 0/1/2 candidates ou le rechargement des fiches. Les tests SQL ne vérifient
+pas non plus l'ordre qualité du repository ni la requête série réelle.
+
+**Impact :** la suite complète reste verte malgré F39-R1 à F39-R3 et plusieurs
+critères explicitement demandés en §8.8/tâches 4 à 7. Elle ne constitue donc pas
+une preuve automatisée suffisante de la bascule transactionnelle ni des états
+mobile/TV, alors que tous ces contrats sont isolables en JVM sans appareil.
+
+**Correction attendue :** extraire au besoin un coordinator/état pur des
+Composables et ajouter les scénarios JVM manquants, en particulier stabilité +
+T23, A → B → C, binge préféré, hors ligne, visibilité/identité active du bouton
+et sélection sur fiche. Étendre aussi la preuve repository aux tris/plafonds VOD
+et séries. Aucun test device ou manuel n'est demandé.
+
 ## Mineur
 
+### F39-R5 — Le sélecteur des fiches mobile est une boîte de dialogue, pas la bottom sheet spécifiée
+
+**Description :** `VersionSelectorSheet` est implémenté exclusivement avec
+`AlertDialog` et le même composant est utilisé sur mobile et TV. La spécification
+demande une bottom sheet sur mobile et une modale sur TV.
+
+**Impact :** le parcours reste fonctionnel, mais l'évolution PO ne respecte pas
+le composant ni le comportement visuel annoncés sur mobile ; le nom du composant
+et les notes de livraison masquent cette divergence.
+
+**Correction attendue :** fournir une variante `ModalBottomSheet` mobile et
+conserver une modale focusable sur TV derrière une API commune, avec état
+d'ouverture testable sans appareil.
+
+### F39-R6 — Les cartes Top 10 masquent volontairement les badges de version
+
+**Description :** `HomeVodMovieCard` et `HomeSeriesShowCard` n'affichent les
+badges que lorsque `rank == null`, afin d'éviter le coin déjà occupé par le rang
+Top 10. La fiche exige pourtant les badges sur les listes de l'accueil sans
+exception pour cette rangée.
+
+**Impact :** l'un des emplacements les plus visibles de l'accueil ne permet pas
+de distinguer langue et qualité, contrairement au critère d'acceptation des
+vignettes.
+
+**Correction attendue :** positionner les badges sans recouvrir le rang Top 10
+ou adapter la composition de la carte, puis couvrir la politique de visibilité
+par un test pur/snapshot structurel adapté au projet.
+
+### F39-R7 — Une version sans tags retombe sur le libellé Xtream brut dans tous les sélecteurs
+
+**Description :** les fiches et lecteurs utilisent `version.name`/
+`candidate.series.name` lorsque `mediaVersionBadges()` retourne une liste vide.
+La décision produit de l'étape 2 interdit explicitement le libellé Xtream brut
+dans le sélecteur.
+
+**Impact :** les entrées précisément non reconnues par T21 réaffichent les
+libellés bruts, potentiellement longs et chargés de marqueurs techniques ; les
+quatre surfaces peuvent en outre diverger si leurs fallbacks évoluent
+séparément.
+
+**Correction attendue :** centraliser un libellé de version qui ne réutilise
+jamais le nom Xtream. Si les attributs sont tous absents, faire arbitrer puis
+appliquer un fallback produit stable et localisé avant la correction.
+
+### F39-R8 — Le plafond de 20 est appliqué avant le tri qualité et son diagnostic n'est pas fiable
+
+**Description :** les DAO sélectionnent les 20 plus petits identifiants avec
+`ORDER BY streamId/seriesId LIMIT 20`, puis les repositories trient uniquement
+ces lignes par qualité. Une version 4K située au-delà du vingtième identifiant
+est donc exclue au profit d'une version de moindre qualité. Le log « plafonné »
+est émis dès que la taille vaut exactement 20, sans savoir s'il existe une 21e
+ligne, et contient le `linkKey` brut au lieu du diagnostic agrégé demandé.
+
+**Impact :** sur le cas anormal que le plafond doit protéger, la liste ne
+respecte plus l'ordre fonctionnel qualité décroissante et le diagnostic peut
+être faux, répétitif et exposer le titre normalisé dans les logs.
+
+**Correction attendue :** sélectionner les meilleures candidates avant
+`take(20)` (tri SQL explicite ou tri borné côté repository), interroger au moins
+21 lignes pour détecter une vraie troncature, et journaliser un compteur agrégé
+sans `linkKey`. Ajouter des tests où la meilleure qualité se trouve après les
+20 premiers identifiants et où le groupe contient exactement 20 lignes.
+
+## Vérifications effectuées
+
+- Relecture statique du diff `origin/main..HEAD` (3 commits F39, 51 fichiers),
+  des contrats fonctionnels/techniques, de la migration 31 → 32, des DAO,
+  repositories, lecteurs, fiches et tests associés.
+- Tests ciblés F39 (contrôleur, resolver, ViewModels, SQL/migration/index) :
+  `BUILD SUCCESSFUL` en 16 s.
+- `./gradlew --no-daemon --max-workers=1 testDebugUnitTest assembleDebug lintDebug` :
+  `BUILD SUCCESSFUL` en 21 s (tâches majoritairement `UP-TO-DATE` ou depuis le
+  cache Gradle).
+- `git diff --check` : succès après rédaction de cette review.
+
+## Limites de la review
+
+- Aucun appareil ni émulateur n'a été utilisé ou requis, conformément à la
+  stratégie de tests du projet. Le focus D-pad et le rendu mobile/TV ne sont pas
+  présentés comme validés.
+- Les checks automatisés verts prouvent la compilation, le lint et les tests
+  existants ; ils ne résolvent pas les écarts statiques F39-R1 à F39-R8.
+
 ## Corrections demandées
+
+- Corriger F39-R1 à F39-R8 à l'étape 7 avant toute validation finale.
+
+**Statut : toutes traitées à l'étape 7 (2026-08-17)** — voir le détail par constat en §11,
+« Étape 7 — Corrections de review ». `assembleDebug`, `testDebugUnitTest` (suite complète) et
+`lintDebug` verts après correction.
 
 ---
 
 # 13. Release
 
-Version :
+Version : v1.86.3
 
-Commit :
+Commit : main
 
-Date :
+Date : 2026-08-17

@@ -338,6 +338,18 @@ Cette fonctionnalité introduit un écran de chargement dédié pour le tout pre
 
 ---
 
+## 31. Étiquettes de version et sélecteur de versions (F39)
+Cette fonctionnalité permet d'identifier immédiatement les différentes versions d'un même média (langue, qualité) directement depuis les listes, et d'en changer à la volée en cours de lecture sans perdre sa progression.
+* **Étiquettes de versions (badges)** : Les vignettes de films et de séries affichent de manière réactive jusqu'à deux badges (la langue puis la qualité, ex. « VF · 4K ») sur toutes les cartes (Accueil, catalogues, recherche, favoris) pour choisir la bonne version du premier coup.
+* **Sélecteur de versions dans le lecteur** : Pendant la lecture d'un film ou d'un épisode, un bouton « Version » apparaît à côté des sélecteurs de pistes audio et de sous-titres, présentant l'intégralité des versions candidates partagées (clé de liaison T21). Choisir une version recharge le média à la même position (seek borné). Le bouton est intelligemment masqué si le média est unique ou s'il est lu hors-ligne.
+* **Mémorisation de la préférence de série** : Le choix d'une version pour un épisode s'applique automatiquement et de manière transparente à tous les épisodes suivants de la même série pour le profil actif, y compris lors d'un enchaînement automatique d'épisodes (mode binge-watching), sans nouvelle action requise.
+* **Sélecteur de versions sur les fiches média (Évolution PO)** : Un bouton « Versions » est disponible sur les fiches de détails des films et séries contenant plusieurs versions. Choisir une version dans la bottom sheet (modale sur TV) recharge entièrement la fiche avec les caractéristiques, l'affiche et les métadonnées de cette version spécifique avant le lancement de la lecture.
+* **Résilience et rollback transactionnel** : En cas d'échec technique lors d'un changement de version (flux injoignable, erreur décodeur immédiate, etc.), le système effectue un rollback automatique et silencieux vers la version d'origine à la même position avec un message d'erreur localisé, protégeant l'utilisateur de tout écran noir.
+* **Précision géométrique et esthétique** : Sur les carrousels de Top 10 de l'Accueil, le badge de version se positionne proprement en haut au centre de la carte afin de ne jamais recouvrir ou masquer le grand chiffre de rang.
+* **Nommage localisé et propre** : Si un média ne possède aucun attribut extrait, le sélecteur affiche le libellé localisé par défaut « Version standard », évitant de polluer l'interface avec les noms de fichiers Xtream bruts.
+
+---
+
 ## 🚫 Fonctionnalités hors périmètre (Exclusions validées)
 Pour des raisons de performance, de stabilité ou d'expérience utilisateur, les fonctionnalités suivantes sont **strictement hors périmètre** :
 * **Multi-comptes Xtream** : L'application gère un seul compte Xtream Codes actif à la fois (les profils sont purement locaux et rattachés à ce compte unique).

@@ -14,9 +14,13 @@ import org.junit.Test
 class VersionsByLinkKeySqlTest {
 
     private companion object {
+        // F39-R8 : le tri qualité (répliqué depuis MediaQuality/mediaQualityRank) précède LIMIT,
+        // sinon la meilleure version d'un groupe anormalement large peut être tronquée avant le
+        // tri Kotlin du repository.
         const val VOD_QUERY = "SELECT * FROM vod_streams WHERE linkKey = ? AND linkKey != '' " +
             "AND (? IS NULL OR ? <= 0 OR releaseYear IS NULL OR releaseYear <= 0 OR releaseYear = ?) " +
-            "ORDER BY streamId ASC LIMIT ?"
+            "ORDER BY (CASE qualityTag WHEN 'uhd_4k' THEN 40 WHEN 'fhd' THEN 30 WHEN 'hd' THEN 20 WHEN 'sd' THEN 10 ELSE 0 END) DESC, " +
+            "streamId ASC LIMIT ?"
     }
 
     private fun Connection.createVodTable() {
@@ -81,6 +85,35 @@ class VersionsByLinkKeySqlTest {
             repeat(25) { connection.insertVod(it + 1, "key-huge", null, null) }
 
             assertEquals(20, connection.queryVersions("key-huge", null, limit = 20).size)
+        }
+    }
+
+    @Test
+    fun `F39-R8 - the best quality wins the cap even when its streamId falls beyond the limit`() {
+        DriverManager.getConnection("jdbc:sqlite::memory:").use { connection ->
+            connection.createVodTable()
+            // 24 versions médiocres avec des ids 1..24, la seule 4K arrivant en dernier (id 25) :
+            // un tri par streamId seul l'exclurait du plafond à 20.
+            repeat(24) { connection.insertVod(it + 1, "key-huge", null, "sd") }
+            connection.insertVod(25, "key-huge", null, "uhd_4k")
+
+            val ids = connection.queryVersions("key-huge", null, limit = 20)
+            assertEquals(20, ids.size)
+            assertEquals(25, ids.first())
+        }
+    }
+
+    @Test
+    fun `F39-R8 - orders by quality rank descending before streamId`() {
+        DriverManager.getConnection("jdbc:sqlite::memory:").use { connection ->
+            connection.createVodTable()
+            connection.insertVod(1, "key-a", null, "sd")
+            connection.insertVod(2, "key-a", null, "uhd_4k")
+            connection.insertVod(3, "key-a", null, "hd")
+            connection.insertVod(4, "key-a", null, null) // tag absent -> rang 0, en queue
+            connection.insertVod(5, "key-a", null, "fhd")
+
+            assertEquals(listOf(2, 5, 3, 1, 4), connection.queryVersions("key-a", null, limit = 20))
         }
     }
 }

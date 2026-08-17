@@ -696,12 +696,15 @@ class SeriesRepositoryImpl @Inject constructor(
 
     override suspend fun getVersionsByLinkKey(linkKey: String, releaseYear: Int?): List<SeriesStream> {
         if (linkKey.isBlank()) return emptyList()
-        val rows = seriesDao.getStreamsByLinkKey(linkKey, releaseYear, MAX_VERSIONS_PER_LINK_KEY)
-        if (rows.size >= MAX_VERSIONS_PER_LINK_KEY) {
-            com.cstv.app.di.IptvLog.d("F39", "linkKey=$linkKey plafonné à $MAX_VERSIONS_PER_LINK_KEY versions série (§8.7)")
+        // F39-R8 : interroge un rang de plus que le plafond pour distinguer une vraie troncature
+        // (une 21e ligne existe) d'un groupe qui tombe pile sur MAX_VERSIONS_PER_LINK_KEY.
+        val rows = seriesDao.getStreamsByLinkKey(linkKey, releaseYear, MAX_VERSIONS_PER_LINK_KEY + 1)
+        if (rows.size > MAX_VERSIONS_PER_LINK_KEY) {
+            com.cstv.app.domain.model.MediaVersionCapDiagnostics.recordSeriesTruncation()
         }
         return rows.map { it.toDomain() }
             .sortedWith(compareByDescending<SeriesStream> { com.cstv.app.domain.model.mediaQualityRank(it.qualityTag) }.thenBy { it.seriesId })
+            .take(MAX_VERSIONS_PER_LINK_KEY)
     }
 
     override suspend fun getEpisodeBySeasonEpisode(seriesId: Int, seasonNum: Int, episodeNum: Int): com.cstv.app.domain.model.SeriesEpisode? {

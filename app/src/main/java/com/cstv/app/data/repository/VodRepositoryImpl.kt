@@ -705,12 +705,15 @@ class VodRepositoryImpl @Inject constructor(
 
     override suspend fun getVersionsByLinkKey(linkKey: String, releaseYear: Int?): List<VodStream> {
         if (linkKey.isBlank()) return emptyList()
-        val rows = vodDao.getStreamsByLinkKey(linkKey, releaseYear, MAX_VERSIONS_PER_LINK_KEY)
-        if (rows.size >= MAX_VERSIONS_PER_LINK_KEY) {
-            com.cstv.app.di.IptvLog.d("F39", "linkKey=$linkKey plafonné à $MAX_VERSIONS_PER_LINK_KEY versions VOD (§8.7)")
+        // F39-R8 : interroge un rang de plus que le plafond pour distinguer une vraie troncature
+        // (une 21e ligne existe) d'un groupe qui tombe pile sur MAX_VERSIONS_PER_LINK_KEY.
+        val rows = vodDao.getStreamsByLinkKey(linkKey, releaseYear, MAX_VERSIONS_PER_LINK_KEY + 1)
+        if (rows.size > MAX_VERSIONS_PER_LINK_KEY) {
+            com.cstv.app.domain.model.MediaVersionCapDiagnostics.recordVodTruncation()
         }
         return rows.map { it.toDomain() }
             .sortedWith(compareByDescending<VodStream> { com.cstv.app.domain.model.mediaQualityRank(it.qualityTag) }.thenBy { it.streamId })
+            .take(MAX_VERSIONS_PER_LINK_KEY)
     }
 
     override suspend fun getContainerExtension(streamId: Int): String? =

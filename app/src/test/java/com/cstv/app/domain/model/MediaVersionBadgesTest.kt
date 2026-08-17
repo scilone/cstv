@@ -38,4 +38,25 @@ class MediaVersionBadgesTest {
     fun `uhd_4k storage code displays as 4K, not the enum name`() {
         assertEquals(listOf("4K"), mediaVersionBadges(languageTag = null, qualityTag = "uhd_4k"))
     }
+
+    // F39-R7 (étape 7) : libellé centralisé des sélecteurs — jamais le nom Xtream brut, même
+    // quand aucun attribut n'est détecté (décision produit étape 7 : repli fixe et localisé).
+
+    @Test
+    fun `F39-R7 - with both tags, the selector label joins the badges exactly like the list badges`() {
+        assertEquals(
+            "VOSTFR · HD",
+            mediaVersionSelectorLabel(MediaLanguage.VOSTFR.storageCode, MediaQuality.HD.storageCode, fallback = "Version standard")
+        )
+    }
+
+    @Test
+    fun `F39-R7 - with no attribute detected, the selector label falls back, never to a raw name`() {
+        assertEquals("Version standard", mediaVersionSelectorLabel(languageTag = null, qualityTag = null, fallback = "Version standard"))
+    }
+
+    @Test
+    fun `F39-R7 - unrecognized tags also fall back, not to a raw name`() {
+        assertEquals("Version standard", mediaVersionSelectorLabel(languageTag = "unknown", qualityTag = "unknown", fallback = "Version standard"))
+    }
 }

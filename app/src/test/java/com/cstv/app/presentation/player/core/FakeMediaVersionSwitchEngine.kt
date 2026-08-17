@@ -70,5 +70,26 @@ class FakeMediaVersionSwitchEngine(
 
         /** N'émet jamais rien et ne se termine jamais : simule une cible qui pend jusqu'au timeout. */
         fun neverResponds(): Flow<MediaVersionSwitchEvent> = flow { awaitCancellation() }
+
+        /**
+         * F39-R1 : un `Failure` isolé survient avant `Ready` (ex. premier essai T23 en échec),
+         * suivi d'un `Ready` tardif toujours sous le budget global de 8 s — le contrôleur ne doit
+         * pas abandonner sur ce premier `Failure`.
+         */
+        fun failureThenReadyAfter(readyDelayMs: Long): Flow<MediaVersionSwitchEvent> = flow {
+            emit(MediaVersionSwitchEvent.Failure)
+            delay(readyDelayMs)
+            emit(MediaVersionSwitchEvent.Ready)
+        }
+
+        /**
+         * F39-R1 : `Ready` immédiat puis `Failure` pendant la fenêtre de stabilité de 3 s — doit
+         * faire échouer la bascule au lieu d'être silencieusement ignoré après le premier `Ready`.
+         */
+        fun readyThenFailureDuringStability(failureDelayMs: Long): Flow<MediaVersionSwitchEvent> = flow {
+            emit(MediaVersionSwitchEvent.Ready)
+            delay(failureDelayMs)
+            emit(MediaVersionSwitchEvent.Failure)
+        }
     }
 }

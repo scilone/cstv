@@ -615,4 +615,37 @@ class SeriesRepositoryImplTest {
         title = null, coverUrl = null, containerExtension = null, seriesId = null, episodeNum = null,
         seasonNum = null, plot = null, duration = null, releaseDate = null, categoryId = null, genre = null
     )
+
+    /**
+     * F39-R8/R4 : même garantie que VodRepositoryImplTest côté série — un
+     * rang de plus que le plafond est demandé au DAO, et seules les
+     * meilleures qualités survivent au recadrage à MAX_VERSIONS_PER_LINK_KEY.
+     */
+    @Test
+    fun test_getVersionsByLinkKey_queriesOneRowBeyondTheCapAndTrimsTheResult() = runTest {
+        val rows = (1..20).map { id ->
+            SeriesStreamEntity(id, "Série $id", null, null, null, "1", 0L, linkKey = "key-a", qualityTag = "hd")
+        } + SeriesStreamEntity(21, "Série 21", null, null, null, "1", 0L, linkKey = "key-a", qualityTag = "sd")
+        whenever(seriesDao.getStreamsByLinkKey(eq("key-a"), anyOrNull(), eq(21))).thenReturn(rows)
+
+        val result = repository.getVersionsByLinkKey("key-a", null)
+
+        verify(seriesDao).getStreamsByLinkKey(eq("key-a"), anyOrNull(), eq(21))
+        assertEquals(20, result.size)
+        assertTrue(result.none { it.seriesId == 21 })
+    }
+
+    @Test
+    fun test_getVersionsByLinkKey_sortsByQualityRankDescendingThenSeriesId() = runTest {
+        val rows = listOf(
+            SeriesStreamEntity(1, "Série 1", null, null, null, "1", 0L, linkKey = "key-a", qualityTag = "sd"),
+            SeriesStreamEntity(2, "Série 2", null, null, null, "1", 0L, linkKey = "key-a", qualityTag = "uhd_4k"),
+            SeriesStreamEntity(3, "Série 3", null, null, null, "1", 0L, linkKey = "key-a", qualityTag = "hd")
+        )
+        whenever(seriesDao.getStreamsByLinkKey(eq("key-a"), anyOrNull(), any())).thenReturn(rows)
+
+        val result = repository.getVersionsByLinkKey("key-a", null)
+
+        assertEquals(listOf(2, 3, 1), result.map { it.seriesId })
+    }
 }

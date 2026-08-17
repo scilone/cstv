@@ -69,6 +69,17 @@ pages de 500 lignes ordonnées par clé primaire, une transaction par page ; `li
 curseur persistant du travail restant, sans entité de progression dédiée. T21 ne modifie aucun écran :
 la donnée sert de fondation à F39 (sélecteur de versions) et F40 (qualité des chaînes).
 
+#### Étiquettes et sélecteur de versions (F39)
+
+L'architecture de F39 consomme les colonnes `linkKey`, `releaseYear`, `languageTag` et `qualityTag` persistées par T21. Elle se structure autour des composants suivants :
+
+* **`MediaVersionBadges`** : Composant de présentation pure qui mappe les tags extraits (`languageTag`/`qualityTag`) en 0, 1 ou 2 badges (langue puis qualité, ex: « VF · 4K ») pour les vignettes de films et de séries dans toutes les vues en liste.
+* **`SeriesVersionResolver`** : Composant de domaine qui résout localement les séries candidates compatibles partageant la même `linkKey` en filtrant celles qui ne possèdent pas l'épisode équivalent (`seasonNum + episodeNum`) et en gérant la préférence série mémorisée par profil utilisateur.
+* **`MediaVersionSwitchController`** (et son moteur `ExoMediaVersionSwitchEngine`) : Contrôleur transactionnel de haut niveau qui orchestre le changement à chaud d'une version de média en cours de lecture. Il sauvegarde l'état du lecteur source, prépare et charge la cible à la position équivalente (seek borné au début de la cible pour éviter les dépassements de durée), valide le changement après 3 secondes stables, ou exécute un rollback transactionnel complet et sécurisé vers la source d'origine en cas d'erreur de lecture ou de dépassement du timeout de 8 secondes.
+* **`SeriesVersionSwitchCoordinator`** : Coordinateur d'écran de lecture de séries qui synchronise l'identité atomique lue (couple série + épisode), applique de manière fluide la préférence de version à l'ouverture ou lors d'un enchaînement automatique (binge-watching), et isole la logique de lecture hors-ligne.
+* **`VersionSelectorSheet`** : Sélecteur graphique adaptatif qui affiche une `ModalBottomSheet` sur mobile et un dialogue focalisable (`AlertDialog`) sur Android TV.
+* **Coexistence F39/T23 (Un seul pilote de moteur)** : Les listeners et contrôles de F39 et de l'auto-réparation technique de lecture (T23) sont coordonnés de manière exclusive afin qu'un seul mécanisme ne pilote le moteur `ExoPlayer` à la fois, interdisant tout conflit ou instabilité de lecture.
+
 #### C. Couche Présentation (`presentation/`)
 Responsable de l'interface utilisateur. Elle utilise **Jetpack Compose** pour l'UI.
 * **ViewModels** : Un ViewModel par écran. Il gère l'état de l'interface (StateFlow) et interagit avec la couche Domaine. Zéro logique métier directe dans les Composables.

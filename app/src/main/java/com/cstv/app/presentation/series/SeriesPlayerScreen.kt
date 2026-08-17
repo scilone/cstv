@@ -223,22 +223,51 @@ fun SeriesPlayerScreen(
         seriesPref = viewModel.getSeriesTrackPreference(seriesId)
     }
 
-    // F39 §8.5/§8.6 : versions candidates de l'épisode en cours et bascule transactionnelle.
-    // Limite connue (non couverte par cette livraison) : la préférence mémorisée (§8.3) est
-    // écrite sur un choix explicite mais n'est pas encore relue automatiquement à l'ouverture
-    // d'un nouvel épisode enchaîné — chaque épisode rouvre sur la série ouverte par défaut.
+    // F39 §8.5/§8.6, corrections F39-R2/R3/R4 : versions candidates de l'épisode en cours et
+    // bascule transactionnelle, orchestrées par un coordinator pur (testable en JVM sans Compose,
+    // AGENTS.md) qui porte l'identité de version jouée comme un seul état atomique — voir
+    // `SeriesVersionSwitchCoordinator`.
     var availableVersions by remember { mutableStateOf(emptyList<com.cstv.app.domain.model.SeriesVersionCandidate>()) }
     var currentVersionSeriesId by remember(seriesId) { mutableStateOf(seriesId) }
     var showVersionDialog by remember { mutableStateOf(false) }
     var isSwitchingVersion by remember { mutableStateOf(false) }
+    // F39-R3 : quand un changement de `currentEpisode` provient d'une bascule de version déjà
+    // posée par MediaVersionSwitchController (pas d'un enchaînement d'épisode), l'effet de
+    // préparation réseau ci-dessous ne doit reposer ni `MediaItem` ni position — seule la cible de
+    // réparation T23 doit se réaligner.
+    var suppressPrepareForEpisodeId by remember { mutableStateOf<Int?>(null) }
+    // F39-R2 : bloque la toute première préparation réseau jusqu'à ce que la préférence de série
+    // mémorisée ait pu être résolue (résolution locale, §8.2 — pas d'appel réseau), pour ne jamais
+    // préparer l'épisode navigué puis le remplacer aussitôt par la version préférée.
+    var initialVersionResolved by remember { mutableStateOf(false) }
     val versionSwitchScope = rememberCoroutineScope()
-    val versionSwitchController = remember(engineController) {
-        com.cstv.app.presentation.player.core.MediaVersionSwitchController(
-            com.cstv.app.presentation.player.core.ExoMediaVersionSwitchEngine(engineController)
+    val versionCoordinator = remember(engineController, seriesId, episode.id, versionsEnabled) {
+        com.cstv.app.presentation.player.core.SeriesVersionSwitchCoordinator(
+            initialSeriesId = seriesId,
+            initialEpisode = episode,
+            versionsEnabled = versionsEnabled,
+            switchController = com.cstv.app.presentation.player.core.MediaVersionSwitchController(
+                com.cstv.app.presentation.player.core.ExoMediaVersionSwitchEngine(engineController)
+            ),
+            buildPlayUrl = { ep -> ep.getPlayUrl(credentials.baseUrl, credentials.username, credentials.password) },
+            buildCacheKey = { ep -> DownloadedItem.episodeContentId(ep.id) },
+            resolvePreferred = { openSeriesId, seasonNum, episodeNum ->
+                viewModel.getPreferredEpisodeVersion(openSeriesId, seasonNum, episodeNum)
+            },
+            onPersistPreference = { linkKey, preferredSeriesId -> viewModel.setPreferredSeriesVersion(linkKey, preferredSeriesId) }
         )
     }
-    LaunchedEffect(seriesId, currentEpisode.seasonNum, currentEpisode.episodeNum, versionsEnabled) {
-        currentVersionSeriesId = seriesId
+
+    // F39-R2 : applique la préférence mémorisée dès l'ouverture initiale de l'écran, avant la
+    // toute première préparation réseau (voir `initialVersionResolved` ci-dessus).
+    LaunchedEffect(versionCoordinator) {
+        versionCoordinator.resolveAndSet(episode.seasonNum, episode.episodeNum, episode)
+        currentVersionSeriesId = versionCoordinator.currentSeriesId
+        currentEpisode = versionCoordinator.currentEpisode
+        initialVersionResolved = true
+    }
+
+    LaunchedEffect(currentEpisode.seasonNum, currentEpisode.episodeNum, versionsEnabled) {
         availableVersions = if (versionsEnabled) {
             viewModel.getEpisodeVersions(seriesId, currentEpisode.seasonNum, currentEpisode.episodeNum)
         } else emptyList()
@@ -248,28 +277,40 @@ fun SeriesPlayerScreen(
     val onSelectVersion: (com.cstv.app.domain.model.SeriesVersionCandidate) -> Unit = selectVersion@{ candidate ->
         if (isSwitchingVersion || candidate.series.seriesId == currentVersionSeriesId) return@selectVersion
         isSwitchingVersion = true
+        // F39-R3 : capture la position AVANT que la bascule ne touche le lecteur, pour que la
+        // « reprise » (§8.5 pt. 6) de l'épisode abandonné reste correcte si l'utilisateur y revient.
+        val abandonedPositionMs = exoPlayer.currentPosition
+        val abandonedDurationMs = exoPlayer.duration
         versionSwitchScope.launch {
-            val previousTarget = com.cstv.app.presentation.player.core.PlayableVersionTarget(
-                currentEpisode.getPlayUrl(credentials.baseUrl, credentials.username, credentials.password)
-            )
-            val nextTarget = com.cstv.app.presentation.player.core.PlayableVersionTarget(
-                candidate.episode.getPlayUrl(credentials.baseUrl, credentials.username, credentials.password)
-            )
-            val result = versionSwitchController.switchTo(previousTarget, nextTarget)
-            isSwitchingVersion = false
-            when (result) {
-                com.cstv.app.presentation.player.core.MediaVersionSwitchResult.Switched -> {
-                    currentVersionSeriesId = candidate.series.seriesId
+            when (val outcome = versionCoordinator.switchTo(candidate)) {
+                is com.cstv.app.presentation.player.core.SeriesVersionSwitchCoordinator.SwitchOutcome.Applied -> {
+                    isSwitchingVersion = false
+                    // F39-R3 : identité atomique — série ET épisode changent ensemble, jamais l'un
+                    // sans l'autre (rollback/reprise/cache/verrou/T23 s'appuient tous sur les deux).
+                    suppressPrepareForEpisodeId = versionCoordinator.currentEpisode.id
+                    currentVersionSeriesId = versionCoordinator.currentSeriesId
+                    currentEpisode = versionCoordinator.currentEpisode
                     showVersionDialog = false
-                    candidate.series.linkKey.takeIf { it.isNotBlank() }?.let { linkKey ->
-                        viewModel.setPreferredSeriesVersion(linkKey, candidate.series.seriesId)
+                    val abandonedEpisode = outcome.abandonedEpisode
+                    if (abandonedDurationMs > 0L) {
+                        if (abandonedPositionMs >= abandonedDurationMs - 15_000L) {
+                            viewModel.clearPosition(abandonedEpisode.id)
+                        } else if (abandonedPositionMs > 0L) {
+                            viewModel.savePosition(abandonedEpisode, abandonedPositionMs, abandonedDurationMs, seriesName, seriesCover, seriesId.takeIf { it > 0 })
+                        }
                     }
                 }
-                com.cstv.app.presentation.player.core.MediaVersionSwitchResult.RolledBack -> {
+                com.cstv.app.presentation.player.core.SeriesVersionSwitchCoordinator.SwitchOutcome.RolledBack -> {
+                    isSwitchingVersion = false
+                    // F39-R1 : même message quel que soit le sous-cas (§7.5, jamais d'écran noir) —
+                    // la distinction RollbackFailed du contrôleur sert au diagnostic/tests, pas à un
+                    // second message utilisateur pour lequel il n'existe rien de mieux à afficher.
                     overlayNotification = rollbackMessage
                     showVersionDialog = false
                 }
-                com.cstv.app.presentation.player.core.MediaVersionSwitchResult.Superseded -> Unit
+                com.cstv.app.presentation.player.core.SeriesVersionSwitchCoordinator.SwitchOutcome.Superseded -> {
+                    isSwitchingVersion = false
+                }
             }
         }
     }
@@ -353,12 +394,26 @@ fun SeriesPlayerScreen(
     // lecture à la position d'ouverture au lieu de la position de pause.
     var playbackPrepared by remember(currentEpisode.id) { mutableStateOf(false) }
     LaunchedEffect(currentEpisode.id, lockUi.canStartPlayback) {
-        if (!lockUi.canStartPlayback) return@LaunchedEffect
+        // F39-R2 : attend la résolution de la préférence de série avant la toute première
+        // préparation (voir `initialVersionResolved` ci-dessus) — sinon l'effet préparerait
+        // l'épisode navigué puis le remplacerait aussitôt par la version préférée.
+        if (!initialVersionResolved || !lockUi.canStartPlayback) return@LaunchedEffect
         if (playbackPrepared) {
             exoPlayer.playWhenReady = true
             return@LaunchedEffect
         }
         playbackPrepared = true
+
+        if (suppressPrepareForEpisodeId == currentEpisode.id) {
+            // F39-R3 : ce changement d'identité provient d'une bascule de version déjà posée par
+            // MediaVersionSwitchController (MediaItem + seek déjà faits) — ne reposer que la cible
+            // de réparation T23, sans reconstruire le lecteur ni resauter la position.
+            suppressPrepareForEpisodeId = null
+            recoverySession.forTarget(PLAYBACK_REPAIR_KIND, currentEpisode.id)
+            isBuffering = false
+            return@LaunchedEffect
+        }
+
         isBuffering = true
         isDeviceUnrepairable = false
         playbackError = null
@@ -507,7 +562,16 @@ fun SeriesPlayerScreen(
         availableAudioTracks = emptyList()
         availableSubtitleTracks = emptyList()
         showControls = true
-        currentEpisode = next
+        // F39-R2 : réapplique la préférence de série mémorisée pour l'épisode suivant —
+        // enchaînement automatique (binge) compris, pas seulement un choix explicite dans le
+        // sélecteur. Résolution locale uniquement (§8.2), ancrée sur la version actuellement jouée
+        // (le coordinator part de son propre `currentSeriesId`) : sans préférence applicable, on
+        // reste sur cette version plutôt que de revenir à la série de navigation.
+        versionSwitchScope.launch {
+            versionCoordinator.resolveAndSet(next.seasonNum, next.episodeNum, next)
+            currentVersionSeriesId = versionCoordinator.currentSeriesId
+            currentEpisode = versionCoordinator.currentEpisode
+        }
     }
 
     TrackPlayerPosition(
@@ -575,6 +639,11 @@ fun SeriesPlayerScreen(
             }
 
             override fun onPlayerError(error: PlaybackException) {
+                // F39-R1 : pendant une bascule de version en cours, c'est
+                // MediaVersionSwitchController qui observe et pilote cette même erreur (§9.3, un
+                // seul contrôleur de moteur à la fois) — ne pas laisser T23 démarrer sa propre
+                // réparation en parallèle sur le même lecteur.
+                if (isSwitchingVersion) return
                 val restorePositionMs = PlaybackRecoveryCoordinator.vodRestorePositionMs(
                     positionBeforeErrorMs = currentPosition,
                     durationMs = duration
@@ -1186,19 +1255,22 @@ fun SeriesPlayerScreen(
 
         // F39 §8.5 : sélecteur de versions.
         if (showVersionDialog) {
+            val versionFallbackLabel = stringResource(R.string.player_version_label_fallback)
             com.cstv.app.presentation.player.VersionSelectorSheet(
                 options = availableVersions.map { candidate ->
                     com.cstv.app.presentation.player.VersionOption(
                         id = candidate.series.seriesId,
-                        label = com.cstv.app.domain.model.mediaVersionBadges(candidate.series.languageTag, candidate.series.qualityTag)
-                            .takeIf { it.isNotEmpty() }?.joinToString(" · ")
-                            ?: candidate.series.name,
+                        // F39-R7 : jamais le nom Xtream brut (candidate.series.name) en repli.
+                        label = com.cstv.app.domain.model.mediaVersionSelectorLabel(
+                            candidate.series.languageTag, candidate.series.qualityTag, versionFallbackLabel
+                        ),
                         isActive = candidate.series.seriesId == currentVersionSeriesId
                     )
                 },
                 isSwitching = isSwitchingVersion,
                 onSelect = { option -> availableVersions.firstOrNull { it.series.seriesId == option.id }?.let(onSelectVersion) },
-                onDismiss = { if (!isSwitchingVersion) showVersionDialog = false }
+                onDismiss = { if (!isSwitchingVersion) showVersionDialog = false },
+                isTv = isTv
             )
         }
     }

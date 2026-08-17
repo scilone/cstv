@@ -130,17 +130,25 @@ interface VodDao {
     suspend fun applyNormalization(streamId: Int, cleanTitle: String, linkKey: String, languageTag: String?, languageRaw: String?, qualityTag: String?, qualityRaw: String?)
 
     /**
-     * F39 §8.2 : autres versions d'une œuvre partageant `linkKey`, filtrées
-     * par année compatible (une entrée sans année connue reste candidate).
-     * Le rang qualité n'étant pas une colonne, l'ordre final (qualité
-     * décroissante) est recalculé côté Kotlin par le repository ; ce tri SQL
-     * par `streamId` n'est qu'un ordre stable de repli. `limit` applique le
-     * plafond défensif §8.7.
+     * F39 §8.2, correction F39-R8 : autres versions d'une œuvre partageant
+     * `linkKey`, filtrées par année compatible (une entrée sans année connue
+     * reste candidate). Le rang qualité n'étant pas une colonne, il est
+     * recalculé en SQL par un `CASE` répliquant exactement `mediaQualityRank`
+     * (`MediaQuality`) — nécessaire pour trier **avant** `LIMIT` : sur un
+     * groupe anormalement large, la meilleure qualité peut se trouver après
+     * le vingtième `streamId`, et un tri Kotlin appliqué après coup sur des
+     * lignes déjà tronquées ne la retrouve jamais. Le repository trie encore
+     * ce résultat côté Kotlin (ordre stable, sécurité de non-régression) mais
+     * ce tri SQL garantit que les meilleures candidates font partie des
+     * lignes renvoyées. `limit` applique le plafond défensif §8.7 ; le
+     * repository interroge `limit + 1` pour distinguer une troncature réelle
+     * d'un groupe qui tombe pile sur le plafond.
      */
     @Query(
         "SELECT * FROM vod_streams WHERE linkKey = :linkKey AND linkKey != '' " +
             "AND (:year IS NULL OR :year <= 0 OR releaseYear IS NULL OR releaseYear <= 0 OR releaseYear = :year) " +
-            "ORDER BY streamId ASC LIMIT :limit"
+            "ORDER BY (CASE qualityTag WHEN 'uhd_4k' THEN 40 WHEN 'fhd' THEN 30 WHEN 'hd' THEN 20 WHEN 'sd' THEN 10 ELSE 0 END) DESC, " +
+            "streamId ASC LIMIT :limit"
     )
     suspend fun getStreamsByLinkKey(linkKey: String, year: Int?, limit: Int): List<VodStreamEntity>
 

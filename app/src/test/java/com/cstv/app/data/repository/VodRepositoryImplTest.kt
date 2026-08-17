@@ -754,4 +754,40 @@ class VodRepositoryImplTest {
         assertEquals(1, result.size)
         assertEquals(7, result.first().streamId)
     }
+
+    /**
+     * F39-R8/R4 : le repository interroge un rang de plus que le plafond pour
+     * pouvoir distinguer une vraie troncature (voir VersionsByLinkKeySqlTest
+     * côté SQL) et retourne au plus MAX_VERSIONS_PER_LINK_KEY entrées, triées
+     * qualité décroissante.
+     */
+    @Test
+    fun test_getVersionsByLinkKey_queriesOneRowBeyondTheCapAndTrimsTheResult() = runTest {
+        // 21 lignes renvoyées par le DAO (le repository a demandé limit+1) : seules les 20
+        // meilleures qualités doivent survivre, jamais la moins bonne (id 21, "sd").
+        val rows = (1..20).map { id ->
+            VodStreamEntity(id, "Film $id", null, null, null, "1", 0L, linkKey = "key-a", qualityTag = "hd")
+        } + VodStreamEntity(21, "Film 21", null, null, null, "1", 0L, linkKey = "key-a", qualityTag = "sd")
+        whenever(vodDao.getStreamsByLinkKey(eq("key-a"), anyOrNull(), eq(21))).thenReturn(rows)
+
+        val result = repository.getVersionsByLinkKey("key-a", null)
+
+        verify(vodDao).getStreamsByLinkKey(eq("key-a"), anyOrNull(), eq(21))
+        assertEquals(20, result.size)
+        assertTrue(result.none { it.streamId == 21 })
+    }
+
+    @Test
+    fun test_getVersionsByLinkKey_sortsByQualityRankDescendingThenStreamId() = runTest {
+        val rows = listOf(
+            VodStreamEntity(1, "Film 1", null, null, null, "1", 0L, linkKey = "key-a", qualityTag = "sd"),
+            VodStreamEntity(2, "Film 2", null, null, null, "1", 0L, linkKey = "key-a", qualityTag = "uhd_4k"),
+            VodStreamEntity(3, "Film 3", null, null, null, "1", 0L, linkKey = "key-a", qualityTag = "hd")
+        )
+        whenever(vodDao.getStreamsByLinkKey(eq("key-a"), anyOrNull(), any())).thenReturn(rows)
+
+        val result = repository.getVersionsByLinkKey("key-a", null)
+
+        assertEquals(listOf(2, 3, 1), result.map { it.streamId })
+    }
 }

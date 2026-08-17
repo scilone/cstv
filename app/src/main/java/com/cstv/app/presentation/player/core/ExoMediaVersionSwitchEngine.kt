@@ -41,7 +41,10 @@ class ExoMediaVersionSwitchEngine(private val controller: PlaybackEngineControll
 
         // Ne touche ni position ni `playWhenReady` ici : le contrôleur les restaure lui-même une
         // fois `Ready` observé (§8.5 pt. 4) — poser la cible ne doit rien précipiter avant.
-        controller.setMediaItem(MediaItem.fromUri(target.mediaUrl))
+        // F39-R3 : porte le cache hors-ligne de la cible, comme le premier chargement de l'écran.
+        val mediaItemBuilder = MediaItem.Builder().setUri(target.mediaUrl)
+        target.cacheKey?.let { mediaItemBuilder.setCustomCacheKey(it) }
+        controller.setMediaItem(mediaItemBuilder.build())
         player.playWhenReady = false
         player.prepare()
 

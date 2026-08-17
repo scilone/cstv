@@ -241,13 +241,15 @@ fun SeriesDetailsScreen(
 
         // F39 §8.6 (évolution PO) : sélectionner une version recharge intégralement la fiche.
         if (showVersionDialog) {
+            val versionFallbackLabel = stringResource(R.string.player_version_label_fallback)
             com.cstv.app.presentation.player.VersionSelectorSheet(
                 options = availableVersions.map { version ->
                     com.cstv.app.presentation.player.VersionOption(
                         id = version.seriesId,
-                        label = com.cstv.app.domain.model.mediaVersionBadges(version.languageTag, version.qualityTag)
-                            .takeIf { it.isNotEmpty() }?.joinToString(" · ")
-                            ?: version.name,
+                        // F39-R7 : jamais le nom Xtream brut (version.name) en repli.
+                        label = com.cstv.app.domain.model.mediaVersionSelectorLabel(
+                            version.languageTag, version.qualityTag, versionFallbackLabel
+                        ),
                         isActive = version.seriesId == details.seriesId
                     )
                 },
@@ -256,7 +258,8 @@ fun SeriesDetailsScreen(
                     showVersionDialog = false
                     onSelectVersion(option.id)
                 },
-                onDismiss = { showVersionDialog = false }
+                onDismiss = { showVersionDialog = false },
+                isTv = isTv
             )
         }
     }

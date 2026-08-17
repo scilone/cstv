@@ -205,6 +205,8 @@
     <string name="player_versions_action_label">Versions</string>
     <string name="player_version_dialog_title">VERSIONS DISPONIBLES</string>
     <string name="player_version_rollback_message">Cette version n\'est pas disponible, retour à la version précédente.</string>
+    <!-- F39-R7 (étape 7) : libellé fixe et localisé, jamais le nom Xtream brut, pour une version sans aucun attribut détecté -->
+    <string name="player_version_label_fallback">Version standard</string>
     <string name="series_search_placeholder">Rechercher dans cette catégorie...</string>
     <string name="settings_logout">DÉCONNEXION</string>
     <!-- B27 : carte « Comptes » des Paramètres (TV + mobile) -->

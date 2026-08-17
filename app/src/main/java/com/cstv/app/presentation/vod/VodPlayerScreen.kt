@@ -165,7 +165,6 @@ fun VodPlayerScreen(
     var isDeviceUnrepairable by remember { mutableStateOf(false) }
     val lockUi by viewModel.playbackLockUiState.collectAsStateWithLifecycle()
     val currentLockUi by rememberUpdatedState(lockUi)
-    LaunchedEffect(details.streamId) { viewModel.beginPlaybackLock(DownloadedItem.movieContentId(details.streamId)) }
     LaunchedEffect(lockUi.takenOverBy) { if (lockUi.takenOverBy != null) exoPlayer.stop() }
 
     var isPlayerVisible by remember { mutableStateOf(true) }
@@ -212,6 +211,19 @@ fun VodPlayerScreen(
     }
     val rollbackMessage = stringResource(R.string.player_version_rollback_message)
 
+    // F39-R3 : verrou de lecture et cible de réparation T23 doivent suivre la version réellement
+    // jouée, pas rester attachés à `details.streamId` d'ouverture — sinon un appareil concurrent ou
+    // une réparation T23 raisonnent sur le mauvais flux après une bascule réussie. `details.streamId`
+    // reste la clé de (ré)acquisition initiale (LaunchedEffect ci-dessus la réaligne déjà) ; ce bloc
+    // ne fait que suivre les bascules ultérieures, sans reposer de `MediaItem` (déjà fait par
+    // MediaVersionSwitchController).
+    LaunchedEffect(currentVersionStreamId) {
+        viewModel.beginPlaybackLock(DownloadedItem.movieContentId(currentVersionStreamId))
+        if (currentVersionStreamId != details.streamId) {
+            recoverySession.forTarget(PLAYBACK_REPAIR_KIND, currentVersionStreamId)
+        }
+    }
+
     val onSelectVersion: (com.cstv.app.domain.model.VodStream) -> Unit = selectVersion@{ target ->
         if (isSwitchingVersion || target.streamId == currentVersionStreamId) return@selectVersion
         isSwitchingVersion = true
@@ -219,10 +231,12 @@ fun VodPlayerScreen(
             val targetExtension = viewModel.getMovieContainerExtension(target.streamId) ?: "mp4"
             val previousExtension = viewModel.getMovieContainerExtension(currentVersionStreamId) ?: details.containerExtension
             val previousTarget = com.cstv.app.presentation.player.core.PlayableVersionTarget(
-                buildMoviePlayUrl(currentVersionStreamId, previousExtension, credentials)
+                mediaUrl = buildMoviePlayUrl(currentVersionStreamId, previousExtension, credentials),
+                cacheKey = DownloadedItem.movieContentId(currentVersionStreamId)
             )
             val nextTarget = com.cstv.app.presentation.player.core.PlayableVersionTarget(
-                buildMoviePlayUrl(target.streamId, targetExtension, credentials)
+                mediaUrl = buildMoviePlayUrl(target.streamId, targetExtension, credentials),
+                cacheKey = DownloadedItem.movieContentId(target.streamId)
             )
             val result = versionSwitchController.switchTo(previousTarget, nextTarget)
             isSwitchingVersion = false
@@ -231,7 +245,11 @@ fun VodPlayerScreen(
                     currentVersionStreamId = target.streamId
                     showVersionDialog = false
                 }
-                com.cstv.app.presentation.player.core.MediaVersionSwitchResult.RolledBack -> {
+                com.cstv.app.presentation.player.core.MediaVersionSwitchResult.RolledBack,
+                com.cstv.app.presentation.player.core.MediaVersionSwitchResult.RollbackFailed -> {
+                    // F39-R1 : même message dans les deux cas (§7.5, jamais d'écran noir) — la
+                    // distinction RollbackFailed sert au diagnostic/tests, pas à un second message
+                    // utilisateur pour lequel il n'existe rien de mieux à afficher.
                     overlayNotification = rollbackMessage
                     showVersionDialog = false
                 }
@@ -282,7 +300,7 @@ fun VodPlayerScreen(
     KeepScreenOnEffect()
 
     var isPlaying by remember { mutableStateOf(true) }
-    var cloudPlaybackStarted by remember(details.streamId) { mutableStateOf(false) }
+    var cloudPlaybackStarted by remember(currentVersionStreamId) { mutableStateOf(false) }
     var isBuffering by remember { mutableStateOf(true) }
     var playbackError by remember { mutableStateOf<String?>(null) }
     var currentPosition by remember { mutableStateOf(initialPositionMs) }
@@ -456,21 +474,24 @@ fun VodPlayerScreen(
 
     TrackPlayerPosition(
         exoPlayer = exoPlayer,
-        contentKey = details.streamId,
+        // F39-R3 : la reprise doit se rattacher à la version réellement jouée, pas à celle
+        // d'ouverture de l'écran — sinon la position s'enregistre sous le mauvais flux après une
+        // bascule et « reprise » (§8.5 pt. 6) restaure la mauvaise entrée.
+        contentKey = currentVersionStreamId,
         isPlaying = isPlaying,
         onPositionChanged = { positionMs, durationMs ->
             currentPosition = positionMs
             duration = durationMs
         },
         onPeriodicSave = { positionMs, durationMs ->
-            viewModel.savePosition(details.streamId, positionMs, durationMs, details)
+            viewModel.savePosition(currentVersionStreamId, positionMs, durationMs, details)
         },
         onTrackerDispose = { positionMs, durationMs ->
             if (positionMs > 0L && durationMs > 0L) {
                 if (positionMs >= durationMs - 15_000L) {
-                    viewModel.clearPosition(details.streamId)
+                    viewModel.clearPosition(currentVersionStreamId)
                 } else {
-                    viewModel.savePosition(details.streamId, positionMs, durationMs, details)
+                    viewModel.savePosition(currentVersionStreamId, positionMs, durationMs, details)
                 }
             }
         }
@@ -489,7 +510,7 @@ fun VodPlayerScreen(
                 if (playbackState == Player.STATE_ENDED) {
                     viewModel.markPlaybackForCloud()
                     cloudPlaybackStarted = false
-                    viewModel.clearPosition(details.streamId)
+                    viewModel.clearPosition(currentVersionStreamId)
                     handleClose()
                 }
             }
@@ -511,6 +532,11 @@ fun VodPlayerScreen(
             }
 
             override fun onPlayerError(error: PlaybackException) {
+                // F39-R1 : pendant une bascule de version en cours, c'est
+                // MediaVersionSwitchController qui observe et pilote cette même erreur (§9.3, un
+                // seul contrôleur de moteur à la fois) — ne pas laisser T23 démarrer sa propre
+                // réparation en parallèle sur le même lecteur.
+                if (isSwitchingVersion) return
                 val restorePositionMs = PlaybackRecoveryCoordinator.vodRestorePositionMs(
                     positionBeforeErrorMs = currentPosition,
                     durationMs = duration
@@ -1111,19 +1137,22 @@ fun VodPlayerScreen(
 
         // F39 §8.5 : sélecteur de versions.
         if (showVersionDialog) {
+            val versionFallbackLabel = stringResource(R.string.player_version_label_fallback)
             com.cstv.app.presentation.player.VersionSelectorSheet(
                 options = availableVersions.map { version ->
                     com.cstv.app.presentation.player.VersionOption(
                         id = version.streamId,
-                        label = com.cstv.app.domain.model.mediaVersionBadges(version.languageTag, version.qualityTag)
-                            .takeIf { it.isNotEmpty() }?.joinToString(" · ")
-                            ?: version.name,
+                        // F39-R7 : jamais le nom Xtream brut (version.name) en repli.
+                        label = com.cstv.app.domain.model.mediaVersionSelectorLabel(
+                            version.languageTag, version.qualityTag, versionFallbackLabel
+                        ),
                         isActive = version.streamId == currentVersionStreamId
                     )
                 },
                 isSwitching = isSwitchingVersion,
                 onSelect = { option -> availableVersions.firstOrNull { it.streamId == option.id }?.let(onSelectVersion) },
-                onDismiss = { if (!isSwitchingVersion) showVersionDialog = false }
+                onDismiss = { if (!isSwitchingVersion) showVersionDialog = false },
+                isTv = isTv
             )
         }
     }

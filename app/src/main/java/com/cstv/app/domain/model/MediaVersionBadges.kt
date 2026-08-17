@@ -17,6 +17,19 @@ fun mediaVersionBadges(languageTag: String?, qualityTag: String?): List<String> 
     return badges
 }
 
+/**
+ * F39, correction F39-R7 : libellé d'une version dans un sélecteur (lecteur
+ * ou fiche média), centralisé pour ne jamais diverger entre les quatre
+ * surfaces (`VodPlayerScreen`, `SeriesPlayerScreen`, `VodDetailsScreen`,
+ * `SeriesDetailsScreen`). Rejoint [mediaVersionBadges] avec « · » ; si tous
+ * les attributs sont absents, retombe sur [fallback] — jamais sur le
+ * libellé Xtream brut (décision étape 2), même dans ce cas limite (décision
+ * étape 7 : libellé fixe et localisé, fourni par l'appelant pour rester une
+ * fonction pure sans dépendance Android).
+ */
+fun mediaVersionSelectorLabel(languageTag: String?, qualityTag: String?, fallback: String): String =
+    mediaVersionBadges(languageTag, qualityTag).takeIf { it.isNotEmpty() }?.joinToString(" · ") ?: fallback
+
 /** Libellé lisible pour un [MediaQuality.storageCode] ; `UHD_4K` s'affiche « 4K », pas son nom d'enum. */
 private fun qualityDisplayLabel(qualityTag: String?): String? =
     when (MediaQuality.entries.firstOrNull { it.storageCode == qualityTag }) {

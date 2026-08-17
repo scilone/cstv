@@ -1,8 +1,10 @@
 package com.cstv.app.presentation.player.core
 
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -11,8 +13,15 @@ import java.util.concurrent.atomic.AtomicInteger
  * sélection de piste audio/sous-titres suit son cycle habituel une fois la
  * cible prête (préférence mémorisée du média, `onTracksChanged` côté écran)
  * — F39 ne la court-circuite pas.
+ *
+ * @param cacheKey correction F39-R3 : identifiant de cache hors-ligne
+ *   (`DownloadedItem.movieContentId`/`episodeContentId`) de **cette** cible
+ *   précise, posé sur le `MediaItem` par l'engine (§8.6, `useOfflineCache`)
+ *   — sans lui, une bascule de version perdait le rattachement au
+ *   téléchargement local éventuel de la cible, contrairement au premier
+ *   chargement de l'écran qui, lui, le posait toujours.
  */
-data class PlayableVersionTarget(val mediaUrl: String)
+data class PlayableVersionTarget(val mediaUrl: String, val cacheKey: String? = null)
 
 /** Événement remonté pendant la préparation d'une cible (§8.5 pt. 3). */
 sealed class MediaVersionSwitchEvent {
@@ -29,6 +38,12 @@ sealed class MediaVersionSwitchEvent {
  * décodeur), la bascule de version pose un nouveau `MediaItem` sur le
  * lecteur **existant** : la version ne change ni décodeur ni stratégie, et
  * §9.3 interdit un second contrôleur de moteur concurrent.
+ *
+ * Correction F39-R1 : le flux retourné par [prepareTarget] reste ouvert
+ * (aucun `firstOrNull` côté implémentation) tant que l'appelant ne cesse pas
+ * de le collecter — [MediaVersionSwitchController] l'observe désormais en
+ * continu du premier `Ready` jusqu'à la fin de la fenêtre de stabilité, pour
+ * ne manquer aucun `Failure` survenant entre les deux.
  */
 interface MediaVersionSwitchEngine {
     fun currentPositionMs(): Long
@@ -55,8 +70,17 @@ sealed class MediaVersionSwitchResult {
      *  réponse tardive de la cible A d'écraser une cible B choisie ensuite »). */
     data object Superseded : MediaVersionSwitchResult()
 
-    /** Échec (timeout ou instabilité) : source précédente restaurée, préférence jamais modifiée. */
+    /** Échec (timeout ou instabilité) : source précédente restaurée ET confirmée `Ready` à
+     * nouveau, préférence jamais modifiée. */
     data object RolledBack : MediaVersionSwitchResult()
+
+    /**
+     * Correction F39-R1 : échec en cascade — la cible a échoué **et** la source précédente
+     * elle-même n'a pas redonné `Ready` pendant le rollback. La position/lecture ont quand même
+     * été restaurées au mieux (§7.5 : jamais d'écran noir volontaire), mais l'appelant ne doit pas
+     * traiter ce cas comme un rollback pleinement réussi — ni, a fortiori, comme un succès.
+     */
+    data object RollbackFailed : MediaVersionSwitchResult()
 }
 
 /**
@@ -65,6 +89,21 @@ sealed class MediaVersionSwitchResult {
  * rester fermé pendant le chargement et sérialiser ses appels ; la
  * génération interne n'est qu'un filet de sécurité si un second appel
  * survient malgré tout avant que le premier ne se termine.
+ *
+ * Correction F39-R1 (étape 7) : l'implémentation d'origine cessait de
+ * collecter le flux de l'engine dès le premier `Ready`/`Failure` — un échec
+ * survenant après `Ready` mais avant la fin des trois secondes de stabilité
+ * n'était donc plus visible, et un `Failure` isolé avant `Ready` faisait
+ * échouer la bascule immédiatement au lieu de laisser le budget global de 8 s
+ * s'écouler (une réparation T23 côté écran peut produire un `Ready` tardif —
+ * voir la coordination côté écran : `isSwitchingVersion` suspend l'appel à
+ * `PlaybackRecoverySession.handleError` pendant toute la durée de
+ * [switchTo], §9.3, pour qu'un seul mécanisme ne pilote le moteur à la
+ * fois). Le contrôleur observe maintenant un unique flux en continu, du
+ * début de [switchTo] jusqu'à sa conclusion : un `Failure` avant `Ready`
+ * n'interrompt plus l'attente (seul le timeout de 8 s le fait), et un
+ * `Failure` pendant la fenêtre de stabilité fait désormais échouer la
+ * bascule au lieu d'être silencieusement ignoré.
  */
 class MediaVersionSwitchController(
     private val engine: MediaVersionSwitchEngine,
@@ -83,7 +122,7 @@ class MediaVersionSwitchController(
         previous: PlayableVersionTarget,
         target: PlayableVersionTarget,
         onCommitSeriesPreference: (suspend () -> Unit)? = null
-    ): MediaVersionSwitchResult {
+    ): MediaVersionSwitchResult = coroutineScope {
         val myGeneration = generation.incrementAndGet()
 
         // 1. capture l'instantané avant toute modification.
@@ -91,52 +130,104 @@ class MediaVersionSwitchController(
         val playWhenReady = engine.currentPlayWhenReady()
         val speed = engine.currentSpeed()
 
-        // 2-3. prépare la cible sans effacer l'instantané ; attend Ready/Failure sous 8 s — T23
-        //      peut exécuter sa propre réparation dans ce délai avant de conclure à l'échec.
-        val readyEvent = withTimeoutOrNull(readyTimeoutMs) {
-            engine.prepareTarget(target).firstOrNull {
-                it is MediaVersionSwitchEvent.Ready || it is MediaVersionSwitchEvent.Failure
+        // F39-R1 : un seul abonnement au flux de la cible pour toute la durée de la bascule
+        // (attente de Ready + fenêtre de stabilité), relayé vers un Channel pour pouvoir le
+        // consommer en deux temps sans jamais le réabonner (un second `prepareTarget` reposerait
+        // le `MediaItem`).
+        val events = Channel<MediaVersionSwitchEvent>(Channel.UNLIMITED)
+        val collectJob = launch {
+            engine.prepareTarget(target).collect { events.trySend(it) }
+        }
+
+        try {
+            // 2-3. attend Ready sous le budget global de 8 s. Un `Failure` isolé n'interrompt plus
+            // l'attente : T23 peut retenter côté écran (celui-ci suspend son propre déclenchement
+            // de réparation tant que `isSwitchingVersion` est vrai, pour ne jamais avoir deux
+            // pilotes du moteur) et produire un `Ready` tardif, toujours sous ce même budget.
+            val readyObserved = withTimeoutOrNull(readyTimeoutMs) {
+                var ready = false
+                for (event in events) {
+                    if (generation.get() != myGeneration) break
+                    if (event is MediaVersionSwitchEvent.Ready) {
+                        ready = true
+                        break
+                    }
+                }
+                ready
             }
+
+            if (generation.get() != myGeneration) return@coroutineScope MediaVersionSwitchResult.Superseded
+
+            if (readyObserved != true) {
+                return@coroutineScope if (rollback(previous, positionMs, playWhenReady, speed)) {
+                    MediaVersionSwitchResult.RolledBack
+                } else {
+                    MediaVersionSwitchResult.RollbackFailed
+                }
+            }
+
+            // 4. seek borné : position source, ou près de la fin si la cible est plus courte.
+            val targetDurationMs = engine.targetDurationMs()
+            val seekPositionMs = if (targetDurationMs != null && targetDurationMs > 0) {
+                minOf(positionMs, maxOf(0L, targetDurationMs - END_OF_TARGET_MARGIN_MS))
+            } else {
+                positionMs
+            }
+            engine.seekTo(seekPositionMs)
+            engine.setPlayWhenReady(playWhenReady)
+            engine.setSpeed(speed)
+
+            // 5. fenêtre de stabilité : continue d'observer le MÊME flux (toujours la même
+            // souscription) pour détecter un échec survenant après Ready mais avant validation —
+            // c'est précisément ce que l'implémentation d'origine perdait de vue (F39-R1).
+            val failedDuringStability = withTimeoutOrNull(stabilityDelayMs) {
+                var failed = false
+                for (event in events) {
+                    if (generation.get() != myGeneration) break
+                    if (event is MediaVersionSwitchEvent.Failure) {
+                        failed = true
+                        break
+                    }
+                }
+                failed
+            } ?: false // timeout écoulé sans échec observé => fenêtre stable.
+
+            if (generation.get() != myGeneration) return@coroutineScope MediaVersionSwitchResult.Superseded
+
+            if (failedDuringStability) {
+                return@coroutineScope if (rollback(previous, positionMs, playWhenReady, speed)) {
+                    MediaVersionSwitchResult.RolledBack
+                } else {
+                    MediaVersionSwitchResult.RollbackFailed
+                }
+            }
+
+            onCommitSeriesPreference?.invoke()
+            MediaVersionSwitchResult.Switched
+        } finally {
+            collectJob.cancel()
+            events.close()
         }
-
-        if (generation.get() != myGeneration) return MediaVersionSwitchResult.Superseded
-
-        if (readyEvent !is MediaVersionSwitchEvent.Ready) {
-            rollback(previous, positionMs, playWhenReady, speed)
-            return MediaVersionSwitchResult.RolledBack
-        }
-
-        // 4. seek borné : position source, ou près de la fin si la cible est plus courte.
-        val targetDurationMs = engine.targetDurationMs()
-        val seekPositionMs = if (targetDurationMs != null && targetDurationMs > 0) {
-            minOf(positionMs, maxOf(0L, targetDurationMs - END_OF_TARGET_MARGIN_MS))
-        } else {
-            positionMs
-        }
-        engine.seekTo(seekPositionMs)
-        engine.setPlayWhenReady(playWhenReady)
-        engine.setSpeed(speed)
-
-        // 5. après trois secondes stables, valide la cible.
-        delay(stabilityDelayMs)
-
-        if (generation.get() != myGeneration) return MediaVersionSwitchResult.Superseded
-
-        onCommitSeriesPreference?.invoke()
-        return MediaVersionSwitchResult.Switched
     }
 
-    private suspend fun rollback(previous: PlayableVersionTarget, positionMs: Long, playWhenReady: Boolean, speed: Float) {
-        // 6. reconstruit la source précédente et restaure sa position — au mieux : un rollback qui
-        //    échouerait à son tour ne doit jamais bloquer indéfiniment l'appelant.
-        withTimeoutOrNull(readyTimeoutMs) {
+    /**
+     * Reconstruit la source précédente et restaure sa position — au mieux : la restauration a
+     * toujours lieu (§7.5, jamais d'écran noir), même si [previous] elle-même n'atteint pas
+     * `Ready` (F39-R1 : c'est justement ce que le [Boolean] retourné permet à l'appelant de
+     * distinguer, plutôt que d'annoncer systématiquement un rollback réussi).
+     *
+     * @return `true` si [previous] a bien redonné `Ready`, `false` sinon (timeout ou `Failure`).
+     */
+    private suspend fun rollback(previous: PlayableVersionTarget, positionMs: Long, playWhenReady: Boolean, speed: Float): Boolean {
+        val previousReady = withTimeoutOrNull(readyTimeoutMs) {
             engine.prepareTarget(previous).firstOrNull {
                 it is MediaVersionSwitchEvent.Ready || it is MediaVersionSwitchEvent.Failure
             }
-        }
+        } is MediaVersionSwitchEvent.Ready
         engine.seekTo(positionMs)
         engine.setPlayWhenReady(playWhenReady)
         engine.setSpeed(speed)
+        return previousReady
     }
 
     companion object {
