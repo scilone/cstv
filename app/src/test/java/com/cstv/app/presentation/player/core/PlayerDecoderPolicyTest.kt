@@ -1,6 +1,9 @@
 package com.cstv.app.presentation.player.core
 
 import androidx.media3.exoplayer.DefaultRenderersFactory
+import com.cstv.app.domain.model.DecoderStrategy
+import com.cstv.app.domain.model.PlaybackRepairPlan
+import com.cstv.app.domain.model.TrackKind
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
@@ -53,5 +56,44 @@ class PlayerDecoderPolicyTest {
     @Test
     fun `decoder fallback stays enabled`() {
         assertTrue(PlayerDecoderPolicy.ENABLE_DECODER_FALLBACK)
+    }
+
+    // --- T23 §8.1, review R2 : videoExtensionRendererMode(PlaybackRepairPlan) ---
+
+    @Test
+    fun `videoExtensionRendererMode DEFAULT keeps hardware-first video mode`() {
+        assertEquals(
+            PlayerDecoderPolicy.VIDEO_EXTENSION_RENDERER_MODE,
+            PlayerDecoderPolicy.videoExtensionRendererMode(PlaybackRepairPlan.DEFAULT)
+        )
+    }
+
+    @Test
+    fun `videoExtensionRendererMode SOFTWARE_PREFERRED for a video failure switches video to PREFER`() {
+        val plan = PlaybackRepairPlan(decoderStrategy = DecoderStrategy.SOFTWARE_PREFERRED, softwarePreferredTrackKind = TrackKind.VIDEO)
+        assertEquals(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER, PlayerDecoderPolicy.videoExtensionRendererMode(plan))
+    }
+
+    @Test
+    fun `videoExtensionRendererMode SOFTWARE_PREFERRED for an audio failure leaves video on hardware-first`() {
+        // R2 : une erreur audio identifiée ne doit plus forcer la vidéo en logiciel — B16.
+        val plan = PlaybackRepairPlan(decoderStrategy = DecoderStrategy.SOFTWARE_PREFERRED, softwarePreferredTrackKind = TrackKind.AUDIO)
+        assertEquals(PlayerDecoderPolicy.VIDEO_EXTENSION_RENDERER_MODE, PlayerDecoderPolicy.videoExtensionRendererMode(plan))
+    }
+
+    @Test
+    fun `videoExtensionRendererMode SOFTWARE_PREFERRED with unidentified track stays conservative on video`() {
+        // Séquence à l'aveugle (§7.4) : piste fautive inconnue, on tente aussi le logiciel vidéo.
+        val plan = PlaybackRepairPlan(decoderStrategy = DecoderStrategy.SOFTWARE_PREFERRED, softwarePreferredTrackKind = null)
+        assertEquals(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER, PlayerDecoderPolicy.videoExtensionRendererMode(plan))
+    }
+
+    @Test
+    fun `SOFTWARE_PREFERRED for a video failure differs from DEFAULT`() {
+        val plan = PlaybackRepairPlan(decoderStrategy = DecoderStrategy.SOFTWARE_PREFERRED, softwarePreferredTrackKind = TrackKind.VIDEO)
+        assertNotEquals(
+            PlayerDecoderPolicy.videoExtensionRendererMode(PlaybackRepairPlan.DEFAULT),
+            PlayerDecoderPolicy.videoExtensionRendererMode(plan)
+        )
     }
 }

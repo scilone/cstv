@@ -1,6 +1,9 @@
 package com.cstv.app.presentation.player.core
 
 import androidx.media3.exoplayer.DefaultRenderersFactory
+import com.cstv.app.domain.model.DecoderStrategy
+import com.cstv.app.domain.model.PlaybackRepairPlan
+import com.cstv.app.domain.model.TrackKind
 
 /**
  * Politique de décodage asymétrique appliquée à `NextRenderersFactory` (voir B16).
@@ -22,5 +25,21 @@ object PlayerDecoderPolicy {
 
     const val AUDIO_EXTENSION_RENDERER_MODE = DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER
     const val VIDEO_EXTENSION_RENDERER_MODE = DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON
+    const val VIDEO_EXTENSION_RENDERER_MODE_SOFTWARE_PREFERRED = DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER
     const val ENABLE_DECODER_FALLBACK = true
+
+    /**
+     * T23 §8.1 (review R2) : [DecoderStrategy.SOFTWARE_PREFERRED] ne bascule la vidéo en logiciel
+     * préféré que si c'est bien la vidéo qui a échoué ([PlaybackRepairPlan.softwarePreferredTrackKind]
+     * == [TrackKind.VIDEO]). Une erreur audio identifiée (`trackKind == AUDIO`) laisse la vidéo au
+     * matériel : l'audio préfère déjà FFmpeg par défaut, ce plan n'y change rien. `null` (piste
+     * fautive non identifiée, séquence à l'aveugle §7.4) reste conservateur et tente aussi le
+     * logiciel côté vidéo, comme avant ce correctif — l'ancien comportement forçait toujours cette
+     * bascule, ce qui est correct seulement dans ce cas d'incertitude.
+     */
+    fun videoExtensionRendererMode(plan: PlaybackRepairPlan): Int = when {
+        plan.decoderStrategy == DecoderStrategy.DEFAULT -> VIDEO_EXTENSION_RENDERER_MODE
+        plan.softwarePreferredTrackKind == TrackKind.AUDIO -> VIDEO_EXTENSION_RENDERER_MODE
+        else -> VIDEO_EXTENSION_RENDERER_MODE_SOFTWARE_PREFERRED
+    }
 }

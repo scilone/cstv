@@ -179,6 +179,11 @@
     <string name="player_loading_stream">Chargement du flux...</string>
     <string name="player_error_title">Erreur de lecture</string>
     <string name="player_retry">Réessayer</string>
+    <!-- T23 : message final après épuisement de la séquence d'autoréparation, sans jargon technique (§7.6). -->
+    <string name="player_unrepairable_title">Contenu illisible</string>
+    <string name="player_unrepairable_message">Ce contenu ne peut pas être lu sur cet appareil.</string>
+    <!-- T23-R9 : réseau/live-window/inconnu interrompant une réparation en cours — pas un échec « appareil ». -->
+    <string name="player_generic_error">Impossible de charger le flux vidéo.</string>
     <string name="player_open_details">Ouvrir la fiche du média</string>
     <string name="player_details_unavailable">La fiche de ce média n’est pas disponible.</string>
     <string name="profile_confirm_delete_cancel">Annuler</string>

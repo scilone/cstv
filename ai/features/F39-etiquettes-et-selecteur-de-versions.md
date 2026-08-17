@@ -15,7 +15,7 @@ T21 (titre nettoyé, attributs extraits, clé de liaison) — bloquant.
 
 # 1. Description
 
-Deux usages de la donnée produite par T21, pour les films et les séries :
+Trois usages de la donnée produite par T21, pour les films et les séries :
 
 1. **Étiquettes.** Les vignettes des listes affichent la langue et la qualité de
    la version (deux badges au maximum, ex. « VF · 4K »), pour choisir sans ouvrir
@@ -23,10 +23,12 @@ Deux usages de la donnée produite par T21, pour les films et les séries :
 2. **Sélecteur de versions dans le lecteur.** Un bouton « Version » liste les
    autres entrées du catalogue partageant la même clé de liaison. Le choix d'une
    autre version relance la lecture **à la même position**, sans repasser par la
-   fiche.
-
-Le sélecteur reprend l'emplacement et les codes des sélecteurs de pistes audio
-et de sous-titres déjà présents dans le lecteur, sur mobile comme sur Android TV.
+   fiche. Le sélecteur reprend l'emplacement et les codes des sélecteurs de pistes audio
+   et de sous-titres déjà présents dans le lecteur, sur mobile comme sur Android TV.
+3. **Sélecteur de versions sur la fiche média (Évolution PO).** Un bouton « Versions »
+   sur la fiche (film ou série) permet de lister les alternatives de l'œuvre via une
+   bottom sheet (modale sur TV) et d'y basculer avant de lancer la lecture. Le choix
+   d'une version actualise l'affichage de la fiche.
 
 ---
 
@@ -55,6 +57,7 @@ premier coup), le sélecteur en aval (corriger sans perdre sa place).
 - Ne jamais laisser l'utilisateur devant un écran noir : un changement de version
   qui échoue revient à la version précédente.
 - Pour une série, ne pas rechoisir sa version à chaque épisode.
+- Choisir la version souhaitée directement depuis la fiche d'un film ou d'une série avant de lancer la lecture (Évolution PO).
 
 ---
 
@@ -62,7 +65,7 @@ premier coup), le sélecteur en aval (corriger sans perdre sa place).
 
 | Sujet | Décision |
 |---|---|
-| Emplacement du sélecteur | Dans le lecteur uniquement, aux côtés des sélecteurs de pistes existants. Pas de sélection préalable depuis la fiche média. |
+| Emplacement du sélecteur | Dans le lecteur aux côtés des sélecteurs de pistes, ET sur la fiche média via un bouton dédié (évolution PO). |
 | Contenu des étiquettes | Langue **et** qualité, deux badges au maximum (ex. « VF · 4K »). Ni la qualité seule, ni un compteur de versions. |
 | Échec d'un changement de version | Retour automatique à la version précédente, à la même position, avec un message bref. Pas d'écran d'erreur, pas d'enchaînement automatique vers une troisième version. |
 | Mémorisation (séries) | La version choisie est mémorisée pour toute la série, par profil — cohérent avec la mémorisation existante des pistes audio et sous-titres (`TrackPreferenceEntity`). |
@@ -131,6 +134,9 @@ Aucune question bloquante ne reste ouverte pour l'étape 4.
 - En tant qu'utilisateur qui regarde une série, je veux que mon choix de
   version soit retenu pour les épisodes suivants, pour ne pas le refaire à
   chaque épisode.
+- En tant qu'utilisateur sur la fiche d'un film ou d'une série, je veux pouvoir
+  voir et sélectionner une autre version disponible avant de lancer la lecture,
+  pour démarrer directement avec la bonne langue et la bonne qualité (Évolution PO).
 
 ## 7.2 Parcours utilisateur
 
@@ -160,6 +166,12 @@ Aucune question bloquante ne reste ouverte pour l'étape 4.
    automatiquement aux épisodes suivants de la série, sans repasser par le
    sélecteur.
 
+**Sélecteur de versions sur la fiche média (Évolution PO)**
+
+1. Depuis la fiche d'un film ou d'une série, si l'œuvre possède d'autres versions disponibles (partageant la même `linkKey`), un bouton « Versions » s'affiche à côté des actions principales (ex. « Favoris » / « Saison »).
+2. Au clic sur ce bouton, une bottom sheet (modale sur TV) s'affiche, listant toutes les versions de l'œuvre nommées par leurs attributs extraits (ex. « VF · 4K »), avec la version courante marquée comme active.
+3. Si l'utilisateur sélectionne une autre version, la fiche se recharge avec le nouvel identifiant (`streamId` ou `seriesId`) pour afficher les détails et caractéristiques spécifiques à cette version.
+
 ## 7.3 Règles métier
 
 - Deux badges maximum par vignette, dans l'ordre langue puis qualité —
@@ -169,8 +181,8 @@ Aucune question bloquante ne reste ouverte pour l'étape 4.
 - Pour une série, la mémorisation s'applique à toute la série, par profil
   (décision étape 1) : un changement explicite sur un épisode ultérieur
   écrase la préférence mémorisée pour le reste de la série.
-- Le sélecteur n'existe que dans le lecteur, jamais en présélection depuis
-  la fiche média (décision étape 1).
+- Le sélecteur existe à la fois dans le lecteur et sur la fiche média (Évolution PO).
+- Sur la fiche média, si une seule version est disponible pour l'œuvre, le bouton « Versions » est masqué pour ne pas encombrer l'interface.
 - N'apparaît pas dans le lecteur des contenus téléchargés hors ligne
   (décision étape 2).
 
@@ -218,6 +230,7 @@ Aucune question bloquante ne reste ouverte pour l'étape 4.
   suivants sans nouvelle sélection, par profil.
 - Le sélecteur n'apparaît pas dans le lecteur des contenus téléchargés hors
   ligne.
+- Depuis la fiche média (film ou série), si l'œuvre possède plusieurs versions, un bouton « Versions » permet d'ouvrir une bottom sheet listant les versions, et sélectionner une version met à jour la fiche au nouveau flux (Évolution PO).
 
 ---
 
@@ -335,7 +348,7 @@ Une génération de switch empêche une réponse tardive de la cible A d'écrase
 une cible B choisie ensuite. Pendant le chargement, le sélecteur est fermé et
 les nouveaux changements sont ignorés jusqu'au succès/rollback.
 
-## 8.6 Intégration des lecteurs
+## 8.6 Intégration des lecteurs et des fiches média (Évolution PO)
 
 - `VodPlayerScreen` obtient les versions via un `VodVersionsViewModel` ou le
   ViewModel VOD existant et délègue la bascule au contrôleur partagé ;
@@ -343,8 +356,16 @@ les nouveaux changements sont ignorés jusqu'au succès/rollback.
   série avant de construire le premier `MediaItem` ;
 - le lecteur hors ligne reçoit `versionsEnabled = false`, donc ne crée ni
   requête DAO ni bouton ;
-- un groupe de zéro/une candidate masque le bouton ; deux candidates ou plus
+- un groupe de zéro/une candidate masque le bouton (sur fiche et lecteur) ; deux candidates ou plus
   l'affichent.
+- **Fiche Film (`VodDetailsScreen` et `VodDetailsTvLayout`)** :
+  - Le `VodViewModel` charge toutes les versions candidates associées au `linkKey` du film.
+  - S'il y a plus d'une version candidate, affiche un bouton « Versions » (à côté des boutons Favoris, Notation ou Lecture).
+  - Sélectionner une version dans la bottom sheet déclenche `selectStreamId(newStreamId)` sur le ViewModel pour recharger intégralement la fiche média avec ce flux.
+- **Fiche Série (`SeriesDetailsScreen` et `SeriesDetailsTvLayout`)** :
+  - Le `SeriesViewModel` charge toutes les versions candidates de la série via `linkKey`.
+  - S'il y a plus d'une version candidate, affiche un bouton « Versions » (à côté des boutons Favoris, Saisons ou Lecture).
+  - Sélectionner une version dans la bottom sheet déclenche le rechargement de la fiche avec la nouvelle série sélectionnée (`seriesId`).
 
 ## 8.7 Performance, compatibilité et erreurs
 
@@ -372,9 +393,10 @@ interaction T23) ; tests de ViewModel mobile/TV sans appareil.
 `VersionSelectorSheet.kt` et tests.
 
 **Modifiés** : `AppDatabase.kt`, `Migrations.kt`, `AppModule.kt`, `VodDao.kt`,
-`SeriesDao.kt`, `CatalogListRow.kt`, modèles VOD/série, mappers repositories,
-cartes partagées des listes, `VodPlayerScreen.kt`, `SeriesPlayerScreen.kt`,
-ViewModels VOD/série, ressources `strings.xml` FR/EN et tests existants.
+  `SeriesDao.kt`, `CatalogListRow.kt`, modèles VOD/série, mappers repositories,
+  cartes partagées des listes, `VodPlayerScreen.kt`, `SeriesPlayerScreen.kt`,
+  `VodDetailsScreen.kt`, `VodDetailsTvLayout.kt`, `SeriesDetailsScreen.kt`, `SeriesDetailsTvLayout.kt`,
+  ViewModels VOD/série, ressources `strings.xml` FR/EN et tests existants.
 
 ---
 
@@ -528,18 +550,33 @@ de la navigation D-pad, hors critères d'acceptation automatisés.
 
 ---
 
-- [ ] 6. Non-régression globale
+- [ ] 6. Sélecteur sur la fiche média (Évolution PO)
+
+Objectif:
+Permettre le choix de la version directement depuis les fiches détails VOD et Séries avant de lancer la lecture. Le clic sur le bouton ouvre une bottom sheet pour choisir, et la sélection recharge la fiche média avec la version choisie.
+
+Fichiers:
+- `presentation/vod/VodDetailsScreen.kt`, `VodDetailsTvLayout.kt` (intégration du bouton et de la sheet)
+- `presentation/series/SeriesDetailsScreen.kt`, `SeriesDetailsTvLayout.kt` (intégration du bouton et de la sheet)
+- `presentation/vod/VodViewModel.kt`, `presentation/series/SeriesViewModel.kt` (chargement des versions candidates et état d'affichage de la sheet)
+
+Validation:
+Tests unitaires de ViewModel confirmant le chargement des versions candidates par `linkKey`. Test manuel sur mobile et TV pour s'assurer de la bonne ouverture de la bottom sheet, du changement de version à la sélection, du rafraîchissement complet de la fiche, et du masquage du bouton si une seule version est disponible.
+
+---
+
+- [ ] 7. Non-régression globale
 
 Objectif:
 Vérifier que les badges et le sélecteur n'introduisent aucune requête par
-carte ni régression sur le lecteur existant.
+carte ni régression sur le lecteur existant ou sur les fiches média existantes.
 
 Fichiers:
 - l'ensemble des fichiers listés en §8.9
 
 Validation:
 `./gradlew assembleDebug`, `./gradlew testDebugUnitTest`, `./gradlew
-lintDebug` verts. Tests de lecture et de liste existants toujours verts.
+lintDebug` verts. Tests de lecture, de liste et de détails existants toujours verts.
 Aucune nouvelle dépendance Gradle (§8.7).
 
 ---

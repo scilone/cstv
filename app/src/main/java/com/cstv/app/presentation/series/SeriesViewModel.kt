@@ -72,6 +72,9 @@ class SeriesViewModel @Inject constructor(
     private val requestPlaybackLockUseCase: com.cstv.app.domain.usecase.PlaybackLockRequester? = null,
     private val releasePlaybackLockUseCase: com.cstv.app.domain.usecase.PlaybackLockReleaser? = null,
     private val playbackLockManager: com.cstv.app.data.playback.PlaybackLockManager? = null,
+    /** T23 : autoréparation du lecteur — nullable pour ne pas casser les tests existants qui
+     * construisent ce ViewModel positionnellement sans ce paramètre final. */
+    val playbackRepairRepository: com.cstv.app.domain.repository.PlaybackRepairRepository? = null,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(SeriesState())

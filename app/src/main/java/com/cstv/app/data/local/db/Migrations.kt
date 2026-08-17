@@ -943,4 +943,24 @@ internal fun migration29To30Statements(): List<String> = listOf(
     "CREATE INDEX IF NOT EXISTS index_canonical_media_links_canonicalId ON canonical_media_links(canonicalId)"
 )
 
-val ALL_MIGRATIONS = arrayOf(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30)
+/**
+ * T23 : table `playback_repair_profiles`, une ligne par `mediaUid` (§8.5) — la configuration de
+ * réparation dépend de l'appareil et du fichier, pas du profil (contrairement à
+ * `track_preferences`), donc pas de `profileId` en clé composite.
+ */
+val MIGRATION_30_31 = object : Migration(30, 31) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        migration30To31Statements().forEach(db::execSQL)
+    }
+}
+
+internal fun migration30To31Statements(): List<String> = listOf(
+    "CREATE TABLE IF NOT EXISTS playback_repair_profiles (" +
+        "mediaUid INTEGER NOT NULL PRIMARY KEY, decoderStrategy TEXT NOT NULL, " +
+        "disabledTrackJson TEXT, preferredAudioJson TEXT, updatedAt INTEGER NOT NULL, " +
+        "schemaVersion INTEGER NOT NULL, " +
+        "FOREIGN KEY(mediaUid) REFERENCES media_refs(mediaUid) ON DELETE CASCADE)",
+    "CREATE UNIQUE INDEX IF NOT EXISTS index_playback_repair_profiles_mediaUid ON playback_repair_profiles(mediaUid)"
+)
+
+val ALL_MIGRATIONS = arrayOf(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31)

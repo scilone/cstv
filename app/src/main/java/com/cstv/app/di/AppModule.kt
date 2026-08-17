@@ -288,6 +288,23 @@ object AppModule {
 
     @Provides
     @Singleton
+    fun providePlaybackRepairProfileDao(database: AppDatabase): com.cstv.app.data.local.dao.PlaybackRepairProfileDao {
+        return database.playbackRepairProfileDao()
+    }
+
+    @Provides
+    @Singleton
+    fun providePlaybackRepairRepository(
+        dao: com.cstv.app.data.local.dao.PlaybackRepairProfileDao,
+        mediaRefDao: com.cstv.app.data.local.dao.MediaRefDao,
+        accountKeyProvider: com.cstv.app.data.local.storage.CurrentAccountKeyProvider,
+        gson: Gson
+    ): com.cstv.app.domain.repository.PlaybackRepairRepository {
+        return com.cstv.app.data.repository.PlaybackRepairRepositoryImpl(dao, mediaRefDao, accountKeyProvider, gson)
+    }
+
+    @Provides
+    @Singleton
     fun provideCategoryPreferenceDao(database: AppDatabase): com.cstv.app.data.local.dao.CategoryPreferenceDao {
         return database.categoryPreferenceDao()
     }

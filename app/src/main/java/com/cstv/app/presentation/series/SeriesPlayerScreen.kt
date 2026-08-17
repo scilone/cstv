@@ -86,19 +86,29 @@ import com.cstv.app.presentation.player.core.PLAYER_PROGRESS_TIME_LABEL_MIN_WIDT
 import com.cstv.app.presentation.player.core.TrackPlayerPosition
 import com.cstv.app.presentation.player.core.enterPictureInPicture
 import com.cstv.app.presentation.player.core.playbackProgressState
-import com.cstv.app.presentation.player.core.rememberManagedExoPlayer
+import com.cstv.app.presentation.player.core.rememberPlaybackEngineController
 import com.cstv.app.presentation.player.core.rememberPipState
+import com.cstv.app.presentation.player.core.ExoPlaybackRecoveryEngine
+import com.cstv.app.presentation.player.core.PlaybackErrorHandling
+import com.cstv.app.presentation.player.core.PlaybackRecoveryCoordinator
+import com.cstv.app.presentation.player.core.PlaybackRecoverySession
+import com.cstv.app.presentation.player.core.PlaybackRestoreState
+import com.cstv.app.presentation.player.core.RecoveryOutcome
 import com.cstv.app.domain.model.Credentials
 import com.cstv.app.domain.model.SeriesEpisode
 import com.cstv.app.domain.model.computeNextEpisode
 import com.cstv.app.domain.model.computePreviousEpisode
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.cstv.app.presentation.components.PlaybackLockConflictDialog
 import com.cstv.app.presentation.components.PlaybackTakenOverOverlay
+
+/** T23 : même valeur que `MediaKind.EPISODE.storageValue` (kind stocké sur `media_refs`). */
+private const val PLAYBACK_REPAIR_KIND = "episode"
 
 private fun Context.findActivity(): Activity? {
     var currentContext = this
@@ -138,7 +148,23 @@ fun SeriesPlayerScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val exoPlayer = rememberManagedExoPlayer(useOfflineCache = true)
+    val engineController = rememberPlaybackEngineController(useOfflineCache = true)
+    val exoPlayer = engineController.player
+    // T23 : `null` si le repository n'est pas injecté (tests/anciens call sites du ViewModel) —
+    // la réparation ne se déclenche simplement pas, comportement pré-T23 inchangé.
+    val recoveryEngine = remember(engineController) { ExoPlaybackRecoveryEngine(engineController) }
+    val recoveryCoordinator = remember(recoveryEngine, viewModel.playbackRepairRepository) {
+        viewModel.playbackRepairRepository?.let { PlaybackRecoveryCoordinator(recoveryEngine, it) }
+    }
+    val recoveryScope = rememberCoroutineScope()
+    // R3/R4/R6/R7 : possède le job/génération de réparation et la remise à zéro entre deux
+    // épisodes, extrait du Composable (voir PlaybackRecoverySession).
+    val recoverySession = remember(recoveryScope, recoveryEngine, recoveryCoordinator) {
+        PlaybackRecoverySession(recoveryScope, recoveryEngine, recoveryCoordinator)
+    }
+    // R11 : distingue l'échec T23 (message + bouton Réessayer seul) d'une erreur générique
+    // (message + Réessayer + Retour, comportement pré-T23 inchangé).
+    var isDeviceUnrepairable by remember { mutableStateOf(false) }
     val lockUi by viewModel.playbackLockUiState.collectAsStateWithLifecycle()
     val currentLockUi by rememberUpdatedState(lockUi)
     LaunchedEffect(lockUi.takenOverBy) { if (lockUi.takenOverBy != null) exoPlayer.stop() }
@@ -280,7 +306,13 @@ fun SeriesPlayerScreen(
         }
         playbackPrepared = true
         isBuffering = true
+        isDeviceUnrepairable = false
         playbackError = null
+
+        // T23 : (ré)initialise la session pour cet épisode — reconstruit explicitement le plan
+        // mémorisé, ou DEFAULT s'il n'y en a pas (R1, R3, R4) — sans effet si aucun repository
+        // n'est injecté ou si rien n'est mémorisé.
+        recoverySession.forTarget(PLAYBACK_REPAIR_KIND, currentEpisode.id)
 
         val url = currentEpisode.getPlayUrl(
             baseUrl = credentials.baseUrl,
@@ -292,15 +324,15 @@ fun SeriesPlayerScreen(
             .setUri(android.net.Uri.parse(url))
             .setCustomCacheKey(DownloadedItem.episodeContentId(currentEpisode.id))
             .build()
-        exoPlayer.setMediaItem(mediaItem)
-        exoPlayer.prepare()
+        engineController.setMediaItem(mediaItem)
+        engineController.player.prepare()
 
         // Seek to saved position if requested
         if (currentEpisode.resumePositionMs > 0) {
-            exoPlayer.seekTo(currentEpisode.resumePositionMs)
+            engineController.player.seekTo(currentEpisode.resumePositionMs)
         }
 
-        exoPlayer.playWhenReady = true
+        engineController.player.playWhenReady = true
     }
 
     // Function to rebuild list of available tracks
@@ -489,12 +521,43 @@ fun SeriesPlayerScreen(
             }
 
             override fun onPlayerError(error: PlaybackException) {
-                isBuffering = false
-                playbackError = if (currentLockUi.failOpen) context.getString(R.string.playback_lock_possible_limit) else "Impossible de charger le flux vidéo (${error.localizedMessage})"
+                val restorePositionMs = PlaybackRecoveryCoordinator.vodRestorePositionMs(
+                    positionBeforeErrorMs = currentPosition,
+                    durationMs = duration
+                )
+                val handling = recoverySession.handleError(
+                    error = error,
+                    restore = PlaybackRestoreState(positionMs = restorePositionMs, playWhenReady = true, speed = 1f)
+                ) { outcome ->
+                    when (outcome) {
+                        is RecoveryOutcome.Stable -> isBuffering = false
+                        RecoveryOutcome.DecoderExhausted -> {
+                            isBuffering = false
+                            isDeviceUnrepairable = true
+                            playbackError = context.getString(R.string.player_unrepairable_message)
+                        }
+                        is RecoveryOutcome.Aborted -> {
+                            isBuffering = false
+                            playbackError = if (currentLockUi.failOpen) context.getString(R.string.playback_lock_possible_limit) else context.getString(R.string.player_generic_error)
+                        }
+                    }
+                }
+
+                when (handling) {
+                    PlaybackErrorHandling.AlreadyRepairing -> Unit
+                    PlaybackErrorHandling.RepairStarted -> isBuffering = true
+                    is PlaybackErrorHandling.NotDecoder -> {
+                        isBuffering = false
+                        playbackError = if (currentLockUi.failOpen) context.getString(R.string.playback_lock_possible_limit) else "Impossible de charger le flux vidéo (${error.localizedMessage})"
+                    }
+                }
             }
 
             override fun onTracksChanged(tracks: Tracks) {
                 updateTracksState(tracks)
+                // T23-R1 : applique la piste du profil mémorisé dès que les pistes du nouveau
+                // média sont connues (impossible avant, Media3 n'expose les TrackGroup qu'ici).
+                recoverySession.applyPendingTrackSelectionOfInitialPlan()
             }
 
             override fun onVideoSizeChanged(videoSize: VideoSize) {
@@ -719,7 +782,8 @@ fun SeriesPlayerScreen(
                     Icon(Icons.Default.Warning, contentDescription = null, tint = Color.Red, modifier = Modifier.size(54.dp))
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(
-                        text = stringResource(R.string.player_error_title),
+                        // R11 : titre dédié pour l'échec T23, distinct des erreurs génériques.
+                        text = stringResource(if (isDeviceUnrepairable) R.string.player_unrepairable_title else R.string.player_error_title),
                         color = Color.White,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold
@@ -739,8 +803,18 @@ fun SeriesPlayerScreen(
                             onClick = {
                                 playbackError = null
                                 isBuffering = true
-                                exoPlayer.prepare()
-                                exoPlayer.play()
+                                if (isDeviceUnrepairable) {
+                                    // T23-R7 : « Réessayer » relance la séquence complète depuis le
+                                    // début — remet le moteur au plan DEFAULT plutôt que de
+                                    // simplement rejouer la dernière configuration en échec.
+                                    isDeviceUnrepairable = false
+                                    recoverySession.prepareRetryFromScratch()
+                                    engineController.player.prepare()
+                                    engineController.player.playWhenReady = true
+                                } else {
+                                    exoPlayer.prepare()
+                                    exoPlayer.play()
+                                }
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                         ) {
@@ -749,11 +823,15 @@ fun SeriesPlayerScreen(
                             Text(stringResource(R.string.player_retry))
                         }
 
-                        OutlinedButton(
-                            onClick = handleClose,
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
-                        ) {
-                            Text(stringResource(R.string.common_back))
+                        // R11 : la décision étape 2 (§4) ne prévoit qu'un bouton « Réessayer » pour
+                        // l'échec T23 — « Retour » reste réservé aux erreurs génériques existantes.
+                        if (!isDeviceUnrepairable) {
+                            OutlinedButton(
+                                onClick = handleClose,
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
+                            ) {
+                                Text(stringResource(R.string.common_back))
+                            }
                         }
                     }
                 }

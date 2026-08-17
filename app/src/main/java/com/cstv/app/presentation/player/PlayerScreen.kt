@@ -57,6 +57,7 @@ import com.cstv.app.domain.model.LiveStream
 import com.cstv.app.domain.model.LiveCategory
 import com.cstv.app.presentation.theme.Surface3
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
@@ -73,8 +74,14 @@ import com.cstv.app.presentation.player.core.PlayerOverlayHost
 import com.cstv.app.presentation.player.core.PlayerOverlayGradients
 import com.cstv.app.presentation.player.core.PlayerOverlayTopBar
 import com.cstv.app.presentation.player.core.enterPictureInPicture
-import com.cstv.app.presentation.player.core.rememberManagedExoPlayer
+import com.cstv.app.presentation.player.core.rememberPlaybackEngineController
 import com.cstv.app.presentation.player.core.rememberPipState
+import com.cstv.app.presentation.player.core.ExoPlaybackRecoveryEngine
+import com.cstv.app.presentation.player.core.PlaybackErrorHandling
+import com.cstv.app.presentation.player.core.PlaybackRecoveryCoordinator
+import com.cstv.app.presentation.player.core.PlaybackRecoverySession
+import com.cstv.app.presentation.player.core.PlaybackRestoreState
+import com.cstv.app.presentation.player.core.RecoveryOutcome
 import com.cstv.app.presentation.components.rememberTvInitialFocus
 import com.cstv.app.presentation.components.tvInitialFocusTarget
 import com.cstv.app.presentation.player.core.PlayerKeyIntent
@@ -82,6 +89,9 @@ import com.cstv.app.presentation.player.core.resolveMediaKeyIntent
 import com.cstv.app.presentation.player.core.resolveTvDpadIntent
 import com.cstv.app.presentation.components.PlaybackLockConflictDialog
 import com.cstv.app.presentation.components.PlaybackTakenOverOverlay
+
+/** T23 : même valeur que `LiveTvRepositoryImpl.LIVE_KIND` (kind stocké sur `media_refs`). */
+private const val PLAYBACK_REPAIR_KIND = "live"
 
 private fun Context.findActivity(): Activity? {
     var currentContext = this
@@ -108,7 +118,23 @@ fun PlayerScreen(
 ) {
     val context = LocalContext.current
 
-    val exoPlayer = rememberManagedExoPlayer(useOfflineCache = false)
+    val engineController = rememberPlaybackEngineController(useOfflineCache = false)
+    val exoPlayer = engineController.player
+    // T23 : `null` si le repository n'est pas injecté (tests/anciens call sites du ViewModel) —
+    // la réparation ne se déclenche simplement pas, comportement pré-T23 inchangé.
+    val recoveryEngine = remember(engineController) { ExoPlaybackRecoveryEngine(engineController) }
+    val recoveryCoordinator = remember(recoveryEngine, viewModel.playbackRepairRepository) {
+        viewModel.playbackRepairRepository?.let { PlaybackRecoveryCoordinator(recoveryEngine, it) }
+    }
+    val recoveryScope = rememberCoroutineScope()
+    // R3/R4/R6/R7 : possède le job/génération de réparation et la remise à zéro entre deux
+    // chaînes, extrait du Composable (voir PlaybackRecoverySession).
+    val recoverySession = remember(recoveryScope, recoveryEngine, recoveryCoordinator) {
+        PlaybackRecoverySession(recoveryScope, recoveryEngine, recoveryCoordinator)
+    }
+    // R11 : distingue l'échec T23 (message + bouton Réessayer seul) d'une erreur générique
+    // (message + Réessayer + Retour, comportement pré-T23 inchangé).
+    var isDeviceUnrepairable by remember { mutableStateOf(false) }
     val lockUi by viewModel.playbackLockUiState.collectAsStateWithLifecycle()
     val currentLockUi by rememberUpdatedState(lockUi)
     LaunchedEffect(Unit) { viewModel.beginPlaybackLock() }
@@ -207,8 +233,14 @@ fun PlayerScreen(
     LaunchedEffect(currentStream, streamExtension, lockUi.canStartPlayback) {
         if (!lockUi.canStartPlayback) return@LaunchedEffect
         isBuffering = true
+        isDeviceUnrepairable = false
         playbackError = null
-        
+
+        // T23 : (ré)initialise la session pour cette chaîne — reconstruit explicitement le plan
+        // mémorisé, ou DEFAULT s'il n'y en a pas (R1, R3, R4) — sans effet si aucun repository
+        // n'est injecté ou si rien n'est mémorisé.
+        recoverySession.forTarget(PLAYBACK_REPAIR_KIND, currentStream.streamId)
+
         val url = currentStream.getPlayUrl(
             baseUrl = credentials.baseUrl,
             username = credentials.username,
@@ -217,9 +249,9 @@ fun PlayerScreen(
         )
 
         val mediaItem = MediaItem.fromUri(url)
-        exoPlayer.setMediaItem(mediaItem)
-        exoPlayer.prepare()
-        exoPlayer.playWhenReady = true
+        engineController.setMediaItem(mediaItem)
+        engineController.player.prepare()
+        engineController.player.playWhenReady = true
     }
 
     // Player Event Listener
@@ -236,13 +268,48 @@ fun PlayerScreen(
             }
 
             override fun onPlayerError(error: PlaybackException) {
-                // If m3u8 fails, fallback once to TS format
-                if (streamExtension == "m3u8") {
-                    streamExtension = "ts"
-                } else {
-                    isBuffering = false
-                    playbackError = if (currentLockUi.failOpen) context.getString(R.string.playback_lock_possible_limit) else "Impossible de charger le flux vidéo (${error.localizedMessage})"
+                // T23-R8 : la qualification (décodage vs réseau/live-window/inconnu) précède tout
+                // changement de source — le repli m3u8→ts ne s'exécute plus qu'après coup, dans la
+                // branche NotDecoder ci-dessous, jamais avant une éventuelle réparation.
+                val handling = recoverySession.handleError(
+                    error = error,
+                    // Direct : pas de position à restaurer, reprise au live edge (§8.4) — le point
+                    // d'extension F41 (tampon) n'existe pas encore (tâche 6).
+                    restore = PlaybackRestoreState(positionMs = androidx.media3.common.C.TIME_UNSET, playWhenReady = true, speed = 1f)
+                ) { outcome ->
+                    when (outcome) {
+                        is RecoveryOutcome.Stable -> isBuffering = false
+                        RecoveryOutcome.DecoderExhausted -> {
+                            isBuffering = false
+                            isDeviceUnrepairable = true
+                            playbackError = context.getString(R.string.player_unrepairable_message)
+                        }
+                        is RecoveryOutcome.Aborted -> {
+                            isBuffering = false
+                            playbackError = if (currentLockUi.failOpen) context.getString(R.string.playback_lock_possible_limit) else context.getString(R.string.player_generic_error)
+                        }
+                    }
                 }
+
+                when (handling) {
+                    PlaybackErrorHandling.AlreadyRepairing -> Unit
+                    PlaybackErrorHandling.RepairStarted -> isBuffering = true
+                    is PlaybackErrorHandling.NotDecoder -> {
+                        // If m3u8 fails, fallback once to TS format
+                        if (streamExtension == "m3u8") {
+                            streamExtension = "ts"
+                            return
+                        }
+                        isBuffering = false
+                        playbackError = if (currentLockUi.failOpen) context.getString(R.string.playback_lock_possible_limit) else "Impossible de charger le flux vidéo (${error.localizedMessage})"
+                    }
+                }
+            }
+
+            override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
+                // T23-R1 : applique la piste du profil mémorisé dès que les pistes du nouveau
+                // média sont connues (impossible avant, Media3 n'expose les TrackGroup qu'ici).
+                recoverySession.applyPendingTrackSelectionOfInitialPlan()
             }
 
             override fun onVideoSizeChanged(videoSize: VideoSize) {
@@ -456,7 +523,8 @@ fun PlayerScreen(
                     Icon(Icons.Default.Warning, contentDescription = null, tint = Color.Red, modifier = Modifier.size(54.dp))
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(
-                        text = stringResource(R.string.player_error_title),
+                        // R11 : titre dédié pour l'échec T23, distinct des erreurs génériques.
+                        text = stringResource(if (isDeviceUnrepairable) R.string.player_unrepairable_title else R.string.player_error_title),
                         color = Color.White,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold
@@ -476,8 +544,18 @@ fun PlayerScreen(
                             onClick = {
                                 playbackError = null
                                 isBuffering = true
-                                exoPlayer.prepare()
-                                exoPlayer.play()
+                                if (isDeviceUnrepairable) {
+                                    // T23-R7 : « Réessayer » relance la séquence complète depuis le
+                                    // début — remet le moteur au plan DEFAULT plutôt que de
+                                    // simplement rejouer la dernière configuration en échec.
+                                    isDeviceUnrepairable = false
+                                    recoverySession.prepareRetryFromScratch()
+                                    engineController.player.prepare()
+                                    engineController.player.playWhenReady = true
+                                } else {
+                                    exoPlayer.prepare()
+                                    exoPlayer.play()
+                                }
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                         ) {
@@ -486,11 +564,15 @@ fun PlayerScreen(
                             Text(stringResource(R.string.player_retry))
                         }
 
-                        OutlinedButton(
-                            onClick = handleClose,
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
-                        ) {
-                            Text(stringResource(R.string.common_back))
+                        // R11 : la décision étape 2 (§4) ne prévoit qu'un bouton « Réessayer » pour
+                        // l'échec T23 — « Retour » reste réservé aux erreurs génériques existantes.
+                        if (!isDeviceUnrepairable) {
+                            OutlinedButton(
+                                onClick = handleClose,
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
+                            ) {
+                                Text(stringResource(R.string.common_back))
+                            }
                         }
                     }
                 }
