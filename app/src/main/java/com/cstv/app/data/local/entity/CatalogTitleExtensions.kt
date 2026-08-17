@@ -12,11 +12,13 @@ fun LiveStreamEntity.withParsedTitle(parsed: ParsedMediaTitle): LiveStreamEntity
 fun VodStreamEntity.withParsedTitle(parsed: ParsedMediaTitle): VodStreamEntity = copy(
     cleanTitle = parsed.cleanTitle, linkKey = parsed.linkKey,
     languageTag = parsed.language?.storageCode, languageRaw = parsed.languageRaw,
-    qualityTag = parsed.quality?.storageCode, qualityRaw = parsed.qualityRaw
+    qualityTag = parsed.quality?.storageCode, qualityRaw = parsed.qualityRaw,
+    versionLabel = parsed.versionLabel
 )
 
 fun SeriesStreamEntity.withParsedTitle(parsed: ParsedMediaTitle): SeriesStreamEntity = copy(
     cleanTitle = parsed.cleanTitle, linkKey = parsed.linkKey,
     languageTag = parsed.language?.storageCode, languageRaw = parsed.languageRaw,
-    qualityTag = parsed.quality?.storageCode, qualityRaw = parsed.qualityRaw
+    qualityTag = parsed.quality?.storageCode, qualityRaw = parsed.qualityRaw,
+    versionLabel = parsed.versionLabel
 )

@@ -126,8 +126,8 @@ interface VodDao {
     suspend fun getUnnormalizedStreams(limit: Int): List<VodStreamEntity>
 
     /** Updates only T21 columns and only still-pending rows: a concurrent sync wins. */
-    @Query("UPDATE vod_streams SET cleanTitle = :cleanTitle, linkKey = :linkKey, languageTag = :languageTag, languageRaw = :languageRaw, qualityTag = :qualityTag, qualityRaw = :qualityRaw WHERE streamId = :streamId AND linkKey = ''")
-    suspend fun applyNormalization(streamId: Int, cleanTitle: String, linkKey: String, languageTag: String?, languageRaw: String?, qualityTag: String?, qualityRaw: String?)
+    @Query("UPDATE vod_streams SET cleanTitle = :cleanTitle, linkKey = :linkKey, languageTag = :languageTag, languageRaw = :languageRaw, qualityTag = :qualityTag, qualityRaw = :qualityRaw, versionLabel = :versionLabel WHERE streamId = :streamId AND linkKey = ''")
+    suspend fun applyNormalization(streamId: Int, cleanTitle: String, linkKey: String, languageTag: String?, languageRaw: String?, qualityTag: String?, qualityRaw: String?, versionLabel: String?)
 
     /**
      * F39 §8.2, correction F39-R8 : autres versions d'une œuvre partageant
@@ -170,13 +170,13 @@ interface VodDao {
     // (LinkedHashMap) conserve l'ordre de rencontre à l'intérieur de chaque
     // groupe — donc les rangs croissants de la catégorie.
     @Query(
-        "SELECT streamId, name, streamIcon, rating, added, categoryId, genre, releaseYear, languageTag, qualityTag " +
+        "SELECT streamId, name, streamIcon, rating, added, categoryId, genre, releaseYear, languageTag, qualityTag, versionLabel " +
             "FROM vod_streams WHERE categoryRank < :limit ORDER BY categoryRank ASC"
     )
     fun observeAllStreamListRows(limit: Int): Flow<List<VodStreamListRow>>
 
     @Query(
-        "SELECT streamId, name, streamIcon, rating, added, categoryId, genre, releaseYear, languageTag, qualityTag " +
+        "SELECT streamId, name, streamIcon, rating, added, categoryId, genre, releaseYear, languageTag, qualityTag, versionLabel " +
             "FROM vod_streams WHERE categoryId = :categoryId ORDER BY orderIndex ASC"
     )
     fun observeStreamListRowsByCategory(categoryId: String): Flow<List<VodStreamListRow>>

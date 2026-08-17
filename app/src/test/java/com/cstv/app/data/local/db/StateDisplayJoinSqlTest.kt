@@ -51,11 +51,11 @@ class StateDisplayJoinSqlTest {
             statement.execute(
                 "CREATE TABLE vod_streams (streamId INTEGER NOT NULL PRIMARY KEY, name TEXT NOT NULL, " +
                     "streamIcon TEXT, categoryId TEXT NOT NULL, plot TEXT, duration TEXT, containerExtension TEXT, " +
-                    "releaseYear INTEGER, genre TEXT, languageTag TEXT, qualityTag TEXT)"
+                    "releaseYear INTEGER, genre TEXT, languageTag TEXT, qualityTag TEXT, versionLabel TEXT)"
             )
             statement.execute(
                 "CREATE TABLE series_streams (seriesId INTEGER NOT NULL PRIMARY KEY, name TEXT NOT NULL, " +
-                    "cover TEXT, categoryId TEXT NOT NULL, genre TEXT, languageTag TEXT, qualityTag TEXT)"
+                    "cover TEXT, categoryId TEXT NOT NULL, genre TEXT, languageTag TEXT, qualityTag TEXT, versionLabel TEXT)"
             )
             statement.execute(
                 "CREATE TABLE series_episodes (episodeId INTEGER NOT NULL PRIMARY KEY, seriesId INTEGER NOT NULL, " +

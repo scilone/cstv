@@ -282,7 +282,7 @@ class VodRepositoryImpl @Inject constructor(
     private fun VodStreamEntity.toDomain() = VodStream(
         streamId, name, streamIcon, rating, added, categoryId, genre,
         releaseYear?.takeIf { it > 0 }, actors, director, searchText,
-        cleanTitle, linkKey, languageTag, languageRaw, qualityTag, qualityRaw
+        cleanTitle, linkKey, languageTag, languageRaw, qualityTag, qualityRaw, versionLabel
     )
 
     override fun observeVodCategories(): Flow<List<VodCategory>> =
@@ -323,7 +323,8 @@ class VodRepositoryImpl @Inject constructor(
         genre = genre,
         releaseYear = releaseYear?.takeIf { it > 0 },
         languageTag = languageTag,
-        qualityTag = qualityTag
+        qualityTag = qualityTag,
+        versionLabel = versionLabel
     )
 
     override suspend fun getCachedVodCategories(): List<VodCategory> =
@@ -686,22 +687,12 @@ class VodRepositoryImpl @Inject constructor(
         genre = genre
     )
 
-    override suspend fun getStreamById(streamId: Int): VodStream? {
-        val entity = vodDao.getStreamById(streamId) ?: return null
-        return VodStream(
-            streamId = entity.streamId,
-            name = entity.name,
-            streamIcon = entity.streamIcon,
-            rating = entity.rating,
-            added = entity.added,
-            categoryId = entity.categoryId,
-            genre = entity.genre,
-            releaseYear = entity.releaseYear?.takeIf { it > 0 },
-            actors = entity.actors,
-            director = entity.director,
-            searchText = entity.searchText
-        )
-    }
+    override suspend fun getStreamById(streamId: Int): VodStream? =
+        // Bug corrigé : cette fonction omettait `cleanTitle`/`linkKey`/tags T21 (constructeur
+        // partiel), donc `linkKey` restait toujours "" côté appelant — `getMovieVersions`
+        // (VodViewModel) et tout le sélecteur de versions (fiche + lecteur) ne pouvaient
+        // jamais se déclencher, quel que soit l'état réel du catalogue.
+        vodDao.getStreamById(streamId)?.toDomain()
 
     override suspend fun getVersionsByLinkKey(linkKey: String, releaseYear: Int?): List<VodStream> {
         if (linkKey.isBlank()) return emptyList()

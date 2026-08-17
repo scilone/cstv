@@ -284,12 +284,9 @@ private fun FavoriteCardItem(
                 )
             }
 
-            // F39 : langue puis qualité — jamais pour une chaîne (item.languageTag
-            // reste nul sur la branche `live`, hors périmètre F39).
-            val versionLabel = remember(item.languageTag, item.qualityTag) {
-                com.cstv.app.domain.model.mediaVersionBadges(item.languageTag, item.qualityTag)
-                    .takeIf { it.isNotEmpty() }?.joinToString(" · ")
-            }
+            // F39 : jamais pour une chaîne (item.versionLabel reste nul sur la
+            // branche `live`, hors périmètre F39).
+            val versionLabel = item.versionLabel
             if (versionLabel != null) {
                 Box(
                     modifier = Modifier

@@ -374,8 +374,7 @@ fun SearchScreen(
                                                 cover = stream.streamIcon,
                                                 isLive = false,
                                                 rating = stream.rating,
-                                                languageTag = stream.languageTag,
-                                                qualityTag = stream.qualityTag,
+                                                versionLabel = stream.versionLabel,
                                                 onClick = { onSelectMovie(stream) }
                                             )
                                         }
@@ -426,8 +425,7 @@ fun SearchScreen(
                                                 cover = stream.cover,
                                                 isLive = false,
                                                 rating = stream.rating,
-                                                languageTag = stream.languageTag,
-                                                qualityTag = stream.qualityTag,
+                                                versionLabel = stream.versionLabel,
                                                 onClick = { onSelectSeries(stream) }
                                             )
                                         }
@@ -737,8 +735,7 @@ private fun SearchExpandedGridMobile(
                         cover = stream.streamIcon,
                         isLive = false,
                         rating = stream.rating,
-                        languageTag = stream.languageTag,
-                        qualityTag = stream.qualityTag,
+                        versionLabel = stream.versionLabel,
                         onClick = { onSelectMovie(stream) }
                     )
                 }
@@ -750,8 +747,7 @@ private fun SearchExpandedGridMobile(
                         cover = stream.cover,
                         isLive = false,
                         rating = stream.rating,
-                        languageTag = stream.languageTag,
-                        qualityTag = stream.qualityTag,
+                        versionLabel = stream.versionLabel,
                         onClick = { onSelectSeries(stream) }
                     )
                 }
@@ -766,9 +762,8 @@ private fun SearchGridCard(
     cover: String?,
     isLive: Boolean,
     rating: String? = null,
-    /** F39 : langue T21, coin bas-gauche — voir HomeCards.HomeVodMovieCard. */
-    languageTag: String? = null,
-    qualityTag: String? = null,
+    /** F39 : libellé combiné T21, coin bas-gauche — voir HomeCards.HomeVodMovieCard. */
+    versionLabel: String? = null,
     onClick: () -> Unit
 ) {
     var isFocused by remember { mutableStateOf(false) }
@@ -805,7 +800,7 @@ private fun SearchGridCard(
         }
         if (!isLive) {
             SearchCardRatingBadge(rating = rating, modifier = Modifier.align(Alignment.TopEnd))
-            SearchCardVersionBadge(languageTag, qualityTag, modifier = Modifier.align(Alignment.BottomStart))
+            SearchCardVersionBadge(versionLabel, modifier = Modifier.align(Alignment.BottomStart))
         }
     }
 }
@@ -817,8 +812,7 @@ private fun SearchCardItem(
     isLive: Boolean,
     rating: String? = null,
     /** F39 : voir [SearchGridCard]. */
-    languageTag: String? = null,
-    qualityTag: String? = null,
+    versionLabel: String? = null,
     onClick: () -> Unit
 ) {
     var isFocused by remember { mutableStateOf(false) }
@@ -855,7 +849,7 @@ private fun SearchCardItem(
         }
         if (!isLive) {
             SearchCardRatingBadge(rating = rating, modifier = Modifier.align(Alignment.TopEnd))
-            SearchCardVersionBadge(languageTag, qualityTag, modifier = Modifier.align(Alignment.BottomStart))
+            SearchCardVersionBadge(versionLabel, modifier = Modifier.align(Alignment.BottomStart))
         }
     }
 }
@@ -885,12 +879,10 @@ private fun SearchCardRatingBadge(rating: String?, modifier: Modifier = Modifier
     }
 }
 
-/** F39 : langue puis qualité (ex. « VF · 4K »), coin bas-gauche — voir HomeCards.HomeVodMovieCard. */
+/** F39 : libellé combiné (ex. « VO · STFR · 4K »), coin bas-gauche — voir HomeCards.HomeVodMovieCard. */
 @Composable
-private fun SearchCardVersionBadge(languageTag: String?, qualityTag: String?, modifier: Modifier = Modifier) {
-    val label = remember(languageTag, qualityTag) {
-        com.cstv.app.domain.model.mediaVersionBadges(languageTag, qualityTag).takeIf { it.isNotEmpty() }?.joinToString(" · ")
-    } ?: return
+private fun SearchCardVersionBadge(versionLabel: String?, modifier: Modifier = Modifier) {
+    val label = versionLabel?.takeIf { it.isNotBlank() } ?: return
 
     Box(
         modifier = modifier

@@ -248,7 +248,7 @@ fun SeriesDetailsScreen(
                         id = version.seriesId,
                         // F39-R7 : jamais le nom Xtream brut (version.name) en repli.
                         label = com.cstv.app.domain.model.mediaVersionSelectorLabel(
-                            version.languageTag, version.qualityTag, versionFallbackLabel
+                            version.versionLabel, versionFallbackLabel
                         ),
                         isActive = version.seriesId == details.seriesId
                     )

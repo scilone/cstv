@@ -50,10 +50,13 @@ data class VodStreamListRow(
     val categoryId: String,
     val genre: String?,
     val releaseYear: Int?,
-    /** F39 : tags T21 pour le badge de version (§8.4) — l'index couvrant T9
-     *  est étendu en migration 31→32 pour les inclure sans coût de tri. */
+    /** F39 : tags T21 (langue/qualité), toujours en base pour le tri des
+     *  versions — l'index couvrant T9 est étendu en migration 31→32. */
     val languageTag: String?,
-    val qualityTag: String?
+    val qualityTag: String?,
+    /** F39 (évolution) : libellé combiné affiché en badge (§8.4) — index
+     *  couvrant réétendu en migration 32→33. */
+    val versionLabel: String?
 )
 
 /**
@@ -85,5 +88,7 @@ data class SeriesStreamListRow(
     val releaseYear: Int?,
     /** F39 : voir [VodStreamListRow]. */
     val languageTag: String?,
-    val qualityTag: String?
+    val qualityTag: String?,
+    /** F39 (évolution) : voir [VodStreamListRow]. */
+    val versionLabel: String?
 )

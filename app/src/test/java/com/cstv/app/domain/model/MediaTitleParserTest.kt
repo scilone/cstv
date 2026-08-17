@@ -75,6 +75,44 @@ class MediaTitleParserTest {
     }
 
     @Test
+    fun `FR prefix on VOD is treated as VF, not silently dropped`() {
+        val parsed = MediaTitleParser.parse("|FR| Supergirl", MediaTitleKind.SERIES, providerId = 1)
+
+        assertEquals("Supergirl", parsed.cleanTitle)
+        assertEquals(MediaLanguage.VF, parsed.language)
+        assertEquals("FR", parsed.versionLabel)
+    }
+
+    @Test
+    fun `pipe split VO STFR STAYS as two literal fragments in versionLabel, never reformulated`() {
+        val parsed = MediaTitleParser.parse("|VO|STFR|4K| Supergirl", MediaTitleKind.SERIES, providerId = 2)
+
+        assertEquals("Supergirl", parsed.cleanTitle)
+        assertEquals(MediaLanguage.VO, parsed.language)
+        assertEquals("VO · STFR · 4K", parsed.versionLabel)
+    }
+
+    @Test
+    fun `standalone STFR is kept literal in versionLabel, not remapped to VOSTFR`() {
+        val parsed = MediaTitleParser.parse("|STFR| Supergirl", MediaTitleKind.SERIES, providerId = 3)
+
+        assertEquals("STFR", parsed.versionLabel)
+        assertNull(parsed.language)
+    }
+
+    @Test
+    fun `FR and VO STFR variants of the same title now share a link key`() {
+        val fr = MediaTitleParser.parse("|FR| Supergirl", MediaTitleKind.SERIES, providerId = 1)
+        val voStfr = MediaTitleParser.parse("|VO|STFR| Supergirl", MediaTitleKind.SERIES, providerId = 2)
+
+        assertEquals(fr.linkKey, voStfr.linkKey)
+        assertFalse(fr.linkKey.startsWith("invalid:"))
+        // Chaque version garde son propre libellé, jamais un type généralisé commun.
+        assertEquals("FR", fr.versionLabel)
+        assertEquals("VO · STFR", voStfr.versionLabel)
+    }
+
+    @Test
     fun `storage codes are unique and stable`() {
         assertEquals(MediaLanguage.entries.size, MediaLanguage.entries.map { it.storageCode }.toSet().size)
         assertEquals(MediaQuality.entries.size, MediaQuality.entries.map { it.storageCode }.toSet().size)

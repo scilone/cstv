@@ -70,8 +70,8 @@ interface SeriesDao {
     suspend fun getUnnormalizedStreams(limit: Int): List<SeriesStreamEntity>
 
     /** Updates only T21 columns and only still-pending rows: a concurrent sync wins. */
-    @Query("UPDATE series_streams SET cleanTitle = :cleanTitle, linkKey = :linkKey, languageTag = :languageTag, languageRaw = :languageRaw, qualityTag = :qualityTag, qualityRaw = :qualityRaw WHERE seriesId = :seriesId AND linkKey = ''")
-    suspend fun applyNormalization(seriesId: Int, cleanTitle: String, linkKey: String, languageTag: String?, languageRaw: String?, qualityTag: String?, qualityRaw: String?)
+    @Query("UPDATE series_streams SET cleanTitle = :cleanTitle, linkKey = :linkKey, languageTag = :languageTag, languageRaw = :languageRaw, qualityTag = :qualityTag, qualityRaw = :qualityRaw, versionLabel = :versionLabel WHERE seriesId = :seriesId AND linkKey = ''")
+    suspend fun applyNormalization(seriesId: Int, cleanTitle: String, linkKey: String, languageTag: String?, languageRaw: String?, qualityTag: String?, qualityRaw: String?, versionLabel: String?)
 
     /** F39 §8.2, correction F39-R8 : voir VodDao.getStreamsByLinkKey — même tri SQL par qualité avant `LIMIT`. */
     @Query(
@@ -96,13 +96,13 @@ interface SeriesDao {
     // Voir VodDao : projection de liste, mêmes raisons.
     // Voir VodDao : plafond par catégorie servi par l'index couvrant.
     @Query(
-        "SELECT seriesId, name, cover, rating, added, categoryId, genre, releaseYear, languageTag, qualityTag " +
+        "SELECT seriesId, name, cover, rating, added, categoryId, genre, releaseYear, languageTag, qualityTag, versionLabel " +
             "FROM series_streams WHERE categoryRank < :limit ORDER BY categoryRank ASC"
     )
     fun observeAllStreamListRows(limit: Int): Flow<List<SeriesStreamListRow>>
 
     @Query(
-        "SELECT seriesId, name, cover, rating, added, categoryId, genre, releaseYear, languageTag, qualityTag " +
+        "SELECT seriesId, name, cover, rating, added, categoryId, genre, releaseYear, languageTag, qualityTag, versionLabel " +
             "FROM series_streams WHERE categoryId = :categoryId ORDER BY orderIndex ASC"
     )
     fun observeStreamListRowsByCategory(categoryId: String): Flow<List<SeriesStreamListRow>>

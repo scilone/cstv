@@ -1262,7 +1262,7 @@ fun SeriesPlayerScreen(
                         id = candidate.series.seriesId,
                         // F39-R7 : jamais le nom Xtream brut (candidate.series.name) en repli.
                         label = com.cstv.app.domain.model.mediaVersionSelectorLabel(
-                            candidate.series.languageTag, candidate.series.qualityTag, versionFallbackLabel
+                            candidate.series.versionLabel, versionFallbackLabel
                         ),
                         isActive = candidate.series.seriesId == currentVersionSeriesId
                     )

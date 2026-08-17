@@ -7,8 +7,9 @@ import androidx.room.PrimaryKey
 
 // Voir VodStreamEntity : index dédié à l'appariement TMDB par année, index
 // couvrant sur `categoryRank` pour l'onglet « Tout » (F39 : étendu à
-// `languageTag`/`qualityTag` en migration 31→32), index étroit
-// `(categoryId, orderIndex)` pour la vue d'une seule catégorie.
+// `languageTag`/`qualityTag` en migration 31→32, puis à `versionLabel` en
+// migration 32→33), index étroit `(categoryId, orderIndex)` pour la vue d'une
+// seule catégorie.
 @Entity(
     tableName = "series_streams",
     indices = [
@@ -17,7 +18,7 @@ import androidx.room.PrimaryKey
             value = [
                 "categoryRank", "seriesId", "name", "cover",
                 "rating", "added", "categoryId", "genre", "releaseYear",
-                "languageTag", "qualityTag"
+                "languageTag", "qualityTag", "versionLabel"
             ]
         ),
         Index(value = ["categoryId", "orderIndex"]),
@@ -48,5 +49,6 @@ data class SeriesStreamEntity(
     val languageTag: String? = null,
     val languageRaw: String? = null,
     val qualityTag: String? = null,
-    val qualityRaw: String? = null
+    val qualityRaw: String? = null,
+    val versionLabel: String? = null
 )

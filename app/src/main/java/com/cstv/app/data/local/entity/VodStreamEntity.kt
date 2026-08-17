@@ -21,6 +21,11 @@ import androidx.room.PrimaryKey
 // badges de version — l'index T9 est étendu une seule fois, comme prévu par la
 // fiche F39 §8.4, plutôt que de perdre la couverture sur l'onglet « Tout ».
 //
+// F39 (évolution, migration 32→33) : `versionLabel` ajouté en queue pour le
+// même motif — c'est désormais lui, et non plus `languageTag`/`qualityTag`,
+// qui alimente les badges/sélecteurs (libellé combiné, tous les fragments
+// reconnus, jamais reformulés).
+//
 // L'index `(categoryId, orderIndex)` reste volontairement étroit : la vue
 // « une catégorie » ne remonte que quelques centaines de lignes, pour
 // lesquelles les accès table restent moins coûteux que de dupliquer `name` et
@@ -33,7 +38,7 @@ import androidx.room.PrimaryKey
             value = [
                 "categoryRank", "streamId", "name", "streamIcon",
                 "rating", "added", "categoryId", "genre", "releaseYear",
-                "languageTag", "qualityTag"
+                "languageTag", "qualityTag", "versionLabel"
             ]
         ),
         Index(value = ["categoryId", "orderIndex"]),
@@ -72,5 +77,6 @@ data class VodStreamEntity(
     val languageTag: String? = null,
     val languageRaw: String? = null,
     val qualityTag: String? = null,
-    val qualityRaw: String? = null
+    val qualityRaw: String? = null,
+    val versionLabel: String? = null
 )

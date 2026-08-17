@@ -213,7 +213,7 @@ class SeriesRepositoryImpl @Inject constructor(
     private fun SeriesStreamEntity.toDomain() = SeriesStream(
         seriesId, name, cover, rating, added, categoryId, genre,
         releaseYear?.takeIf { it > 0 }, actors, director, searchText,
-        cleanTitle, linkKey, languageTag, languageRaw, qualityTag, qualityRaw
+        cleanTitle, linkKey, languageTag, languageRaw, qualityTag, qualityRaw, versionLabel
     )
 
     // --- Lecture locale ---
@@ -251,7 +251,8 @@ class SeriesRepositoryImpl @Inject constructor(
         genre = genre,
         releaseYear = releaseYear?.takeIf { it > 0 },
         languageTag = languageTag,
-        qualityTag = qualityTag
+        qualityTag = qualityTag,
+        versionLabel = versionLabel
     )
 
     override suspend fun getCachedSeriesCategories(): List<SeriesCategory> =
@@ -677,22 +678,10 @@ class SeriesRepositoryImpl @Inject constructor(
         seriesDao.replaceSeriesDetail(seriesId, seasonEntities, episodeEntities)
     }
 
-    override suspend fun getStreamById(seriesId: Int): SeriesStream? {
-        val entity = seriesDao.getStreamById(seriesId) ?: return null
-        return SeriesStream(
-            seriesId = entity.seriesId,
-            name = entity.name,
-            cover = entity.cover,
-            rating = entity.rating,
-            added = entity.added,
-            categoryId = entity.categoryId,
-            genre = entity.genre,
-            releaseYear = entity.releaseYear?.takeIf { it > 0 },
-            actors = entity.actors,
-            director = entity.director,
-            searchText = entity.searchText
-        )
-    }
+    override suspend fun getStreamById(seriesId: Int): SeriesStream? =
+        // Bug corrigé : voir VodRepositoryImpl.getStreamById — même constructeur partiel,
+        // `linkKey` toujours "" côté appelant, sélecteur de versions jamais déclenché.
+        seriesDao.getStreamById(seriesId)?.toDomain()
 
     override suspend fun getVersionsByLinkKey(linkKey: String, releaseYear: Int?): List<SeriesStream> {
         if (linkKey.isBlank()) return emptyList()

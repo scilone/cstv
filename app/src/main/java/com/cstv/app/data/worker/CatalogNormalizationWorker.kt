@@ -65,7 +65,7 @@ class CatalogNormalizationWorker(appContext: Context, params: WorkerParameters) 
             load = { database.vodDao().getUnnormalizedStreams(PAGE_SIZE) },
             normalize = { normalizeRows(it, ::normalizeVodRow, ::fallbackVodRow) },
             persist = { rows -> database.withTransaction { rows.forEach { row ->
-                database.vodDao().applyNormalization(row.streamId, row.cleanTitle, row.linkKey, row.languageTag, row.languageRaw, row.qualityTag, row.qualityRaw)
+                database.vodDao().applyNormalization(row.streamId, row.cleanTitle, row.linkKey, row.languageTag, row.languageRaw, row.qualityTag, row.qualityRaw, row.versionLabel)
             } } }
         )
     }
@@ -75,7 +75,7 @@ class CatalogNormalizationWorker(appContext: Context, params: WorkerParameters) 
             load = { database.seriesDao().getUnnormalizedStreams(PAGE_SIZE) },
             normalize = { normalizeRows(it, ::normalizeSeriesRow, ::fallbackSeriesRow) },
             persist = { rows -> database.withTransaction { rows.forEach { row ->
-                database.seriesDao().applyNormalization(row.seriesId, row.cleanTitle, row.linkKey, row.languageTag, row.languageRaw, row.qualityTag, row.qualityRaw)
+                database.seriesDao().applyNormalization(row.seriesId, row.cleanTitle, row.linkKey, row.languageTag, row.languageRaw, row.qualityTag, row.qualityRaw, row.versionLabel)
             } } }
         )
     }
@@ -117,12 +117,12 @@ class CatalogNormalizationWorker(appContext: Context, params: WorkerParameters) 
 
         private fun fallbackVodRow(row: VodStreamEntity): VodStreamEntity = row.copy(
             cleanTitle = row.name, linkKey = "invalid:vod:${row.streamId}",
-            languageTag = null, languageRaw = null, qualityTag = null, qualityRaw = null
+            languageTag = null, languageRaw = null, qualityTag = null, qualityRaw = null, versionLabel = null
         )
 
         private fun fallbackSeriesRow(row: SeriesStreamEntity): SeriesStreamEntity = row.copy(
             cleanTitle = row.name, linkKey = "invalid:series:${row.seriesId}",
-            languageTag = null, languageRaw = null, qualityTag = null, qualityRaw = null
+            languageTag = null, languageRaw = null, qualityTag = null, qualityRaw = null, versionLabel = null
         )
 
         /** Isolated loop so interruption/resume is testable without Android WorkManager. */

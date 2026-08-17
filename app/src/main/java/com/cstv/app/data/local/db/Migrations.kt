@@ -1000,4 +1000,35 @@ internal fun migration31To32Statements(): List<String> = listOf(
     "CREATE INDEX IF NOT EXISTS index_series_version_preferences_linkKey ON series_version_preferences(linkKey)"
 )
 
-val ALL_MIGRATIONS = arrayOf(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32)
+/**
+ * F39 (évolution PO) : `versionLabel` remplace `languageTag`/`qualityTag` comme
+ * source d'affichage des badges/sélecteurs — un seul champ, tous les fragments
+ * reconnus du titre (langue, qualité, technique), dans l'ordre, jamais reformulés
+ * (ex. `VO · STFR · 4K`). `languageTag`/`qualityTag` restent en base, inchangés,
+ * uniquement pour le tri des versions par qualité (`mediaQualityRank`).
+ *
+ * Colonne ajoutée en queue sur `vod_streams`/`series_streams` (`ALTER TABLE`,
+ * pas de changement de clé primaire, cf. AGENTS.md), index couvrant de l'onglet
+ * « Tout » réétendu une nouvelle fois (voir migration 31→32) pour rester
+ * couvrant sur la projection élargie.
+ */
+val MIGRATION_32_33 = object : Migration(32, 33) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        migration32To33Statements().forEach(db::execSQL)
+    }
+}
+
+internal fun migration32To33Statements(): List<String> = listOf(
+    "ALTER TABLE vod_streams ADD COLUMN versionLabel TEXT",
+    "ALTER TABLE series_streams ADD COLUMN versionLabel TEXT",
+    "DROP INDEX IF EXISTS index_vod_streams_categoryRank_streamId_name_streamIcon_rating_added_categoryId_genre_releaseYear_languageTag_qualityTag",
+    "CREATE INDEX IF NOT EXISTS " +
+        "index_vod_streams_categoryRank_streamId_name_streamIcon_rating_added_categoryId_genre_releaseYear_languageTag_qualityTag_versionLabel " +
+        "ON vod_streams(categoryRank, streamId, name, streamIcon, rating, added, categoryId, genre, releaseYear, languageTag, qualityTag, versionLabel)",
+    "DROP INDEX IF EXISTS index_series_streams_categoryRank_seriesId_name_cover_rating_added_categoryId_genre_releaseYear_languageTag_qualityTag",
+    "CREATE INDEX IF NOT EXISTS " +
+        "index_series_streams_categoryRank_seriesId_name_cover_rating_added_categoryId_genre_releaseYear_languageTag_qualityTag_versionLabel " +
+        "ON series_streams(categoryRank, seriesId, name, cover, rating, added, categoryId, genre, releaseYear, languageTag, qualityTag, versionLabel)"
+)
+
+val ALL_MIGRATIONS = arrayOf(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33)

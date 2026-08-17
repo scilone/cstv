@@ -37,7 +37,6 @@ import com.cstv.app.domain.model.LiveStream
 import com.cstv.app.domain.model.VodStream
 import com.cstv.app.domain.model.SeriesStream
 import com.cstv.app.domain.model.DownloadedItem
-import com.cstv.app.domain.model.mediaVersionBadges
 import com.cstv.app.presentation.theme.AccentLavande
 import com.cstv.app.presentation.theme.DarkBackground
 import com.cstv.app.presentation.theme.Surface1
@@ -492,9 +491,7 @@ fun HomeVodMovieCard(
             // (TopRankBadge, numéral jusqu'à 158dp de haut) : sur ces rangées, le badge de version
             // se replie en haut, centré entre la note et l'étiquette déjà présentes, plutôt que de
             // disparaître ou de se superposer illisiblement au numéral.
-            val versionLabel = remember(stream.languageTag, stream.qualityTag) {
-                mediaVersionBadges(stream.languageTag, stream.qualityTag).takeIf { it.isNotEmpty() }?.joinToString(" · ")
-            }
+            val versionLabel = stream.versionLabel
             if (versionLabel != null) {
                 val versionBadgeAlignment = when (versionBadgeCorner(rank)) {
                     VersionBadgeCorner.BOTTOM_START -> Alignment.BottomStart
@@ -678,9 +675,7 @@ fun HomeSeriesShowCard(
             }
 
             // F39 : voir HomeVodMovieCard — correction F39-R6, jamais masqué sur une rangée Top 10.
-            val versionLabel = remember(stream.languageTag, stream.qualityTag) {
-                mediaVersionBadges(stream.languageTag, stream.qualityTag).takeIf { it.isNotEmpty() }?.joinToString(" · ")
-            }
+            val versionLabel = stream.versionLabel
             if (versionLabel != null) {
                 val versionBadgeAlignment = when (versionBadgeCorner(rank)) {
                     VersionBadgeCorner.BOTTOM_START -> Alignment.BottomStart
