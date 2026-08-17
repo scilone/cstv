@@ -101,9 +101,7 @@ Aucune information importante ne doit exister uniquement dans une conversation a
 
 # Questions interactives (règle transverse)
 
-Un ticket ne se devine pas : il se négocie. Avant de rédiger ou de compléter une
-étape, l'agent **doit** poser ses questions à l'utilisateur plutôt que de choisir
-seul et de présenter le résultat comme acquis.
+Un ticket ne se devine pas : il se négocie. Avant de rédiger ou de compléter l'étape 1, 2, 3 ou 4, l'agent **doit** poser ses questions à l'utilisateur plutôt que de choisir seul et de présenter le résultat comme acquis.
 
 ## Principe
 
@@ -140,7 +138,6 @@ Règles de formulation :
 | 2 - Spécification fonctionnelle | Parcours utilisateur, règles métier ambiguës, formulation des messages, cas limites. |
 | 3 - Technique et architecture | Arbitrages structurants uniquement (dépendance nouvelle, migration de schéma, compromis performance/complexité). Les choix internes relèvent de l'agent. |
 | 4 - Découpage | Ordre de livraison et découpage en lots seulement si plusieurs stratégies sont défendables. |
-| 6 à 8 - Review, correction, validation | Arbitrage sur les problèmes classés `Majeur` ou `Mineur` dont la correction élargirait le périmètre. |
 
 ## Traçabilité
 
