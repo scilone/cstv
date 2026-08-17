@@ -264,6 +264,17 @@ class SeriesViewModel @Inject constructor(
         return resolver.resolvePreferred(current.linkKey, current.releaseYear, seasonNum, episodeNum, openedSeriesId = seriesId)
     }
 
+    /**
+     * F39 §8.6 (évolution PO) : versions candidates de cette série pour la fiche — pas de filtre
+     * par épisode équivalent (contrairement à [getEpisodeVersions]), la fiche ne joue rien tant
+     * que l'utilisateur n'a pas lancé la lecture.
+     */
+    suspend fun getSeriesVersions(seriesId: Int): List<SeriesStream> {
+        val current = seriesRepository.getStreamById(seriesId) ?: return emptyList()
+        if (current.linkKey.isBlank()) return emptyList()
+        return seriesRepository.getVersionsByLinkKey(current.linkKey, current.releaseYear)
+    }
+
     /** Mémorise le choix explicite de version pour toute la série (§8.5 pt. 5, §7.3). */
     fun setPreferredSeriesVersion(linkKey: String, preferredSeriesId: Int) {
         viewModelScope.launch {

@@ -550,7 +550,7 @@ de la navigation D-pad, hors critères d'acceptation automatisés.
 
 ---
 
-- [ ] 6. Sélecteur sur la fiche média (Évolution PO)
+- [x] 6. Sélecteur sur la fiche média (Évolution PO)
 
 Objectif:
 Permettre le choix de la version directement depuis les fiches détails VOD et Séries avant de lancer la lecture. Le clic sur le bouton ouvre une bottom sheet pour choisir, et la sélection recharge la fiche média avec la version choisie.
@@ -565,7 +565,7 @@ Tests unitaires de ViewModel confirmant le chargement des versions candidates pa
 
 ---
 
-- [ ] 7. Non-régression globale
+- [x] 7. Non-régression globale
 
 Objectif:
 Vérifier que les badges et le sélecteur n'introduisent aucune requête par
@@ -637,9 +637,33 @@ Aucune nouvelle dépendance Gradle (§8.7).
   d'épisode (`LaunchedEffect(currentEpisode.id, ...)`), risqué à traiter dans la même session que le
   reste vu l'interaction avec la logique de reprise/T23 déjà en place — laissé pour un correctif
   ciblé plutôt que d'être fait à la hâte.
-- **Non câblé** (Évolution PO, tâche 6 — hors périmètre de cette livraison) : aucun bouton
-  « Versions » sur les fiches média (`VodDetailsScreen`/`SeriesDetailsScreen`).
 - Vert : `assembleDebug`, `testDebugUnitTest` (suite complète), `lintDebug`.
+
+## Tâche 6 — Évolution PO (livrée)
+
+- **ViewModels** : `SeriesViewModel.getSeriesVersions(seriesId)` — même requête `getVersionsByLinkKey`
+  que le lecteur, mais sans filtre saison/épisode (la fiche ne joue rien). `VodViewModel.
+  getMovieVersions` déjà écrit en tâche 5 est réutilisé tel quel.
+- **Fiches VOD/Série** : bouton « Versions » ajouté dans `MobileLayoutDetails`/`MobileLayout` et dans
+  les layouts TV (`VodDetailsTvLayout`/`SeriesDetailsTvLayout`), masqué à 0/1 candidate. Sur TV,
+  posé en **rangée séparée** sous le trio Favoris/Like/Dislike plutôt que d'y ajouter un quatrième
+  partage de largeur — ce trio et la chaîne de focus D-pad qui l'entoure (`tvInitialFocusTarget`/
+  `tvFocusDownTo`) étaient déjà finement calibrés, un ajout dans la rangée aurait exigé une
+  vérification device pour un gain cosmétique seulement.
+- **Rechargement de la fiche** : sélectionner une version réutilise le mécanisme existant
+  `viewModel.selectStreamId(nouvelId)` (déjà utilisé pour « titres associés ») — aucun nouveau
+  chemin de chargement, la fiche se recompose entièrement avec le nouveau `streamId`/`seriesId`.
+  Les listes de versions (`movieVersions`/`seriesVersions`) sont chargées dans `NavGraph.kt` par un
+  `LaunchedEffect(details.streamId)`/`LaunchedEffect(details.seriesId)`, au même niveau que
+  `onActiveVodDetailsChanged`.
+- Vert : `assembleDebug`, `testDebugUnitTest` (suite complète), `lintDebug`.
+
+## F39 — état final de cette livraison
+
+Les 7 tâches de la fiche sont livrées. Seule limite connue, documentée plus haut (tâche 5) : la
+préférence de version série mémorisée n'est pas encore relue automatiquement à l'ouverture d'un
+épisode enchaîné (binge) — seul un choix explicite dans le sélecteur du lecteur l'applique. Aucune
+release (`scripts/release-local.sh`) n'a été lancée à ce stade ; à faire sur confirmation explicite.
 
 ---
 

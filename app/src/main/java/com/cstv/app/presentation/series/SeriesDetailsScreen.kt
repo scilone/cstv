@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.VolumeOff
 import androidx.compose.material.icons.filled.VolumeUp
@@ -89,7 +90,11 @@ fun SeriesDetailsScreen(
     ,trailerState: TrailerPreviewUiState = TrailerPreviewUiState.Poster,
     onTrailerReady: (TrailerMedia) -> Unit = {},
     onTrailerEnded: () -> Unit = {},
-    onTrailerFailed: (TrailerMedia) -> Unit = {}
+    onTrailerFailed: (TrailerMedia) -> Unit = {},
+    /** F39 §8.6 (évolution PO) : autres versions de cette série partageant le `linkKey` T21, la
+     *  version affichée incluse. Bouton « Versions » masqué si moins de deux entrées. */
+    availableVersions: List<SeriesStream> = emptyList(),
+    onSelectVersion: (Int) -> Unit = {}
 ) {
     val trailerMedia = remember(details.seriesId) { TrailerMedia.Series(details.seriesId) }
     // Sur TV le trailer est sonore d'emblée et sans contrôle dédié : la
@@ -97,6 +102,8 @@ fun SeriesDetailsScreen(
     // avec son bouton dans la tête de fiche.
     var trailerMuted by remember(trailerMedia, isTv) { mutableStateOf(!isTv) }
     val snackbarHostState = remember { SnackbarHostState() }
+    // F39 §8.6 (évolution PO) : sélecteur de versions, partagé mobile/TV.
+    var showVersionDialog by remember { mutableStateOf(false) }
     LaunchedEffect(ratingError) { ratingError?.let { snackbarHostState.showSnackbar(it); onConsumeRatingError() } }
     var selectedSeasonNumber by remember(details.seriesId) { mutableStateOf(details.seasons.firstOrNull()?.seasonNumber ?: 1) }
     val currentEpisodes = remember(selectedSeasonNumber, details.episodes) {
@@ -201,7 +208,9 @@ fun SeriesDetailsScreen(
                     onDislike = onDislike,
                     trailerState = trailerState,
                     onTrailerFailed = onTrailerFailed,
-                    trailerMuted = trailerMuted
+                    trailerMuted = trailerMuted,
+                    hasMultipleVersions = availableVersions.size > 1,
+                    onOpenVersions = { showVersionDialog = true }
                 )
             } else {
                 MobileLayout(
@@ -216,6 +225,8 @@ fun SeriesDetailsScreen(
                     relatedSeries = relatedSeries,
                     onSelectRelated = onSelectRelated,
                     episodeDownloads = episodeDownloads,
+                    hasMultipleVersions = availableVersions.size > 1,
+                    onOpenVersions = { showVersionDialog = true },
                     onDownloadEpisode = onDownloadEpisode,
                     onRemoveEpisodeDownload = onRemoveEpisodeDownload,
                     mediaRating = mediaRating,
@@ -227,6 +238,27 @@ fun SeriesDetailsScreen(
             }
         }
         SnackbarHost(hostState = snackbarHostState, modifier = Modifier.align(Alignment.BottomCenter))
+
+        // F39 §8.6 (évolution PO) : sélectionner une version recharge intégralement la fiche.
+        if (showVersionDialog) {
+            com.cstv.app.presentation.player.VersionSelectorSheet(
+                options = availableVersions.map { version ->
+                    com.cstv.app.presentation.player.VersionOption(
+                        id = version.seriesId,
+                        label = com.cstv.app.domain.model.mediaVersionBadges(version.languageTag, version.qualityTag)
+                            .takeIf { it.isNotEmpty() }?.joinToString(" · ")
+                            ?: version.name,
+                        isActive = version.seriesId == details.seriesId
+                    )
+                },
+                isSwitching = false,
+                onSelect = { option ->
+                    showVersionDialog = false
+                    onSelectVersion(option.id)
+                },
+                onDismiss = { showVersionDialog = false }
+            )
+        }
     }
 }
 
@@ -512,6 +544,8 @@ private fun MobileLayout(
     relatedSeries: List<SeriesStream> = emptyList(),
     onSelectRelated: (SeriesStream) -> Unit = {},
     episodeDownloads: Map<Int, com.cstv.app.domain.model.DownloadedItem> = emptyMap(),
+    hasMultipleVersions: Boolean = false,
+    onOpenVersions: () -> Unit = {},
     onDownloadEpisode: (SeriesEpisode) -> Unit = {},
     onRemoveEpisodeDownload: (Int) -> Unit = {},
     mediaRating: MediaRatingValue?,
@@ -634,6 +668,23 @@ private fun MobileLayout(
 
         MediaRatingControls(mediaRating, false, onLike, onDislike)
         Spacer(modifier = Modifier.height(20.dp))
+
+        // F39 §8.6 (évolution PO) : bouton « Versions », masqué à 0/1 candidate.
+        if (hasMultipleVersions) {
+            OutlinedButton(
+                onClick = onOpenVersions,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(
+                    imageVector = Icons.Default.SwapHoriz,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(stringResource(R.string.player_versions_action_label))
+            }
+            Spacer(modifier = Modifier.height(20.dp))
+        }
 
         // Seasons lazy row
         Text(

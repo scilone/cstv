@@ -19,8 +19,10 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModelStoreOwner
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -645,7 +647,15 @@ fun AppNavGraph(
                     onActiveVodDetailsChanged(details)
                     onIsVodPlaybackOfflineChanged(false)
                     val isFav = favsState.favorites.any { it.id == details.streamId && it.type == "movie" }
-                    
+
+                    // F39 §8.6 (évolution PO) : versions candidates de ce film pour le bouton
+                    // « Versions » de la fiche — vide (bouton masqué) hors ligne ou si `linkKey`
+                    // n'est pas encore normalisé.
+                    var movieVersions by remember { mutableStateOf(emptyList<VodStream>()) }
+                    LaunchedEffect(details.streamId) {
+                        movieVersions = vodViewModel.getMovieVersions(details.streamId)
+                    }
+
                     VodDetailsScreen(
                         details = details,
                         isTv = isTv,
@@ -702,7 +712,9 @@ fun AppNavGraph(
                         ,trailerState = state.trailerPreview,
                         onTrailerReady = vodViewModel::startTrailerPreview,
                         onTrailerEnded = vodViewModel::cancelTrailerPreview,
-                        onTrailerFailed = vodViewModel::reportTrailerPlaybackFailure
+                        onTrailerFailed = vodViewModel::reportTrailerPlaybackFailure,
+                        availableVersions = movieVersions,
+                        onSelectVersion = { streamId -> vodViewModel.selectStreamId(streamId) }
                     )
                 } ?: MediaDetailsErrorState(
                     message = state.error,
@@ -735,7 +747,13 @@ fun AppNavGraph(
                     onActiveSeriesDetailsChanged(details)
                     onIsSeriesPlaybackOfflineChanged(false)
                     val isFav = favsState.favorites.any { it.id == details.seriesId && it.type == "series" }
-                    
+
+                    // F39 §8.6 (évolution PO) : voir "vod_details" — même motif.
+                    var seriesVersions by remember { mutableStateOf(emptyList<SeriesStream>()) }
+                    LaunchedEffect(details.seriesId) {
+                        seriesVersions = seriesViewModel.getSeriesVersions(details.seriesId)
+                    }
+
                     SeriesDetailsScreen(
                         details = details,
                         isTv = isTv,
@@ -785,7 +803,9 @@ fun AppNavGraph(
                         ,trailerState = state.trailerPreview,
                         onTrailerReady = seriesViewModel::startTrailerPreview,
                         onTrailerEnded = seriesViewModel::cancelTrailerPreview,
-                        onTrailerFailed = seriesViewModel::reportTrailerPlaybackFailure
+                        onTrailerFailed = seriesViewModel::reportTrailerPlaybackFailure,
+                        availableVersions = seriesVersions,
+                        onSelectVersion = { newSeriesId -> seriesViewModel.selectStreamId(newSeriesId) }
                     )
                 } ?: MediaDetailsErrorState(
                     message = state.error,

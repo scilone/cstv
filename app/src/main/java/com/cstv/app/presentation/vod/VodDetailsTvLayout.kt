@@ -17,6 +17,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.ThumbDown
 import androidx.compose.material.icons.filled.ThumbUp
 import androidx.compose.material.icons.filled.Warning
@@ -123,6 +124,9 @@ fun VodDetailsTvLayout(
     trailerState: TrailerPreviewUiState,
     onTrailerFailed: (TrailerMedia) -> Unit,
     trailerMuted: Boolean,
+    /** F39 §8.6 (évolution PO) : voir VodDetailsScreen. */
+    hasMultipleVersions: Boolean = false,
+    onOpenVersions: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val trailerMedia = remember(details.streamId) { TrailerMedia.Movie(details.streamId) }
@@ -458,6 +462,23 @@ fun VodDetailsTvLayout(
                             enabled = !isRatingSaving,
                             onClick = onDislike,
                             modifier = Modifier.weight(1f)
+                        )
+                    }
+
+                    // F39 §8.6 (évolution PO) : rangée séparée plutôt qu'un quatrième
+                    // partage de largeur dans la rangée ci-dessus — celle-ci est un
+                    // trio à parts égales intentionnel (voir commentaire au-dessus),
+                    // et la chaîne de focus D-pad qui l'entoure est déjà finement
+                    // câblée (tvInitialFocusTarget/tvFocusDownTo).
+                    if (hasMultipleVersions) {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        DetailActionButton(
+                            icon = Icons.Default.SwapHoriz,
+                            text = stringResource(R.string.player_versions_action_label),
+                            tint = TextPrimary,
+                            selected = false,
+                            onClick = onOpenVersions,
+                            modifier = Modifier.fillMaxWidth()
                         )
                     }
 

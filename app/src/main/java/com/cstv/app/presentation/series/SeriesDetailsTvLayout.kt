@@ -37,6 +37,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.ThumbDown
 import androidx.compose.material.icons.filled.ThumbUp
 import androidx.compose.material.icons.filled.Warning
@@ -381,6 +382,9 @@ fun SeriesDetailsTvLayout(
     trailerState: TrailerPreviewUiState,
     onTrailerFailed: (TrailerMedia) -> Unit,
     trailerMuted: Boolean,
+    /** F39 §8.6 (évolution PO) : voir SeriesDetailsScreen. */
+    hasMultipleVersions: Boolean = false,
+    onOpenVersions: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val seasons = remember(details.seasons, details.episodes) { tvSeriesSeasonNumbers(details) }
@@ -561,6 +565,8 @@ fun SeriesDetailsTvLayout(
                     onLike = onLike,
                     onDislike = onDislike,
                     onSearchQueryTriggered = onSearchQueryTriggered,
+                    hasMultipleVersions = hasMultipleVersions,
+                    onOpenVersions = onOpenVersions,
                     onPlay = { playbackTarget.episode?.let(onEpisodeClick) },
                     onMoveToEpisodes = {
                         section = tvSeriesSectionAfter(
@@ -759,6 +765,8 @@ private fun TvSeriesHeroPanel(
     onLike: () -> Unit,
     onDislike: () -> Unit,
     onSearchQueryTriggered: (String) -> Unit,
+    hasMultipleVersions: Boolean = false,
+    onOpenVersions: () -> Unit = {},
     onPlay: () -> Unit,
     onMoveToEpisodes: () -> Unit,
     active: Boolean,
@@ -815,6 +823,21 @@ private fun TvSeriesHeroPanel(
                 TvSeriesAction(Icons.Default.ThumbUp, stringResource(R.string.media_rating_like), if (mediaRating == MediaRatingValue.LIKE) RatingLike else TextPrimary, mediaRating == MediaRatingValue.LIKE, active && !isRatingSaving, onLike, Modifier.weight(1f))
                 TvSeriesActionDivider()
                 TvSeriesAction(Icons.Default.ThumbDown, stringResource(R.string.media_rating_dislike), if (mediaRating == MediaRatingValue.DISLIKE) RatingDislike else TextPrimary, mediaRating == MediaRatingValue.DISLIKE, active && !isRatingSaving, onDislike, Modifier.weight(1f))
+            }
+            // F39 §8.6 (évolution PO) : rangée séparée, voir le commentaire
+            // équivalent sur VodDetailsTvLayout — le trio ci-dessus reste
+            // intentionnellement à parts égales.
+            if (hasMultipleVersions) {
+                Spacer(Modifier.height(10.dp))
+                TvSeriesAction(
+                    Icons.Default.SwapHoriz,
+                    stringResource(R.string.player_versions_action_label),
+                    TextPrimary,
+                    false,
+                    active,
+                    onOpenVersions,
+                    Modifier.fillMaxWidth()
+                )
             }
             Spacer(Modifier.height(18.dp))
             val episode = playbackTarget.episode

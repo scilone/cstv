@@ -16,6 +16,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -70,7 +71,11 @@ fun VodDetailsScreen(
     ,trailerState: TrailerPreviewUiState = TrailerPreviewUiState.Poster,
     onTrailerReady: (TrailerMedia) -> Unit = {},
     onTrailerEnded: () -> Unit = {},
-    onTrailerFailed: (TrailerMedia) -> Unit = {}
+    onTrailerFailed: (TrailerMedia) -> Unit = {},
+    /** F39 §8.6 (évolution PO) : autres versions de ce film partageant le `linkKey` T21, la version
+     *  affichée incluse. Bouton « Versions » masqué si moins de deux entrées. */
+    availableVersions: List<VodStream> = emptyList(),
+    onSelectVersion: (Int) -> Unit = {}
 ) {
     val trailerMedia = remember(details.streamId) { TrailerMedia.Movie(details.streamId) }
     // Sur TV le trailer est sonore d'emblée et sans contrôle dédié : la
@@ -78,6 +83,8 @@ fun VodDetailsScreen(
     // avec son bouton dans la tête de fiche.
     var trailerMuted by remember(trailerMedia, isTv) { mutableStateOf(!isTv) }
     val snackbarHostState = remember { SnackbarHostState() }
+    // F39 §8.6 (évolution PO) : sélecteur de versions, partagé mobile/TV.
+    var showVersionDialog by remember { mutableStateOf(false) }
     LaunchedEffect(ratingError) { ratingError?.let { snackbarHostState.showSnackbar(it); onConsumeRatingError() } }
 
     com.cstv.app.presentation.components.TrailerAutoStartEffect(
@@ -107,7 +114,9 @@ fun VodDetailsScreen(
                 onDislike = onDislike,
                 trailerState = trailerState,
                 onTrailerFailed = onTrailerFailed,
-                trailerMuted = trailerMuted
+                trailerMuted = trailerMuted,
+                hasMultipleVersions = availableVersions.size > 1,
+                onOpenVersions = { showVersionDialog = true }
             )
         } else {
             // Mobile Layout with vertical scroll
@@ -165,7 +174,9 @@ fun VodDetailsScreen(
                             onToggleFavorite = onToggleFavorite,
                             onPlayFromBeginning = onPlayFromBeginning,
                             onResumePlayback = onResumePlayback,
-                            onSearchQueryTriggered = onSearchQueryTriggered
+                            onSearchQueryTriggered = onSearchQueryTriggered,
+                            hasMultipleVersions = availableVersions.size > 1,
+                            onOpenVersions = { showVersionDialog = true }
                         )
 
                         Spacer(modifier = Modifier.height(16.dp))
@@ -193,6 +204,27 @@ fun VodDetailsScreen(
             }
         }
         SnackbarHost(hostState = snackbarHostState, modifier = Modifier.align(Alignment.BottomCenter))
+
+        // F39 §8.6 (évolution PO) : sélectionner une version recharge intégralement la fiche.
+        if (showVersionDialog) {
+            com.cstv.app.presentation.player.VersionSelectorSheet(
+                options = availableVersions.map { version ->
+                    com.cstv.app.presentation.player.VersionOption(
+                        id = version.streamId,
+                        label = com.cstv.app.domain.model.mediaVersionBadges(version.languageTag, version.qualityTag)
+                            .takeIf { it.isNotEmpty() }?.joinToString(" · ")
+                            ?: version.name,
+                        isActive = version.streamId == details.streamId
+                    )
+                },
+                isSwitching = false,
+                onSelect = { option ->
+                    showVersionDialog = false
+                    onSelectVersion(option.id)
+                },
+                onDismiss = { showVersionDialog = false }
+            )
+        }
     }
 }
 
@@ -203,7 +235,9 @@ private fun MobileLayoutDetails(
     onToggleFavorite: () -> Unit,
     onPlayFromBeginning: () -> Unit,
     onResumePlayback: (Long) -> Unit,
-    onSearchQueryTriggered: (String) -> Unit
+    onSearchQueryTriggered: (String) -> Unit,
+    hasMultipleVersions: Boolean = false,
+    onOpenVersions: () -> Unit = {}
 ) {
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -313,6 +347,23 @@ private fun MobileLayoutDetails(
             onPlayFromBeginning = onPlayFromBeginning,
             onResumePlayback = { onResumePlayback(details.resumePositionMs) }
         )
+
+        // F39 §8.6 (évolution PO) : bouton « Versions », masqué à 0/1 candidate.
+        if (hasMultipleVersions) {
+            Spacer(modifier = Modifier.height(12.dp))
+            OutlinedButton(
+                onClick = onOpenVersions,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(
+                    imageVector = Icons.Default.SwapHoriz,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(stringResource(R.string.player_versions_action_label))
+            }
+        }
     }
 }
 

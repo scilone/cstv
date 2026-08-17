@@ -481,6 +481,39 @@ class SeriesViewModelTest {
         assertEquals(opened, result.single().series)
     }
 
+    // --- F39 §8.6, tâche 6a : versions candidates pour la fiche (sans filtre épisode) ---
+
+    @Test
+    fun `getSeriesVersions returns an empty list when the series no longer exists in cache`() = runTest(testDispatcher) {
+        whenever(seriesRepository.getStreamById(1)).thenReturn(null)
+        val viewModel = createViewModelWithVersions()
+
+        assertTrue(viewModel.getSeriesVersions(1).isEmpty())
+    }
+
+    @Test
+    fun `getSeriesVersions returns an empty list when linkKey is not yet normalized`() = runTest(testDispatcher) {
+        whenever(seriesRepository.getStreamById(1)).thenReturn(seriesStream(1, linkKey = ""))
+        val viewModel = createViewModelWithVersions()
+
+        assertTrue(viewModel.getSeriesVersions(1).isEmpty())
+    }
+
+    @Test
+    fun `getSeriesVersions queries by linkKey, including the current entry, without filtering by episode`() = runTest(testDispatcher) {
+        val current = seriesStream(1, linkKey = "key-a")
+        val other = seriesStream(2, linkKey = "key-a")
+        whenever(seriesRepository.getStreamById(1)).thenReturn(current)
+        whenever(seriesRepository.getVersionsByLinkKey("key-a", null)).thenReturn(listOf(current, other))
+        val viewModel = createViewModelWithVersions()
+
+        val result = viewModel.getSeriesVersions(1)
+
+        assertEquals(listOf(current, other), result)
+        // Contrairement à getEpisodeVersions : aucun appel à getEpisodeBySeasonEpisode.
+        verify(seriesRepository, never()).getEpisodeBySeasonEpisode(any(), any(), any())
+    }
+
     @Test
     fun `setPreferredSeriesVersion commits through the preference repository`() = runTest(testDispatcher) {
         val viewModel = createViewModelWithVersions()
