@@ -3,7 +3,7 @@
 ## Informations générales
 
 Status:
-VALIDATED
+RELEASED
 
 Created:
 2026-08-15
@@ -855,7 +855,10 @@ d'étape 1 à 3 et aux corrections d'étape 7 ; aucune régression détectée.
 # 13. Release
 
 Version :
+v1.87.0
 
 Commit :
+df0491c72a51cf6015e562714c5894c587d4406f
 
 Date :
+2026-08-18
