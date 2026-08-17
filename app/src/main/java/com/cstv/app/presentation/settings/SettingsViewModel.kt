@@ -59,6 +59,7 @@ class SettingsViewModel @Inject constructor(
                 syncFrequency = settingsManager.getSyncFrequency(),
                 subtitleStyle = settingsManager.getSubtitleStyle(),
                 debugModeEnabled = settingsManager.getDebugModeEnabled(),
+                liveQualityModeDefault = settingsManager.getLiveQualityModeDefault(),
                 cstvEmail = cstvAuthRepository.storedEmail(),
                 // B27 : repli sur le dernier UserInfo connu, seule source restante
                 // quand la session courante tourne sans identifiants mémorisés.
@@ -178,6 +179,11 @@ class SettingsViewModel @Inject constructor(
         } else {
             diagnosticManager.stopLogging()
         }
+    }
+
+    fun updateLiveQualityModeDefault(enabled: Boolean) {
+        settingsManager.setLiveQualityModeDefault(enabled)
+        _state.update { it.copy(liveQualityModeDefault = enabled) }
     }
 
     fun uploadDiagnosticLogs() {

@@ -486,20 +486,9 @@ fun HomeVodMovieCard(
                 }
             }
 
-            // F39 : langue puis qualité (décision étape 1 — jamais masqué, y compris sur une
-            // rangée Top 10 : correction F39-R6). Le rang Top 10 occupe tout le coin bas-gauche
-            // (TopRankBadge, numéral jusqu'à 158dp de haut) : sur ces rangées, le badge de version
-            // se replie en haut, centré entre la note et l'étiquette déjà présentes, plutôt que de
-            // disparaître ou de se superposer illisiblement au numéral.
-            val versionLabel = stream.versionLabel
-            if (versionLabel != null) {
-                val versionBadgeAlignment = when (versionBadgeCorner(rank)) {
-                    VersionBadgeCorner.BOTTOM_START -> Alignment.BottomStart
-                    VersionBadgeCorner.TOP_CENTER -> Alignment.TopCenter
-                }
-                HomeCardVersionBadge(versionLabel, Modifier.align(versionBadgeAlignment))
-            }
-
+            // Retour utilisateur du 2026-08-18 : étiquette langue/qualité retirée de
+            // l'accueil (décision F39 étape 1 révisée) — reste affichée dans le sélecteur
+            // de versions du lecteur.
             if (isFavorite) HomeCardFavoriteBadge(Modifier.align(Alignment.BottomEnd))
         }
     }
@@ -674,50 +663,8 @@ fun HomeSeriesShowCard(
                 }
             }
 
-            // F39 : voir HomeVodMovieCard — correction F39-R6, jamais masqué sur une rangée Top 10.
-            val versionLabel = stream.versionLabel
-            if (versionLabel != null) {
-                val versionBadgeAlignment = when (versionBadgeCorner(rank)) {
-                    VersionBadgeCorner.BOTTOM_START -> Alignment.BottomStart
-                    VersionBadgeCorner.TOP_CENTER -> Alignment.TopCenter
-                }
-                HomeCardVersionBadge(versionLabel, Modifier.align(versionBadgeAlignment))
-            }
-
             if (isFavorite) HomeCardFavoriteBadge(Modifier.align(Alignment.BottomEnd))
         }
-    }
-}
-
-/**
- * F39-R6 : coin visé par le badge de version selon la présence d'un rang
- * Top 10 — extrait de la Composable en fonction pure pour rester testable en
- * JVM sans dépendance Compose (AGENTS.md, aucun device requis), là où la
- * politique « jamais masqué » se vérifiait mal directement dans l'UI.
- */
-internal enum class VersionBadgeCorner { BOTTOM_START, TOP_CENTER }
-
-internal fun versionBadgeCorner(rank: Int?): VersionBadgeCorner =
-    if (rank == null) VersionBadgeCorner.BOTTOM_START else VersionBadgeCorner.TOP_CENTER
-
-/**
- * Étiquette langue/qualité (F39), ex. « VF · 4K » — coin bas-gauche, sauf sur
- * les rangées à rang (Top 10) où [TopRankBadge] y pose un numéral jusqu'à
- * 158dp de haut : l'appelant y bascule l'alignement en haut-centre plutôt que
- * de masquer le badge (correction F39-R6 — jamais d'exception au critère
- * d'acceptation des vignettes ; voir [versionBadgeCorner]). Même habillage
- * visuel que [HomeCardFavoriteBadge] et le badge de reprise.
- */
-@Composable
-private fun HomeCardVersionBadge(label: String, modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier
-            .padding(6.dp)
-            .clip(RoundedCornerShape(4.dp))
-            .background(Color(0xCC000000))
-            .padding(horizontal = 4.dp, vertical = 2.dp)
-    ) {
-        Text(label, color = Color.White, fontSize = 8.sp, fontWeight = FontWeight.Bold)
     }
 }
 

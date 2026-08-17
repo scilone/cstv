@@ -42,11 +42,13 @@ class SeriesVersionSwitchCoordinatorTest {
         initialEpisode: SeriesEpisode,
         engine: FakeMediaVersionSwitchEngine,
         versionsEnabled: Boolean = true,
+        initialSeriesName: String = "Série $initialSeriesId",
         resolvePreferred: suspend (Int, Int, Int) -> SeriesVersionCandidate? = { _, _, _ -> null },
         onPersistPreference: suspend (String, Int) -> Unit = { _, _ -> }
     ) = SeriesVersionSwitchCoordinator(
         initialSeriesId = initialSeriesId,
         initialEpisode = initialEpisode,
+        initialSeriesName = initialSeriesName,
         versionsEnabled = versionsEnabled,
         switchController = MediaVersionSwitchController(engine),
         buildPlayUrl = { ep -> "https://x/${ep.id}.mp4" },
@@ -179,6 +181,38 @@ class SeriesVersionSwitchCoordinatorTest {
         coordinator.switchTo(candidate(seriesId = 2, episodeId = 20, linkKey = "movie-key"))
 
         assertEquals("movie-key" to 2, persisted)
+    }
+
+    @Test
+    fun `retour utilisateur 2026-08-18 - a successful switch updates the displayed series name`() = runTest {
+        val engine = FakeMediaVersionSwitchEngine(scripts = listOf(FakeMediaVersionSwitchEngine.readyImmediately()))
+        val coordinator = coordinator(
+            initialSeriesId = 1,
+            initialEpisode = episode(id = 1),
+            initialSeriesName = "House Of The Dragon",
+            engine = engine
+        )
+
+        coordinator.switchTo(SeriesVersionCandidate(series(2).copy(cleanTitle = "House of the Dragon (4K-DV)"), episode(20)))
+
+        assertEquals("House of the Dragon (4K-DV)", coordinator.currentSeriesName)
+    }
+
+    @Test
+    fun `retour utilisateur 2026-08-18 - a rolled back switch keeps the previous displayed series name`() = runTest {
+        val engine = FakeMediaVersionSwitchEngine(
+            scripts = listOf(FakeMediaVersionSwitchEngine.neverResponds(), FakeMediaVersionSwitchEngine.readyImmediately())
+        )
+        val coordinator = coordinator(
+            initialSeriesId = 1,
+            initialEpisode = episode(id = 1),
+            initialSeriesName = "House Of The Dragon",
+            engine = engine
+        )
+
+        coordinator.switchTo(SeriesVersionCandidate(series(2).copy(cleanTitle = "House of the Dragon (4K-DV)"), episode(20)))
+
+        assertEquals("House Of The Dragon", coordinator.currentSeriesName)
     }
 
     @Test

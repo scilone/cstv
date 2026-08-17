@@ -229,6 +229,9 @@ fun SeriesPlayerScreen(
     // `SeriesVersionSwitchCoordinator`.
     var availableVersions by remember { mutableStateOf(emptyList<com.cstv.app.domain.model.SeriesVersionCandidate>()) }
     var currentVersionSeriesId by remember(seriesId) { mutableStateOf(seriesId) }
+    // Retour utilisateur du 2026-08-18 : le nom du média affiché doit suivre la version jouée,
+    // pas rester figé sur le nom de la série ouverte initialement.
+    var currentSeriesName by remember(seriesId) { mutableStateOf(seriesName) }
     var showVersionDialog by remember { mutableStateOf(false) }
     var isSwitchingVersion by remember { mutableStateOf(false) }
     // F39-R3 : quand un changement de `currentEpisode` provient d'une bascule de version déjà
@@ -245,6 +248,7 @@ fun SeriesPlayerScreen(
         com.cstv.app.presentation.player.core.SeriesVersionSwitchCoordinator(
             initialSeriesId = seriesId,
             initialEpisode = episode,
+            initialSeriesName = seriesName,
             versionsEnabled = versionsEnabled,
             switchController = com.cstv.app.presentation.player.core.MediaVersionSwitchController(
                 com.cstv.app.presentation.player.core.ExoMediaVersionSwitchEngine(engineController)
@@ -264,6 +268,7 @@ fun SeriesPlayerScreen(
         versionCoordinator.resolveAndSet(episode.seasonNum, episode.episodeNum, episode)
         currentVersionSeriesId = versionCoordinator.currentSeriesId
         currentEpisode = versionCoordinator.currentEpisode
+        currentSeriesName = versionCoordinator.currentSeriesName
         initialVersionResolved = true
     }
 
@@ -290,6 +295,7 @@ fun SeriesPlayerScreen(
                     suppressPrepareForEpisodeId = versionCoordinator.currentEpisode.id
                     currentVersionSeriesId = versionCoordinator.currentSeriesId
                     currentEpisode = versionCoordinator.currentEpisode
+                    currentSeriesName = versionCoordinator.currentSeriesName
                     showVersionDialog = false
                     val abandonedEpisode = outcome.abandonedEpisode
                     if (abandonedDurationMs > 0L) {
@@ -571,6 +577,7 @@ fun SeriesPlayerScreen(
             versionCoordinator.resolveAndSet(next.seasonNum, next.episodeNum, next)
             currentVersionSeriesId = versionCoordinator.currentSeriesId
             currentEpisode = versionCoordinator.currentEpisode
+            currentSeriesName = versionCoordinator.currentSeriesName
         }
     }
 
@@ -1051,7 +1058,7 @@ fun SeriesPlayerScreen(
                     Column(modifier = Modifier.weight(1f)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                text = seriesName,
+                                text = currentSeriesName,
                                 color = Color.White,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 18.sp,

@@ -6,6 +6,7 @@ import com.cstv.app.data.local.storage.CredentialsManager
 import com.cstv.app.domain.model.Credentials
 import com.cstv.app.domain.model.LiveCategory
 import com.cstv.app.domain.model.LiveStream
+import com.cstv.app.domain.model.LiveVariant
 import com.cstv.app.domain.usecase.GetLiveCategoriesUseCase
 import com.cstv.app.domain.usecase.GetLiveCategoryCountsUseCase
 import com.cstv.app.domain.usecase.GetLiveEpgUseCase
@@ -31,6 +32,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import com.cstv.app.presentation.player.core.LiveQualityController
+import com.cstv.app.presentation.player.core.LiveStabilityMonitor
 
 @HiltViewModel
 class LiveTvViewModel @Inject constructor(
@@ -55,7 +58,12 @@ class LiveTvViewModel @Inject constructor(
     /** T23 : autoréparation du lecteur — nullable pour ne pas casser les tests existants qui
      * construisent ce ViewModel positionnellement sans ce paramètre final. */
     val playbackRepairRepository: com.cstv.app.domain.repository.PlaybackRepairRepository? = null,
+    /** F40: local grouping is a domain contract; test callers may supply the inert default. */
+    private val liveVariantRepository: com.cstv.app.domain.repository.LiveVariantRepository = EmptyLiveVariantRepository,
 ) : ViewModel() {
+
+    private val qualityController = LiveQualityController()
+    private val stabilityMonitor = LiveStabilityMonitor { (System.nanoTime() / 1_000_000L) }
 
     private val _state = MutableStateFlow(LiveTvState())
     val state: StateFlow<LiveTvState> = _state.asStateFlow()
@@ -99,6 +107,37 @@ class LiveTvViewModel @Inject constructor(
     fun setResizeMode(mode: ResizeMode) {
         settingsManager.setResizeMode(mode)
     }
+
+    fun liveQualityModeDefault(): Boolean = settingsManager.getLiveQualityModeDefault()
+
+    suspend fun startLiveQualitySession(stream: LiveStream): LiveQualityPlayerState {
+        val variants = liveVariantRepository.variantsFor(stream.streamId)
+        val candidates = variants.ifEmpty { listOf(LiveVariant(stream)) }
+        stabilityMonitor.reset()
+        val automaticCandidate = qualityController.start("", candidates, liveQualityModeDefault())
+        val selected = automaticCandidate?.stream ?: stream
+        if (automaticCandidate == null) qualityController.retainManualInitial(LiveVariant(selected))
+        return LiveQualityPlayerState(
+            variants = variants.takeIf { it.size > 1 }.orEmpty(),
+            selectedStream = selected,
+            generation = qualityController.generation()
+        )
+    }
+
+    fun liveQualityGeneration(): Long = qualityController.generation()
+    fun onLiveQualityReady(token: Long) {
+        stabilityMonitor.onReady()
+        qualityController.onReady(token, (System.nanoTime() / 1_000_000L))
+    }
+    fun onLiveQualityBufferingStarted(token: Long): LiveStream? {
+        if (!stabilityMonitor.onBufferingStarted()) return null
+        return qualityController.onFailure(token, stabilityMonitor.measurement(), (System.nanoTime() / 1_000_000L))?.stream
+    }
+    fun onLiveQualityBufferingEnded() = stabilityMonitor.onBufferingEnded()
+    fun onLiveQualityFailure(token: Long): LiveStream? =
+        qualityController.onFailure(token, stabilityMonitor.measurement(), (System.nanoTime() / 1_000_000L))?.stream
+    fun selectLiveQuality(variant: LiveVariant): LiveStream = qualityController.selectManually(variant).stream
+    fun resetLiveQualityMeasurement() = stabilityMonitor.reset()
 
     // EPG « en cours + suivant » pour le player Live TV (Phase 60, informatif).
     // Rechargé à chaque changement de chaîne dans le player ; null tant que non

@@ -89,9 +89,12 @@ import com.cstv.app.presentation.player.core.resolveMediaKeyIntent
 import com.cstv.app.presentation.player.core.resolveTvDpadIntent
 import com.cstv.app.presentation.components.PlaybackLockConflictDialog
 import com.cstv.app.presentation.components.PlaybackTakenOverOverlay
+import com.cstv.app.domain.model.LiveVariant
+import com.cstv.app.presentation.player.core.PlaybackFailureType
 
 /** T23 : même valeur que `LiveTvRepositoryImpl.LIVE_KIND` (kind stocké sur `media_refs`). */
 private const val PLAYBACK_REPAIR_KIND = "live"
+private const val QUALITY_ADJUSTMENT_NOTIFICATION_MS = 2_500L
 
 private fun Context.findActivity(): Activity? {
     var currentContext = this
@@ -181,7 +184,14 @@ fun PlayerScreen(
     var currentStreamIndex by remember {
         mutableStateOf(activeStreamsList.indexOfFirst { it.streamId == initialStream.streamId })
     }
-    val currentStream = remember(currentStreamIndex, activeStreamsList) { activeStreamsList.getOrNull(currentStreamIndex) ?: initialStream }
+    val logicalStream = remember(currentStreamIndex, activeStreamsList) { activeStreamsList.getOrNull(currentStreamIndex) ?: initialStream }
+    var selectedQualityStream by remember { mutableStateOf<LiveStream?>(null) }
+    var qualityVariants by remember { mutableStateOf<List<LiveVariant>>(emptyList()) }
+    var showQualitySelector by remember { mutableStateOf(false) }
+    var qualityAdjustmentNotification by remember { mutableStateOf<String?>(null) }
+    var recoveryMovedToQuality by remember { mutableStateOf(false) }
+    var preparedQualityGeneration by remember { mutableLongStateOf(0L) }
+    val currentStream = selectedQualityStream ?: logicalStream
 
     LaunchedEffect(currentStream) {
         onStreamChanged(currentStream)
@@ -205,6 +215,28 @@ fun PlayerScreen(
     var streamExtension by remember { mutableStateOf("m3u8") } // Default to m3u8
     var videoWidth by remember { mutableStateOf(0) }
     var videoHeight by remember { mutableStateOf(0) }
+
+    fun switchQuality(stream: LiveStream, automatic: Boolean) {
+        selectedQualityStream = stream
+        streamExtension = "m3u8"
+        viewModel.resetLiveQualityMeasurement()
+        if (automatic) qualityAdjustmentNotification = context.getString(R.string.player_quality_adjusted)
+    }
+
+    LaunchedEffect(logicalStream.streamId) {
+        selectedQualityStream = null
+        val qualityState = viewModel.startLiveQualitySession(logicalStream)
+        qualityVariants = qualityState.variants
+        selectedQualityStream = qualityState.selectedStream.takeIf { it.streamId != logicalStream.streamId }
+        preparedQualityGeneration = qualityState.generation
+    }
+
+    LaunchedEffect(qualityAdjustmentNotification) {
+        if (qualityAdjustmentNotification != null) {
+            delay(QUALITY_ADJUSTMENT_NOTIFICATION_MS)
+            qualityAdjustmentNotification = null
+        }
+    }
 
     // EPG « en cours + suivant » informatif (Phase 60) : rechargé à chaque
     // changement de chaîne. Aucune interaction (pas de timeshift, hors specs).
@@ -250,15 +282,24 @@ fun PlayerScreen(
 
         val mediaItem = MediaItem.fromUri(url)
         engineController.setMediaItem(mediaItem)
+        preparedQualityGeneration = viewModel.liveQualityGeneration()
         engineController.player.prepare()
         engineController.player.playWhenReady = true
     }
 
     // Player Event Listener
-    DisposableEffect(exoPlayer) {
+    DisposableEffect(exoPlayer, preparedQualityGeneration) {
         val listener = object : Player.Listener {
             override fun onPlaybackStateChanged(playbackState: Int) {
                 isBuffering = playbackState == Player.STATE_BUFFERING
+                when (playbackState) {
+                    Player.STATE_READY -> {
+                        viewModel.onLiveQualityReady(preparedQualityGeneration)
+                    }
+                    Player.STATE_BUFFERING -> viewModel.onLiveQualityBufferingStarted(preparedQualityGeneration)
+                        ?.let { switchQuality(it, automatic = true) }
+                }
+                if (playbackState != Player.STATE_BUFFERING) viewModel.onLiveQualityBufferingEnded()
             }
 
             override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
@@ -275,14 +316,25 @@ fun PlayerScreen(
                     error = error,
                     // Direct : pas de position à restaurer, reprise au live edge (§8.4) — le point
                     // d'extension F41 (tampon) n'existe pas encore (tâche 6).
-                    restore = PlaybackRestoreState(positionMs = androidx.media3.common.C.TIME_UNSET, playWhenReady = true, speed = 1f)
+                    restore = PlaybackRestoreState(positionMs = androidx.media3.common.C.TIME_UNSET, playWhenReady = true, speed = 1f),
+                    exhaustionListener = com.cstv.app.presentation.player.core.PlaybackRecoveryExhaustionListener { _, _ ->
+                        viewModel.onLiveQualityFailure(preparedQualityGeneration)?.let {
+                            recoveryMovedToQuality = true
+                            switchQuality(it, automatic = true)
+                        }
+                    }
                 ) { outcome ->
                     when (outcome) {
                         is RecoveryOutcome.Stable -> isBuffering = false
                         RecoveryOutcome.DecoderExhausted -> {
                             isBuffering = false
-                            isDeviceUnrepairable = true
-                            playbackError = context.getString(R.string.player_unrepairable_message)
+                            if (recoveryMovedToQuality) {
+                                recoveryMovedToQuality = false
+                                isBuffering = true
+                            } else {
+                                isDeviceUnrepairable = true
+                                playbackError = context.getString(R.string.player_unrepairable_message)
+                            }
                         }
                         is RecoveryOutcome.Aborted -> {
                             isBuffering = false
@@ -295,10 +347,17 @@ fun PlayerScreen(
                     PlaybackErrorHandling.AlreadyRepairing -> Unit
                     PlaybackErrorHandling.RepairStarted -> isBuffering = true
                     is PlaybackErrorHandling.NotDecoder -> {
-                        // If m3u8 fails, fallback once to TS format
+                        // Preserve the established m3u8→ts repair on this variant before F40 moves on.
                         if (streamExtension == "m3u8") {
                             streamExtension = "ts"
                             return
+                        }
+                        if (handling.type == PlaybackFailureType.NETWORK_SOURCE) {
+                            val next = viewModel.onLiveQualityFailure(preparedQualityGeneration)
+                            if (next != null) {
+                                switchQuality(next, automatic = true)
+                                return
+                            }
                         }
                         isBuffering = false
                         playbackError = if (currentLockUi.failOpen) context.getString(R.string.playback_lock_possible_limit) else "Impossible de charger le flux vidéo (${error.localizedMessage})"
@@ -332,6 +391,7 @@ fun PlayerScreen(
 
     fun zapNext() {
         if (activeStreamsList.isNotEmpty()) {
+            selectedQualityStream = null
             currentStreamIndex = (currentStreamIndex + 1) % activeStreamsList.size
             showOverlay = true
             streamExtension = "m3u8" // Reset extension to default on zap
@@ -340,6 +400,7 @@ fun PlayerScreen(
 
     fun zapPrev() {
         if (activeStreamsList.isNotEmpty()) {
+            selectedQualityStream = null
             currentStreamIndex = if (currentStreamIndex - 1 < 0) activeStreamsList.size - 1 else currentStreamIndex - 1
             showOverlay = true
             streamExtension = "m3u8" // Reset extension to default on zap
@@ -749,9 +810,38 @@ fun PlayerScreen(
                                 onClick = { showChannelList = true }
                             )
                         }
+                        if (qualityVariants.size > 1) {
+                            PlayerBottomAction(
+                                icon = Icons.Default.AspectRatio,
+                                label = stringResource(R.string.player_quality_action_label),
+                                onClick = { showQualitySelector = true }
+                            )
+                        }
                     }
                 }
             }
+        }
+
+        if (showQualitySelector) {
+            QualitySelectorSheet(
+                options = qualityVariants.map { variant ->
+                    QualityOption(variant, variant.stream.streamId == currentStream.streamId)
+                },
+                onSelect = { option ->
+                    switchQuality(viewModel.selectLiveQuality(option.variant), automatic = false)
+                    showQualitySelector = false
+                },
+                onDismiss = { showQualitySelector = false },
+                isTv = isTv,
+                isSwitching = isBuffering
+            )
+        }
+
+        qualityAdjustmentNotification?.let { message ->
+            Snackbar(
+                modifier = Modifier.align(Alignment.BottomCenter).padding(16.dp),
+                containerColor = Surface3
+            ) { Text(message, color = Color.White) }
         }
 
         // Channel List Drawer Overlay
@@ -957,6 +1047,7 @@ fun PlayerScreen(
                                         } else {
                                             activeStreamsList = streamsList
                                         }
+                                        selectedQualityStream = null
                                         val newIndex = activeStreamsList.indexOfFirst { it.streamId == stream.streamId }
                                         currentStreamIndex = if (newIndex != -1) newIndex else 0
                                         streamExtension = "m3u8"

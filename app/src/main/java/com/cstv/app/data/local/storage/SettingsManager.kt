@@ -44,6 +44,7 @@ class SettingsManager @Inject constructor(context: Context) {
         private const val KEY_NEW_EPISODES_CHECK_CURSOR = "new_episodes_check_cursor"
         private const val KEY_NEW_EPISODES_SERIES_CURSOR_PREFIX = "new_episodes_series_cursor_"
         private const val KEY_NOTIFICATION_PERMISSION_REQUESTED = "notification_permission_requested"
+        private const val KEY_LIVE_QUALITY_MODE_DEFAULT = "live_quality_mode_default"
     }
 
     // --- F12 : détection de nouveaux épisodes en arrière-plan ---
@@ -164,6 +165,13 @@ class SettingsManager @Inject constructor(context: Context) {
 
     fun setDebugModeEnabled(enabled: Boolean) {
         sharedPreferences.edit().putBoolean(KEY_DEBUG_MODE_ENABLED, enabled).apply()
+    }
+
+    /** F40: default only for subsequently opened live channels. */
+    fun getLiveQualityModeDefault(): Boolean = sharedPreferences.getBoolean(KEY_LIVE_QUALITY_MODE_DEFAULT, false)
+
+    fun setLiveQualityModeDefault(enabled: Boolean) {
+        sharedPreferences.edit().putBoolean(KEY_LIVE_QUALITY_MODE_DEFAULT, enabled).apply()
     }
 
     private inline fun <reified T : Enum<T>> enumOrDefault(name: String?, default: T): T {

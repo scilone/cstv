@@ -80,6 +80,16 @@ L'architecture de F39 consomme les colonnes `linkKey`, `releaseYear`, `languageT
 * **`VersionSelectorSheet`** : Sélecteur graphique adaptatif qui affiche une `ModalBottomSheet` sur mobile et un dialogue focalisable (`AlertDialog`) sur Android TV.
 * **Coexistence F39/T23 (Un seul pilote de moteur)** : Les listeners et contrôles de F39 et de l'auto-réparation technique de lecture (T23) sont coordonnés de manière exclusive afin qu'un seul mécanisme ne pilote le moteur `ExoPlayer` à la fois, interdisant tout conflit ou instabilité de lecture.
 
+#### Sélecteur de qualité des chaînes et mode automatique avec repli (F40)
+
+L'architecture de F40 s'appuie sur la clé de liaison T21 pour regrouper les flux de direct d'une même chaîne et se structure autour des composants suivants :
+
+* **`LiveVariantRepository`** : Interface dans la couche `domain/repository` (et son implémentation dans `data/repository`) qui résout les variantes de chaînes en direct à partir de l'entité stockée de manière réactive, permettant d'exclure les clés de liaison vides et de trier de manière déterministe par qualité normalisée (`UHD_4K > FHD > HD > SD > UNKNOWN`), puis par `num` et `streamId` croissants.
+* **`LiveStabilityMonitor`** : Composant de la couche de présentation chargé de mesurer la stabilité d'un flux de direct. Il enregistre sur un unique `Player.Listener` les états `STATE_READY` (mesure du délai d'ouverture) et `STATE_BUFFERING` (mesures d'occurrences et de durée cumulée). Il conserve ces événements sur une fenêtre glissante de 120 secondes avec un mécanisme de fusion pour les callbacks dupliqués à moins de 500 ms, et notifie l'épuisement ou le franchissement du seuil d'instabilité (5 coupures).
+* **`LiveQualityController`** : Machine d'état automatique indépendante de la plateforme. Il gère la session courante `LiveQualitySession` et son cycle de vie (réinitialisé au zapping ou à la fermeture), enregistre les tentatives réelles et les mesures associées pour interdire toute oscillation ou réessai de flux rejetés, calcule le score lexicographique déterministe de la « moins mauvaise » variante en cas d'épuisement, et propose des points d'extension pour F41/F42 (via des interfaces fonctionnelles).
+* **`QualitySelectorSheet`** : Bottom sheet sur mobile et dialogue sur TV qui liste les variantes d'une chaîne et permet la sélection manuelle. Un choix utilisateur positionne `automaticDisabledByUser = true` sur la session active pour désactiver l'automatisme pour le reste de la session de lecture.
+* **Intégration unifiée et découplage (ViewModels & View)** : Les états F40 (session, contrôleur, moniteur, message de repli) sont hébergés de manière testable dans `LiveTvViewModel`. La coordination d'erreurs réelles dans `PlaybackRecoveryCoordinator` orchestre le partage entre F40 (erreurs réseau/source, instabilités) et T23 (erreurs de décodage).
+
 #### C. Couche Présentation (`presentation/`)
 Responsable de l'interface utilisateur. Elle utilise **Jetpack Compose** pour l'UI.
 * **ViewModels** : Un ViewModel par écran. Il gère l'état de l'interface (StateFlow) et interagit avec la couche Domaine. Zéro logique métier directe dans les Composables.

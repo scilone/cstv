@@ -2,6 +2,16 @@
 
 ## À venir — non publiée
 
+## [v1.87.0] - 2026-08-18
+### ✨ Sélecteur de qualité des chaînes et mode automatique avec repli (F40)
+* **Changement de qualité à la volée** : Bouton « Qualité » intégré directement dans la barre d'actions du lecteur de chaînes de télévision en direct. Il liste toutes les variantes disponibles d'une même chaîne (partageant la clé de liaison T21) et permet une bascule instantanée sans interruption inutile. Le bouton est automatiquement masqué s'il n'existe qu'une seule variante exploitable.
+* **Mode automatique avec repli (opt-in)** : Un nouveau réglage dans les Paramètres permet de faire du mode automatique le comportement par défaut pour toutes les chaînes. Au zapping, le lecteur tente la meilleure qualité disponible ; en cas d'échec d'ouverture ou d'instabilité (5 coupures de buffering en moins de 120 s), il se replie automatiquement sur la qualité immédiatement inférieure.
+* **Signalement discret** : Chaque repli de qualité est notifié à l'utilisateur de manière brève et discrète (« Qualité réduite pour stabiliser la lecture ») sans interrompre ou bloquer la lecture.
+* **Aucune remontée oscillatoire** : Afin d'éviter des bascules de flux réseau intempestives et insidieuses, le lecteur conserve la qualité stable trouvée pendant toute la session de visionnage. La meilleure qualité est retentée de zéro lors du prochain zapping.
+* **Priorité au contrôle utilisateur** : Une sélection manuelle de la qualité désactive d'office le mode automatique pour cette chaîne le temps de la session en cours.
+* **Bascule sur le flux le « moins mauvais »** : En cas de pannes réseau sur tous les flux d'une même chaîne, l'application se fixe intelligemment sur le flux mesuré comme le moins mauvais (score calculé sur l'atteinte de l'état prêt, le buffering, le délai d'ouverture et la qualité) plutôt que d'abandonner l'utilisateur devant un écran noir.
+* **Architecture robuste et découplée** : Intégration transparente et résiliente avec l'auto-réparation technique de lecture (T23) et mise en place de points d'extension propres et testables pour les tickets futurs F41 (timeshift) et F42 (catch-up).
+
 ## [v1.86.3] - 2026-08-17
 ### ✨ Étiquettes de version et sélecteur de versions dans le lecteur (F39)
 * **Étiquettes dans les listes** : Affiche automatiquement des badges de langue et de qualité (ex. « VF · 4K ») sur les vignettes de films et de séries dans toutes les listes (Accueil, catalogues, recherche, favoris) pour faciliter le choix dès le premier coup d'œil.

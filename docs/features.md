@@ -350,6 +350,18 @@ Cette fonctionnalité permet d'identifier immédiatement les différentes versio
 
 ---
 
+## 32. Sélecteur de qualité des chaînes et mode automatique avec repli (F40)
+Cette fonctionnalité permet de changer de qualité ou de variante d'une chaîne de télévision en direct directement depuis le lecteur sans interrompre le visionnage, et intègre un mode automatique intelligent capable de détecter les instabilités de flux pour basculer de manière autonome vers une variante de repli stable.
+* **Sélecteur de qualité à la volée** : Un bouton « Qualité » apparaît dans les contrôles du lecteur de direct (masqué s'il n'existe qu'une seule variante exploitable pour la chaîne, basé sur la clé de liaison T21). Cliquer dessus liste toutes les variantes disponibles, permettant un changement instantané de flux.
+* **Mode automatique intelligent (opt-in)** : Un réglage global dans les Paramètres permet d'activer le mode automatique comme comportement par défaut pour toutes les chaînes. Lorsqu'il est actif, le lecteur tente d'ouvrir d'emblée la meilleure qualité disponible.
+* **Détection d'instabilité et repli autonome** : Si le flux de qualité supérieure échoue à l'ouverture, ou s'il accumule 5 coupures de mise en mémoire tampon (buffering) en moins de 120 secondes, le contrôleur bascule automatiquement sur la qualité inférieure. Un message discret (« Qualité réduite pour stabiliser la lecture ») signale le repli sans bloquer le visionnage.
+* **Élimination des oscillations** : Aucune remontée automatique en qualité n'est tentée tant que la chaîne reste ouverte. La meilleure qualité est systématiquement retentée au prochain zapping (nouvelle ouverture de la chaîne).
+* **Priorité au choix manuel** : Si l'utilisateur choisit manuellement une qualité pendant une session automatique, le mode automatique est désactivé pour cette chaîne le temps de la session en cours, afin de respecter sa décision explicite.
+* **Recherche de la « moins mauvaise » variante** : Si tous les flux ont été essayés et se révèlent instables, le système calcule un score lexicographique déterministe (fondé sur l'atteinte de l'état `READY`, le nombre de coupures, le délai d'ouverture et la durée cumulée de buffering) pour se fixer sur le flux le moins mauvais, évitant de laisser l'utilisateur devant un écran noir.
+* **Intégration d'architecture unifiée** : Coexistence harmonieuse avec l'auto-réparation technique de lecture (T23) : une erreur de décodage est d'abord déléguée à T23 avant tout repli, tandis qu'une erreur réseau ou l'épuisement de T23 déclenche le repli F40. Des points d'extension isolent également la logique pour les futurs tickets F41 (timeshift) et F42 (catch-up).
+
+---
+
 ## 🚫 Fonctionnalités hors périmètre (Exclusions validées)
 Pour des raisons de performance, de stabilité ou d'expérience utilisateur, les fonctionnalités suivantes sont **strictement hors périmètre** :
 * **Multi-comptes Xtream** : L'application gère un seul compte Xtream Codes actif à la fois (les profils sont purement locaux et rattachés à ce compte unique).

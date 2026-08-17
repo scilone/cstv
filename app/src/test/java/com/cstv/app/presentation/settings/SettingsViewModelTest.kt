@@ -72,6 +72,7 @@ class SettingsViewModelTest {
         whenever(settingsManager.getSyncFrequency()).thenReturn(SyncFrequency.DISABLED)
         whenever(settingsManager.getSubtitleStyle()).thenReturn(SubtitleStyle())
         whenever(settingsManager.getDebugModeEnabled()).thenReturn(false)
+        whenever(settingsManager.getLiveQualityModeDefault()).thenReturn(false)
         whenever(cstvAuthRepository.storedEmail()).thenReturn(null)
         whenever(cloudSyncManager.status).thenReturn(kotlinx.coroutines.flow.MutableStateFlow(CloudSyncStatus.Idle))
         whenever(credentialsManager.getCredentials()).thenReturn(
@@ -115,6 +116,14 @@ class SettingsViewModelTest {
     @Test
     fun test_initialState_isNotSyncingNow() {
         assertEquals(false, viewModel.state.value.isSyncingNow)
+    }
+
+    @Test
+    fun `live quality preference is persisted`() {
+        assertEquals(false, viewModel.state.value.liveQualityModeDefault)
+        viewModel.updateLiveQualityModeDefault(true)
+        verify(settingsManager).setLiveQualityModeDefault(true)
+        assertEquals(true, viewModel.state.value.liveQualityModeDefault)
     }
 
     @Test

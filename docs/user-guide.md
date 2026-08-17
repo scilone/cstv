@@ -414,6 +414,34 @@ Lorsque vous changez manuellement de version pour un épisode de série, l'appli
 ### 🛡️ Sécurité anti-écrans noirs
 Si la version cible que vous sélectionnez présente un défaut technique de diffusion (serveur en panne, flux momentanément indisponible, etc.), l'application s'en rend compte immédiatement : elle effectue un **rollback automatique** pour vous ramener sur la version précédente à la même position, accompagnée d'un message informatif clair. Vous ne restez jamais devant un écran noir !
 
+---
+
+## 22. Sélecteur de qualité des chaînes et mode automatique avec repli (F40)
+
+Il arrive régulièrement que la qualité des flux de télévision en direct varie dans le temps, rendant un flux temporairement instable ou injouable. Pour y remédier, CSTV IPTV regroupe toutes les variantes de qualité d'une même chaîne (par exemple, UHD, FHD, HD, SD) et vous permet d'en changer très simplement, voire d'automatiser cette tâche.
+
+### ⚙️ Choix manuel de la qualité
+Si une chaîne de télévision en direct possède plusieurs variantes, un bouton **« Qualité »** apparaît dans les contrôles du lecteur.
+1. Cliquez sur ce bouton pour ouvrir le panneau (bottom sheet sur mobile ou dialogue sur TV) répertoriant toutes les qualités disponibles.
+2. Choisissez la qualité désirée.
+3. Le lecteur bascule instantanément sur le nouveau flux de direct de la chaîne.
+
+*Note : si la chaîne n'a qu'un seul flux disponible ou si son catalogue est en cours de normalisation, le bouton « Qualité » n'apparaît pas.*
+
+### 🤖 Mode automatique avec repli intelligent
+Pour éviter d'avoir à zapper manuellement lorsque votre connexion faiblit, vous pouvez confier cette tâche à l'application :
+1. Rendez-vous dans les **Paramètres** de l'application.
+2. Activez le réglage de mode automatique par défaut pour le direct.
+3. Lors du zapping, l'application lancera toujours la meilleure qualité disponible pour la chaîne.
+4. Si le flux de départ échoue ou si l'application détecte **5 coupures de mise en mémoire tampon en moins de 2 minutes**, elle bascule automatiquement sur la qualité inférieure.
+5. Un message discret s'affiche brièvement à l'écran (« Qualité réduite pour stabiliser la lecture ») sans interrompre votre émission.
+
+### 🛡️ Priorité absolue à vos choix et pas d'oscillations
+* **Pas de remontée automatique** : Une fois la qualité stable trouvée, l'application reste sur cette qualité pour toute la durée de votre visionnage de la chaîne afin d'éviter d'incessants et désagréables va-et-vient de qualité. La meilleure qualité sera retentée lors de votre prochain zapping sur cette chaîne.
+* **Priorité manuelle** : Si vous choisissez manuellement une qualité alors que le mode automatique est actif, l'automatisme est désactivé pour cette chaîne le temps de votre visionnage, respectant pleinement votre contrôle direct.
+* **Sélection de la « moins mauvaise »** : Si toutes les qualités de la chaîne subissent des pannes réseau ou des coupures, l'application calcule de manière intelligente la moins mauvaise variante testée et s'y fixe pour vous garantir une continuité d'affichage plutôt que de vous laisser devant un écran noir.
+
+
 
 
 

@@ -205,6 +205,9 @@
     <string name="player_versions_action_label">Versions</string>
     <string name="player_version_dialog_title">VERSIONS DISPONIBLES</string>
     <string name="player_version_rollback_message">Cette version n\'est pas disponible, retour à la version précédente.</string>
+    <string name="player_quality_action_label">Qualité</string>
+    <string name="player_quality_adjusted">Qualité réduite pour stabiliser la lecture</string>
+    <string name="player_quality_automatic">Automatique</string>
     <string name="series_search_placeholder">Rechercher dans cette catégorie...</string>
     <string name="settings_logout">DÉCONNEXION</string>
     <!-- B27 : carte « Comptes » des Paramètres (TV + mobile) -->
@@ -228,6 +231,10 @@
     <string name="settings_subtitle_size_mobile">Taille</string>
     <string name="settings_subtitle_color_mobile">Couleur du texte</string>
     <string name="settings_subtitle_background_mobile">Fond</string>
+    <string name="settings_live_quality_title">Qualité des chaînes en direct</string>
+    <string name="settings_live_quality_summary">Choisit automatiquement une variante plus stable en cas de coupure.</string>
+    <string name="settings_live_quality_manual">Mode manuel</string>
+    <string name="settings_live_quality_automatic">Mode automatique</string>
     <string name="vod_details_resume_playback">REPRENDRE LA LECTURE</string>
     <string name="vod_details_play_movie">LIRE LE FILM</string>
     <string name="vod_details_replay_movie">RELIRE DEPUIS LE DÉBUT</string>

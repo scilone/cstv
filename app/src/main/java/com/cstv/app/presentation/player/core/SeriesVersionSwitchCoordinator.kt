@@ -1,7 +1,11 @@
 package com.cstv.app.presentation.player.core
 
 import com.cstv.app.domain.model.SeriesEpisode
+import com.cstv.app.domain.model.SeriesStream
 import com.cstv.app.domain.model.SeriesVersionCandidate
+
+/** Nom affiché d'une version série : titre T21 nettoyé, jamais le nom Xtream brut si un mieux existe. */
+private fun SeriesStream.displayTitle(): String = cleanTitle.ifBlank { name }
 
 /**
  * F39-R2/R3/R4 (étape 7) : orchestration pure de « quelle version série est réellement jouée »,
@@ -17,6 +21,8 @@ import com.cstv.app.domain.model.SeriesVersionCandidate
 class SeriesVersionSwitchCoordinator(
     initialSeriesId: Int,
     initialEpisode: SeriesEpisode,
+    /** Retour utilisateur du 2026-08-18 : le nom affiché doit suivre la version jouée. */
+    initialSeriesName: String,
     private val versionsEnabled: Boolean,
     private val switchController: MediaVersionSwitchController,
     private val buildPlayUrl: (SeriesEpisode) -> String,
@@ -28,6 +34,9 @@ class SeriesVersionSwitchCoordinator(
     var currentSeriesId: Int = initialSeriesId
         private set
     var currentEpisode: SeriesEpisode = initialEpisode
+        private set
+    /** Nom affiché de la version actuellement jouée — change avec [currentSeriesId]. */
+    var currentSeriesName: String = initialSeriesName
         private set
 
     /**
@@ -46,6 +55,7 @@ class SeriesVersionSwitchCoordinator(
         if (preferred != null) {
             currentSeriesId = preferred.series.seriesId
             currentEpisode = preferred.episode
+            currentSeriesName = preferred.series.displayTitle()
         } else {
             currentEpisode = fallback
         }
@@ -78,6 +88,7 @@ class SeriesVersionSwitchCoordinator(
             MediaVersionSwitchResult.Switched -> {
                 currentSeriesId = candidate.series.seriesId
                 currentEpisode = candidate.episode
+                currentSeriesName = candidate.series.displayTitle()
                 candidate.series.linkKey.takeIf { it.isNotBlank() }?.let { linkKey ->
                     onPersistPreference(linkKey, candidate.series.seriesId)
                 }

@@ -9,6 +9,7 @@ data class SettingsState(
     val isSyncingNow: Boolean = false,
     val subtitleStyle: SubtitleStyle = SubtitleStyle(),
     val debugModeEnabled: Boolean = false,
+    val liveQualityModeDefault: Boolean = false,
     val isUploadingLogs: Boolean = false,
     val uploadedLogsUrl: String? = null,
     val uploadLogsError: String? = null,

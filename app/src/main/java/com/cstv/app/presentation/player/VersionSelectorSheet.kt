@@ -49,7 +49,7 @@ import com.cstv.app.presentation.theme.Surface3
  * ou `SeriesVersionResolver.resolve`, l'un et l'autre déjà nommés par leurs
  * attributs extraits T21 (ex. « VF · 4K », §8.1 — jamais le libellé brut).
  */
-data class VersionOption(val id: Int, val label: String, val isActive: Boolean)
+data class VersionOption(val id: Int, val label: String, val isActive: Boolean, val enabled: Boolean = true, val disabledReason: String? = null)
 
 /**
  * Réutilise l'emplacement et le style de focus de [com.cstv.app.presentation.
@@ -164,22 +164,20 @@ private fun VersionSelectorContent(
                             shape = RoundedCornerShape(8.dp)
                         )
                         .background(if (isFocused) Color(0xFF2C2C35) else if (option.isActive) Color(0x33FFB300) else Surface1)
-                        .clickable { onSelect(option) }
+                        .clickable(enabled = option.enabled) { onSelect(option) }
                         .padding(12.dp)
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         RadioButton(
                             selected = option.isActive,
-                            onClick = { onSelect(option) },
+                            onClick = if (option.enabled) ({ onSelect(option) }) else null,
                             colors = RadioButtonDefaults.colors(selectedColor = MaterialTheme.colorScheme.primary)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = option.label,
-                            color = Color.White,
-                            fontSize = 14.sp,
-                            fontWeight = if (option.isActive) FontWeight.Bold else FontWeight.Normal
-                        )
+                        Column {
+                            Text(option.label, color = if (option.enabled) Color.White else Color.Gray, fontSize = 14.sp, fontWeight = if (option.isActive) FontWeight.Bold else FontWeight.Normal)
+                            option.disabledReason?.let { Text(it, color = Color.Gray, fontSize = 12.sp) }
+                        }
                     }
                 }
             }

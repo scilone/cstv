@@ -46,10 +46,6 @@ class LiveTvRepositoryImpl @Inject constructor(
 
     private fun LiveCategoryEntity.toDomain() = LiveCategory(categoryId, categoryName, parentId)
 
-    private fun LiveStreamEntity.toDomain() =
-        LiveStream(streamId, name, streamIcon, epgChannelId, num, categoryId,
-            cleanTitle, linkKey, languageTag, languageRaw, qualityTag, qualityRaw)
-
     // --- Lecture locale ---
 
     override fun observeLiveCategories(): Flow<List<LiveCategory>> =

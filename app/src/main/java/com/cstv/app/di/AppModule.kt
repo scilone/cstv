@@ -571,6 +571,11 @@ object AppModule {
 
     @Provides
     @Singleton
+    fun provideLiveVariantRepository(liveTvDao: LiveTvDao): com.cstv.app.domain.repository.LiveVariantRepository =
+        com.cstv.app.data.repository.LiveVariantRepository(liveTvDao)
+
+    @Provides
+    @Singleton
     fun provideVodRepository(
         apiService: XtreamApiService,
         vodDao: VodDao,

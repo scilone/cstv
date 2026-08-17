@@ -44,7 +44,10 @@ object MediaTitleParser {
     // catalogue (`|VO|STFR|`), jamais un marqueur autonome au sens strict —
     // mais on ne le fusionne plus dans un autre libellé (décision produit :
     // chaque fragment reste visible tel quel, jamais reformulé).
-    private val technicalTokens = setOf("HDR", "X265", "X264", "H265", "H264", "3D", "EN", "STFR")
+    // Retour utilisateur du 2026-08-18 : `DV` (Dolby Vision, souvent accolé à la
+    // qualité — ex. `4K-DV`) restait dans le titre nettoyé et cassait le
+    // rattachement au linkKey des autres versions de la même série/du même film.
+    private val technicalTokens = setOf("HDR", "X265", "X264", "H265", "H264", "3D", "EN", "STFR", "DV")
     private val tokenRegex = Regex("[\\p{L}\\p{N}]+")
     private val whitespace = Regex("\\s+")
     private val year = Regex("(?:19|20)\\d{2}")
