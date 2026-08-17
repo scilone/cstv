@@ -68,15 +68,20 @@ class FavoritesRepositoryImpl @Inject constructor(
                 LiveStream(it.streamId, it.name, it.streamIcon, it.epgChannelId, it.num, it.categoryId)
             },
             vodResults = vodEntities.map {
+                // Bug corrigé : constructeur partiel omettant linkKey/tags T21 — la recherche
+                // ne montrait jamais les badges de version, et un item ouvert depuis la recherche
+                // n'aurait rejoint aucune version tant que la fiche ne le rechargeait pas.
                 VodStream(
                     it.streamId, it.name, it.streamIcon, it.rating, it.added, it.categoryId,
-                    it.genre, it.releaseYear?.takeIf { y -> y > 0 }, it.actors, it.director, it.searchText
+                    it.genre, it.releaseYear?.takeIf { y -> y > 0 }, it.actors, it.director, it.searchText,
+                    it.cleanTitle, it.linkKey, it.languageTag, it.languageRaw, it.qualityTag, it.qualityRaw, it.versionLabel
                 )
             },
             seriesResults = seriesEntities.map {
                 SeriesStream(
                     it.seriesId, it.name, it.cover, it.rating, it.added, it.categoryId,
-                    it.genre, it.releaseYear?.takeIf { y -> y > 0 }, it.actors, it.director, it.searchText
+                    it.genre, it.releaseYear?.takeIf { y -> y > 0 }, it.actors, it.director, it.searchText,
+                    it.cleanTitle, it.linkKey, it.languageTag, it.languageRaw, it.qualityTag, it.qualityRaw, it.versionLabel
                 )
             }
         )

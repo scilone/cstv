@@ -151,6 +151,41 @@ class FavoritesRepositoryImplTest {
     }
 
     @Test
+    fun test_searchUnified_carriesT21LinkKeyAndVersionLabel() = runTest {
+        // Bug corrigé : searchUnified construisait VodStream/SeriesStream avec un constructeur
+        // partiel qui omettait cleanTitle/linkKey/tags T21 — la recherche n'affichait jamais les
+        // badges de version, et un item ouvert depuis elle ne rejoignait aucune version tant que
+        // la fiche ne le rechargeait pas.
+        val expectedSqlQuery = "%supergirl%"
+        whenever(favoritesDao.searchLiveStreams(expectedSqlQuery)).thenReturn(emptyList())
+        whenever(favoritesDao.searchVodStreams(expectedSqlQuery)).thenReturn(
+            listOf(
+                VodStreamEntity(
+                    2, "|FR| Supergirl", null, null, null, "5", 0L,
+                    cleanTitle = "Supergirl", linkKey = "abc123", languageTag = "vf", versionLabel = "FR",
+                    searchText = "supergirl"
+                )
+            )
+        )
+        whenever(favoritesDao.searchSeriesStreams(expectedSqlQuery)).thenReturn(
+            listOf(
+                SeriesStreamEntity(
+                    3, "|VO|STFR| Supergirl", null, null, null, "12", 0L,
+                    cleanTitle = "Supergirl", linkKey = "abc123", languageTag = "vo", versionLabel = "VO · STFR",
+                    searchText = "supergirl"
+                )
+            )
+        )
+
+        val result = repository.searchUnified("supergirl")
+
+        assertEquals("abc123", result.vodResults.single().linkKey)
+        assertEquals("FR", result.vodResults.single().versionLabel)
+        assertEquals("abc123", result.seriesResults.single().linkKey)
+        assertEquals("VO · STFR", result.seriesResults.single().versionLabel)
+    }
+
+    @Test
     fun test_searchUnified_returnsEmptyResult_whenQueryIsBlank() = runTest {
         val result = repository.searchUnified("  ")
 
