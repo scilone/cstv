@@ -79,7 +79,7 @@ import com.cstv.app.data.local.dao.SeriesVersionPreferenceDao
         PlaybackRepairProfileEntity::class,
         SeriesVersionPreferenceEntity::class
     ],
-    version = 33,
+    version = 34,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

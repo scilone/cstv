@@ -21,7 +21,6 @@ import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.VolumeOff
 import androidx.compose.material.icons.filled.VolumeUp
@@ -102,8 +101,23 @@ fun SeriesDetailsScreen(
     // avec son bouton dans la tête de fiche.
     var trailerMuted by remember(trailerMedia, isTv) { mutableStateOf(!isTv) }
     val snackbarHostState = remember { SnackbarHostState() }
-    // F39 §8.6 (évolution PO) : sélecteur de versions, partagé mobile/TV.
+    // F39 §8.6 (évolution PO) : sélecteur de versions — TV uniquement (dialogue plein écran,
+    // `showVersionDialog`) ; mobile l'affiche en dropdown ancré au bouton de lecture, sans passer
+    // par cet état. Calculé une seule fois, réutilisé par les deux plateformes.
     var showVersionDialog by remember { mutableStateOf(false) }
+    val versionOptions = remember(availableVersions, details.seriesId) {
+        availableVersions.map { version ->
+            com.cstv.app.presentation.player.VersionOption(
+                id = version.seriesId,
+                // Repli sur le titre affiché, jamais un libellé générique inventé
+                // ni le nom Xtream brut (version.name).
+                label = com.cstv.app.domain.model.mediaVersionSelectorLabel(
+                    version.versionLabel, version.cleanTitle.ifBlank { version.name }
+                ),
+                isActive = version.seriesId == details.seriesId
+            )
+        }
+    }
     LaunchedEffect(ratingError) { ratingError?.let { snackbarHostState.showSnackbar(it); onConsumeRatingError() } }
     var selectedSeasonNumber by remember(details.seriesId) { mutableStateOf(details.seasons.firstOrNull()?.seasonNumber ?: 1) }
     val currentEpisodes = remember(selectedSeasonNumber, details.episodes) {
@@ -225,8 +239,8 @@ fun SeriesDetailsScreen(
                     relatedSeries = relatedSeries,
                     onSelectRelated = onSelectRelated,
                     episodeDownloads = episodeDownloads,
-                    hasMultipleVersions = availableVersions.size > 1,
-                    onOpenVersions = { showVersionDialog = true },
+                    versionOptions = versionOptions,
+                    onSelectVersion = onSelectVersion,
                     onDownloadEpisode = onDownloadEpisode,
                     onRemoveEpisodeDownload = onRemoveEpisodeDownload,
                     mediaRating = mediaRating,
@@ -240,19 +254,10 @@ fun SeriesDetailsScreen(
         SnackbarHost(hostState = snackbarHostState, modifier = Modifier.align(Alignment.BottomCenter))
 
         // F39 §8.6 (évolution PO) : sélectionner une version recharge intégralement la fiche.
+        // TV uniquement — mobile sélectionne directement dans le dropdown du bouton de lecture.
         if (showVersionDialog) {
-            val versionFallbackLabel = stringResource(R.string.player_version_label_fallback)
             com.cstv.app.presentation.player.VersionSelectorSheet(
-                options = availableVersions.map { version ->
-                    com.cstv.app.presentation.player.VersionOption(
-                        id = version.seriesId,
-                        // F39-R7 : jamais le nom Xtream brut (version.name) en repli.
-                        label = com.cstv.app.domain.model.mediaVersionSelectorLabel(
-                            version.versionLabel, versionFallbackLabel
-                        ),
-                        isActive = version.seriesId == details.seriesId
-                    )
-                },
+                options = versionOptions,
                 isSwitching = false,
                 onSelect = { option ->
                     showVersionDialog = false
@@ -547,8 +552,8 @@ private fun MobileLayout(
     relatedSeries: List<SeriesStream> = emptyList(),
     onSelectRelated: (SeriesStream) -> Unit = {},
     episodeDownloads: Map<Int, com.cstv.app.domain.model.DownloadedItem> = emptyMap(),
-    hasMultipleVersions: Boolean = false,
-    onOpenVersions: () -> Unit = {},
+    versionOptions: List<com.cstv.app.presentation.player.VersionOption> = emptyList(),
+    onSelectVersion: (Int) -> Unit = {},
     onDownloadEpisode: (SeriesEpisode) -> Unit = {},
     onRemoveEpisodeDownload: (Int) -> Unit = {},
     mediaRating: MediaRatingValue?,
@@ -641,29 +646,40 @@ private fun MobileLayout(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Playback resume button
+        // Playback resume button — F39 §8.6 (évolution PO) : chevron de version accolé, jamais un
+        // bouton « Versions » séparé (retour PO), masqué à 0/1 candidate.
         if (targetEpisode != null) {
-            Button(
-                onClick = { onEpisodeClick(targetEpisode) },
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                shape = RoundedCornerShape(8.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(44.dp)
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Color.White)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = if (hasResume) {
-                            "REPRENDRE : " + com.cstv.app.domain.model.EpisodeLabel
-                                .format(resumeEpisode!!.seasonNum, resumeEpisode.episodeNum)
-                                .orEmpty()
-                        } else "LIRE LA SÉRIE",
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp
-                    )
+            val playText = if (hasResume) {
+                "REPRENDRE : " + com.cstv.app.domain.model.EpisodeLabel
+                    .format(resumeEpisode!!.seasonNum, resumeEpisode.episodeNum)
+                    .orEmpty()
+            } else "LIRE LA SÉRIE"
+
+            if (versionOptions.size > 1) {
+                com.cstv.app.presentation.components.PlayButtonWithVersionsDropdown(
+                    text = playText,
+                    icon = Icons.Default.PlayArrow,
+                    onClick = { onEpisodeClick(targetEpisode) },
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = Color.White,
+                    versions = versionOptions,
+                    onSelectVersion = onSelectVersion,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            } else {
+                Button(
+                    onClick = { onEpisodeClick(targetEpisode) },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(44.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Color.White)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(text = playText, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    }
                 }
             }
             Spacer(modifier = Modifier.height(20.dp))
@@ -671,23 +687,6 @@ private fun MobileLayout(
 
         MediaRatingControls(mediaRating, false, onLike, onDislike)
         Spacer(modifier = Modifier.height(20.dp))
-
-        // F39 §8.6 (évolution PO) : bouton « Versions », masqué à 0/1 candidate.
-        if (hasMultipleVersions) {
-            OutlinedButton(
-                onClick = onOpenVersions,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Icon(
-                    imageVector = Icons.Default.SwapHoriz,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(stringResource(R.string.player_versions_action_label))
-            }
-            Spacer(modifier = Modifier.height(20.dp))
-        }
 
         // Seasons lazy row
         Text(

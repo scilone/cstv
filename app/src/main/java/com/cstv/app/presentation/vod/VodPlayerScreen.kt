@@ -1137,14 +1137,14 @@ fun VodPlayerScreen(
 
         // F39 §8.5 : sélecteur de versions.
         if (showVersionDialog) {
-            val versionFallbackLabel = stringResource(R.string.player_version_label_fallback)
             com.cstv.app.presentation.player.VersionSelectorSheet(
                 options = availableVersions.map { version ->
                     com.cstv.app.presentation.player.VersionOption(
                         id = version.streamId,
-                        // F39-R7 : jamais le nom Xtream brut (version.name) en repli.
+                        // Repli sur le titre affiché, jamais un libellé générique inventé
+                        // ni le nom Xtream brut (version.name).
                         label = com.cstv.app.domain.model.mediaVersionSelectorLabel(
-                            version.versionLabel, versionFallbackLabel
+                            version.versionLabel, version.cleanTitle.ifBlank { version.name }
                         ),
                         isActive = version.streamId == currentVersionStreamId
                     )

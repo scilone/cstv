@@ -16,7 +16,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -83,8 +82,23 @@ fun VodDetailsScreen(
     // avec son bouton dans la tête de fiche.
     var trailerMuted by remember(trailerMedia, isTv) { mutableStateOf(!isTv) }
     val snackbarHostState = remember { SnackbarHostState() }
-    // F39 §8.6 (évolution PO) : sélecteur de versions, partagé mobile/TV.
+    // F39 §8.6 (évolution PO) : sélecteur de versions — TV uniquement (dialogue plein écran,
+    // `showVersionDialog`) ; mobile l'affiche en dropdown ancré au bouton de lecture, sans passer
+    // par cet état. Calculé une seule fois, réutilisé par les deux plateformes.
     var showVersionDialog by remember { mutableStateOf(false) }
+    val versionOptions = remember(availableVersions, details.streamId) {
+        availableVersions.map { version ->
+            com.cstv.app.presentation.player.VersionOption(
+                id = version.streamId,
+                // Repli sur le titre affiché, jamais un libellé générique inventé
+                // ni le nom Xtream brut (version.name).
+                label = com.cstv.app.domain.model.mediaVersionSelectorLabel(
+                    version.versionLabel, version.cleanTitle.ifBlank { version.name }
+                ),
+                isActive = version.streamId == details.streamId
+            )
+        }
+    }
     LaunchedEffect(ratingError) { ratingError?.let { snackbarHostState.showSnackbar(it); onConsumeRatingError() } }
 
     com.cstv.app.presentation.components.TrailerAutoStartEffect(
@@ -175,8 +189,8 @@ fun VodDetailsScreen(
                             onPlayFromBeginning = onPlayFromBeginning,
                             onResumePlayback = onResumePlayback,
                             onSearchQueryTriggered = onSearchQueryTriggered,
-                            hasMultipleVersions = availableVersions.size > 1,
-                            onOpenVersions = { showVersionDialog = true }
+                            versionOptions = versionOptions,
+                            onSelectVersion = onSelectVersion
                         )
 
                         Spacer(modifier = Modifier.height(16.dp))
@@ -206,19 +220,10 @@ fun VodDetailsScreen(
         SnackbarHost(hostState = snackbarHostState, modifier = Modifier.align(Alignment.BottomCenter))
 
         // F39 §8.6 (évolution PO) : sélectionner une version recharge intégralement la fiche.
+        // TV uniquement — mobile sélectionne directement dans le dropdown du bouton de lecture.
         if (showVersionDialog) {
-            val versionFallbackLabel = stringResource(R.string.player_version_label_fallback)
             com.cstv.app.presentation.player.VersionSelectorSheet(
-                options = availableVersions.map { version ->
-                    com.cstv.app.presentation.player.VersionOption(
-                        id = version.streamId,
-                        // F39-R7 : jamais le nom Xtream brut (version.name) en repli.
-                        label = com.cstv.app.domain.model.mediaVersionSelectorLabel(
-                            version.versionLabel, versionFallbackLabel
-                        ),
-                        isActive = version.streamId == details.streamId
-                    )
-                },
+                options = versionOptions,
                 isSwitching = false,
                 onSelect = { option ->
                     showVersionDialog = false
@@ -239,8 +244,8 @@ private fun MobileLayoutDetails(
     onPlayFromBeginning: () -> Unit,
     onResumePlayback: (Long) -> Unit,
     onSearchQueryTriggered: (String) -> Unit,
-    hasMultipleVersions: Boolean = false,
-    onOpenVersions: () -> Unit = {}
+    versionOptions: List<com.cstv.app.presentation.player.VersionOption> = emptyList(),
+    onSelectVersion: (Int) -> Unit = {}
 ) {
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -344,29 +349,16 @@ private fun MobileLayoutDetails(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Playback Options
+        // Playback Options — F39 §8.6 (évolution PO) : le chevron de version est accolé au bouton
+        // « Lire depuis le début », jamais un bouton « Versions » séparé (retour PO), masqué à 0/1
+        // candidate (versionOptions vide dans ce cas).
         PlayButtonsRow(
             resumePositionMs = details.resumePositionMs,
             onPlayFromBeginning = onPlayFromBeginning,
-            onResumePlayback = { onResumePlayback(details.resumePositionMs) }
+            onResumePlayback = { onResumePlayback(details.resumePositionMs) },
+            versionOptions = versionOptions,
+            onSelectVersion = onSelectVersion
         )
-
-        // F39 §8.6 (évolution PO) : bouton « Versions », masqué à 0/1 candidate.
-        if (hasMultipleVersions) {
-            Spacer(modifier = Modifier.height(12.dp))
-            OutlinedButton(
-                onClick = onOpenVersions,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Icon(
-                    imageVector = Icons.Default.SwapHoriz,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(stringResource(R.string.player_versions_action_label))
-            }
-        }
     }
 }
 
@@ -437,9 +429,16 @@ internal fun CreditNameChip(
 private fun PlayButtonsRow(
     resumePositionMs: Long,
     onPlayFromBeginning: () -> Unit,
-    onResumePlayback: () -> Unit
+    onResumePlayback: () -> Unit,
+    versionOptions: List<com.cstv.app.presentation.player.VersionOption> = emptyList(),
+    onSelectVersion: (Int) -> Unit = {}
 ) {
     val hasHistory = resumePositionMs > 0L
+    val playContainerColor = if (hasHistory) Color(0xFF2A2A35) else MaterialTheme.colorScheme.primary
+    val playText = stringResource(
+        if (hasHistory) R.string.vod_details_replay_movie else R.string.vod_details_play_movie
+    )
+    val playIcon = if (hasHistory) Icons.Default.Replay else Icons.Default.PlayArrow
 
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -460,29 +459,31 @@ private fun PlayButtonsRow(
             }
         }
 
-        Button(
-            onClick = onPlayFromBeginning,
-            colors = ButtonDefaults.buttonColors(
-                containerColor = if (hasHistory) Color(0xFF2A2A35) else MaterialTheme.colorScheme.primary
-            ),
-            shape = RoundedCornerShape(8.dp),
-            modifier = Modifier.fillMaxWidth().height(44.dp)
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = if (hasHistory) Icons.Default.Replay else Icons.Default.PlayArrow,
-                    contentDescription = null,
-                    tint = Color.White
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = stringResource(
-                        if (hasHistory) R.string.vod_details_replay_movie else R.string.vod_details_play_movie
-                    ),
-                    color = Color.White,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 13.sp
-                )
+        // F39 §8.6 (évolution PO) : chevron de version accolé — jamais un bouton « Versions »
+        // séparé. Masqué à 0/1 candidate (retombe alors sur le bouton plein plat d'origine).
+        if (versionOptions.size > 1) {
+            com.cstv.app.presentation.components.PlayButtonWithVersionsDropdown(
+                text = playText,
+                icon = playIcon,
+                onClick = onPlayFromBeginning,
+                containerColor = playContainerColor,
+                contentColor = Color.White,
+                versions = versionOptions,
+                onSelectVersion = onSelectVersion,
+                modifier = Modifier.fillMaxWidth()
+            )
+        } else {
+            Button(
+                onClick = onPlayFromBeginning,
+                colors = ButtonDefaults.buttonColors(containerColor = playContainerColor),
+                shape = RoundedCornerShape(8.dp),
+                modifier = Modifier.fillMaxWidth().height(44.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(imageVector = playIcon, contentDescription = null, tint = Color.White)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(text = playText, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                }
             }
         }
     }

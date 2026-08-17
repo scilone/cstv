@@ -37,7 +37,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.ThumbDown
 import androidx.compose.material.icons.filled.ThumbUp
 import androidx.compose.material.icons.filled.Warning
@@ -824,31 +823,20 @@ private fun TvSeriesHeroPanel(
                 TvSeriesActionDivider()
                 TvSeriesAction(Icons.Default.ThumbDown, stringResource(R.string.media_rating_dislike), if (mediaRating == MediaRatingValue.DISLIKE) RatingDislike else TextPrimary, mediaRating == MediaRatingValue.DISLIKE, active && !isRatingSaving, onDislike, Modifier.weight(1f))
             }
-            // F39 §8.6 (évolution PO) : rangée séparée, voir le commentaire
-            // équivalent sur VodDetailsTvLayout — le trio ci-dessus reste
-            // intentionnellement à parts égales.
-            if (hasMultipleVersions) {
-                Spacer(Modifier.height(10.dp))
-                TvSeriesAction(
-                    Icons.Default.SwapHoriz,
-                    stringResource(R.string.player_versions_action_label),
-                    TextPrimary,
-                    false,
-                    active,
-                    onOpenVersions,
-                    Modifier.fillMaxWidth()
-                )
-            }
             Spacer(Modifier.height(18.dp))
             val episode = playbackTarget.episode
             val label = if (playbackTarget.isResume && episode != null) {
                 stringResource(R.string.series_details_resume_episode, EpisodeLabel.format(episode.seasonNum, episode.episodeNum).orEmpty())
             } else stringResource(R.string.series_details_play)
-            TvSeriesPlayButton(
+            // F39 §8.6 (évolution PO) : chevron de version accolé au bouton de lecture, jamais un
+            // bouton « Versions » séparé (retour PO) — plus de trio à réaligner sous les actions.
+            TvSeriesPlayButtonWithVersionsChevron(
                 text = label,
                 onClick = onPlay,
                 active = active,
                 onMoveDown = onMoveToEpisodes,
+                hasMultipleVersions = hasMultipleVersions,
+                onOpenVersions = onOpenVersions,
                 modifier = Modifier.tvInitialFocusTarget(initialFocus, active)
             )
             if (playbackTarget.isResume && tvSeriesProgressFraction(episode) > 0f) {
@@ -955,13 +943,12 @@ private fun TvSeriesPlayButton(
     onClick: () -> Unit,
     active: Boolean,
     onMoveDown: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    shape: androidx.compose.ui.graphics.Shape = RoundedCornerShape(14.dp)
 ) {
     var focused by remember { mutableStateOf(false) }
-    val shape = RoundedCornerShape(14.dp)
     Box(
         modifier = modifier
-            .fillMaxWidth()
             .height(52.dp)
             .clip(shape)
             .focusProperties { canFocus = active }
@@ -981,6 +968,78 @@ private fun TvSeriesPlayButton(
             Icon(Icons.Default.PlayArrow, contentDescription = null, tint = TextPrimary, modifier = Modifier.size(20.dp))
             Spacer(Modifier.width(8.dp))
             Text(text, color = TextPrimary, fontFamily = HankenGrotesk, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+        }
+    }
+}
+
+/**
+ * F39 §8.6 (évolution PO) : [TvSeriesPlayButton] accolé à un chevron ouvrant
+ * le sélecteur de versions (dialogue plein écran existant, `onOpenVersions`
+ * — jamais `DropdownMenu`, focus D-pad pas fiable sur TV, voir
+ * `TvCategoryPicker`). Retombe sur [TvSeriesPlayButton] plein plat sans
+ * chevron à 0/1 candidate. Le chevron répond aussi à la touche Bas
+ * ([onMoveDown]), comme le bouton de lecture.
+ */
+@Composable
+private fun TvSeriesPlayButtonWithVersionsChevron(
+    text: String,
+    onClick: () -> Unit,
+    active: Boolean,
+    onMoveDown: () -> Unit,
+    hasMultipleVersions: Boolean,
+    onOpenVersions: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    if (!hasMultipleVersions) {
+        TvSeriesPlayButton(
+            text = text,
+            onClick = onClick,
+            active = active,
+            onMoveDown = onMoveDown,
+            modifier = modifier.fillMaxWidth()
+        )
+        return
+    }
+    Row(modifier = modifier.fillMaxWidth()) {
+        TvSeriesPlayButton(
+            text = text,
+            onClick = onClick,
+            active = active,
+            onMoveDown = onMoveDown,
+            shape = RoundedCornerShape(topStart = 14.dp, bottomStart = 14.dp, topEnd = 0.dp, bottomEnd = 0.dp),
+            modifier = Modifier.weight(1f)
+        )
+        Box(
+            modifier = Modifier
+                .width(1.dp)
+                .height(52.dp)
+                .background(Color.Black.copy(alpha = 0.22f))
+        )
+        var focused by remember { mutableStateOf(false) }
+        val chevronShape = RoundedCornerShape(topEnd = 14.dp, bottomEnd = 14.dp, topStart = 0.dp, bottomStart = 0.dp)
+        Box(
+            modifier = Modifier
+                .width(52.dp)
+                .height(52.dp)
+                .clip(chevronShape)
+                .focusProperties { canFocus = active }
+                .onFocusChanged { focused = it.isFocused }
+                .background(if (focused) AccentLavandeHover else AccentLavande)
+                .border(2.dp, if (focused) AccentLavandeHover else Color.Transparent, chevronShape)
+                .clickable(enabled = active) { onOpenVersions() }
+                .onKeyEvent { event ->
+                    if (active && event.type == KeyEventType.KeyDown && event.key == Key.DirectionDown) {
+                        onMoveDown()
+                        true
+                    } else false
+                },
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Default.KeyboardArrowDown,
+                contentDescription = stringResource(R.string.player_versions_action_label),
+                tint = TextPrimary
+            )
         }
     }
 }

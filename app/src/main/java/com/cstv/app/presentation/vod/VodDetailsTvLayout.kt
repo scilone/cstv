@@ -17,7 +17,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.filled.SwapHoriz
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.ThumbDown
 import androidx.compose.material.icons.filled.ThumbUp
 import androidx.compose.material.icons.filled.Warning
@@ -465,23 +465,6 @@ fun VodDetailsTvLayout(
                         )
                     }
 
-                    // F39 §8.6 (évolution PO) : rangée séparée plutôt qu'un quatrième
-                    // partage de largeur dans la rangée ci-dessus — celle-ci est un
-                    // trio à parts égales intentionnel (voir commentaire au-dessus),
-                    // et la chaîne de focus D-pad qui l'entoure est déjà finement
-                    // câblée (tvInitialFocusTarget/tvFocusDownTo).
-                    if (hasMultipleVersions) {
-                        Spacer(modifier = Modifier.height(10.dp))
-                        DetailActionButton(
-                            icon = Icons.Default.SwapHoriz,
-                            text = stringResource(R.string.player_versions_action_label),
-                            tint = TextPrimary,
-                            selected = false,
-                            onClick = onOpenVersions,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-
                     Spacer(modifier = Modifier.height(20.dp))
 
                     // Boutons de lecture, au dessin de la fiche mobile et sur
@@ -493,6 +476,11 @@ fun VodDetailsTvLayout(
                     // sur celle-ci, elle interceptait la descente depuis
                     // « reprendre la lecture » et sautait par-dessus « relire
                     // depuis le début ».
+                    //
+                    // F39 §8.6 (évolution PO) : le chevron de version est accolé au bouton de
+                    // lecture (jamais un bouton « Versions » séparé, retour PO) — `DropdownMenu`
+                    // n'ayant pas de focus D-pad fiable sur TV (voir TvCategoryPicker), le
+                    // chevron délègue au dialogue plein écran existant (`onOpenVersions`).
                     Column(
                         verticalArrangement = Arrangement.spacedBy(10.dp),
                         modifier = Modifier.fillMaxWidth()
@@ -507,20 +495,24 @@ fun VodDetailsTvLayout(
                                     .fillMaxWidth()
                                     .tvInitialFocusTarget(focusState)
                             )
-                            PlayButton(
+                            PlayButtonWithVersionsChevron(
                                 text = stringResource(R.string.vod_details_replay_movie),
                                 icon = Icons.Default.Replay,
                                 onClick = onPlayFromBeginning,
+                                hasMultipleVersions = hasMultipleVersions,
+                                onOpenVersions = onOpenVersions,
                                 primary = false,
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .tvFocusDownTo(firstRelatedFocus)
                             )
                         } else {
-                            PlayButton(
+                            PlayButtonWithVersionsChevron(
                                 text = stringResource(R.string.vod_details_play_movie),
                                 icon = Icons.Default.PlayArrow,
                                 onClick = onPlayFromBeginning,
+                                hasMultipleVersions = hasMultipleVersions,
+                                onOpenVersions = onOpenVersions,
                                 primary = true,
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -669,10 +661,10 @@ private fun PlayButton(
     icon: ImageVector,
     onClick: () -> Unit,
     primary: Boolean,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    shape: androidx.compose.ui.graphics.Shape = RoundedCornerShape(8.dp)
 ) {
     var isFocused by remember { mutableStateOf(false) }
-    val shape = RoundedCornerShape(8.dp)
     val container = when {
         primary && isFocused -> AccentLavandeHover
         primary -> AccentLavande
@@ -706,6 +698,73 @@ private fun PlayButton(
                 fontWeight = FontWeight.Bold,
                 fontSize = 13.sp,
                 fontFamily = HankenGrotesk
+            )
+        }
+    }
+}
+
+/**
+ * F39 §8.6 (évolution PO) : [PlayButton] accolé à un chevron ouvrant le
+ * sélecteur de versions ([onOpenVersions], dialogue plein écran existant —
+ * jamais `DropdownMenu`, dont le focus D-pad n'est pas fiable sur TV, voir
+ * `TvCategoryPicker`). Retombe sur un [PlayButton] plein plat sans chevron à
+ * 0/1 candidate.
+ */
+@Composable
+private fun PlayButtonWithVersionsChevron(
+    text: String,
+    icon: ImageVector,
+    onClick: () -> Unit,
+    hasMultipleVersions: Boolean,
+    onOpenVersions: () -> Unit,
+    primary: Boolean,
+    modifier: Modifier = Modifier
+) {
+    if (!hasMultipleVersions) {
+        PlayButton(text = text, icon = icon, onClick = onClick, primary = primary, modifier = modifier)
+        return
+    }
+    Row(modifier = modifier) {
+        PlayButton(
+            text = text,
+            icon = icon,
+            onClick = onClick,
+            primary = primary,
+            shape = RoundedCornerShape(topStart = 8.dp, bottomStart = 8.dp, topEnd = 0.dp, bottomEnd = 0.dp),
+            modifier = Modifier.weight(1f)
+        )
+        Box(
+            modifier = Modifier
+                .width(1.dp)
+                .height(44.dp)
+                .background(Color.Black.copy(alpha = 0.22f))
+        )
+        var isFocused by remember { mutableStateOf(false) }
+        val chevronShape = RoundedCornerShape(topEnd = 8.dp, bottomEnd = 8.dp, topStart = 0.dp, bottomStart = 0.dp)
+        val container = when {
+            primary && isFocused -> AccentLavandeHover
+            primary -> AccentLavande
+            else -> Surface3
+        }
+        Box(
+            modifier = Modifier
+                .width(48.dp)
+                .height(44.dp)
+                .clip(chevronShape)
+                .onFocusChanged { isFocused = it.isFocused }
+                .background(color = container, shape = chevronShape)
+                .border(
+                    width = 2.dp,
+                    color = if (isFocused) AccentLavandeHover else Color.Transparent,
+                    shape = chevronShape
+                )
+                .clickable { onOpenVersions() },
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Default.KeyboardArrowDown,
+                contentDescription = stringResource(R.string.player_versions_action_label),
+                tint = TextPrimary
             )
         }
     }

@@ -1031,4 +1031,34 @@ internal fun migration32To33Statements(): List<String> = listOf(
         "ON series_streams(categoryRank, seriesId, name, cover, rating, added, categoryId, genre, releaseYear, languageTag, qualityTag, versionLabel)"
 )
 
-val ALL_MIGRATIONS = arrayOf(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33)
+/**
+ * Correctif F39 (session suivante) : `MediaTitleParser` reconnaît désormais `FR`
+ * comme langue et fusionne le `|VO|STFR|` éclaté par le catalogue — deux bugs
+ * qui empêchaient certaines œuvres partageant la même version d'être liées
+ * (`linkKey` divergent) ou d'afficher leur étiquette. Ce correctif ne profite
+ * qu'aux lignes retraitées : la synchronisation catalogue régulière recalcule
+ * déjà `linkKey`/`versionLabel` à chaque passage, mais attendre le prochain
+ * cycle planifié est trop lent pour un correctif utilisateur.
+ *
+ * Repli sur le même mécanisme que T21 : vider `linkKey`/`cleanTitle`/tags sur
+ * `vod_streams`/`series_streams` fait retomber ces lignes dans la file que
+ * `CatalogNormalizationWorker` draine déjà en tâche de fond (WorkManager,
+ * pages de 500, contrainte batterie non faible) — aucune nouvelle
+ * infrastructure, aucun blocage de l'UI, comportement d'affichage identique à
+ * une ligne pas encore normalisée (aucun badge, bouton « Versions » masqué,
+ * déjà accepté §Arbitrages structurants F39 étape 3).
+ */
+val MIGRATION_33_34 = object : Migration(33, 34) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        migration33To34Statements().forEach(db::execSQL)
+    }
+}
+
+internal fun migration33To34Statements(): List<String> = listOf(
+    "UPDATE vod_streams SET cleanTitle = '', linkKey = '', languageTag = NULL, languageRaw = NULL, " +
+        "qualityTag = NULL, qualityRaw = NULL, versionLabel = NULL",
+    "UPDATE series_streams SET cleanTitle = '', linkKey = '', languageTag = NULL, languageRaw = NULL, " +
+        "qualityTag = NULL, qualityRaw = NULL, versionLabel = NULL"
+)
+
+val ALL_MIGRATIONS = arrayOf(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33, MIGRATION_33_34)

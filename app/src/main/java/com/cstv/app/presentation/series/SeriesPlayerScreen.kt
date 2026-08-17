@@ -1255,14 +1255,15 @@ fun SeriesPlayerScreen(
 
         // F39 §8.5 : sélecteur de versions.
         if (showVersionDialog) {
-            val versionFallbackLabel = stringResource(R.string.player_version_label_fallback)
             com.cstv.app.presentation.player.VersionSelectorSheet(
                 options = availableVersions.map { candidate ->
                     com.cstv.app.presentation.player.VersionOption(
                         id = candidate.series.seriesId,
-                        // F39-R7 : jamais le nom Xtream brut (candidate.series.name) en repli.
+                        // Repli sur le titre affiché, jamais un libellé générique inventé
+                        // ni le nom Xtream brut (candidate.series.name).
                         label = com.cstv.app.domain.model.mediaVersionSelectorLabel(
-                            candidate.series.versionLabel, versionFallbackLabel
+                            candidate.series.versionLabel,
+                            candidate.series.cleanTitle.ifBlank { candidate.series.name }
                         ),
                         isActive = candidate.series.seriesId == currentVersionSeriesId
                     )
