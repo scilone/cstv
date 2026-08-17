@@ -228,6 +228,21 @@ class VodViewModel @Inject constructor(
 
     fun getSubtitleStyle() = settingsManager.getSubtitleStyle()
 
+    /**
+     * F39 §8.6 : versions candidates de ce film — la version en cours incluse (marquée active côté
+     * appelant par comparaison de `streamId`). Liste vide (bouton masqué) si le film n'existe plus
+     * en cache ou si `linkKey` n'est pas encore normalisé (T21 en tâche de fond, §Arbitrages
+     * structurants de la fiche F39).
+     */
+    suspend fun getMovieVersions(streamId: Int): List<com.cstv.app.domain.model.VodStream> {
+        val current = vodRepository.getStreamById(streamId) ?: return emptyList()
+        if (current.linkKey.isBlank()) return emptyList()
+        return vodRepository.getVersionsByLinkKey(current.linkKey, current.releaseYear)
+    }
+
+    /** F39 §8.6 : extension de conteneur nécessaire pour construire l'URL Xtream d'une version choisie. */
+    suspend fun getMovieContainerExtension(streamId: Int): String? = vodRepository.getContainerExtension(streamId)
+
     fun getResizeMode() = settingsManager.getResizeMode()
     fun setResizeMode(mode: ResizeMode) {
         settingsManager.setResizeMode(mode)

@@ -53,6 +53,7 @@ class SeriesViewModelTest {
     @Mock private lateinit var mediaRatingRepository: com.cstv.app.domain.repository.MediaRatingRepository
     @Mock private lateinit var setMediaRatingUseCase: com.cstv.app.domain.usecase.SetMediaRatingUseCase
     @Mock private lateinit var getTrailerPreviewUseCase: GetTrailerPreviewUseCase
+    @Mock private lateinit var seriesVersionPreferenceRepository: com.cstv.app.domain.repository.SeriesVersionPreferenceRepository
     @Mock private lateinit var invalidateTrailerPreviewUseCase: InvalidateTrailerPreviewUseCase
 
     private val testDispatcher = StandardTestDispatcher()
@@ -437,6 +438,90 @@ class SeriesViewModelTest {
         assertTrue(viewModel.state.value.advancedFilter.isEmpty)
         assertEquals(2, viewModel.state.value.filteredCount)
     }
+
+    // --- F39 §8.6, tâche 5d : versions candidates d'un épisode ---
+
+    @Test
+    fun `getEpisodeVersions returns an empty list when the resolver was not injected`() = runTest(testDispatcher) {
+        whenever(vodRepository.observeAllPlaybackPositions()).thenReturn(flowOf(emptyList()))
+        val viewModel = createViewModel() // pas de resolver, comme les tests existants ci-dessus
+
+        assertTrue(viewModel.getEpisodeVersions(seriesId = 1, seasonNum = 1, episodeNum = 1).isEmpty())
+    }
+
+    @Test
+    fun `getEpisodeVersions returns an empty list when the series no longer exists in cache`() = runTest(testDispatcher) {
+        whenever(seriesRepository.getStreamById(1)).thenReturn(null)
+        val viewModel = createViewModelWithVersions()
+
+        assertTrue(viewModel.getEpisodeVersions(seriesId = 1, seasonNum = 1, episodeNum = 1).isEmpty())
+    }
+
+    @Test
+    fun `getEpisodeVersions returns an empty list when linkKey is not yet normalized`() = runTest(testDispatcher) {
+        whenever(seriesRepository.getStreamById(1)).thenReturn(seriesStream(1, linkKey = ""))
+        val viewModel = createViewModelWithVersions()
+
+        assertTrue(viewModel.getEpisodeVersions(seriesId = 1, seasonNum = 1, episodeNum = 1).isEmpty())
+    }
+
+    @Test
+    fun `getEpisodeVersions filters out a candidate without the equivalent episode`() = runTest(testDispatcher) {
+        val opened = seriesStream(1, linkKey = "key-a")
+        val incomplete = seriesStream(2, linkKey = "key-a")
+        whenever(seriesRepository.getStreamById(1)).thenReturn(opened)
+        whenever(seriesRepository.getVersionsByLinkKey("key-a", null)).thenReturn(listOf(opened, incomplete))
+        whenever(seriesRepository.getEpisodeBySeasonEpisode(1, 1, 1)).thenReturn(seriesEpisode(101))
+        whenever(seriesRepository.getEpisodeBySeasonEpisode(2, 1, 1)).thenReturn(null)
+        val viewModel = createViewModelWithVersions()
+
+        val result = viewModel.getEpisodeVersions(seriesId = 1, seasonNum = 1, episodeNum = 1)
+
+        assertEquals(1, result.size)
+        assertEquals(opened, result.single().series)
+    }
+
+    @Test
+    fun `setPreferredSeriesVersion commits through the preference repository`() = runTest(testDispatcher) {
+        val viewModel = createViewModelWithVersions()
+
+        viewModel.setPreferredSeriesVersion("key-a", preferredSeriesId = 2)
+        advanceUntilIdle()
+
+        verify(seriesVersionPreferenceRepository).setPreference("key-a", 2)
+    }
+
+    private fun seriesStream(seriesId: Int, linkKey: String) = SeriesStream(
+        seriesId = seriesId, name = "Série $seriesId", cover = null, rating = null, added = null,
+        categoryId = "1", linkKey = linkKey
+    )
+
+    private fun seriesEpisode(id: Int) = SeriesEpisode(
+        id = id, episodeNum = 1, title = "E1", containerExtension = "mkv",
+        plot = "", duration = "", releaseDate = "", seasonNum = 1
+    )
+
+    private fun createViewModelWithVersions(): SeriesViewModel {
+        whenever(vodRepository.observeAllPlaybackPositions()).thenReturn(flowOf(emptyList()))
+        return createRawViewModelWithVersions()
+    }
+
+    private fun createRawViewModelWithVersions() = SeriesViewModel(
+        getSeriesCategoriesUseCase, getSeriesCategoryCountsUseCase, getSeriesStreamsUseCase,
+        getSeriesDetailsUseCase, getRelatedSeriesUseCase, savePlaybackPositionUseCase, credentialsManager,
+        settingsManager, trackPreferenceRepository, categoryPreferenceRepository, vodRepository, seriesRepository,
+        removeFromContinueWatchingUseCase, mediaRatingRepository, setMediaRatingUseCase,
+        observeCatalogStatusUseCase, catalogSyncManager, canPlayContentUseCase, getTrailerPreviewUseCase,
+        invalidateTrailerPreviewUseCase,
+        testDispatcher,
+        markPlaybackSyncUseCase = null,
+        requestPlaybackLockUseCase = null,
+        releasePlaybackLockUseCase = null,
+        playbackLockManager = null,
+        playbackRepairRepository = null,
+        seriesVersionResolver = com.cstv.app.domain.model.SeriesVersionResolver(seriesRepository, seriesVersionPreferenceRepository),
+        seriesVersionPreferenceRepository = seriesVersionPreferenceRepository
+    )
 
     private fun createViewModel() = SeriesViewModel(
         getSeriesCategoriesUseCase, getSeriesCategoryCountsUseCase, getSeriesStreamsUseCase,

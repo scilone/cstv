@@ -75,6 +75,9 @@ class SeriesViewModel @Inject constructor(
     /** T23 : autoréparation du lecteur — nullable pour ne pas casser les tests existants qui
      * construisent ce ViewModel positionnellement sans ce paramètre final. */
     val playbackRepairRepository: com.cstv.app.domain.repository.PlaybackRepairRepository? = null,
+    /** F39 §8.6 : sélecteur de versions — même raison de nullabilité que ci-dessus. */
+    private val seriesVersionResolver: com.cstv.app.domain.model.SeriesVersionResolver? = null,
+    private val seriesVersionPreferenceRepository: com.cstv.app.domain.repository.SeriesVersionPreferenceRepository? = null,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(SeriesState())
@@ -234,6 +237,39 @@ class SeriesViewModel @Inject constructor(
     }
 
     fun getSubtitleStyle() = settingsManager.getSubtitleStyle()
+
+    // --- F39 §8.6 : sélecteur de versions ---
+
+    /**
+     * Versions candidates pour l'épisode [seasonNum]/[episodeNum] de la série [seriesId] — la
+     * série ouverte incluse si elle contient elle-même cet épisode. Liste vide (bouton masqué) si
+     * la série n'existe plus en cache, si `linkKey` n'est pas encore normalisé (T21), ou si le
+     * resolver n'a pas été injecté (tests existants construisant le ViewModel sans ce paramètre).
+     */
+    suspend fun getEpisodeVersions(seriesId: Int, seasonNum: Int, episodeNum: Int): List<com.cstv.app.domain.model.SeriesVersionCandidate> {
+        val resolver = seriesVersionResolver ?: return emptyList()
+        val current = seriesRepository.getStreamById(seriesId) ?: return emptyList()
+        if (current.linkKey.isBlank()) return emptyList()
+        return resolver.resolve(current.linkKey, current.releaseYear, seasonNum, episodeNum)
+    }
+
+    /**
+     * Version à lire à l'ouverture d'un épisode, compte tenu de la préférence mémorisée (§8.3) —
+     * `null` si aucune candidate valide, y compris la série ouverte elle-même (§7.4).
+     */
+    suspend fun getPreferredEpisodeVersion(seriesId: Int, seasonNum: Int, episodeNum: Int): com.cstv.app.domain.model.SeriesVersionCandidate? {
+        val resolver = seriesVersionResolver ?: return null
+        val current = seriesRepository.getStreamById(seriesId) ?: return null
+        if (current.linkKey.isBlank()) return null
+        return resolver.resolvePreferred(current.linkKey, current.releaseYear, seasonNum, episodeNum, openedSeriesId = seriesId)
+    }
+
+    /** Mémorise le choix explicite de version pour toute la série (§8.5 pt. 5, §7.3). */
+    fun setPreferredSeriesVersion(linkKey: String, preferredSeriesId: Int) {
+        viewModelScope.launch {
+            seriesVersionPreferenceRepository?.setPreference(linkKey, preferredSeriesId)
+        }
+    }
 
     fun getResizeMode() = settingsManager.getResizeMode()
     fun setResizeMode(mode: ResizeMode) {

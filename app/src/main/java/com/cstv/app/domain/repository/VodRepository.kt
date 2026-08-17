@@ -99,4 +99,11 @@ interface VodRepository {
      * pour cette entrée, voir la fiche F39 « Arbitrages structurants »).
      */
     suspend fun getVersionsByLinkKey(linkKey: String, releaseYear: Int?): List<VodStream> = emptyList()
+
+    /**
+     * F39 §8.6 : extension de conteneur d'un film, nécessaire pour construire l'URL Xtream d'une
+     * version choisie dans le sélecteur — absente de [VodStream] (projection de liste, §8.1).
+     * `null` si le flux n'existe plus en cache.
+     */
+    suspend fun getContainerExtension(streamId: Int): String? = null
 }

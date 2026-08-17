@@ -200,6 +200,12 @@ class MainActivity : ComponentActivity() {
                 var activeVodMovie by remember { mutableStateOf<VodStream?>(null) }
                 var activeVodDetails by remember { mutableStateOf<VodDetails?>(null) }
                 var resumePositionMs by remember { mutableStateOf(0L) }
+                // F39 §8.6 : la cible du lecteur vient-elle d'un téléchargement hors ligne ?
+                // Décide `versionsEnabled` côté VodPlayerScreen/SeriesPlayerScreen — le sélecteur
+                // de versions n'apparaît jamais pour un contenu téléchargé, qui n'a qu'une seule
+                // version présente sur l'appareil (§7.3).
+                var isVodPlaybackOffline by remember { mutableStateOf(false) }
+                var isSeriesPlaybackOffline by remember { mutableStateOf(false) }
 
                 // Track current selected Series details and active playing episode (Series)
                 var activeSeriesShow by remember { mutableStateOf<SeriesStream?>(null) }
@@ -515,6 +521,10 @@ class MainActivity : ComponentActivity() {
                                     onActiveVodMovieChanged = { activeVodMovie = it },
                                     activeVodDetails = activeVodDetails,
                                     onActiveVodDetailsChanged = { activeVodDetails = it },
+                                    isVodPlaybackOffline = isVodPlaybackOffline,
+                                    onIsVodPlaybackOfflineChanged = { isVodPlaybackOffline = it },
+                                    isSeriesPlaybackOffline = isSeriesPlaybackOffline,
+                                    onIsSeriesPlaybackOfflineChanged = { isSeriesPlaybackOffline = it },
                                     resumePositionMs = resumePositionMs,
                                     onResumePositionMsChanged = { resumePositionMs = it },
                                     activeSeriesShow = activeSeriesShow,

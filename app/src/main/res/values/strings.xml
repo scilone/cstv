@@ -200,6 +200,10 @@
     <string name="player_audio_track_title">PISTE AUDIO</string>
     <string name="player_subtitles_title">SOUS-TITRES</string>
     <string name="player_close">Fermer</string>
+    <!-- F39 : sélecteur de versions -->
+    <string name="player_version_action_label">Version</string>
+    <string name="player_version_dialog_title">VERSIONS DISPONIBLES</string>
+    <string name="player_version_rollback_message">Cette version n\'est pas disponible, retour à la version précédente.</string>
     <string name="series_search_placeholder">Rechercher dans cette catégorie...</string>
     <string name="settings_logout">DÉCONNEXION</string>
     <!-- B27 : carte « Comptes » des Paramètres (TV + mobile) -->

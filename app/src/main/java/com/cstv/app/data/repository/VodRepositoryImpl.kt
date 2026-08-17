@@ -712,4 +712,7 @@ class VodRepositoryImpl @Inject constructor(
         return rows.map { it.toDomain() }
             .sortedWith(compareByDescending<VodStream> { com.cstv.app.domain.model.mediaQualityRank(it.qualityTag) }.thenBy { it.streamId })
     }
+
+    override suspend fun getContainerExtension(streamId: Int): String? =
+        vodDao.getStreamById(streamId)?.containerExtension
 }

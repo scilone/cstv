@@ -185,6 +185,11 @@ fun AppNavGraph(
     onActiveVodMovieChanged: (VodStream?) -> Unit,
     activeVodDetails: VodDetails?,
     onActiveVodDetailsChanged: (VodDetails?) -> Unit,
+    /** F39 §8.6 : voir MainActivity — décide `versionsEnabled` côté VodPlayerScreen. */
+    isVodPlaybackOffline: Boolean = false,
+    onIsVodPlaybackOfflineChanged: (Boolean) -> Unit = {},
+    isSeriesPlaybackOffline: Boolean = false,
+    onIsSeriesPlaybackOfflineChanged: (Boolean) -> Unit = {},
     resumePositionMs: Long,
     onResumePositionMsChanged: (Long) -> Unit,
     
@@ -296,6 +301,7 @@ fun AppNavGraph(
                         com.cstv.app.domain.model.DownloadedItem.movieContentId(position.streamId)
                     ) {
                         onActiveVodDetailsChanged(details)
+                        onIsVodPlaybackOfflineChanged(false)
                         onResumePositionMsChanged(position.positionMs)
                         navController.navigate("vod_player")
                     }
@@ -345,6 +351,7 @@ fun AppNavGraph(
                             ?.copy(resumePositionMs = position.positionMs, durationMs = position.durationMs)
                         onActiveEpisodeChanged(realEpisode ?: fallbackEpisode)
                         onActiveSeriesDetailsChanged(fullDetails ?: fallbackDetails)
+                        onIsSeriesPlaybackOfflineChanged(false)
                         navController.navigate("series_player")
                     }
                 },
@@ -370,6 +377,7 @@ fun AppNavGraph(
                 },
                 onPlayDownloadedMovie = { item ->
                     onActiveVodDetailsChanged(com.cstv.app.buildOfflineVodDetails(item))
+                    onIsVodPlaybackOfflineChanged(true)
                     onResumePositionMsChanged(0L)
                     navController.navigate("vod_player")
                 },
@@ -377,6 +385,7 @@ fun AppNavGraph(
                     val episode = com.cstv.app.buildOfflineEpisode(item)
                     onActiveSeriesDetailsChanged(com.cstv.app.buildOfflineSeriesDetails(item, episode))
                     onActiveEpisodeChanged(episode)
+                    onIsSeriesPlaybackOfflineChanged(true)
                     navController.navigate("series_player")
                 }
             )
@@ -559,6 +568,7 @@ fun AppNavGraph(
                 isTv = isTv,
                 onPlayMovie = { item ->
                     onActiveVodDetailsChanged(com.cstv.app.buildOfflineVodDetails(item))
+                    onIsVodPlaybackOfflineChanged(true)
                     onResumePositionMsChanged(0L)
                     navController.navigate("vod_player")
                 },
@@ -566,6 +576,7 @@ fun AppNavGraph(
                     val episode = com.cstv.app.buildOfflineEpisode(item)
                     onActiveSeriesDetailsChanged(com.cstv.app.buildOfflineSeriesDetails(item, episode))
                     onActiveEpisodeChanged(episode)
+                    onIsSeriesPlaybackOfflineChanged(true)
                     navController.navigate("series_player")
                 },
                 onBack = { navController.popBackStack() }
@@ -632,6 +643,7 @@ fun AppNavGraph(
             } else {
                 state.selectedVodDetails?.let { details ->
                     onActiveVodDetailsChanged(details)
+                    onIsVodPlaybackOfflineChanged(false)
                     val isFav = favsState.favorites.any { it.id == details.streamId && it.type == "movie" }
                     
                     VodDetailsScreen(
@@ -721,6 +733,7 @@ fun AppNavGraph(
             } else {
                 state.selectedSeriesDetails?.let { details ->
                     onActiveSeriesDetailsChanged(details)
+                    onIsSeriesPlaybackOfflineChanged(false)
                     val isFav = favsState.favorites.any { it.id == details.seriesId && it.type == "series" }
                     
                     SeriesDetailsScreen(
@@ -821,6 +834,7 @@ fun AppNavGraph(
                     credentials = creds,
                     isTv = isTv,
                     viewModel = vodViewModel,
+                    versionsEnabled = !isVodPlaybackOffline,
                     onClose = {
                         navController.popBackStack()
                     },
@@ -870,6 +884,7 @@ fun AppNavGraph(
                     credentials = creds,
                     isTv = isTv,
                     viewModel = seriesViewModel,
+                    versionsEnabled = !isSeriesPlaybackOffline,
                     onClose = {
                         navController.popBackStack()
                     },

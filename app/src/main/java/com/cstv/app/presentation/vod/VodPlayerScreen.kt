@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Subtitles
+import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -138,6 +139,9 @@ fun VodPlayerScreen(
     onClose: () -> Boolean,
     canOpenDetails: Boolean,
     onOpenDetails: () -> Boolean,
+    /** F39 §8.6 : `false` pour le lecteur hors ligne (contenu téléchargé), qui n'a qu'une seule
+     *  version présente sur l'appareil — aucune requête DAO, aucun bouton (§7.3). */
+    versionsEnabled: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -186,6 +190,54 @@ fun VodPlayerScreen(
     var moviePref by remember { mutableStateOf<com.cstv.app.domain.model.TrackPreference?>(null) }
     LaunchedEffect(details.streamId) {
         moviePref = viewModel.getMovieTrackPreference(details.streamId)
+    }
+
+    // F39 §8.5/§8.6 : versions candidates de ce film et bascule transactionnelle.
+    var availableVersions by remember { mutableStateOf(emptyList<com.cstv.app.domain.model.VodStream>()) }
+    // La version réellement en cours peut diverger de `details.streamId` après une bascule
+    // réussie : le titre/l'affiche restent ceux de l'œuvre (inchangés entre versions), seule la
+    // source de lecture change (§8.5).
+    var currentVersionStreamId by remember(details.streamId) { mutableStateOf(details.streamId) }
+    var showVersionDialog by remember { mutableStateOf(false) }
+    var isSwitchingVersion by remember { mutableStateOf(false) }
+    val versionSwitchScope = rememberCoroutineScope()
+    val versionSwitchController = remember(engineController) {
+        com.cstv.app.presentation.player.core.MediaVersionSwitchController(
+            com.cstv.app.presentation.player.core.ExoMediaVersionSwitchEngine(engineController)
+        )
+    }
+    LaunchedEffect(details.streamId, versionsEnabled) {
+        currentVersionStreamId = details.streamId
+        availableVersions = if (versionsEnabled) viewModel.getMovieVersions(details.streamId) else emptyList()
+    }
+    val rollbackMessage = stringResource(R.string.player_version_rollback_message)
+
+    val onSelectVersion: (com.cstv.app.domain.model.VodStream) -> Unit = selectVersion@{ target ->
+        if (isSwitchingVersion || target.streamId == currentVersionStreamId) return@selectVersion
+        isSwitchingVersion = true
+        versionSwitchScope.launch {
+            val targetExtension = viewModel.getMovieContainerExtension(target.streamId) ?: "mp4"
+            val previousExtension = viewModel.getMovieContainerExtension(currentVersionStreamId) ?: details.containerExtension
+            val previousTarget = com.cstv.app.presentation.player.core.PlayableVersionTarget(
+                buildMoviePlayUrl(currentVersionStreamId, previousExtension, credentials)
+            )
+            val nextTarget = com.cstv.app.presentation.player.core.PlayableVersionTarget(
+                buildMoviePlayUrl(target.streamId, targetExtension, credentials)
+            )
+            val result = versionSwitchController.switchTo(previousTarget, nextTarget)
+            isSwitchingVersion = false
+            when (result) {
+                com.cstv.app.presentation.player.core.MediaVersionSwitchResult.Switched -> {
+                    currentVersionStreamId = target.streamId
+                    showVersionDialog = false
+                }
+                com.cstv.app.presentation.player.core.MediaVersionSwitchResult.RolledBack -> {
+                    overlayNotification = rollbackMessage
+                    showVersionDialog = false
+                }
+                com.cstv.app.presentation.player.core.MediaVersionSwitchResult.Superseded -> Unit
+            }
+        }
     }
 
     val handleClose = {
@@ -992,6 +1044,13 @@ fun VodPlayerScreen(
                                     onClick = { showTrackDialog = true }
                                 )
                             }
+                            if (versionsEnabled && availableVersions.size > 1) {
+                                PlayerBottomAction(
+                                    icon = Icons.Default.SwapHoriz,
+                                    label = stringResource(R.string.player_version_action_label),
+                                    onClick = { showVersionDialog = true }
+                                )
+                            }
                         }
                     }
                 }
@@ -1047,6 +1106,24 @@ fun VodPlayerScreen(
                     updateTracksState(exoPlayer.currentTracks)
                 },
                 onDismiss = { showTrackDialog = false }
+            )
+        }
+
+        // F39 §8.5 : sélecteur de versions.
+        if (showVersionDialog) {
+            com.cstv.app.presentation.player.VersionSelectorSheet(
+                options = availableVersions.map { version ->
+                    com.cstv.app.presentation.player.VersionOption(
+                        id = version.streamId,
+                        label = com.cstv.app.domain.model.mediaVersionBadges(version.languageTag, version.qualityTag)
+                            .takeIf { it.isNotEmpty() }?.joinToString(" · ")
+                            ?: version.name,
+                        isActive = version.streamId == currentVersionStreamId
+                    )
+                },
+                isSwitching = isSwitchingVersion,
+                onSelect = { option -> availableVersions.firstOrNull { it.streamId == option.id }?.let(onSelectVersion) },
+                onDismiss = { if (!isSwitchingVersion) showVersionDialog = false }
             )
         }
     }
@@ -1208,6 +1285,17 @@ private fun TrackSelectionDialog(
             }
         }
     )
+}
+
+/**
+ * F39 §8.6 : URL Xtream d'une version candidate — même format que
+ * [VodDetails.getPlayUrl]/[com.cstv.app.domain.model.VodStream.getPlayUrl], réutilisé sans
+ * instance intermédiaire puisque seuls `streamId` et l'extension diffèrent d'une version à l'autre.
+ */
+private fun buildMoviePlayUrl(streamId: Int, containerExtension: String, credentials: Credentials): String {
+    val cleanBase = credentials.baseUrl.trim().removeSuffix("/")
+    val cleanExtension = containerExtension.trim().removePrefix(".")
+    return "$cleanBase/movie/${credentials.username}/${credentials.password}/$streamId.$cleanExtension"
 }
 
 private fun formatTime(ms: Long): String {

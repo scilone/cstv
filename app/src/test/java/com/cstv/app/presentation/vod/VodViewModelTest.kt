@@ -472,6 +472,46 @@ class VodViewModelTest {
         assertEquals(2, viewModel.state.value.filteredCount)
     }
 
+    // --- F39 §8.6, tâche 5c : versions candidates d'un film ---
+
+    @Test
+    fun `getMovieVersions returns an empty list when the movie no longer exists in cache`() = runTest(testDispatcher) {
+        whenever(vodRepository.observeAllPlaybackPositions()).thenReturn(flowOf(emptyList()))
+        whenever(vodRepository.getStreamById(42)).thenReturn(null)
+        val viewModel = createViewModel()
+
+        assertTrue(viewModel.getMovieVersions(42).isEmpty())
+    }
+
+    @Test
+    fun `getMovieVersions returns an empty list when linkKey is not yet normalized`() = runTest(testDispatcher) {
+        whenever(vodRepository.observeAllPlaybackPositions()).thenReturn(flowOf(emptyList()))
+        whenever(vodRepository.getStreamById(42)).thenReturn(vodStream(42, linkKey = ""))
+        val viewModel = createViewModel()
+
+        assertTrue(viewModel.getMovieVersions(42).isEmpty())
+    }
+
+    @Test
+    fun `getMovieVersions queries by linkKey and release year, including the current entry`() = runTest(testDispatcher) {
+        whenever(vodRepository.observeAllPlaybackPositions()).thenReturn(flowOf(emptyList()))
+        val current = vodStream(42, linkKey = "key-a", releaseYear = 2020)
+        val versions = listOf(current, vodStream(43, linkKey = "key-a", releaseYear = 2020))
+        whenever(vodRepository.getStreamById(42)).thenReturn(current)
+        whenever(vodRepository.getVersionsByLinkKey("key-a", 2020)).thenReturn(versions)
+        val viewModel = createViewModel()
+
+        val result = viewModel.getMovieVersions(42)
+
+        assertEquals(versions, result)
+        assertTrue(result.any { it.streamId == 42 })
+    }
+
+    private fun vodStream(streamId: Int, linkKey: String, releaseYear: Int? = null) = VodStream(
+        streamId = streamId, name = "Film $streamId", streamIcon = null, rating = null, added = null,
+        categoryId = "1", releaseYear = releaseYear, linkKey = linkKey
+    )
+
     private fun createViewModel() = VodViewModel(
         getVodCategoriesUseCase, getVodCategoryCountsUseCase, getVodStreamsUseCase,
         getVodDetailsUseCase, getRelatedMoviesUseCase, savePlaybackPositionUseCase, credentialsManager,

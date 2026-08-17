@@ -7,15 +7,12 @@ import kotlinx.coroutines.withTimeoutOrNull
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
- * Cible de bascule (F39 §8.5) : juste assez pour poser un `MediaItem` et
- * restaurer sa piste. `trackPreference` reprend celle de la source
- * précédente quand une piste équivalente existe côté appelant (tâche 5) —
- * le contrôleur la transmet sans l'interpréter.
+ * Cible de bascule (F39 §8.5) : juste assez pour poser un `MediaItem`. La
+ * sélection de piste audio/sous-titres suit son cycle habituel une fois la
+ * cible prête (préférence mémorisée du média, `onTracksChanged` côté écran)
+ * — F39 ne la court-circuite pas.
  */
-data class PlayableVersionTarget(
-    val mediaUrl: String,
-    val trackPreference: com.cstv.app.domain.model.TrackFingerprint? = null
-)
+data class PlayableVersionTarget(val mediaUrl: String)
 
 /** Événement remonté pendant la préparation d'une cible (§8.5 pt. 3). */
 sealed class MediaVersionSwitchEvent {

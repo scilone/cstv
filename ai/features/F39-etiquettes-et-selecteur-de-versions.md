@@ -529,7 +529,7 @@ concurrents). Une préférence série n'est jamais modifiée sur un rollback.
 
 ---
 
-- [ ] 5. `VersionSelectorSheet` et intégration aux lecteurs
+- [x] 5. `VersionSelectorSheet` et intégration aux lecteurs
 
 Objectif:
 Composant de sélection réutilisant emplacement et focus des sélecteurs
@@ -608,9 +608,37 @@ Aucune nouvelle dépendance Gradle (§8.7).
   contrôleur de moteur actif). L'adapter réel au-dessus de `PlaybackEngineController` reste à câbler
   en tâche 5 (même split que T23 tâche 4 / tâche 7). Génération anti-race validée par test avec
   interleaving réel (`launch` + `advanceTimeBy`), pas seulement simulée.
-- **Non câblé** (hors périmètre tâches 1-4, prévu tâches 5-6) : aucun bouton « Version » ni
-  « Versions » n'est encore visible dans l'app — `VersionSelectorSheet`, l'adapter Media3 de
-  `MediaVersionSwitchEngine`, et l'intégration aux lecteurs/fiches restent à faire.
+- Vert : `assembleDebug`, `testDebugUnitTest` (suite complète), `lintDebug`.
+
+## Tâche 5 (livrée)
+
+- **Adapter Media3** (`ExoMediaVersionSwitchEngine.kt`) : pose la cible via `PlaybackEngineController.
+  setMediaItem` (jamais `rebuild`, §9.3) ; écoute `Player.Listener` le temps de la préparation
+  seulement (retirée à `awaitClose`), donc aucun conflit avec le listener T23.
+- **`VersionSelectorSheet`** (`presentation/player/`) : un seul composant mobile+TV, même patron que
+  `TrackSelectionDialog` existant (cases radio, focus D-pad) ; fermé pendant une bascule en cours.
+- **ViewModels** : `VodViewModel.getMovieVersions`/`getMovieContainerExtension` ;
+  `SeriesViewModel.getEpisodeVersions`/`getPreferredEpisodeVersion`/`setPreferredSeriesVersion`
+  (deux nouveaux paramètres nullables en toute fin de constructeur, comme `playbackRepairRepository`
+  T23 — n'exige pas de toucher les tests existants qui construisent le ViewModel positionnellement).
+- **Câblage lecteurs** : bouton « Version » dans la barre d'actions de `VodPlayerScreen`/
+  `SeriesPlayerScreen` (visible à 2+ candidates, masqué à 0/1), bascule via
+  `MediaVersionSwitchController`, message de rollback localisé
+  (`player_version_rollback_message`, sans détail réseau/codec).
+- **`versionsEnabled`** : nouveau paramètre sur les deux écrans lecteur, `false` pour le lecteur
+  hors ligne. Câblé via deux nouveaux booléens de navigation (`isVodPlaybackOffline`/
+  `isSeriesPlaybackOffline`, `MainActivity`/`NavGraph`) positionnés à chaque site de navigation vers
+  `vod_player`/`series_player` — pas de marqueur porté par `VodDetails`/`SeriesDetails` elles-mêmes.
+- **Limite connue, non couverte par cette livraison** : la préférence de version série (§8.3) est
+  bien écrite lors d'un choix explicite, mais n'est pas encore relue automatiquement à l'ouverture
+  d'un épisode enchaîné (binge, `currentEpisode` de `SeriesPlayerScreen`) — chaque nouvel épisode
+  rouvre sur la série initialement ouverte tant qu'aucune nouvelle sélection n'est faite. Fermer ce
+  point nécessite de raccorder `SeriesViewModel.getPreferredEpisodeVersion` à l'effet de préparation
+  d'épisode (`LaunchedEffect(currentEpisode.id, ...)`), risqué à traiter dans la même session que le
+  reste vu l'interaction avec la logique de reprise/T23 déjà en place — laissé pour un correctif
+  ciblé plutôt que d'être fait à la hâte.
+- **Non câblé** (Évolution PO, tâche 6 — hors périmètre de cette livraison) : aucun bouton
+  « Versions » sur les fiches média (`VodDetailsScreen`/`SeriesDetailsScreen`).
 - Vert : `assembleDebug`, `testDebugUnitTest` (suite complète), `lintDebug`.
 
 ---

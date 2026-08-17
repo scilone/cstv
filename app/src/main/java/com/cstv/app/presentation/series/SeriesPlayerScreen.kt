@@ -31,6 +31,7 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.filled.Subtitles
+import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -145,6 +146,8 @@ fun SeriesPlayerScreen(
     onClose: () -> Boolean,
     canOpenDetails: Boolean,
     onOpenDetails: () -> Boolean,
+    /** F39 §8.6 : voir VodPlayerScreen. */
+    versionsEnabled: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -218,6 +221,57 @@ fun SeriesPlayerScreen(
     var seriesPref by remember { mutableStateOf<com.cstv.app.domain.model.TrackPreference?>(null) }
     LaunchedEffect(seriesId) {
         seriesPref = viewModel.getSeriesTrackPreference(seriesId)
+    }
+
+    // F39 §8.5/§8.6 : versions candidates de l'épisode en cours et bascule transactionnelle.
+    // Limite connue (non couverte par cette livraison) : la préférence mémorisée (§8.3) est
+    // écrite sur un choix explicite mais n'est pas encore relue automatiquement à l'ouverture
+    // d'un nouvel épisode enchaîné — chaque épisode rouvre sur la série ouverte par défaut.
+    var availableVersions by remember { mutableStateOf(emptyList<com.cstv.app.domain.model.SeriesVersionCandidate>()) }
+    var currentVersionSeriesId by remember(seriesId) { mutableStateOf(seriesId) }
+    var showVersionDialog by remember { mutableStateOf(false) }
+    var isSwitchingVersion by remember { mutableStateOf(false) }
+    val versionSwitchScope = rememberCoroutineScope()
+    val versionSwitchController = remember(engineController) {
+        com.cstv.app.presentation.player.core.MediaVersionSwitchController(
+            com.cstv.app.presentation.player.core.ExoMediaVersionSwitchEngine(engineController)
+        )
+    }
+    LaunchedEffect(seriesId, currentEpisode.seasonNum, currentEpisode.episodeNum, versionsEnabled) {
+        currentVersionSeriesId = seriesId
+        availableVersions = if (versionsEnabled) {
+            viewModel.getEpisodeVersions(seriesId, currentEpisode.seasonNum, currentEpisode.episodeNum)
+        } else emptyList()
+    }
+    val rollbackMessage = stringResource(R.string.player_version_rollback_message)
+
+    val onSelectVersion: (com.cstv.app.domain.model.SeriesVersionCandidate) -> Unit = selectVersion@{ candidate ->
+        if (isSwitchingVersion || candidate.series.seriesId == currentVersionSeriesId) return@selectVersion
+        isSwitchingVersion = true
+        versionSwitchScope.launch {
+            val previousTarget = com.cstv.app.presentation.player.core.PlayableVersionTarget(
+                currentEpisode.getPlayUrl(credentials.baseUrl, credentials.username, credentials.password)
+            )
+            val nextTarget = com.cstv.app.presentation.player.core.PlayableVersionTarget(
+                candidate.episode.getPlayUrl(credentials.baseUrl, credentials.username, credentials.password)
+            )
+            val result = versionSwitchController.switchTo(previousTarget, nextTarget)
+            isSwitchingVersion = false
+            when (result) {
+                com.cstv.app.presentation.player.core.MediaVersionSwitchResult.Switched -> {
+                    currentVersionSeriesId = candidate.series.seriesId
+                    showVersionDialog = false
+                    candidate.series.linkKey.takeIf { it.isNotBlank() }?.let { linkKey ->
+                        viewModel.setPreferredSeriesVersion(linkKey, candidate.series.seriesId)
+                    }
+                }
+                com.cstv.app.presentation.player.core.MediaVersionSwitchResult.RolledBack -> {
+                    overlayNotification = rollbackMessage
+                    showVersionDialog = false
+                }
+                com.cstv.app.presentation.player.core.MediaVersionSwitchResult.Superseded -> Unit
+            }
+        }
     }
 
     val handleClose = {
@@ -1066,6 +1120,13 @@ fun SeriesPlayerScreen(
                                     onClick = { showTrackDialog = true }
                                 )
                             }
+                            if (versionsEnabled && availableVersions.size > 1) {
+                                PlayerBottomAction(
+                                    icon = Icons.Default.SwapHoriz,
+                                    label = stringResource(R.string.player_version_action_label),
+                                    onClick = { showVersionDialog = true }
+                                )
+                            }
                         }
                     }
                 }
@@ -1120,6 +1181,24 @@ fun SeriesPlayerScreen(
                     updateTracksState(exoPlayer.currentTracks)
                 },
                 onDismiss = { showTrackDialog = false }
+            )
+        }
+
+        // F39 §8.5 : sélecteur de versions.
+        if (showVersionDialog) {
+            com.cstv.app.presentation.player.VersionSelectorSheet(
+                options = availableVersions.map { candidate ->
+                    com.cstv.app.presentation.player.VersionOption(
+                        id = candidate.series.seriesId,
+                        label = com.cstv.app.domain.model.mediaVersionBadges(candidate.series.languageTag, candidate.series.qualityTag)
+                            .takeIf { it.isNotEmpty() }?.joinToString(" · ")
+                            ?: candidate.series.name,
+                        isActive = candidate.series.seriesId == currentVersionSeriesId
+                    )
+                },
+                isSwitching = isSwitchingVersion,
+                onSelect = { option -> availableVersions.firstOrNull { it.series.seriesId == option.id }?.let(onSelectVersion) },
+                onDismiss = { if (!isSwitchingVersion) showVersionDialog = false }
             )
         }
     }
