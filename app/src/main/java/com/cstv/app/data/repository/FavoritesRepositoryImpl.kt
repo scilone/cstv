@@ -29,7 +29,7 @@ class FavoritesRepositoryImpl @Inject constructor(
     override fun observeFavorites(): Flow<List<FavoriteItem>> {
         return profileManager.activeProfileId.flatMapLatest { profileId ->
             favoritesDao.observeFavorites(profileId, accountKeyProvider.current())
-        }.map { list -> list.map { FavoriteItem(it.providerId, it.kind, it.name, it.cover, it.categoryId) } }
+        }.map { list -> list.map { FavoriteItem(it.providerId, it.kind, it.name, it.cover, it.categoryId, it.languageTag, it.qualityTag) } }
     }
 
     override suspend fun isFavorite(id: Int, type: String): Boolean {

@@ -91,4 +91,12 @@ interface VodRepository {
 
     /** Récupère un film du cache local par son identifiant unique, ou null s'il n'existe plus. */
     suspend fun getStreamById(streamId: Int): VodStream?
+
+    /**
+     * F39 §8.2 : autres versions du film partageant `linkKey` (T21), filtrées
+     * par année compatible (§8.2), triées par qualité décroissante puis
+     * `streamId`. Vide si `linkKey` est vide (catalogue pas encore normalisé
+     * pour cette entrée, voir la fiche F39 « Arbitrages structurants »).
+     */
+    suspend fun getVersionsByLinkKey(linkKey: String, releaseYear: Int?): List<VodStream> = emptyList()
 }

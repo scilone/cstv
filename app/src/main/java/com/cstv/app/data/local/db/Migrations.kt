@@ -963,4 +963,41 @@ internal fun migration30To31Statements(): List<String> = listOf(
     "CREATE UNIQUE INDEX IF NOT EXISTS index_playback_repair_profiles_mediaUid ON playback_repair_profiles(mediaUid)"
 )
 
-val ALL_MIGRATIONS = arrayOf(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31)
+/**
+ * F39 : deux changements indépendants, réunis ici faute d'un second numéro
+ * de version disponible avant livraison (règle T21 §8.5) —
+ *
+ * 1. **Badges de version (§8.4)** : l'index couvrant de l'onglet « Tout »
+ *    (posé par [MIGRATION_23_24]) est étendu à `languageTag`/`qualityTag`
+ *    pour que la projection élargie reste servie entièrement par l'index,
+ *    sans tri temporaire ni accès table (voir `CoveringIndexF39SqlTest`).
+ *    Recréer l'index sous le nom généré par Room pour la nouvelle liste de
+ *    colonnes déclarée sur `VodStreamEntity`/`SeriesStreamEntity` — sinon la
+ *    validation de schéma Room échoue au premier accès après migration.
+ * 2. **Préférence de version série (§8.3)** : nouvelle table
+ *    `series_version_preferences`, voir `SeriesVersionPreferenceEntity`.
+ */
+val MIGRATION_31_32 = object : Migration(31, 32) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        migration31To32Statements().forEach(db::execSQL)
+    }
+}
+
+internal fun migration31To32Statements(): List<String> = listOf(
+    "DROP INDEX IF EXISTS index_vod_streams_categoryRank_streamId_name_streamIcon_rating_added_categoryId_genre_releaseYear",
+    "CREATE INDEX IF NOT EXISTS " +
+        "index_vod_streams_categoryRank_streamId_name_streamIcon_rating_added_categoryId_genre_releaseYear_languageTag_qualityTag " +
+        "ON vod_streams(categoryRank, streamId, name, streamIcon, rating, added, categoryId, genre, releaseYear, languageTag, qualityTag)",
+    "DROP INDEX IF EXISTS index_series_streams_categoryRank_seriesId_name_cover_rating_added_categoryId_genre_releaseYear",
+    "CREATE INDEX IF NOT EXISTS " +
+        "index_series_streams_categoryRank_seriesId_name_cover_rating_added_categoryId_genre_releaseYear_languageTag_qualityTag " +
+        "ON series_streams(categoryRank, seriesId, name, cover, rating, added, categoryId, genre, releaseYear, languageTag, qualityTag)",
+    "CREATE TABLE IF NOT EXISTS series_version_preferences (" +
+        "profileId INTEGER NOT NULL, linkKey TEXT NOT NULL, preferredSeriesId INTEGER NOT NULL, " +
+        "updatedAt INTEGER NOT NULL, PRIMARY KEY(profileId, linkKey), " +
+        "FOREIGN KEY(profileId) REFERENCES profiles(id) ON DELETE CASCADE)",
+    "CREATE INDEX IF NOT EXISTS index_series_version_preferences_profileId ON series_version_preferences(profileId)",
+    "CREATE INDEX IF NOT EXISTS index_series_version_preferences_linkKey ON series_version_preferences(linkKey)"
+)
+
+val ALL_MIGRATIONS = arrayOf(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32)

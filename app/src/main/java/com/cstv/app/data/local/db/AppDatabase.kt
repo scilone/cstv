@@ -41,11 +41,13 @@ import com.cstv.app.data.local.entity.CategoryRefEntity
 import com.cstv.app.data.local.entity.DbMaintenanceEntity
 import com.cstv.app.data.local.entity.CanonicalMediaLinkEntity
 import com.cstv.app.data.local.entity.PlaybackRepairProfileEntity
+import com.cstv.app.data.local.entity.SeriesVersionPreferenceEntity
 import com.cstv.app.data.local.dao.MediaRefDao
 import com.cstv.app.data.local.dao.CategoryRefDao
 import com.cstv.app.data.local.dao.DbMaintenanceDao
 import com.cstv.app.data.local.dao.CanonicalMediaLinkDao
 import com.cstv.app.data.local.dao.PlaybackRepairProfileDao
+import com.cstv.app.data.local.dao.SeriesVersionPreferenceDao
 
 @Database(
     entities = [
@@ -74,9 +76,10 @@ import com.cstv.app.data.local.dao.PlaybackRepairProfileDao
         CategoryRefEntity::class,
         DbMaintenanceEntity::class,
         CanonicalMediaLinkEntity::class,
-        PlaybackRepairProfileEntity::class
+        PlaybackRepairProfileEntity::class,
+        SeriesVersionPreferenceEntity::class
     ],
-    version = 31,
+    version = 32,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -98,6 +101,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun dbMaintenanceDao(): DbMaintenanceDao
     abstract fun canonicalMediaLinkDao(): CanonicalMediaLinkDao
     abstract fun playbackRepairProfileDao(): PlaybackRepairProfileDao
+    abstract fun seriesVersionPreferenceDao(): SeriesVersionPreferenceDao
 
     companion object {
         /** Nom de fichier `.db` — partagé entre `AppModule` (ouverture) et [com.cstv.app.data.local.db.DatabaseMaintenanceRunner] (`StatFs`). */

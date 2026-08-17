@@ -73,8 +73,21 @@ interface SeriesDao {
     @Query("UPDATE series_streams SET cleanTitle = :cleanTitle, linkKey = :linkKey, languageTag = :languageTag, languageRaw = :languageRaw, qualityTag = :qualityTag, qualityRaw = :qualityRaw WHERE seriesId = :seriesId AND linkKey = ''")
     suspend fun applyNormalization(seriesId: Int, cleanTitle: String, linkKey: String, languageTag: String?, languageRaw: String?, qualityTag: String?, qualityRaw: String?)
 
-    @Query("SELECT * FROM series_streams WHERE linkKey = :linkKey AND linkKey != '' ORDER BY seriesId ASC")
-    suspend fun getStreamsByLinkKey(linkKey: String): List<SeriesStreamEntity>
+    /** F39 §8.2 : voir VodDao.getStreamsByLinkKey — même règle année/plafond, tri qualité côté Kotlin. */
+    @Query(
+        "SELECT * FROM series_streams WHERE linkKey = :linkKey AND linkKey != '' " +
+            "AND (:year IS NULL OR :year <= 0 OR releaseYear IS NULL OR releaseYear <= 0 OR releaseYear = :year) " +
+            "ORDER BY seriesId ASC LIMIT :limit"
+    )
+    suspend fun getStreamsByLinkKey(linkKey: String, year: Int?, limit: Int): List<SeriesStreamEntity>
+
+    /**
+     * F39 §8.2 point 2 : épisode d'une série candidate pour le couple
+     * saison/épisode courant, ou `null` si absent (série incomplète en cache
+     * ou pas encore synchronisée) — jamais d'appel réseau déclenché ici.
+     */
+    @Query("SELECT * FROM series_episodes WHERE seriesId = :seriesId AND seasonNum = :seasonNum AND episodeNum = :episodeNum LIMIT 1")
+    suspend fun getEpisodeBySeasonEpisode(seriesId: Int, seasonNum: Int, episodeNum: Int): SeriesEpisodeEntity?
 
     @Query("SELECT * FROM series_streams WHERE categoryId = :categoryId ORDER BY orderIndex ASC")
     fun observeStreamsByCategory(categoryId: String): Flow<List<SeriesStreamEntity>>
@@ -82,13 +95,13 @@ interface SeriesDao {
     // Voir VodDao : projection de liste, mêmes raisons.
     // Voir VodDao : plafond par catégorie servi par l'index couvrant.
     @Query(
-        "SELECT seriesId, name, cover, rating, added, categoryId, genre, releaseYear " +
+        "SELECT seriesId, name, cover, rating, added, categoryId, genre, releaseYear, languageTag, qualityTag " +
             "FROM series_streams WHERE categoryRank < :limit ORDER BY categoryRank ASC"
     )
     fun observeAllStreamListRows(limit: Int): Flow<List<SeriesStreamListRow>>
 
     @Query(
-        "SELECT seriesId, name, cover, rating, added, categoryId, genre, releaseYear " +
+        "SELECT seriesId, name, cover, rating, added, categoryId, genre, releaseYear, languageTag, qualityTag " +
             "FROM series_streams WHERE categoryId = :categoryId ORDER BY orderIndex ASC"
     )
     fun observeStreamListRowsByCategory(categoryId: String): Flow<List<SeriesStreamListRow>>

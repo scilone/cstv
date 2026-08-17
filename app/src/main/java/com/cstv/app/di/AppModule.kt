@@ -305,6 +305,21 @@ object AppModule {
 
     @Provides
     @Singleton
+    fun provideSeriesVersionPreferenceDao(database: AppDatabase): com.cstv.app.data.local.dao.SeriesVersionPreferenceDao {
+        return database.seriesVersionPreferenceDao()
+    }
+
+    @Provides
+    @Singleton
+    fun provideSeriesVersionPreferenceRepository(
+        dao: com.cstv.app.data.local.dao.SeriesVersionPreferenceDao,
+        profileManager: com.cstv.app.data.local.storage.ProfileManager
+    ): com.cstv.app.domain.repository.SeriesVersionPreferenceRepository {
+        return com.cstv.app.data.repository.SeriesVersionPreferenceRepositoryImpl(dao, profileManager)
+    }
+
+    @Provides
+    @Singleton
     fun provideCategoryPreferenceDao(database: AppDatabase): com.cstv.app.data.local.dao.CategoryPreferenceDao {
         return database.categoryPreferenceDao()
     }

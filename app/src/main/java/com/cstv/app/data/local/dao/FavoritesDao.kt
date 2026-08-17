@@ -9,7 +9,9 @@ import kotlinx.coroutines.flow.Flow
 
 internal const val SEARCH_TEXT_LIKE_PREDICATE = "searchText LIKE :pattern ESCAPE '\\'"
 
-/** T20: display projection — favorites joined to the current catalogue, filtered by account. */
+/** T20: display projection — favorites joined to the current catalogue, filtered by account.
+ *  F39 : `languageTag`/`qualityTag` (T21) pour les badges de version — toujours NULL sur la
+ *  branche `live`, hors périmètre F39 (chaînes = F40). */
 data class FavoriteListRow(
     val providerId: Int,
     val kind: String,
@@ -17,6 +19,8 @@ data class FavoriteListRow(
     val name: String,
     val cover: String?,
     val categoryId: String,
+    val languageTag: String?,
+    val qualityTag: String?,
 )
 
 /** T20: wire projection for cloud sync — no catalogue metadata, see [FavoritesDao.wireRows]. */
@@ -25,17 +29,17 @@ data class FavoriteWireRow(val providerId: Int, val kind: String, val addedAt: L
 /** Visibilité élargie pour [com.cstv.app.data.local.db.StateDisplayJoinSqlTest], qui rejoue le SQL
  *  réel plutôt qu'une copie qui pourrait diverger silencieusement. */
 internal const val FAVORITE_LIST_QUERY = """
-    SELECT r.providerId AS providerId, r.kind AS kind, f.addedAt AS addedAt, s.name AS name, s.streamIcon AS cover, s.categoryId AS categoryId
+    SELECT r.providerId AS providerId, r.kind AS kind, f.addedAt AS addedAt, s.name AS name, s.streamIcon AS cover, s.categoryId AS categoryId, NULL AS languageTag, NULL AS qualityTag
       FROM favorites f JOIN media_refs r ON r.mediaUid = f.mediaUid
       JOIN live_streams s ON s.streamId = r.providerId
      WHERE f.profileId = :profileId AND r.accountKey = :accountKey AND r.kind = 'live'
     UNION ALL
-    SELECT r.providerId, r.kind, f.addedAt, s.name, s.streamIcon, s.categoryId
+    SELECT r.providerId, r.kind, f.addedAt, s.name, s.streamIcon, s.categoryId, s.languageTag, s.qualityTag
       FROM favorites f JOIN media_refs r ON r.mediaUid = f.mediaUid
       JOIN vod_streams s ON s.streamId = r.providerId
      WHERE f.profileId = :profileId AND r.accountKey = :accountKey AND r.kind = 'movie'
     UNION ALL
-    SELECT r.providerId, r.kind, f.addedAt, s.name, s.cover, s.categoryId
+    SELECT r.providerId, r.kind, f.addedAt, s.name, s.cover, s.categoryId, s.languageTag, s.qualityTag
       FROM favorites f JOIN media_refs r ON r.mediaUid = f.mediaUid
       JOIN series_streams s ON s.seriesId = r.providerId
      WHERE f.profileId = :profileId AND r.accountKey = :accountKey AND r.kind = 'series'

@@ -152,6 +152,8 @@ class VodRepositoryImpl @Inject constructor(
 
     companion object {
         const val ALL_CATEGORIES = "all"
+        /** F39 §8.7 : plafond défensif, protège d'une clé de liaison anormalement large. */
+        private const val MAX_VERSIONS_PER_LINK_KEY = 20
         // Les durées de vie du cache vivent désormais dans CacheTtl : la
         // constante locale d'origine était déclarée ici mais jamais lue.
         private const val ENRICHMENT_BATCH_SIZE = 50
@@ -319,7 +321,9 @@ class VodRepositoryImpl @Inject constructor(
         added = added,
         categoryId = categoryId,
         genre = genre,
-        releaseYear = releaseYear?.takeIf { it > 0 }
+        releaseYear = releaseYear?.takeIf { it > 0 },
+        languageTag = languageTag,
+        qualityTag = qualityTag
     )
 
     override suspend fun getCachedVodCategories(): List<VodCategory> =
@@ -697,5 +701,15 @@ class VodRepositoryImpl @Inject constructor(
             director = entity.director,
             searchText = entity.searchText
         )
+    }
+
+    override suspend fun getVersionsByLinkKey(linkKey: String, releaseYear: Int?): List<VodStream> {
+        if (linkKey.isBlank()) return emptyList()
+        val rows = vodDao.getStreamsByLinkKey(linkKey, releaseYear, MAX_VERSIONS_PER_LINK_KEY)
+        if (rows.size >= MAX_VERSIONS_PER_LINK_KEY) {
+            com.cstv.app.di.IptvLog.d("F39", "linkKey=$linkKey plafonné à $MAX_VERSIONS_PER_LINK_KEY versions VOD (§8.7)")
+        }
+        return rows.map { it.toDomain() }
+            .sortedWith(compareByDescending<VodStream> { com.cstv.app.domain.model.mediaQualityRank(it.qualityTag) }.thenBy { it.streamId })
     }
 }

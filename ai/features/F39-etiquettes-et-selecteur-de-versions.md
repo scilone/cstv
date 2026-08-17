@@ -441,7 +441,7 @@ partagé de T23 existe donc déjà : la tâche 4 s'appuie dessus pour de vrai,
 sans point d'extension à poser — au contraire, c'est F39 qui doit veiller à
 n'utiliser qu'un seul contrôleur de moteur, pas un second concurrent (§9.3).
 
-- [ ] 1. Badges dans les listes
+- [x] 1. Badges dans les listes
 
 Objectif:
 Afficher 0, 1 ou 2 badges (langue puis qualité) sur les vignettes VOD et
@@ -463,7 +463,7 @@ fabriqué sur une entrée sans attribut (décision étape 2).
 
 ---
 
-- [ ] 2. Accès aux versions par `linkKey` (VOD et séries)
+- [x] 2. Accès aux versions par `linkKey` (VOD et séries)
 
 Objectif:
 Requêtes DAO groupées par `linkKey` avec compatibilité d'année (§8.2), et
@@ -485,7 +485,7 @@ depuis le lecteur, §8.2). Plafond défensif de 20 versions vérifié par test
 
 ---
 
-- [ ] 3. Persistance de la préférence de version série
+- [x] 3. Persistance de la préférence de version série
 
 Objectif:
 Créer `SeriesVersionPreferenceEntity` (§8.3) et son repository ; gérer la
@@ -507,7 +507,7 @@ conformément à §8.3).
 
 ---
 
-- [ ] 4. `MediaVersionSwitchController` — bascule transactionnelle
+- [x] 4. `MediaVersionSwitchController` — bascule transactionnelle
 
 Objectif:
 Implémenter la bascule (§8.5) au-dessus du `PlaybackEngineController` livré
@@ -582,6 +582,36 @@ Aucune nouvelle dépendance Gradle (§8.7).
 ---
 
 # 11. Notes de développement
+
+## Tâches 1-4 (livrées)
+
+- **Migration** : 31 → 32 (`MIGRATION_31_32`), réunit deux changements indépendants faute d'un
+  second numéro disponible (règle T21 §8.5) : extension de l'index couvrant T9
+  (`languageTag`/`qualityTag`) et création de `series_version_preferences`.
+- **Badges (tâche 1)** : mapper pur `mediaVersionBadges()` (`domain/model/MediaVersionBadges.kt`),
+  câblé sur `HomeVodMovieCard`/`HomeSeriesShowCard` (coin bas-gauche, libre sauf rangées à rang
+  Top 10) ainsi que sur les cartes dédiées de `SearchScreen` et `FavoritesScreen` — cette dernière a
+  nécessité d'élargir `FavoriteListRow`/`FavoriteItem` avec `languageTag`/`qualityTag` (`NULL` sur la
+  branche `live`, hors périmètre F39). Index couvrant étendu en conséquence sur `VodStreamEntity`/
+  `SeriesStreamEntity`, vérifié par `EXPLAIN QUERY PLAN` automatisé (`CoveringIndexF39SqlTest`,
+  `Migration31To32SqlTest`).
+- **Accès versions (tâche 2)** : `VodDao`/`SeriesDao.getStreamsByLinkKey` enrichies (année + plafond
+  20, tri qualité recalculé côté Kotlin via `mediaQualityRank()`). `SeriesVersionResolver` élimine
+  les séries candidates sans épisode équivalent, sans jamais déclencher `get_series_info`.
+- **Préférence série (tâche 3)** : `SeriesVersionPreferenceEntity`/DAO/repository conformes à la
+  fiche. `SeriesVersionResolver.resolvePreferred()` porte la logique de repli paresseux (préférence
+  obsolète → effacée, repli sur la série ouverte) — colocalisée avec le resolver plutôt que dans le
+  repository, pour n'avoir qu'un seul point d'orchestration testé (`SeriesVersionResolverTest`).
+- **Switch controller (tâche 4)** : nouvelle abstraction `MediaVersionSwitchEngine` (Ready/Failure),
+  distincte du `PlaybackRecoveryEngine` de T23 — celui-ci reconstruit tout le lecteur (changement de
+  décodeur), F39 ne fait que poser un nouveau `MediaItem` sur le lecteur existant (§9.3, un seul
+  contrôleur de moteur actif). L'adapter réel au-dessus de `PlaybackEngineController` reste à câbler
+  en tâche 5 (même split que T23 tâche 4 / tâche 7). Génération anti-race validée par test avec
+  interleaving réel (`launch` + `advanceTimeBy`), pas seulement simulée.
+- **Non câblé** (hors périmètre tâches 1-4, prévu tâches 5-6) : aucun bouton « Version » ni
+  « Versions » n'est encore visible dans l'app — `VersionSelectorSheet`, l'adapter Media3 de
+  `MediaVersionSwitchEngine`, et l'intégration aux lecteurs/fiches restent à faire.
+- Vert : `assembleDebug`, `testDebugUnitTest` (suite complète), `lintDebug`.
 
 ---
 

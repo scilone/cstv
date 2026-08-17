@@ -37,6 +37,7 @@ import com.cstv.app.domain.model.LiveStream
 import com.cstv.app.domain.model.VodStream
 import com.cstv.app.domain.model.SeriesStream
 import com.cstv.app.domain.model.DownloadedItem
+import com.cstv.app.domain.model.mediaVersionBadges
 import com.cstv.app.presentation.theme.AccentLavande
 import com.cstv.app.presentation.theme.DarkBackground
 import com.cstv.app.presentation.theme.Surface1
@@ -486,6 +487,17 @@ fun HomeVodMovieCard(
                 }
             }
 
+            // F39 : langue puis qualité, coin bas-gauche — libre sauf sur les
+            // rangées Top 10 (rang déjà posé là, voir HomeSeriesShowCard).
+            if (rank == null) {
+                val versionLabel = remember(stream.languageTag, stream.qualityTag) {
+                    mediaVersionBadges(stream.languageTag, stream.qualityTag).takeIf { it.isNotEmpty() }?.joinToString(" · ")
+                }
+                if (versionLabel != null) {
+                    HomeCardVersionBadge(versionLabel, Modifier.align(Alignment.BottomStart))
+                }
+            }
+
             if (isFavorite) HomeCardFavoriteBadge(Modifier.align(Alignment.BottomEnd))
         }
     }
@@ -660,8 +672,36 @@ fun HomeSeriesShowCard(
                 }
             }
 
+            // F39 : voir HomeVodMovieCard.
+            if (rank == null) {
+                val versionLabel = remember(stream.languageTag, stream.qualityTag) {
+                    mediaVersionBadges(stream.languageTag, stream.qualityTag).takeIf { it.isNotEmpty() }?.joinToString(" · ")
+                }
+                if (versionLabel != null) {
+                    HomeCardVersionBadge(versionLabel, Modifier.align(Alignment.BottomStart))
+                }
+            }
+
             if (isFavorite) HomeCardFavoriteBadge(Modifier.align(Alignment.BottomEnd))
         }
+    }
+}
+
+/**
+ * Étiquette langue/qualité (F39), ex. « VF · 4K » — coin bas-gauche, libre
+ * sauf sur les rangées à rang (Top 10), qui y posent déjà [TopRankBadge].
+ * Même habillage visuel que [HomeCardFavoriteBadge] et le badge de reprise.
+ */
+@Composable
+private fun HomeCardVersionBadge(label: String, modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .padding(6.dp)
+            .clip(RoundedCornerShape(4.dp))
+            .background(Color(0xCC000000))
+            .padding(horizontal = 4.dp, vertical = 2.dp)
+    ) {
+        Text(label, color = Color.White, fontSize = 8.sp, fontWeight = FontWeight.Bold)
     }
 }
 

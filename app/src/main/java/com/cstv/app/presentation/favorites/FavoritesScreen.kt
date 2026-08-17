@@ -283,6 +283,25 @@ private fun FavoriteCardItem(
                     modifier = Modifier.size(32.dp)
                 )
             }
+
+            // F39 : langue puis qualité — jamais pour une chaîne (item.languageTag
+            // reste nul sur la branche `live`, hors périmètre F39).
+            val versionLabel = remember(item.languageTag, item.qualityTag) {
+                com.cstv.app.domain.model.mediaVersionBadges(item.languageTag, item.qualityTag)
+                    .takeIf { it.isNotEmpty() }?.joinToString(" · ")
+            }
+            if (versionLabel != null) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .padding(6.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(Color(0xCC000000))
+                        .padding(horizontal = 4.dp, vertical = 2.dp)
+                ) {
+                    Text(versionLabel, color = Color.White, fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                }
+            }
         }
 
         // Title

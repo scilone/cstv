@@ -2,6 +2,7 @@ package com.cstv.app.domain.repository
 
 import com.cstv.app.domain.model.SeriesCategory
 import com.cstv.app.domain.model.SeriesDetails
+import com.cstv.app.domain.model.SeriesEpisode
 import com.cstv.app.domain.model.SeriesStream
 import kotlinx.coroutines.flow.Flow
 
@@ -78,4 +79,14 @@ interface SeriesRepository {
 
     /** Récupère une série du cache local par son identifiant unique, ou null s'elle n'existe plus. */
     suspend fun getStreamById(seriesId: Int): SeriesStream?
+
+    /** F39 §8.2 : voir [com.cstv.app.domain.repository.VodRepository.getVersionsByLinkKey]. */
+    suspend fun getVersionsByLinkKey(linkKey: String, releaseYear: Int?): List<SeriesStream> = emptyList()
+
+    /**
+     * F39 §8.2 point 2 : épisode d'une série pour le couple saison/épisode
+     * donné, ou `null` si absent (série incomplète en cache) — jamais
+     * d'appel réseau, consommé par [com.cstv.app.domain.model.SeriesVersionResolver].
+     */
+    suspend fun getEpisodeBySeasonEpisode(seriesId: Int, seasonNum: Int, episodeNum: Int): SeriesEpisode? = null
 }

@@ -9,13 +9,17 @@ import androidx.room.PrimaryKey
 // les films de l'année cherchée plus ceux dont l'année n'est pas encore connue,
 // au lieu de charger et normaliser tout le catalogue (T-B15).
 //
-// L'index sur `categoryRank` est **couvrant** : il porte les huit colonnes de
+// L'index sur `categoryRank` est **couvrant** : il porte les colonnes de
 // `VodStreamListRow`, si bien que la requête de l'onglet « Tout » se résout
 // entièrement dans l'index — aucun accès à la table, aucun tri temporaire, et
 // le balayage s'arrête au centième élément de chaque catégorie. Sans lui,
 // `ORDER BY orderIndex` sur 39 000 lignes imposait un parcours complet de la
 // table (colonnes lourdes `plot`/`searchText` comprises) suivi d'un tri
 // B-tree : 2 secondes mesurées sur Android TV.
+//
+// F39 (migration 31→32) : `languageTag`/`qualityTag` ajoutés en queue pour les
+// badges de version — l'index T9 est étendu une seule fois, comme prévu par la
+// fiche F39 §8.4, plutôt que de perdre la couverture sur l'onglet « Tout ».
 //
 // L'index `(categoryId, orderIndex)` reste volontairement étroit : la vue
 // « une catégorie » ne remonte que quelques centaines de lignes, pour
@@ -28,7 +32,8 @@ import androidx.room.PrimaryKey
         Index(
             value = [
                 "categoryRank", "streamId", "name", "streamIcon",
-                "rating", "added", "categoryId", "genre", "releaseYear"
+                "rating", "added", "categoryId", "genre", "releaseYear",
+                "languageTag", "qualityTag"
             ]
         ),
         Index(value = ["categoryId", "orderIndex"]),

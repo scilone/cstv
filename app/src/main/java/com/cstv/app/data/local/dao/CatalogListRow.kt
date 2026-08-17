@@ -49,7 +49,11 @@ data class VodStreamListRow(
     val added: String?,
     val categoryId: String,
     val genre: String?,
-    val releaseYear: Int?
+    val releaseYear: Int?,
+    /** F39 : tags T21 pour le badge de version (§8.4) — l'index couvrant T9
+     *  est étendu en migration 31→32 pour les inclure sans coût de tri. */
+    val languageTag: String?,
+    val qualityTag: String?
 )
 
 /**
@@ -78,5 +82,8 @@ data class SeriesStreamListRow(
     val added: String?,
     val categoryId: String,
     val genre: String?,
-    val releaseYear: Int?
+    val releaseYear: Int?,
+    /** F39 : voir [VodStreamListRow]. */
+    val languageTag: String?,
+    val qualityTag: String?
 )

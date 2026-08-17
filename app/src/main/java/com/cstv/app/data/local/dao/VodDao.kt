@@ -129,8 +129,20 @@ interface VodDao {
     @Query("UPDATE vod_streams SET cleanTitle = :cleanTitle, linkKey = :linkKey, languageTag = :languageTag, languageRaw = :languageRaw, qualityTag = :qualityTag, qualityRaw = :qualityRaw WHERE streamId = :streamId AND linkKey = ''")
     suspend fun applyNormalization(streamId: Int, cleanTitle: String, linkKey: String, languageTag: String?, languageRaw: String?, qualityTag: String?, qualityRaw: String?)
 
-    @Query("SELECT * FROM vod_streams WHERE linkKey = :linkKey AND linkKey != '' ORDER BY streamId ASC")
-    suspend fun getStreamsByLinkKey(linkKey: String): List<VodStreamEntity>
+    /**
+     * F39 §8.2 : autres versions d'une œuvre partageant `linkKey`, filtrées
+     * par année compatible (une entrée sans année connue reste candidate).
+     * Le rang qualité n'étant pas une colonne, l'ordre final (qualité
+     * décroissante) est recalculé côté Kotlin par le repository ; ce tri SQL
+     * par `streamId` n'est qu'un ordre stable de repli. `limit` applique le
+     * plafond défensif §8.7.
+     */
+    @Query(
+        "SELECT * FROM vod_streams WHERE linkKey = :linkKey AND linkKey != '' " +
+            "AND (:year IS NULL OR :year <= 0 OR releaseYear IS NULL OR releaseYear <= 0 OR releaseYear = :year) " +
+            "ORDER BY streamId ASC LIMIT :limit"
+    )
+    suspend fun getStreamsByLinkKey(linkKey: String, year: Int?, limit: Int): List<VodStreamEntity>
 
     @Query("SELECT * FROM vod_streams WHERE categoryId = :categoryId ORDER BY orderIndex ASC")
     fun observeStreamsByCategory(categoryId: String): Flow<List<VodStreamEntity>>
@@ -150,13 +162,13 @@ interface VodDao {
     // (LinkedHashMap) conserve l'ordre de rencontre à l'intérieur de chaque
     // groupe — donc les rangs croissants de la catégorie.
     @Query(
-        "SELECT streamId, name, streamIcon, rating, added, categoryId, genre, releaseYear " +
+        "SELECT streamId, name, streamIcon, rating, added, categoryId, genre, releaseYear, languageTag, qualityTag " +
             "FROM vod_streams WHERE categoryRank < :limit ORDER BY categoryRank ASC"
     )
     fun observeAllStreamListRows(limit: Int): Flow<List<VodStreamListRow>>
 
     @Query(
-        "SELECT streamId, name, streamIcon, rating, added, categoryId, genre, releaseYear " +
+        "SELECT streamId, name, streamIcon, rating, added, categoryId, genre, releaseYear, languageTag, qualityTag " +
             "FROM vod_streams WHERE categoryId = :categoryId ORDER BY orderIndex ASC"
     )
     fun observeStreamListRowsByCategory(categoryId: String): Flow<List<VodStreamListRow>>

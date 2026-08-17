@@ -151,6 +151,8 @@ class SeriesRepositoryImpl @Inject constructor(
 
     companion object {
         const val ALL_CATEGORIES = "all"
+        /** F39 §8.7 : plafond défensif, protège d'une clé de liaison anormalement large. */
+        private const val MAX_VERSIONS_PER_LINK_KEY = 20
         // Les durées de vie du cache vivent désormais dans CacheTtl : la
         // constante locale d'origine était déclarée ici mais jamais lue.
         private const val ENRICHMENT_BATCH_SIZE = 50
@@ -247,7 +249,9 @@ class SeriesRepositoryImpl @Inject constructor(
         added = added,
         categoryId = categoryId,
         genre = genre,
-        releaseYear = releaseYear?.takeIf { it > 0 }
+        releaseYear = releaseYear?.takeIf { it > 0 },
+        languageTag = languageTag,
+        qualityTag = qualityTag
     )
 
     override suspend fun getCachedSeriesCategories(): List<SeriesCategory> =
@@ -687,6 +691,31 @@ class SeriesRepositoryImpl @Inject constructor(
             actors = entity.actors,
             director = entity.director,
             searchText = entity.searchText
+        )
+    }
+
+    override suspend fun getVersionsByLinkKey(linkKey: String, releaseYear: Int?): List<SeriesStream> {
+        if (linkKey.isBlank()) return emptyList()
+        val rows = seriesDao.getStreamsByLinkKey(linkKey, releaseYear, MAX_VERSIONS_PER_LINK_KEY)
+        if (rows.size >= MAX_VERSIONS_PER_LINK_KEY) {
+            com.cstv.app.di.IptvLog.d("F39", "linkKey=$linkKey plafonné à $MAX_VERSIONS_PER_LINK_KEY versions série (§8.7)")
+        }
+        return rows.map { it.toDomain() }
+            .sortedWith(compareByDescending<SeriesStream> { com.cstv.app.domain.model.mediaQualityRank(it.qualityTag) }.thenBy { it.seriesId })
+    }
+
+    override suspend fun getEpisodeBySeasonEpisode(seriesId: Int, seasonNum: Int, episodeNum: Int): com.cstv.app.domain.model.SeriesEpisode? {
+        val e = seriesDao.getEpisodeBySeasonEpisode(seriesId, seasonNum, episodeNum) ?: return null
+        return com.cstv.app.domain.model.SeriesEpisode(
+            id = e.episodeId,
+            episodeNum = e.episodeNum,
+            title = e.title,
+            containerExtension = e.containerExtension,
+            plot = e.plot ?: "Aucun résumé disponible.",
+            duration = e.duration ?: "00:00",
+            releaseDate = e.releaseDate ?: "",
+            movieImage = e.movieImage,
+            seasonNum = e.seasonNum
         )
     }
 }

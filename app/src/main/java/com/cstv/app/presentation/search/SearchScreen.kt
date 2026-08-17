@@ -374,6 +374,8 @@ fun SearchScreen(
                                                 cover = stream.streamIcon,
                                                 isLive = false,
                                                 rating = stream.rating,
+                                                languageTag = stream.languageTag,
+                                                qualityTag = stream.qualityTag,
                                                 onClick = { onSelectMovie(stream) }
                                             )
                                         }
@@ -424,6 +426,8 @@ fun SearchScreen(
                                                 cover = stream.cover,
                                                 isLive = false,
                                                 rating = stream.rating,
+                                                languageTag = stream.languageTag,
+                                                qualityTag = stream.qualityTag,
                                                 onClick = { onSelectSeries(stream) }
                                             )
                                         }
@@ -733,6 +737,8 @@ private fun SearchExpandedGridMobile(
                         cover = stream.streamIcon,
                         isLive = false,
                         rating = stream.rating,
+                        languageTag = stream.languageTag,
+                        qualityTag = stream.qualityTag,
                         onClick = { onSelectMovie(stream) }
                     )
                 }
@@ -744,6 +750,8 @@ private fun SearchExpandedGridMobile(
                         cover = stream.cover,
                         isLive = false,
                         rating = stream.rating,
+                        languageTag = stream.languageTag,
+                        qualityTag = stream.qualityTag,
                         onClick = { onSelectSeries(stream) }
                     )
                 }
@@ -758,6 +766,9 @@ private fun SearchGridCard(
     cover: String?,
     isLive: Boolean,
     rating: String? = null,
+    /** F39 : langue T21, coin bas-gauche — voir HomeCards.HomeVodMovieCard. */
+    languageTag: String? = null,
+    qualityTag: String? = null,
     onClick: () -> Unit
 ) {
     var isFocused by remember { mutableStateOf(false) }
@@ -794,6 +805,7 @@ private fun SearchGridCard(
         }
         if (!isLive) {
             SearchCardRatingBadge(rating = rating, modifier = Modifier.align(Alignment.TopEnd))
+            SearchCardVersionBadge(languageTag, qualityTag, modifier = Modifier.align(Alignment.BottomStart))
         }
     }
 }
@@ -804,6 +816,9 @@ private fun SearchCardItem(
     cover: String?,
     isLive: Boolean,
     rating: String? = null,
+    /** F39 : voir [SearchGridCard]. */
+    languageTag: String? = null,
+    qualityTag: String? = null,
     onClick: () -> Unit
 ) {
     var isFocused by remember { mutableStateOf(false) }
@@ -840,6 +855,7 @@ private fun SearchCardItem(
         }
         if (!isLive) {
             SearchCardRatingBadge(rating = rating, modifier = Modifier.align(Alignment.TopEnd))
+            SearchCardVersionBadge(languageTag, qualityTag, modifier = Modifier.align(Alignment.BottomStart))
         }
     }
 }
@@ -866,6 +882,24 @@ private fun SearchCardRatingBadge(rating: String?, modifier: Modifier = Modifier
             Spacer(modifier = Modifier.width(2.dp))
             Text(cleanRating, color = Color.White, fontSize = 8.sp, fontWeight = FontWeight.Bold)
         }
+    }
+}
+
+/** F39 : langue puis qualité (ex. « VF · 4K »), coin bas-gauche — voir HomeCards.HomeVodMovieCard. */
+@Composable
+private fun SearchCardVersionBadge(languageTag: String?, qualityTag: String?, modifier: Modifier = Modifier) {
+    val label = remember(languageTag, qualityTag) {
+        com.cstv.app.domain.model.mediaVersionBadges(languageTag, qualityTag).takeIf { it.isNotEmpty() }?.joinToString(" · ")
+    } ?: return
+
+    Box(
+        modifier = modifier
+            .padding(6.dp)
+            .clip(RoundedCornerShape(4.dp))
+            .background(Color(0xCC000000))
+            .padding(horizontal = 4.dp, vertical = 2.dp)
+    ) {
+        Text(label, color = Color.White, fontSize = 8.sp, fontWeight = FontWeight.Bold)
     }
 }
 
