@@ -39,9 +39,11 @@ import com.cstv.app.data.local.entity.SeriesWatchStateEntity
 import com.cstv.app.data.local.entity.MediaRefEntity
 import com.cstv.app.data.local.entity.CategoryRefEntity
 import com.cstv.app.data.local.entity.DbMaintenanceEntity
+import com.cstv.app.data.local.entity.CanonicalMediaLinkEntity
 import com.cstv.app.data.local.dao.MediaRefDao
 import com.cstv.app.data.local.dao.CategoryRefDao
 import com.cstv.app.data.local.dao.DbMaintenanceDao
+import com.cstv.app.data.local.dao.CanonicalMediaLinkDao
 
 @Database(
     entities = [
@@ -68,9 +70,10 @@ import com.cstv.app.data.local.dao.DbMaintenanceDao
         ProfileSyncStateEntity::class,
         MediaRefEntity::class,
         CategoryRefEntity::class,
-        DbMaintenanceEntity::class
+        DbMaintenanceEntity::class,
+        CanonicalMediaLinkEntity::class
     ],
-    version = 29,
+    version = 30,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -90,6 +93,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun mediaRefDao(): MediaRefDao
     abstract fun categoryRefDao(): CategoryRefDao
     abstract fun dbMaintenanceDao(): DbMaintenanceDao
+    abstract fun canonicalMediaLinkDao(): CanonicalMediaLinkDao
 
     companion object {
         /** Nom de fichier `.db` — partagé entre `AppModule` (ouverture) et [com.cstv.app.data.local.db.DatabaseMaintenanceRunner] (`StatFs`). */

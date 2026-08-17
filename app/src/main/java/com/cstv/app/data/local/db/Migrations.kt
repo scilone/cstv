@@ -924,4 +924,23 @@ internal fun migration27To28Statements(): List<String> = listOf(
     "INSERT OR REPLACE INTO db_maintenance (task, requestedAt) VALUES ('vacuum', ${System.currentTimeMillis()})",
 )
 
-val ALL_MIGRATIONS = arrayOf(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29)
+/**
+ * T24 : table `canonical_media_links`, découplée de `vod_streams`/
+ * `series_streams` (voir `CanonicalMediaLinkEntity` — un `canonicalId`
+ * stocké directement sur ces tables serait écrasé à chaque sync catalogue,
+ * qui les réécrit en intégralité via `@Upsert`).
+ */
+val MIGRATION_29_30 = object : Migration(29, 30) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        migration29To30Statements().forEach(db::execSQL)
+    }
+}
+
+internal fun migration29To30Statements(): List<String> = listOf(
+    "CREATE TABLE IF NOT EXISTS canonical_media_links (" +
+        "kind TEXT NOT NULL, providerId INTEGER NOT NULL, canonicalId TEXT NOT NULL, " +
+        "updatedAt INTEGER NOT NULL, PRIMARY KEY(kind, providerId))",
+    "CREATE INDEX IF NOT EXISTS index_canonical_media_links_canonicalId ON canonical_media_links(canonicalId)"
+)
+
+val ALL_MIGRATIONS = arrayOf(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30)

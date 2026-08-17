@@ -39,7 +39,9 @@ class GetPopularTop10InCatalogUseCaseTest {
         val catalogFreshness = mock<com.cstv.app.data.sync.CatalogFreshness>()
         whenever(catalogFreshness.vodSyncedAt()).thenReturn(0L)
         whenever(catalogFreshness.seriesSyncedAt()).thenReturn(0L)
-        return GetPopularTop10InCatalogUseCase(popularRepository, vodRepository, seriesRepository, preferences, catalogFreshness)
+        val canonicalMediaLinkRepository = mock<com.cstv.app.domain.repository.CanonicalMediaLinkRepository>()
+        whenever(canonicalMediaLinkRepository.findByCanonicalIds(any())).thenReturn(emptyList())
+        return GetPopularTop10InCatalogUseCase(popularRepository, vodRepository, seriesRepository, preferences, catalogFreshness, canonicalMediaLinkRepository)
     }
 
     // --- loadFreshMovies / loadFreshSeries : chargement "à froid" (T8 règle 5) ---

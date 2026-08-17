@@ -1,5 +1,6 @@
 package com.cstv.app.data.sync
 
+import com.cstv.app.data.local.dao.CanonicalMediaLinkDao
 import com.cstv.app.data.local.dao.DownloadDao
 import com.cstv.app.data.local.dao.MediaRefDao
 import com.cstv.app.data.local.dao.OrphanedDownloadRow
@@ -38,16 +39,24 @@ fun interface DownloadContentRemover {
  *   retirer le contenu media3, puis supprimer la ligne. Un échec laisse la
  *   ligne en `ORPHANED` : invisible à l'écran Téléchargements, reprise au
  *   prochain cycle, jamais annoncée nettoyée alors qu'elle ne l'est pas.
+ * - `canonical_media_links` (T24) : associations `canonicalId` dont le
+ *   `providerId` n'existe plus dans `vod_streams`/`series_streams`. Borne la
+ *   fenêtre pendant laquelle un `streamId` réattribué par le panel Xtream à
+ *   une autre œuvre pourrait hériter à tort d'un ancien `canonicalId`.
  */
 class CatalogReconciler @Inject constructor(
     private val downloadDao: DownloadDao,
     private val trailerCacheDao: TrailerCacheDao,
     private val mediaRefDao: MediaRefDao,
+    private val canonicalMediaLinkDao: CanonicalMediaLinkDao,
     private val downloadContentRemover: DownloadContentRemover,
 ) {
     suspend fun reconcile(accountKey: String) {
         runCatching { trailerCacheDao.deleteOrphaned() }
             .onFailure { IptvLog.e("RECONCILE", "Purge trailer_cache orpheline impossible", it) }
+
+        runCatching { canonicalMediaLinkDao.purgeOrphaned() }
+            .onFailure { IptvLog.e("RECONCILE", "Purge canonical_media_links orpheline impossible", it) }
 
         val orphaned = runCatching { downloadDao.findOrphaned(accountKey) }.getOrElse {
             IptvLog.e("RECONCILE", "Recherche des téléchargements orphelins impossible", it)

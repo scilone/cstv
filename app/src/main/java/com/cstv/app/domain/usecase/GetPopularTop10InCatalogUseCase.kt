@@ -1,12 +1,14 @@
 package com.cstv.app.domain.usecase
 
 import com.cstv.app.di.IptvLog
+import com.cstv.app.domain.model.CanonicalMediaLink
 import com.cstv.app.domain.model.CategoryType
 import com.cstv.app.domain.model.PopularCatalogItem
 import com.cstv.app.domain.model.SeriesStream
 import com.cstv.app.domain.model.TmdbCatalogMatcher
 import com.cstv.app.domain.model.TrendingTitle
 import com.cstv.app.domain.model.VodStream
+import com.cstv.app.domain.repository.CanonicalMediaLinkRepository
 import com.cstv.app.domain.repository.CategoryPreferenceRepository
 import com.cstv.app.domain.repository.PopularRepository
 import com.cstv.app.domain.repository.SeriesRepository
@@ -16,12 +18,16 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
+private const val KIND_MOVIE = "movie"
+private const val KIND_SERIES = "series"
+
 class GetPopularTop10InCatalogUseCase @Inject constructor(
     private val popularRepository: PopularRepository,
     private val vodRepository: VodRepository,
     private val seriesRepository: SeriesRepository,
     private val categoryPreferenceRepository: CategoryPreferenceRepository,
-    private val catalogFreshness: com.cstv.app.data.sync.CatalogFreshness
+    private val catalogFreshness: com.cstv.app.data.sync.CatalogFreshness,
+    private val canonicalMediaLinkRepository: CanonicalMediaLinkRepository
 ) {
 
     /**
@@ -144,34 +150,78 @@ class GetPopularTop10InCatalogUseCase @Inject constructor(
         // Seules les années des titres TMDB peuvent produire un match (année
         // exacte obligatoire), les autres lignes seraient normalisées pour rien.
         val streams = vodRepository.getCachedVodStreamsByYears(popular.mapNotNull { it.year }.toSet())
-        return withContext(Dispatchers.Default) {
-            match(popular, TmdbCatalogMatcher.prepareMovies(streams)) { it.streamId }
-        }
+        return match(KIND_MOVIE, "movies", popular, withContext(Dispatchers.Default) { TmdbCatalogMatcher.prepareMovies(streams) }) { it.streamId }
     }
 
     private suspend fun buildSeriesMatches(): List<PopularCatalogItem> {
         val popular = popularRepository.getPopularSeries()
         if (popular.isEmpty()) return emptyList()
         val streams = seriesRepository.getCachedSeriesStreamsByYears(popular.mapNotNull { it.year }.toSet())
-        return withContext(Dispatchers.Default) {
-            match(popular, TmdbCatalogMatcher.prepareSeries(streams)) { it.seriesId }
-        }
+        return match(KIND_SERIES, "series", popular, withContext(Dispatchers.Default) { TmdbCatalogMatcher.prepareSeries(streams) }) { it.seriesId }
     }
 
-    private fun <T> match(
+    /**
+     * T24 : résolution batch des `canonicalId` déjà associés avant tout
+     * matching — un item connu saute entièrement le scan du catalogue
+     * (`TmdbCatalogMatcher`) et est résolu par une simple requête indexée.
+     */
+    private suspend fun <T> match(
+        kind: String,
+        label: String,
         popular: List<TrendingTitle>,
         catalog: List<TmdbCatalogMatcher.CatalogCandidate<T>>,
         idOf: (T) -> Int
     ): List<PopularCatalogItem> {
+        val canonicalIds = popular.mapNotNull { it.canonicalId }.distinct()
+        val lookupStartNanos = System.nanoTime()
+        val linksByCanonicalId = if (canonicalIds.isNotEmpty()) {
+            canonicalMediaLinkRepository.findByCanonicalIds(canonicalIds)
+                .filter { it.kind == kind }
+                .groupBy { it.canonicalId }
+        } else emptyMap()
+        val lookupMs = (System.nanoTime() - lookupStartNanos) / 1_000_000
+
         val usedIds = mutableSetOf<Int>()
-        return popular.mapNotNull { title ->
-            TmdbCatalogMatcher.findBestMatches(title.title, title.year, catalog, usedIds)?.let { match ->
-                val ids = match.candidates.map(idOf)
-                usedIds += ids
-                IptvLog.d("TMDB", "🎯 Match popular: '${title.title}' (TMDB ${title.year}) ↔ ${ids.size} version(s) found (best score: ${match.score}, yearRank: ${match.yearRank.name})")
-                PopularCatalogItem(ids)
+        val newlyMatchedLinks = mutableListOf<CanonicalMediaLink>()
+        var roomHits = 0
+        var matcherFallbacks = 0
+        val matcherStartNanos = System.nanoTime()
+
+        // Scan du catalogue (CPU-bound) isolé sur Default, comme avant T24 ;
+        // seule la résolution/persistance canonicalId ci-dessus/dessous fait
+        // de l'I/O Room (dispatché en interne par Room lui-même).
+        val result = withContext(Dispatchers.Default) {
+            popular.mapNotNull { title ->
+                val known = title.canonicalId?.let { linksByCanonicalId[it] }
+                if (!known.isNullOrEmpty()) {
+                    // Existence/catégories masquées revalidées plus tard par `resolveMovies`/`resolveSeries`.
+                    roomHits++
+                    val ids = known.map { it.providerId }
+                    usedIds += ids
+                    return@mapNotNull PopularCatalogItem(ids)
+                }
+                matcherFallbacks++
+                TmdbCatalogMatcher.findBestMatches(title.title, title.year, catalog, usedIds)?.let { match ->
+                    val ids = match.candidates.map(idOf)
+                    usedIds += ids
+                    IptvLog.d("TMDB", "🎯 Match popular: '${title.title}' (TMDB ${title.year}) ↔ ${ids.size} version(s) found (best score: ${match.score}, yearRank: ${match.yearRank.name})")
+                    title.canonicalId?.let { cid -> ids.forEach { newlyMatchedLinks.add(CanonicalMediaLink(kind, it, cid)) } }
+                    PopularCatalogItem(ids)
+                }
             }
         }
+        val matcherMs = (System.nanoTime() - matcherStartNanos) / 1_000_000
+        IptvLog.d(
+            "PERF",
+            "Popular $label canonical lookup: $roomHits/${popular.size} hits Room en ${lookupMs}ms, $matcherFallbacks fallback match en ${matcherMs}ms"
+        )
+
+        if (newlyMatchedLinks.isNotEmpty()) {
+            runCatching { canonicalMediaLinkRepository.persistAll(newlyMatchedLinks) }
+                .onFailure { IptvLog.e("TMDB", "Persistance canonicalId impossible (T24)", it) }
+        }
+
+        return result
     }
 
     private suspend fun resolveMovies(

@@ -157,6 +157,19 @@ object AppModule {
     @Singleton
     fun provideCategoryRefDao(database: AppDatabase): com.cstv.app.data.local.dao.CategoryRefDao = database.categoryRefDao()
 
+    // --- T24 : association canonicalId <-> média local (Trending/Popular) ---
+
+    @Provides
+    @Singleton
+    fun provideCanonicalMediaLinkDao(database: AppDatabase): com.cstv.app.data.local.dao.CanonicalMediaLinkDao = database.canonicalMediaLinkDao()
+
+    @Provides
+    @Singleton
+    fun provideCanonicalMediaLinkRepository(
+        dao: com.cstv.app.data.local.dao.CanonicalMediaLinkDao
+    ): com.cstv.app.domain.repository.CanonicalMediaLinkRepository =
+        com.cstv.app.data.repository.CanonicalMediaLinkRepositoryImpl(dao)
+
     @Provides
     @Singleton
     fun provideDbMaintenanceDao(database: AppDatabase): com.cstv.app.data.local.dao.DbMaintenanceDao = database.dbMaintenanceDao()

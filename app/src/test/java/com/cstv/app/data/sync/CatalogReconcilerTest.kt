@@ -1,5 +1,6 @@
 package com.cstv.app.data.sync
 
+import com.cstv.app.data.local.dao.CanonicalMediaLinkDao
 import com.cstv.app.data.local.dao.DownloadDao
 import com.cstv.app.data.local.dao.MediaRefDao
 import com.cstv.app.data.local.dao.OrphanedDownloadRow
@@ -32,6 +33,7 @@ class CatalogReconcilerTest {
     @Mock private lateinit var downloadDao: DownloadDao
     @Mock private lateinit var trailerCacheDao: TrailerCacheDao
     @Mock private lateinit var mediaRefDao: MediaRefDao
+    @Mock private lateinit var canonicalMediaLinkDao: CanonicalMediaLinkDao
 
     private lateinit var removedContentIds: MutableList<String>
     private lateinit var reconciler: CatalogReconciler
@@ -40,7 +42,10 @@ class CatalogReconcilerTest {
     fun setUp() {
         MockitoAnnotations.openMocks(this)
         removedContentIds = mutableListOf()
-        reconciler = CatalogReconciler(downloadDao, trailerCacheDao, mediaRefDao, DownloadContentRemover { removedContentIds.add(it) })
+        reconciler = CatalogReconciler(
+            downloadDao, trailerCacheDao, mediaRefDao, canonicalMediaLinkDao,
+            DownloadContentRemover { removedContentIds.add(it) }
+        )
     }
 
     @Test
@@ -50,6 +55,28 @@ class CatalogReconcilerTest {
         reconciler.reconcile(accountKey)
 
         verify(trailerCacheDao).deleteOrphaned()
+    }
+
+    // T24
+    @Test
+    fun `always purges orphaned canonical media links, independent of any download`() = runTest {
+        whenever(downloadDao.findOrphaned(accountKey)).thenReturn(emptyList())
+
+        reconciler.reconcile(accountKey)
+
+        verify(canonicalMediaLinkDao).purgeOrphaned()
+    }
+
+    @Test
+    fun `a canonical media link purge failure does not prevent download reconciliation`() = runTest {
+        whenever(canonicalMediaLinkDao.purgeOrphaned()).doThrow(RuntimeException("db locked"))
+        whenever(downloadDao.findOrphaned(accountKey)).thenReturn(
+            listOf(OrphanedDownloadRow(mediaUid = 42L, kind = "movie", providerId = 815))
+        )
+
+        reconciler.reconcile(accountKey)
+
+        verify(downloadDao).deleteByMediaUid(42L)
     }
 
     @Test
@@ -85,7 +112,7 @@ class CatalogReconcilerTest {
             listOf(OrphanedDownloadRow(mediaUid = 42L, kind = "movie", providerId = 815))
         )
         reconciler = CatalogReconciler(
-            downloadDao, trailerCacheDao, mediaRefDao,
+            downloadDao, trailerCacheDao, mediaRefDao, canonicalMediaLinkDao,
             DownloadContentRemover { throw RuntimeException("media3 indisponible") },
         )
 
@@ -144,7 +171,7 @@ class CatalogReconcilerTest {
             if (failFirstAttempt) { failFirstAttempt = false; throw RuntimeException("media3 indisponible") }
             removedContentIds.add(contentId)
         }
-        reconciler = CatalogReconciler(downloadDao, trailerCacheDao, mediaRefDao, flakyRemover)
+        reconciler = CatalogReconciler(downloadDao, trailerCacheDao, mediaRefDao, canonicalMediaLinkDao, flakyRemover)
         whenever(downloadDao.findOrphaned(accountKey)).thenReturn(listOf(row))
 
         // Cycle 1: media3 removal fails, the row must not be deleted.

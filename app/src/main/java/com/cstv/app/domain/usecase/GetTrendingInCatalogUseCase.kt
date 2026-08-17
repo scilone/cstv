@@ -1,8 +1,10 @@
 package com.cstv.app.domain.usecase
 
+import com.cstv.app.domain.model.CanonicalMediaLink
 import com.cstv.app.domain.model.TrendingCatalogItem
 import com.cstv.app.domain.model.CategoryType
 import com.cstv.app.domain.model.TmdbCatalogMatcher
+import com.cstv.app.domain.repository.CanonicalMediaLinkRepository
 import com.cstv.app.domain.repository.TrendingRepository
 import com.cstv.app.domain.repository.VodRepository
 import com.cstv.app.domain.repository.SeriesRepository
@@ -12,12 +14,16 @@ import kotlinx.coroutines.withContext
 import java.util.concurrent.CancellationException
 import javax.inject.Inject
 
+private const val KIND_MOVIE = "movie"
+private const val KIND_SERIES = "series"
+
 class GetTrendingInCatalogUseCase @Inject constructor(
     private val trendingRepository: TrendingRepository,
     private val vodRepository: VodRepository,
     private val seriesRepository: SeriesRepository,
     private val categoryPreferenceRepository: CategoryPreferenceRepository,
-    private val catalogFreshness: com.cstv.app.data.sync.CatalogFreshness
+    private val catalogFreshness: com.cstv.app.data.sync.CatalogFreshness,
+    private val canonicalMediaLinkRepository: CanonicalMediaLinkRepository
 ) {
 
     suspend operator fun invoke(): List<TrendingCatalogItem> = withContext(Dispatchers.Default) {
@@ -162,15 +168,43 @@ class GetTrendingInCatalogUseCase @Inject constructor(
         val normalizedSeries = TmdbCatalogMatcher.prepareSeries(allSeries)
         com.cstv.app.di.IptvLog.d("TMDB", "⚡ Pre-normalization complete. Running similarity algorithms...")
 
+        // T24 : résolution batch des canonicalId déjà associés, avant tout
+        // matching — un item connu saute entièrement le scan du catalogue.
+        val canonicalIds = trendingList.mapNotNull { it.canonicalId }.distinct()
+        val lookupStartNanos = System.nanoTime()
+        val linksByCanonicalId = if (canonicalIds.isNotEmpty()) {
+            canonicalMediaLinkRepository.findByCanonicalIds(canonicalIds).groupBy { it.canonicalId }
+        } else emptyMap()
+        val lookupMs = (System.nanoTime() - lookupStartNanos) / 1_000_000
+
         val fullMatchedResult = mutableListOf<TrendingCatalogItem>()
+        val newlyMatchedLinks = mutableListOf<CanonicalMediaLink>()
         // Xtream movie and series identifiers use separate namespaces, so a
         // shared set would incorrectly reject a series whose id matches an
         // already matched movie id (or vice versa).
         val seenMovieIds = mutableSetOf<Int>()
         val seenSeriesIds = mutableSetOf<Int>()
+        var roomHits = 0
+        var matcherFallbacks = 0
+        val matcherStartNanos = System.nanoTime()
 
         for (trending in trendingList) {
+            val knownLinks = trending.canonicalId?.let { linksByCanonicalId[it] }
             if (trending.isMovie) {
+                val knownMovies = knownLinks?.filter { it.kind == KIND_MOVIE }
+                if (!knownMovies.isNullOrEmpty()) {
+                    // Existence/catégories masquées revalidées plus tard par `filterItem` (Bug B-3).
+                    roomHits++
+                    knownMovies.forEach { seenMovieIds.add(it.providerId) }
+                    fullMatchedResult.add(
+                        TrendingCatalogItem(
+                            trendingTitle = trending,
+                            matchedMovies = knownMovies.map { com.cstv.app.domain.model.VodStream(streamId = it.providerId, name = trending.title, streamIcon = null, rating = null, added = null, categoryId = "") }
+                        )
+                    )
+                    continue
+                }
+                matcherFallbacks++
                 val match = TmdbCatalogMatcher.findBestMatches(
                     tmdbTitle = trending.title,
                     tmdbYear = trending.year,
@@ -181,10 +215,26 @@ class GetTrendingInCatalogUseCase @Inject constructor(
                     match.candidates.forEach { seenMovieIds.add(it.streamId) }
                     com.cstv.app.di.IptvLog.d("TMDB", "🎯 Match movie: '${trending.title}' (TMDB ${trending.year}) ↔ ${match.candidates.size} version(s) found (best score: ${match.score}, yearRank: ${match.yearRank.name})")
                     fullMatchedResult.add(TrendingCatalogItem(trendingTitle = trending, matchedMovies = match.candidates))
+                    trending.canonicalId?.let { cid ->
+                        match.candidates.forEach { newlyMatchedLinks.add(CanonicalMediaLink(KIND_MOVIE, it.streamId, cid)) }
+                    }
                 } else {
                     com.cstv.app.di.IptvLog.d("TMDB", "❔ No match found in catalog for trending movie: '${trending.title}'")
                 }
             } else {
+                val knownSeries = knownLinks?.filter { it.kind == KIND_SERIES }
+                if (!knownSeries.isNullOrEmpty()) {
+                    roomHits++
+                    knownSeries.forEach { seenSeriesIds.add(it.providerId) }
+                    fullMatchedResult.add(
+                        TrendingCatalogItem(
+                            trendingTitle = trending,
+                            matchedSeriesList = knownSeries.map { com.cstv.app.domain.model.SeriesStream(seriesId = it.providerId, name = trending.title, cover = null, rating = null, added = null, categoryId = "") }
+                        )
+                    )
+                    continue
+                }
+                matcherFallbacks++
                 val match = TmdbCatalogMatcher.findBestMatches(
                     tmdbTitle = trending.title,
                     tmdbYear = trending.year,
@@ -195,10 +245,23 @@ class GetTrendingInCatalogUseCase @Inject constructor(
                     match.candidates.forEach { seenSeriesIds.add(it.seriesId) }
                     com.cstv.app.di.IptvLog.d("TMDB", "🎯 Match series: '${trending.title}' (TMDB ${trending.year}) ↔ ${match.candidates.size} version(s) found (best score: ${match.score}, yearRank: ${match.yearRank.name})")
                     fullMatchedResult.add(TrendingCatalogItem(trendingTitle = trending, matchedSeriesList = match.candidates))
+                    trending.canonicalId?.let { cid ->
+                        match.candidates.forEach { newlyMatchedLinks.add(CanonicalMediaLink(KIND_SERIES, it.seriesId, cid)) }
+                    }
                 } else {
                     com.cstv.app.di.IptvLog.d("TMDB", "❔ No match found in catalog for trending series: '${trending.title}'")
                 }
             }
+        }
+        val matcherMs = (System.nanoTime() - matcherStartNanos) / 1_000_000
+        com.cstv.app.di.IptvLog.d(
+            "PERF",
+            "Trending canonical lookup: $roomHits/${trendingList.size} hits Room en ${lookupMs}ms, $matcherFallbacks fallback match en ${matcherMs}ms"
+        )
+
+        if (newlyMatchedLinks.isNotEmpty()) {
+            runCatching { canonicalMediaLinkRepository.persistAll(newlyMatchedLinks) }
+                .onFailure { com.cstv.app.di.IptvLog.e("TMDB", "Persistance canonicalId impossible (T24)", it) }
         }
 
         // Save full matched results globally before returning
