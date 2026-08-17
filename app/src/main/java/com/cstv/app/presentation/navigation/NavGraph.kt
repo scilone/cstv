@@ -300,6 +300,54 @@ fun AppNavGraph(
                         navController.navigate("vod_player")
                     }
                 },
+                onPlayResumeWatchingSeries = { position ->
+                    // Fiche synthétique (fallback) construite depuis PlaybackPosition seul,
+                    // utilisée si le catalogue complet de la série n'est pas récupérable
+                    // (hors ligne, série absente du cache). Sans les épisodes réels, next/
+                    // previous restent indisponibles dans ce cas.
+                    val sName = position.title?.substringBefore(" - ") ?: "Série"
+                    val epTitle = position.title?.substringAfter(" - ")?.substringAfter(" ") ?: "Épisode"
+                    val fallbackEpisode = SeriesEpisode(
+                        id = position.streamId,
+                        episodeNum = position.episodeNum ?: 1,
+                        title = epTitle,
+                        containerExtension = position.containerExtension ?: "mp4",
+                        plot = position.plot ?: "Aucun résumé disponible.",
+                        duration = position.duration ?: "00:00",
+                        releaseDate = position.releaseDate ?: "",
+                        resumePositionMs = position.positionMs,
+                        durationMs = position.durationMs,
+                        seasonNum = position.seasonNum ?: 1
+                    )
+                    val fallbackDetails = SeriesDetails(
+                        seriesId = position.seriesId ?: 0,
+                        name = sName,
+                        cover = position.coverUrl,
+                        rating = "0",
+                        seasons = emptyList(),
+                        episodes = emptyMap()
+                    )
+                    homeViewModel.requestPlayback(
+                        com.cstv.app.domain.model.DownloadedItem.episodeContentId(position.streamId)
+                    ) {
+                        // Détails complets (même source que la catégorie « Tout » des séries)
+                        // pour retrouver l'épisode en cours dans sa vraie place de la carte
+                        // `episodes` : c'est ce qui permet au lecteur d'afficher/enchaîner
+                        // épisode suivant/précédent. B31 : ce chemin est désormais réellement
+                        // emprunté (le discriminant cassé dans HomeScreen empêchait jusque-là
+                        // qu'il soit jamais atteint).
+                        val fullDetails = position.seriesId?.let { homeViewModel.loadSeriesDetailsForResume(it) }
+                        val realEpisode = fullDetails?.episodes?.values
+                            ?.flatten()
+                            ?.firstOrNull { it.id == position.streamId }
+                            // Position de lecture toujours reprise depuis PlaybackPosition,
+                            // absente du catalogue (elle n'est jamais persistée sur SeriesEpisode).
+                            ?.copy(resumePositionMs = position.positionMs, durationMs = position.durationMs)
+                        onActiveEpisodeChanged(realEpisode ?: fallbackEpisode)
+                        onActiveSeriesDetailsChanged(fullDetails ?: fallbackDetails)
+                        navController.navigate("series_player")
+                    }
+                },
                 onPlayLiveStream = { stream, list ->
                     // Un flux Live n'est jamais téléchargeable : hors ligne, il
                     // n'est pas lancé, avec un message qui le dit.

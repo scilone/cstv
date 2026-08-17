@@ -48,23 +48,40 @@ code testé — les tests passaient donc pour de mauvaises raisons.
 
 - `HomeScreen.kt` : `handleResumeClick` discrimine désormais sur
   `position.seriesId != null` (fiable, déjà le motif utilisé par
-  `HomeViewModel.groupResumeWatching`) plutôt que sur `type`. Le clic sur une
-  reprise série ouvre la fiche série (`onSelectSeriesDetail`), comme toute
-  autre vignette série de l'app, au lieu de lancer directement le lecteur —
-  la fiche recharge la série complète (`selectStreamId`) et propose son
-  propre CTA « Reprendre » ciblant le bon épisode à la bonne position, ce qui
-  redonne gratuitement épisode suivant/précédent (chemin déjà correct depuis
-  la fiche détail).
+  `HomeViewModel.groupResumeWatching`) plutôt que sur `type`.
+  **Décision produit (confirmée explicitement par le PO après un premier
+  essai livré en v1.85.1 qui routait vers la fiche série)** : le clic sur une
+  reprise série doit lancer directement l'épisode en cours, jamais ouvrir la
+  fiche — comportement identique à l'ancien (avant que le bug ne le
+  redirige silencieusement vers `vod_player`). `onPlayResumeWatchingSeries`
+  (NavGraph) charge donc les détails complets de la série
+  (`HomeViewModel.loadSeriesDetailsForResume`, même source que la catégorie
+  « Tout ») et navigue directement vers `series_player` avec le bon épisode
+  et la carte `episodes` peuplée — ce qui donne next/prev, ET rend
+  fonctionnel le bouton « cover » du lecteur lui-même
+  (`PlayerCoverAction` → `onOpenDetails` → fiche série), qui dépend de
+  `activeSeriesDetails.seriesId` étant valide (`PlayerDetailsNavigation.resolve`,
+  `UNAVAILABLE` si `targetId` null/≤0) : avant ce correctif, ce bouton n'avait
+  jamais de cible valide puisqu'on n'atteignait jamais `series_player`.
 - `SeriesViewModel.kt`, `GetRecommendationsUseCase.kt`, `HomeCards.kt` :
   comparaison corrigée en `pos.type == "episode"`.
 - `PlaybackPosition.kt` : commentaire de `type` corrigé ("movie" ou
   "episode", jamais "series") avec renvoi vers cette fiche.
-- Nettoyage : `onPlayResumeWatchingSeries` (NavGraph/HomeScreen/HomeViewModel)
-  devenu mort avec le nouveau routage a été retiré plutôt que laissé inerte.
 - Tests : fixtures `SeriesViewModelTest`/`GetRecommendationsUseCaseTest`
   corrigées de `type = "series"` vers `"episode"` (elles masquaient le bug) ;
   `test_resumeSeries_observesAndFiltersCorrectly` sert désormais de non-
-  régression réelle sur la section Séries.
+  régression réelle sur la section Séries ; `HomeViewModelTest` couvre
+  `loadSeriesDetailsForResume` (succès + repli `null` hors ligne).
+
+### Itération intermédiaire (v1.85.1, corrigée par v1.85.2/v1.86.x)
+
+Une première version de ce correctif faisait ouvrir la fiche série au clic
+(alignée sur la convention « toute vignette série ouvre sa fiche »), en
+s'appuyant sur le CTA « Reprendre » déjà présent dessus. Retour PO immédiat :
+le deal attendu est la lecture directe, pas un détour par la fiche — le clic
+« cover »/vignette dans le lecteur, lui, doit ouvrir la fiche (voir
+ci-dessus). Conservé ici pour mémoire ; ne pas réintroduire ce détour sans
+validation explicite.
 
 ## 4. Risque résiduel
 

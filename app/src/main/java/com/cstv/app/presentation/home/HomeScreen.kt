@@ -106,6 +106,7 @@ fun HomeScreen(
     onNavigateToSettings: () -> Unit,
     onNavigateToProfileManagement: () -> Unit,
     onPlayResumeWatchingMovie: (PlaybackPosition) -> Unit,
+    onPlayResumeWatchingSeries: (PlaybackPosition) -> Unit,
     onPlayLiveStream: (LiveStream, List<LiveStream>) -> Unit,
     onSelectMovieDetail: (VodStream) -> Unit,
     onSelectSeriesDetail: (SeriesStream) -> Unit,
@@ -162,13 +163,10 @@ fun HomeScreen(
         viewModel.loadHomeData()
     }
 
-    // Clic sur un média "Continuer à regarder" (repris du bloc de la rangée).
-    // Série : ouvre la fiche (comme n'importe quelle autre vignette série de
-    // l'app) plutôt que de lancer directement le lecteur — la fiche recharge
-    // toujours la série complète via `selectStreamId` (seriesId suffit, nom/
-    // cover ci-dessous ne sont qu'un affichage transitoire) et propose déjà
-    // un CTA « Reprendre » ciblant le bon épisode avec la bonne position.
-    // Film : toujours lecture directe, inchangé.
+    // Clic sur un média "Continuer à regarder" (repris du bloc de la rangée) :
+    // toujours lecture directe de l'épisode/film en cours (jamais la fiche —
+    // confirmé explicitement par le PO après un premier essai routé vers la
+    // fiche, voir B31 §5).
     //
     // B31 : le discriminant était `position.type == "series"`, qui ne matche
     // jamais rien (PlaybackPosition.type vaut "movie" ou "episode", voir sa
@@ -178,19 +176,8 @@ fun HomeScreen(
     // manquants). `seriesId != null` est le discriminant fiable, déjà utilisé
     // partout ailleurs dans l'app (HomeViewModel.groupResumeWatching, etc.).
     val handleResumeClick: (PlaybackPosition) -> Unit = { position ->
-        val seriesId = position.seriesId
-        if (seriesId != null) {
-            onSelectSeriesDetail(
-                SeriesStream(
-                    seriesId = seriesId,
-                    name = position.title ?: "Série",
-                    cover = position.coverUrl,
-                    rating = null,
-                    added = null,
-                    categoryId = position.categoryId ?: "0",
-                    genre = position.genre
-                )
-            )
+        if (position.seriesId != null) {
+            onPlayResumeWatchingSeries(position)
         } else {
             onPlayResumeWatchingMovie(position)
         }
