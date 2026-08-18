@@ -198,17 +198,17 @@ open class GetRecommendationsUseCase @Inject constructor(
                 return emptyResult
             }
 
-            // 2. Fetch full catalog
+            // 2. Fetch lightweight projections
             val catalogAt = System.nanoTime()
             val allMovies = try {
-                vodRepository.getCachedVodStreams("all")
+                vodRepository.getRecommendableVodItems()
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
                 emptyList()
             }
 
             val allSeries = try {
-                seriesRepository.getCachedSeriesStreams("all")
+                seriesRepository.getRecommendableSeriesItems()
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
                 emptyList()
@@ -232,17 +232,17 @@ open class GetRecommendationsUseCase @Inject constructor(
             // Les ensembles sont disjoints par construction (voir plus haut) :
             // le `when` retient donc un seul poids par média, jamais leur somme.
             for (movie in allMovies) {
-                when (movie.streamId.toString()) {
-                    in likedMovieIds -> tasteSignals.add(RecommendationEngine.TasteSignal(RecommendationEngine.RecommendableVod(movie), LIKED_WEIGHT))
-                    in favoriteMovieIds -> tasteSignals.add(RecommendationEngine.TasteSignal(RecommendationEngine.RecommendableVod(movie), FAVORITE_WEIGHT))
-                    in positiveMovieHistoryIds -> tasteSignals.add(RecommendationEngine.TasteSignal(RecommendationEngine.RecommendableVod(movie), WATCHED_WEIGHT))
+                when (movie.uniqueId) {
+                    in likedMovieIds -> tasteSignals.add(RecommendationEngine.TasteSignal(movie, LIKED_WEIGHT))
+                    in favoriteMovieIds -> tasteSignals.add(RecommendationEngine.TasteSignal(movie, FAVORITE_WEIGHT))
+                    in positiveMovieHistoryIds -> tasteSignals.add(RecommendationEngine.TasteSignal(movie, WATCHED_WEIGHT))
                 }
             }
             for (series in allSeries) {
-                when (series.seriesId.toString()) {
-                    in likedSeriesIds -> tasteSignals.add(RecommendationEngine.TasteSignal(RecommendationEngine.RecommendableSeries(series), LIKED_WEIGHT))
-                    in favoriteSeriesIds -> tasteSignals.add(RecommendationEngine.TasteSignal(RecommendationEngine.RecommendableSeries(series), FAVORITE_WEIGHT))
-                    in positiveSeriesHistoryIds -> tasteSignals.add(RecommendationEngine.TasteSignal(RecommendationEngine.RecommendableSeries(series), WATCHED_WEIGHT))
+                when (series.uniqueId) {
+                    in likedSeriesIds -> tasteSignals.add(RecommendationEngine.TasteSignal(series, LIKED_WEIGHT))
+                    in favoriteSeriesIds -> tasteSignals.add(RecommendationEngine.TasteSignal(series, FAVORITE_WEIGHT))
+                    in positiveSeriesHistoryIds -> tasteSignals.add(RecommendationEngine.TasteSignal(series, WATCHED_WEIGHT))
                 }
             }
 
@@ -251,9 +251,6 @@ open class GetRecommendationsUseCase @Inject constructor(
             com.cstv.app.di.IptvLog.d("RECO", "Profile Taste built. Top Genres: ${profileTaste.genreWeights.entries.sortedByDescending { it.value }.take(3)}")
 
             // 6. Score and get top 100 for each type
-            val recommendableMovies = allowedMovies.map { RecommendationEngine.RecommendableVod(it) }
-            val recommendableSeries = allowedSeries.map { RecommendationEngine.RecommendableSeries(it) }
-
             // Un favori est déjà dans la liste de l'utilisateur — le lui
             // re-proposer dans « Recommandé pour vous » n'apporte rien. Les
             // identifiants viennent de `favorites` non filtré : ceux retirés
@@ -263,19 +260,37 @@ open class GetRecommendationsUseCase @Inject constructor(
             val allFavoriteMovieIds = favorites.filter { it.type == "movie" || it.type == "vod" }.map { it.id.toString() }.toSet()
             val allFavoriteSeriesIds = favorites.filter { it.type == "series" }.map { it.id.toString() }.toSet()
 
-            val recommendedMovies = RecommendationEngine.getTopRecommendations(
-                candidates = recommendableMovies,
+            val recommendedMoviesProj = RecommendationEngine.getTopRecommendations(
+                candidates = allowedMovies,
                 taste = profileTaste,
                 currentTimeMs = currentTimeMs,
                 excludeIds = movieHistoryIds + likedMovieIds + dislikedMovieIds + allFavoriteMovieIds
-            ).map { it.stream }
+            )
 
-            val recommendedSeries = RecommendationEngine.getTopRecommendations(
-                candidates = recommendableSeries,
+            val recommendedSeriesProj = RecommendationEngine.getTopRecommendations(
+                candidates = allowedSeries,
                 taste = profileTaste,
                 currentTimeMs = currentTimeMs,
                 excludeIds = seriesHistoryIds + likedSeriesIds + dislikedSeriesIds + allFavoriteSeriesIds
-            ).map { it.series }
+            )
+
+            val recommendedMovieIds = recommendedMoviesProj.map { it.uniqueId.toInt() }
+            val fullMoviesMap = try {
+                vodRepository.getStreamsByIds(recommendedMovieIds).associateBy { it.streamId }
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                emptyMap()
+            }
+            val recommendedMovies = recommendedMovieIds.mapNotNull { fullMoviesMap[it] }
+
+            val recommendedSeriesIds = recommendedSeriesProj.map { it.uniqueId.toInt() }
+            val fullSeriesMap = try {
+                seriesRepository.getStreamsByIds(recommendedSeriesIds).associateBy { it.seriesId }
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                emptyMap()
+            }
+            val recommendedSeries = recommendedSeriesIds.mapNotNull { fullSeriesMap[it] }
 
             val result = RecommendationResult(recommendedMovies, recommendedSeries)
             

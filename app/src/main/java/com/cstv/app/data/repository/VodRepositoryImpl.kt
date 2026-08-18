@@ -709,4 +709,21 @@ class VodRepositoryImpl @Inject constructor(
 
     override suspend fun getContainerExtension(streamId: Int): String? =
         vodDao.getStreamById(streamId)?.containerExtension
+
+    override suspend fun getRecommendableVodItems(): List<com.cstv.app.domain.model.RecommendationEngine.RecommendableItem> =
+        vodDao.getRecommendableVodStreams().map { projection ->
+            com.cstv.app.domain.model.RecommendationEngine.RecommendableVod(
+                uniqueId = projection.streamId.toString(),
+                genres = projection.genre,
+                categoryId = projection.categoryId,
+                rating = projection.rating,
+                addedEpoch = projection.added,
+                releaseYear = projection.releaseYear,
+                actors = projection.actors,
+                director = projection.director
+            )
+        }
+
+    override suspend fun getStreamsByIds(streamIds: List<Int>): List<VodStream> =
+        vodDao.getStreamsByIds(streamIds).map { it.toDomain() }
 }

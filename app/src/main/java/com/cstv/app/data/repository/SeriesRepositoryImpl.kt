@@ -710,4 +710,21 @@ class SeriesRepositoryImpl @Inject constructor(
             seasonNum = e.seasonNum
         )
     }
+
+    override suspend fun getRecommendableSeriesItems(): List<com.cstv.app.domain.model.RecommendationEngine.RecommendableItem> =
+        seriesDao.getRecommendableSeriesStreams().map { projection ->
+            com.cstv.app.domain.model.RecommendationEngine.RecommendableSeries(
+                uniqueId = projection.seriesId.toString(),
+                genres = projection.genre,
+                categoryId = projection.categoryId,
+                rating = projection.rating,
+                addedEpoch = projection.added,
+                releaseYear = projection.releaseYear,
+                actors = projection.actors,
+                director = projection.director
+            )
+        }
+
+    override suspend fun getStreamsByIds(seriesIds: List<Int>): List<SeriesStream> =
+        seriesDao.getStreamsByIds(seriesIds).map { it.toDomain() }
 }

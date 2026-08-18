@@ -61,8 +61,23 @@ internal const val PLAYBACK_LIST_QUERY = """
      ORDER BY lastAccessedAt DESC
 """
 
+data class RecommendableVodProjection(
+    val streamId: Int,
+    val categoryId: String,
+    val genre: String?,
+    val actors: String?,
+    val director: String?,
+    val rating: String?,
+    val added: String?,
+    val releaseYear: Int?
+)
+
 @Dao
 interface VodDao {
+
+    // --- Recommendations ---
+    @Query("SELECT streamId, categoryId, genre, actors, director, rating, added, releaseYear FROM vod_streams")
+    suspend fun getRecommendableVodStreams(): List<RecommendableVodProjection>
 
     // --- Categories ---
     @Query("SELECT * FROM vod_categories ORDER BY orderIndex ASC")
@@ -186,6 +201,9 @@ interface VodDao {
 
     @Query("SELECT * FROM vod_streams WHERE streamId = :streamId LIMIT 1")
     suspend fun getStreamById(streamId: Int): VodStreamEntity?
+
+    @Query("SELECT * FROM vod_streams WHERE streamId IN (:streamIds)")
+    suspend fun getStreamsByIds(streamIds: List<Int>): List<VodStreamEntity>
 
     @Query("SELECT categoryId FROM vod_streams WHERE streamId = :streamId LIMIT 1")
     suspend fun getCategoryIdForStream(streamId: Int): String?

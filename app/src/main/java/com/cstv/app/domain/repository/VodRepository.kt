@@ -106,4 +106,8 @@ interface VodRepository {
      * `null` si le flux n'existe plus en cache.
      */
     suspend fun getContainerExtension(streamId: Int): String? = null
+
+    // --- Recommendations (T25) ---
+    suspend fun getRecommendableVodItems(): List<com.cstv.app.domain.model.RecommendationEngine.RecommendableItem>
+    suspend fun getStreamsByIds(streamIds: List<Int>): List<VodStream>
 }

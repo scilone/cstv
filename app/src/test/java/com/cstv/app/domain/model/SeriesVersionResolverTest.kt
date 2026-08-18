@@ -197,4 +197,6 @@ private object UnsupportedSeriesRepository : SeriesRepository {
     override suspend fun getReleaseYearBounds() = unsupported()
     override suspend fun getRelatedSeries(currentSeriesId: Int, genre: String?, limit: Int, excludedCategoryIds: Set<String>) = unsupported()
     override suspend fun getStreamById(seriesId: Int) = unsupported()
+    override suspend fun getRecommendableSeriesItems() = unsupported()
+    override suspend fun getStreamsByIds(seriesIds: List<Int>) = unsupported()
 }

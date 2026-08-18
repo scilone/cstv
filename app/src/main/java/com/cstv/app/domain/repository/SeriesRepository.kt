@@ -89,4 +89,8 @@ interface SeriesRepository {
      * d'appel réseau, consommé par [com.cstv.app.domain.model.SeriesVersionResolver].
      */
     suspend fun getEpisodeBySeasonEpisode(seriesId: Int, seasonNum: Int, episodeNum: Int): SeriesEpisode? = null
+
+    // --- Recommendations (T25) ---
+    suspend fun getRecommendableSeriesItems(): List<com.cstv.app.domain.model.RecommendationEngine.RecommendableItem>
+    suspend fun getStreamsByIds(seriesIds: List<Int>): List<SeriesStream>
 }

@@ -34,28 +34,74 @@ object RecommendationEngine {
         val releaseYear: Int?
         val actors: String?
         val director: String?
+
+        val parsedGenres: List<String>
+            get() = GenreParser.parseGenres(genres).map { GenreParser.normalize(it) }
+        val parsedActors: List<String>
+            get() = parseNamesList(actors)
+        val normalizedDirector: String?
+            get() {
+                val d = director?.trim()?.lowercase()
+                return if (!d.isNullOrBlank() && d !in EXCLUDED_NAMES) d else null
+            }
     }
 
-    class RecommendableVod(val stream: VodStream) : RecommendableItem {
-        override val uniqueId: String = stream.streamId.toString()
-        override val genres: String? = stream.genre
-        override val categoryId: String = stream.categoryId
-        override val rating: String? = stream.rating
-        override val addedEpoch: String? = stream.added
-        override val releaseYear: Int? = stream.releaseYear
-        override val actors: String? = stream.actors
-        override val director: String? = stream.director
+    class RecommendableVod(
+        override val uniqueId: String,
+        override val genres: String?,
+        override val categoryId: String,
+        override val rating: String?,
+        override val addedEpoch: String?,
+        override val releaseYear: Int?,
+        override val actors: String?,
+        override val director: String?
+    ) : RecommendableItem {
+        override val parsedGenres: List<String> by lazy { GenreParser.parseGenres(genres).map { GenreParser.normalize(it) } }
+        override val parsedActors: List<String> by lazy { parseNamesList(actors) }
+        override val normalizedDirector: String? by lazy {
+            val d = director?.trim()?.lowercase()
+            if (!d.isNullOrBlank() && d !in EXCLUDED_NAMES) d else null
+        }
+
+        constructor(stream: VodStream) : this(
+            uniqueId = stream.streamId.toString(),
+            genres = stream.genre,
+            categoryId = stream.categoryId,
+            rating = stream.rating,
+            addedEpoch = stream.added,
+            releaseYear = stream.releaseYear,
+            actors = stream.actors,
+            director = stream.director
+        )
     }
 
-    class RecommendableSeries(val series: SeriesStream) : RecommendableItem {
-        override val uniqueId: String = series.seriesId.toString()
-        override val genres: String? = series.genre
-        override val categoryId: String = series.categoryId
-        override val rating: String? = series.rating
-        override val addedEpoch: String? = series.added
-        override val releaseYear: Int? = series.releaseYear
-        override val actors: String? = series.actors
-        override val director: String? = series.director
+    class RecommendableSeries(
+        override val uniqueId: String,
+        override val genres: String?,
+        override val categoryId: String,
+        override val rating: String?,
+        override val addedEpoch: String?,
+        override val releaseYear: Int?,
+        override val actors: String?,
+        override val director: String?
+    ) : RecommendableItem {
+        override val parsedGenres: List<String> by lazy { GenreParser.parseGenres(genres).map { GenreParser.normalize(it) } }
+        override val parsedActors: List<String> by lazy { parseNamesList(actors) }
+        override val normalizedDirector: String? by lazy {
+            val d = director?.trim()?.lowercase()
+            if (!d.isNullOrBlank() && d !in EXCLUDED_NAMES) d else null
+        }
+
+        constructor(series: SeriesStream) : this(
+            uniqueId = series.seriesId.toString(),
+            genres = series.genre,
+            categoryId = series.categoryId,
+            rating = series.rating,
+            addedEpoch = series.added,
+            releaseYear = series.releaseYear,
+            actors = series.actors,
+            director = series.director
+        )
     }
 
     /**
@@ -82,7 +128,7 @@ object RecommendationEngine {
             categoryCounts[item.categoryId] = (categoryCounts[item.categoryId] ?: 0.0) + weight
 
             // Count genres
-            val itemGenres = GenreParser.parseGenres(item.genres)
+            val itemGenres = item.parsedGenres
             if (itemGenres.isNotEmpty()) {
                 totalItemsWithGenres += weight
                 for (g in itemGenres) {
@@ -94,7 +140,7 @@ object RecommendationEngine {
             }
 
             // Count actors (parsing comma-separated values)
-            val itemActors = parseNamesList(item.actors)
+            val itemActors = item.parsedActors
             if (itemActors.isNotEmpty()) {
                 totalItemsWithActors += weight
                 for (actor in itemActors) {
@@ -103,8 +149,8 @@ object RecommendationEngine {
             }
 
             // Count director
-            val director = item.director?.trim()?.lowercase()
-            if (!director.isNullOrBlank() && director !in EXCLUDED_NAMES) {
+            val director = item.normalizedDirector
+            if (director != null) {
                 totalItemsWithDirector += weight
                 directorCounts[director] = (directorCounts[director] ?: 0.0) + weight
             }
@@ -173,14 +219,11 @@ object RecommendationEngine {
     internal fun scoreCandidate(candidate: RecommendableItem, taste: ProfileTaste, currentTimeMs: Long): Double {
         // 1. Genre Score (0.0 to 1.0)
         var genreScore = 0.0
-        val candidateGenres = GenreParser.parseGenres(candidate.genres)
+        val candidateGenres = candidate.parsedGenres
         if (candidateGenres.isNotEmpty()) {
             var sumWeights = 0.0
-            for (g in candidateGenres) {
-                val normalized = GenreParser.normalize(g)
-                if (normalized.isNotBlank()) {
-                    sumWeights += taste.genreWeights[normalized] ?: 0.0
-                }
+            for (normalized in candidateGenres) {
+                sumWeights += taste.genreWeights[normalized] ?: 0.0
             }
             genreScore = sumWeights.coerceAtMost(1.0)
         }
@@ -190,7 +233,7 @@ object RecommendationEngine {
 
         // 3. Actors Score (0.0 to 1.0)
         var actorsScore = 0.0
-        val candidateActors = parseNamesList(candidate.actors)
+        val candidateActors = candidate.parsedActors
         if (candidateActors.isNotEmpty()) {
             var sumWeights = 0.0
             for (actor in candidateActors) {
@@ -200,8 +243,8 @@ object RecommendationEngine {
         }
 
         // 4. Director Score (0.0 to 1.0)
-        val director = candidate.director?.trim()?.lowercase()
-        val directorScore = if (!director.isNullOrBlank()) {
+        val director = candidate.normalizedDirector
+        val directorScore = if (director != null) {
             taste.directorWeights[director] ?: 0.0
         } else {
             0.0

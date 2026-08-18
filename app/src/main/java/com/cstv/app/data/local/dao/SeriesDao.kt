@@ -13,8 +13,23 @@ import com.cstv.app.data.local.entity.SeriesStreamEntity
 import com.cstv.app.domain.model.LocalSearchQuery
 import kotlinx.coroutines.flow.Flow
 
+data class RecommendableSeriesProjection(
+    val seriesId: Int,
+    val categoryId: String,
+    val genre: String?,
+    val actors: String?,
+    val director: String?,
+    val rating: String?,
+    val added: String?,
+    val releaseYear: Int?
+)
+
 @Dao
 interface SeriesDao {
+
+    // --- Recommendations ---
+    @Query("SELECT seriesId, categoryId, genre, actors, director, rating, added, releaseYear FROM series_streams")
+    suspend fun getRecommendableSeriesStreams(): List<RecommendableSeriesProjection>
 
     // --- Categories ---
     @Query("SELECT * FROM series_categories ORDER BY orderIndex ASC")
@@ -169,6 +184,9 @@ interface SeriesDao {
 
     @Query("SELECT * FROM series_streams WHERE seriesId = :seriesId LIMIT 1")
     suspend fun getStreamById(seriesId: Int): SeriesStreamEntity?
+
+    @Query("SELECT * FROM series_streams WHERE seriesId IN (:seriesIds)")
+    suspend fun getStreamsByIds(seriesIds: List<Int>): List<SeriesStreamEntity>
 
     @Query("SELECT categoryId FROM series_streams WHERE seriesId = :seriesId LIMIT 1")
     suspend fun getCategoryIdForSeries(seriesId: Int): String?
