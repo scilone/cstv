@@ -860,22 +860,14 @@ fun PlayerScreen(
         if (showChannelList && activeStreamsList.isNotEmpty() && !isInPipMode) {
             val liveTvState by viewModel.state.collectAsStateWithLifecycle()
 
-            val initialListCategory = remember { LiveCategory("recent", "Récemment regardé", 0) }
-            var selectedDrawerCategory by remember { mutableStateOf(initialListCategory) }
-
-            val dropdownCategories = remember(liveTvState.categories) {
-                // On inclut désormais « Tout » car « Récemment regardé » n'affiche que les chaînes récentes.
-                // Sinon, l'utilisateur n'aurait plus accès à « Tout » depuis le player !
-                listOf(initialListCategory) + liveTvState.categories
+            // Simple et fluide : le tiroir liste les vraies catégories du direct
+            // (dont « Tout »), pas d'entrée synthétique. Sélection initiale = la
+            // catégorie déjà active côté Live TV.
+            var selectedDrawerCategory by remember {
+                mutableStateOf(liveTvState.selectedCategory ?: LiveCategory("all", "Tout", 0))
             }
-
-            val drawerStreams = remember(selectedDrawerCategory, liveTvState.streams, liveTvState.recentlyWatched) {
-                if (selectedDrawerCategory.categoryId == "recent") {
-                    liveTvState.recentlyWatched
-                } else {
-                    liveTvState.streams
-                }
-            }
+            val dropdownCategories = liveTvState.categories
+            val drawerStreams = liveTvState.streams
 
             val listState = rememberLazyListState()
             val currentItemFocusRequester = remember { FocusRequester() }
@@ -891,23 +883,17 @@ fun PlayerScreen(
 
             // Auto-scroll vers la chaîne active à l'ouverture, puis lui donne le focus D-pad
             // pour que la première pression haut/bas navigue directement dans la liste.
-            LaunchedEffect(showChannelList, selectedDrawerCategory, drawerStreams) {
-                val isRecent = selectedDrawerCategory.categoryId == "recent"
+            // Clés stables (id + taille) : `drawerStreams` change de référence à chaque
+            // recomposition du state partagé, une liste en clé relançait l'effet en boucle
+            // (freeze constaté au clic sur « Chaînes »).
+            LaunchedEffect(selectedDrawerCategory.categoryId, drawerStreams.size) {
                 val matchingIndex = drawerStreams.indexOfFirst { it.streamId == currentStream.streamId }
-                if (isRecent) {
-                    if (matchingIndex >= 0) {
-                        listState.animateScrollToItem(matchingIndex)
-                    } else if (drawerStreams.isNotEmpty()) {
-                        listState.animateScrollToItem(0)
-                    }
-                    runCatching { currentItemFocusRequester.requestFocus() }
-                } else {
-                    if (matchingIndex >= 0) {
-                        listState.animateScrollToItem(matchingIndex)
-                    } else if (drawerStreams.isNotEmpty()) {
-                        listState.animateScrollToItem(0)
-                    }
+                if (matchingIndex >= 0) {
+                    listState.animateScrollToItem(matchingIndex)
+                } else if (drawerStreams.isNotEmpty()) {
+                    listState.animateScrollToItem(0)
                 }
+                runCatching { currentItemFocusRequester.requestFocus() }
             }
 
             Box(
@@ -1012,9 +998,7 @@ fun PlayerScreen(
                                     },
                                     onClick = {
                                         selectedDrawerCategory = category
-                                        if (category.categoryId != "recent") {
-                                            viewModel.selectCategory(category)
-                                        }
+                                        viewModel.selectCategory(category)
                                         dropdownExpanded = false
                                     }
                                 )
