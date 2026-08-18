@@ -65,7 +65,14 @@ class NetworkMonitorImpl @Inject constructor(
         }
     }
 
-    override fun isCurrentlyOnline(): Boolean = readCurrentState()
+    /**
+     * Les appelants sont souvent des fonctions suspendues mais peuvent
+     * reprendre sur le thread UI. Interroger ConnectivityManager ici passe
+     * par Binder (`getActiveNetwork`) et certains firmwares Philips peuvent
+     * bloquer plus d'une seconde. Le callback maintient déjà l'état courant :
+     * cette lecture locale ne peut pas bloquer la navigation.
+     */
+    override fun isCurrentlyOnline(): Boolean = _isOnline.value
 
     @Suppress("DEPRECATION")
     private fun readCurrentState(): Boolean {

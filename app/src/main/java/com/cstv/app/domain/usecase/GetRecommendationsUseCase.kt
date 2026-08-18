@@ -96,6 +96,14 @@ open class GetRecommendationsUseCase @Inject constructor(
 
     /** Calcul en cours, partage par tous les appelants (voir [invoke]). */
     private var inFlight: Deferred<RecommendationResult>? = null
+    /**
+     * Version des données qui ont invalidé le cache. Une invalidation ne doit
+     * pas détacher le Deferred en cours : il continue dans applicationScope et
+     * doit rester partageable par les appelants. Si elle arrive pendant le
+     * calcul, le premier appel qui reçoit l'ancien résultat enchaîne un seul
+     * nouveau calcul pour la nouvelle version.
+     */
+    private var cacheGeneration = 0L
     private val TTL_MILLIS = 24L * 60 * 60 * 1000L
     private val _invalidations = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val invalidations: SharedFlow<Unit> = _invalidations.asSharedFlow()
@@ -115,26 +123,41 @@ open class GetRecommendationsUseCase @Inject constructor(
     ): RecommendationResult {
         val currentProfileId = profileManager.currentProfileId()
 
-        val computation = mutex.withLock {
+        val (computation, computationGeneration) = mutex.withLock {
             val cached = cachedResult
             if (cached != null &&
                 cachedProfileId == currentProfileId &&
                 (currentTimeMs - cacheTimestamp) < TTL_MILLIS) {
                 com.cstv.app.di.IptvLog.d("RECO", "Serving recommendations from cache for profile $currentProfileId")
-                return withoutHiddenCategories(cached)
+                return@withLock null to cacheGeneration
             }
 
-            inFlight?.takeIf { it.isActive }
-                ?: applicationScope
-                    .async(recommendationDispatcher) { compute(currentProfileId, currentTimeMs) }
-                    .also { inFlight = it }
+            val running = inFlight?.takeIf { it.isActive }
+            if (running != null) {
+                running to cacheGeneration
+            } else {
+                val generation = cacheGeneration
+                applicationScope
+                    .async(recommendationDispatcher) { compute(currentProfileId, currentTimeMs, generation) }
+                    .also {
+                        inFlight = it
+                    } to generation
+            }
         }
-        return computation.await()
+        if (computation == null) {
+            val cached = cachedResult ?: return RecommendationResult(emptyList(), emptyList())
+            return withoutHiddenCategories(cached)
+        }
+
+        val result = computation.await()
+        val mustRecompute = mutex.withLock { computationGeneration != cacheGeneration }
+        return if (mustRecompute) invoke(currentTimeMs) else result
     }
 
     private suspend fun compute(
         currentProfileId: Int,
-        currentTimeMs: Long
+        currentTimeMs: Long,
+        generation: Long
     ): RecommendationResult {
         val startedAt = System.nanoTime()
         com.cstv.app.di.IptvLog.d("RECO", "Calculating recommendations for profile $currentProfileId...")
@@ -194,7 +217,7 @@ open class GetRecommendationsUseCase @Inject constructor(
             ) {
                 com.cstv.app.di.IptvLog.d("RECO", "Cold start: Not enough history ($totalWatchedCount < 3) for profile $currentProfileId. Returning empty.")
                 val emptyResult = RecommendationResult(emptyList(), emptyList())
-                updateCache(currentProfileId, currentTimeMs, emptyResult)
+                updateCache(currentProfileId, currentTimeMs, generation, emptyResult)
                 return emptyResult
             }
 
@@ -295,7 +318,7 @@ open class GetRecommendationsUseCase @Inject constructor(
             val result = RecommendationResult(recommendedMovies, recommendedSeries)
             
             // 7. Update cache
-            updateCache(currentProfileId, currentTimeMs, result)
+            updateCache(currentProfileId, currentTimeMs, generation, result)
             
             com.cstv.app.di.IptvLog.d("RECO", "Recommendations generated: ${result.movies.size} movies, ${result.series.size} series.")
             com.cstv.app.di.IptvLog.d(
@@ -305,10 +328,18 @@ open class GetRecommendationsUseCase @Inject constructor(
             return result
     }
 
-    private fun updateCache(profileId: Int, timeMs: Long, result: RecommendationResult) {
-        cachedProfileId = profileId
-        cacheTimestamp = timeMs
-        cachedResult = result
+    private suspend fun updateCache(
+        profileId: Int,
+        timeMs: Long,
+        generation: Long,
+        result: RecommendationResult
+    ) {
+        mutex.withLock {
+            if (generation != cacheGeneration) return
+            cachedProfileId = profileId
+            cacheTimestamp = timeMs
+            cachedResult = result
+        }
     }
 
     /**
@@ -335,9 +366,9 @@ open class GetRecommendationsUseCase @Inject constructor(
 
     open suspend fun invalidateCache() {
         mutex.withLock {
+            cacheGeneration++
             cachedProfileId = -1
             cachedResult = null
-            inFlight = null
         }
         _invalidations.emit(Unit)
     }

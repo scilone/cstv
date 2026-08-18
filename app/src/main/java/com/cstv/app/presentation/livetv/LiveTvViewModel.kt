@@ -229,6 +229,10 @@ class LiveTvViewModel @Inject constructor(
      */
     private fun triggerSilentSyncIfStale() {
         viewModelScope.launch {
+            // L'observation Room doit avoir une chance de publier le cache
+            // immédiatement avant que la synchronisation ne prenne son verrou
+            // d'écriture sur les mêmes tables (notamment sur les TV Philips).
+            kotlinx.coroutines.delay(350L)
             runCatching { catalogSyncManager.syncIfStale() }
         }
     }
