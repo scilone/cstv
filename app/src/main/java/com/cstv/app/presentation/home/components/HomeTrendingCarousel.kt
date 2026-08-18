@@ -51,6 +51,7 @@ import com.cstv.app.domain.model.TrendingCatalogItem
 import com.cstv.app.domain.model.TrailerSource
 import com.cstv.app.domain.model.TrailerMedia
 import com.cstv.app.presentation.components.TrailerPreviewUiState
+import kotlinx.coroutines.delay
 
 /**
  * Nombre de répétitions de la liste exposées au pager pour simuler une boucle
@@ -102,13 +103,25 @@ fun HomeTrendingCarousel(
     }
     var pageStableForPreview by remember(activeItem?.trendingTitle?.canonicalId) { mutableStateOf(false) }
 
+    // [Asymmetry Note (m2)]
+    // Mobile carousel uses a double-gated system:
+    // 1. Immediately request the trailer metadata (onActiveItemChanged) when the card starts stabilizing
+    //    so TMDB/YouTube resolution runs in background while the user waits.
+    // 2. Gate the actual WebView composition with pageStableForPreview, which only becomes true after
+    //    1.5 seconds of continuous stability.
+    // This is different from TV where the request itself is delayed and the WebView is not double-gated.
     LaunchedEffect(activeItem?.trendingTitle?.canonicalId, pagerState.isScrollInProgress, lifecycleStarted) {
         pageStableForPreview = false
-        if (activeItem == null || pagerState.isScrollInProgress || !lifecycleStarted) {
-            onPreviewContextEnded()
+        // [m3] End the previous context immediately upon any card/scroll/lifecycle change
+        // to prevent obsolete state (e.g. state.Playing) from carrying over.
+        onPreviewContextEnded()
+        if (!TrailerPreviewDwellPolicy.isEligible(activeItem, pagerState.isScrollInProgress, lifecycleStarted)) {
             return@LaunchedEffect
         }
+        // [M1] Instantly notify VM about active item change so resolution starts immediately.
         onActiveItemChanged(activeItem)
+        // Delay WebView instantiation until we are sure user has settled on this card (Dwell Time).
+        delay(TRAILER_PREVIEW_DWELL_MS)
         pageStableForPreview = true
     }
     DisposableEffect(lifecycleOwner) {

@@ -362,6 +362,30 @@ Cette fonctionnalité permet de changer de qualité ou de variante d'une chaîne
 
 ---
 
+## 33. Optimisation du moteur de recommandations (T25)
+Cette optimisation majeure sous le capot résout le problème de lenteur et de surcharge CPU lors du calcul des recommandations personnalisées sur les appareils TV moins puissants, divisant par plus de 40 le temps nécessaire au traitement (sous les 500 ms contre 19,7 secondes auparavant).
+* **Projections de base de données légères** : Évite le chargement inutile de colonnes lourdes et textuelles du catalogue (comme les résumés détaillés ou les index textuels) en introduisant des projections SQL ciblées (`RecommendableVodProjection` et `RecommendableSeriesProjection`) contenant uniquement les attributs de scoring.
+* **Pre-parsing paresseux (Lazy Loading CPU)** : Le traitement lourd de découpage de chaînes et d'analyse de données (comme le fractionnement des genres et d'acteurs) s'exécute de façon paresseuse une seule fois par élément et est mémorisé, plutôt que d'être recalculé à la volée des millions de fois à l'intérieur de la boucle de scoring fermée.
+* **Rechargement minimaliste final** : Seuls les 100 meilleurs médias retenus pour chaque type voient leur fiche complète rechargée de façon différée, déchargeant ainsi totalement la mémoire vive.
+
+---
+
+## 34. Chargement asynchrone et différé de la WebView de bande-annonce (T26)
+Cette optimisation technique supprime le blocage d'interface d'environ 1,8s (Watchdog trigger) constaté sur le thread UI principal au démarrage de l'application ou lors du défilement dans le carrousel des Tendances.
+* **Dwell Time de 1,5s (Politique de stabilité)** : Introduction d'un minuteur intelligent via la classe `TrailerPreviewDwellPolicy`. La WebView YouTube ne commence son initialisation lourde (qui force le chargement du moteur Chromium) que si l'utilisateur s'arrête de manière stable pendant au moins 1,5 seconde sur une diapositive du carrousel de l'Accueil.
+* **Annulation instantanée et gestion de cycle de vie** : Tout geste de défilement (pager en cours de mouvement) ou perte de focus annule et réinitialise sur-le-champ le timer, assurant qu'aucun chargement n'est déclenché en tâche de fond pour une carte déjà quittée.
+* **Libération instantanée des ressources** : L'exclusion d'un élément du carrousel de l'écran ou son passage en arrière-plan désinstancie immédiatement la WebView associée pour libérer les ressources matérielles de la TV.
+
+---
+
+## 35. Stabilisation du rendu de la grille Live TV de plus de 3 000 flux (T27)
+Cette optimisation garantit la fluidité absolue de la grille Live TV et évite les ralentissements d'interface d'environ une seconde lors de la navigation au D-pad ou du défilement tactile au sein de catégories volumineuses contenant plusieurs milliers de flux.
+* **Immuno-recomposition avec `@Immutable`** : Isolation et encapsulation des flux sous forme de modèles UI (`LiveStreamUiState`) et de collections (`LiveStreamList`, `LiveCategoryList`, `FavoriteList`) annotés comme strictement immuables pour Jetpack Compose. Cela permet à Compose d'exclure (skippability) toutes les cartes inchangées du processus de recomposition.
+* **Clés de rendu stables et virtualisées** : Attribution de clés uniques stables namespacées (par exemple, `"stream_$streamId"` ou `"placeholder_$index"` par `LiveTvGridKeyGenerator`) à toutes les cellules de la grille, TV et mobile.
+* **EPG asynchrone découplé** : Le chargement ou la mise à jour asynchrone d'un programme EPG d'une chaîne ne ré-évalue que la carte Compose concernée, sans faire clignoter ni perturber le reste de la grille ou la position de focus.
+
+---
+
 ## 🚫 Fonctionnalités hors périmètre (Exclusions validées)
 Pour des raisons de performance, de stabilité ou d'expérience utilisateur, les fonctionnalités suivantes sont **strictement hors périmètre** :
 * **Multi-comptes Xtream** : L'application gère un seul compte Xtream Codes actif à la fois (les profils sont purement locaux et rattachés à ce compte unique).

@@ -50,6 +50,9 @@ import com.cstv.app.domain.model.PlaybackPosition
 import com.cstv.app.domain.model.FavoriteItem
 import com.cstv.app.domain.model.LiveStream
 import com.cstv.app.domain.model.LiveEpgProgram
+import com.cstv.app.presentation.livetv.LiveStreamUiState
+import com.cstv.app.presentation.livetv.LiveStreamList
+import com.cstv.app.presentation.livetv.FavoriteList
 import com.cstv.app.presentation.theme.AccentLavande
 import com.cstv.app.presentation.theme.DarkBackground
 import com.cstv.app.presentation.theme.FavoriteGold
@@ -71,12 +74,11 @@ import kotlinx.coroutines.delay
 fun CategorySectionRow(
     categoryId: String,
     title: String,
-    streams: List<LiveStream>,
-    favoritesList: List<FavoriteItem>,
+    streams: LiveStreamList,
+    favoritesList: FavoriteList,
     onToggleFavorite: (LiveStream) -> Unit,
     onStreamSelected: (LiveStream) -> Unit,
     isTv: Boolean,
-    epgPrograms: Map<Int, LiveEpgProgram>,
     onLoadEpg: (Int) -> Unit,
     getScroll: (String) -> Pair<Int, Int>,
     saveScroll: (String, Int, Int) -> Unit,
@@ -84,7 +86,8 @@ fun CategorySectionRow(
     onSeeAll: (() -> Unit)? = null,
     totalCount: Int? = null,
     initialFocusState: TvInitialFocusState? = null,
-    isInitialTarget: Boolean = false
+    isInitialTarget: Boolean = false,
+    epgPrograms: Map<Int, LiveEpgProgram> = emptyMap()
 ) {
     Column(
         // `tvPivotSection` en tête de chaîne : il doit observer l'item de liste
@@ -125,11 +128,11 @@ fun CategorySectionRow(
         }
 
         val rowState = rememberRowScrollState(isTv, "livetv_row_${categoryId}", getScroll, saveScroll)
-        val displayList = remember(streams) { streams.take(CATEGORY_ROW_MAX_ITEMS) }
+        val displayList = remember(streams) { streams.items.take(CATEGORY_ROW_MAX_ITEMS) }
         // `totalCount` vient des compteurs du cache, pas de la longueur de
         // `streams` : l'onglet « Tout » ne charge que les premières chaînes de
         // chaque catégorie, la liste reçue ne dit donc rien du reste.
-        val showSeeAllCard = onSeeAll != null && (totalCount ?: streams.size) > CATEGORY_ROW_MAX_ITEMS
+        val showSeeAllCard = onSeeAll != null && (totalCount ?: streams.items.size) > CATEGORY_ROW_MAX_ITEMS
         val rowEntry = rememberTvRowFocusEntry()
         LazyRow(
             state = rowState,
@@ -137,8 +140,12 @@ fun CategorySectionRow(
             contentPadding = PaddingValues(horizontal = 12.dp),
             modifier = Modifier.fillMaxWidth().tvRowFocusEntry(isTv, rowEntry).focusGroup()
         ) {
-            itemsIndexed(displayList) { index, stream ->
-                val isFav = favoritesList.any { it.id == stream.streamId && it.type == "live" }
+            itemsIndexed(
+                items = displayList,
+                key = { _, streamUiState -> streamUiState.stream.streamId }
+            ) { index, streamUiState ->
+                val stream = streamUiState.stream
+                val isFav = favoritesList.items.any { it.id == stream.streamId && it.type == "live" }
                 // Rayon 12.dp : StreamTvCard n'a pas été unifiée au rayon
                 // 14.dp de B18 (hors périmètre de ce ticket-là).
                 Box(modifier = Modifier.tvPivotItem(isTv, rowState, index, selectorCornerRadius = 12.dp)
@@ -146,21 +153,21 @@ fun CategorySectionRow(
                     .tvInitialFocusTarget(initialFocusState, index == 0 && isInitialTarget)) {
                     if (isTv) {
                         StreamTvCard(
-                            stream = stream,
+                            channel = streamUiState,
                             isFavorite = isFav,
-                            epgProgram = epgPrograms[stream.streamId],
                             onLoadEpg = { onLoadEpg(stream.streamId) },
                             onToggleFavorite = { onToggleFavorite(stream) },
-                            onClick = { onStreamSelected(stream) }
+                            onClick = { onStreamSelected(stream) },
+                            overrideEpg = epgPrograms[stream.streamId]
                         )
                     } else {
                         MobileStreamCard(
-                            stream = stream,
+                            channel = streamUiState,
                             isFavorite = isFav,
-                            epgProgram = epgPrograms[stream.streamId],
                             onLoadEpg = { onLoadEpg(stream.streamId) },
                             onToggleFavorite = { onToggleFavorite(stream) },
-                            onClick = { onStreamSelected(stream) }
+                            onClick = { onStreamSelected(stream) },
+                            overrideEpg = epgPrograms[stream.streamId]
                         )
                     }
                 }
@@ -200,13 +207,16 @@ internal val LIVE_TV_CARD_HEIGHT = 92.dp
 
 @Composable
 fun MobileStreamCard(
-    stream: LiveStream,
+    channel: LiveStreamUiState,
     isFavorite: Boolean,
-    epgProgram: LiveEpgProgram?,
     onLoadEpg: () -> Unit,
     onToggleFavorite: () -> Unit,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    overrideEpg: LiveEpgProgram? = null
 ) {
+    val stream = channel.stream
+    val epgProgram = overrideEpg ?: channel.currentProgram
+
     LaunchedEffect(stream.streamId) {
         while (true) {
             onLoadEpg()
@@ -344,17 +354,17 @@ fun EpgProgressBar(
 
 @Composable
 fun RecentlyWatchedRow(
-    streams: List<LiveStream>,
+    streams: LiveStreamList,
     onStreamSelected: (LiveStream) -> Unit,
     isTv: Boolean,
-    epgPrograms: Map<Int, LiveEpgProgram>,
     onLoadEpg: (Int) -> Unit,
     onLongClick: (LiveStream) -> Unit,
     getScroll: (String) -> Pair<Int, Int>,
     saveScroll: (String, Int, Int) -> Unit,
     sectionListState: LazyListState,
     initialFocusState: TvInitialFocusState? = null,
-    isInitialTarget: Boolean = false
+    isInitialTarget: Boolean = false,
+    epgPrograms: Map<Int, LiveEpgProgram> = emptyMap()
 ) {
     Column(
         // `tvPivotSection` en tête de chaîne : il doit observer l'item de liste
@@ -381,7 +391,11 @@ fun RecentlyWatchedRow(
             contentPadding = PaddingValues(horizontal = 12.dp),
             modifier = Modifier.fillMaxWidth().tvRowFocusEntry(isTv, rowEntry).focusGroup()
         ) {
-            itemsIndexed(streams) { index, stream ->
+            itemsIndexed(
+                items = streams.items,
+                key = { _, streamUiState -> streamUiState.stream.streamId }
+            ) { index, streamUiState ->
+                val stream = streamUiState.stream
                 // Rayon 12.dp : StreamTvCard n'a pas été unifiée au rayon
                 // 14.dp de B18 (hors périmètre de ce ticket-là).
                 Box(modifier = Modifier.tvPivotItem(isTv, rowState, index, selectorCornerRadius = 12.dp)
@@ -389,19 +403,19 @@ fun RecentlyWatchedRow(
                     .tvInitialFocusTarget(initialFocusState, index == 0 && isInitialTarget)) {
                     if (isTv) {
                         RecentlyWatchedTvItem(
-                            stream = stream,
-                            epgProgram = epgPrograms[stream.streamId],
+                            channel = streamUiState,
                             onLoadEpg = { onLoadEpg(stream.streamId) },
                             onClick = { onStreamSelected(stream) },
-                            onLongClick = { onLongClick(stream) }
+                            onLongClick = { onLongClick(stream) },
+                            overrideEpg = epgPrograms[stream.streamId]
                         )
                     } else {
                         MobileRecentlyWatchedItem(
-                            stream = stream,
-                            epgProgram = epgPrograms[stream.streamId],
+                            channel = streamUiState,
                             onLoadEpg = { onLoadEpg(stream.streamId) },
                             onClick = { onStreamSelected(stream) },
-                            onLongClick = { onLongClick(stream) }
+                            onLongClick = { onLongClick(stream) },
+                            overrideEpg = epgPrograms[stream.streamId]
                         )
                     }
                 }
@@ -418,12 +432,15 @@ fun RecentlyWatchedRow(
  */
 @Composable
 fun MobileRecentlyWatchedItem(
-    stream: LiveStream,
-    epgProgram: LiveEpgProgram?,
+    channel: LiveStreamUiState,
     onLoadEpg: () -> Unit,
     onClick: () -> Unit,
-    onLongClick: (() -> Unit)? = null
+    onLongClick: (() -> Unit)? = null,
+    overrideEpg: LiveEpgProgram? = null
 ) {
+    val stream = channel.stream
+    val epgProgram = overrideEpg ?: channel.currentProgram
+
     LaunchedEffect(stream.streamId) {
         while (true) {
             onLoadEpg()
@@ -530,13 +547,16 @@ fun MobileRecentlyWatchedItem(
  */
 @Composable
 fun MobileChannelGridCard(
-    stream: LiveStream,
+    channel: LiveStreamUiState,
     isFavorite: Boolean,
-    epgProgram: LiveEpgProgram?,
     onLoadEpg: () -> Unit,
     onToggleFavorite: () -> Unit,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    overrideEpg: LiveEpgProgram? = null
 ) {
+    val stream = channel.stream
+    val epgProgram = overrideEpg ?: channel.currentProgram
+
     LaunchedEffect(stream.streamId) {
         while (true) {
             onLoadEpg()
@@ -653,12 +673,14 @@ fun MobileChannelGridCard(
 
 @Composable
 fun RecentlyWatchedTvItem(
-    stream: LiveStream,
-    epgProgram: LiveEpgProgram?,
+    channel: LiveStreamUiState,
     onLoadEpg: () -> Unit,
     onClick: () -> Unit,
-    onLongClick: (() -> Unit)? = null
+    onLongClick: (() -> Unit)? = null,
+    overrideEpg: LiveEpgProgram? = null
 ) {
+    val stream = channel.stream
+    val epgProgram = overrideEpg ?: channel.currentProgram
     var isFocused by remember { mutableStateOf(false) }
 
     LaunchedEffect(stream.streamId) {
@@ -748,9 +770,8 @@ fun RecentlyWatchedTvItem(
 
 @Composable
 fun StreamTvCard(
-    stream: LiveStream,
+    channel: LiveStreamUiState,
     isFavorite: Boolean,
-    epgProgram: LiveEpgProgram?,
     /**
      * Rafraîchissement du programme en cours, ou `null` quand l'écran hôte n'a
      * pas de source EPG (la recherche globale) : la carte n'entretient alors
@@ -758,8 +779,11 @@ fun StreamTvCard(
      */
     onLoadEpg: (() -> Unit)?,
     onToggleFavorite: () -> Unit,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    overrideEpg: LiveEpgProgram? = null
 ) {
+    val stream = channel.stream
+    val epgProgram = overrideEpg ?: channel.currentProgram
     var isFocused by remember { mutableStateOf(false) }
 
     LaunchedEffect(stream.streamId, onLoadEpg != null) {

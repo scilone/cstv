@@ -145,111 +145,22 @@ fun LiveTvScreen(
     // passe jamais par ce regroupement : en mode automatique, elle se lit depuis `filteredStreams`
     // (déjà regroupée ci-dessus) à la place — voir TvLayout/MobileLayout.
 
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .background(if (isTv) Surface1 else Color.Transparent)
-    ) {
-        if (isTv) {
-            TvLayout(
-                state = state,
-                onCategorySelected = { viewModel.selectCategory(it) },
-                // Un flux Live exige toujours le serveur : hors ligne, la sélection
-                // n'ouvre pas le player, elle affiche le motif du refus.
-                onStreamSelected = { stream -> viewModel.requestPlayback { onStreamSelected(stream, filteredStreams) } },
-                onRefresh = { viewModel.refresh() },
-                favoritesList = favoritesList,
-                onToggleFavorite = onToggleFavorite,
-                filteredStreams = filteredStreams,
-                pagedStreams = pagedStreams,
-                searchQuery = searchQuery,
-                epgPrograms = state.epgPrograms,
-                onLoadEpg = { viewModel.loadEpgForStream(it) },
-                onHistoryRemove = { pendingRemoval = it },
-                getScroll = getScroll,
-                saveScroll = saveScroll,
-                tvFocusSelector = tvFocusSelector,
-                automaticQualityMode = automaticQualityMode
-            )
-            TvFocusSelectorOverlay(tvFocusSelector, modifier = Modifier.fillMaxSize())
-        } else {
-            MobileLayout(
-                state = state,
-                onCategorySelected = { viewModel.selectCategory(it) },
-                // Un flux Live exige toujours le serveur : hors ligne, la sélection
-                // n'ouvre pas le player, elle affiche le motif du refus.
-                onStreamSelected = { stream -> viewModel.requestPlayback { onStreamSelected(stream, filteredStreams) } },
-                onRefresh = { viewModel.refresh() },
-                favoritesList = favoritesList,
-                onToggleFavorite = onToggleFavorite,
-                filteredStreams = filteredStreams,
-                pagedStreams = pagedStreams,
-                searchQuery = searchQuery,
-                onSearchQueryChanged = { searchQuery = it },
-                isSpecificCategory = isSpecificCategory,
-                epgPrograms = state.epgPrograms,
-                onLoadEpg = { viewModel.loadEpgForStream(it) },
-                onHistoryRemove = { pendingRemoval = it },
-                getScroll = getScroll,
-                saveScroll = saveScroll,
-                automaticQualityMode = automaticQualityMode
-            )
-        }
-        SnackbarHost(historySnackbarHost, Modifier.align(Alignment.BottomCenter))
-        pendingRemoval?.let { stream -> HistoryRemovalDialog(stream.name, isTv, state.isRemovingHistory, { viewModel.removeRecentlyWatched(stream) }, { if (!state.isRemovingHistory) pendingRemoval = null }) }
-    }
-}
+    val favoriteListWrapped = remember(favoritesList) { FavoriteList(favoritesList) }
 
-@Composable
-private fun TvLayout(
-    state: LiveTvState,
-    onCategorySelected: (LiveCategory) -> Unit,
-    onStreamSelected: (LiveStream) -> Unit,
-    onRefresh: () -> Unit,
-    favoritesList: List<FavoriteItem>,
-    onToggleFavorite: (LiveStream) -> Unit,
-    filteredStreams: List<LiveStream>,
-    pagedStreams: androidx.paging.compose.LazyPagingItems<LiveStream>,
-    searchQuery: String,
-    epgPrograms: Map<Int, LiveEpgProgram>,
-    onLoadEpg: (Int) -> Unit,
-    onHistoryRemove: (LiveStream) -> Unit,
-    getScroll: (String) -> Pair<Int, Int>,
-    saveScroll: (String, Int, Int) -> Unit,
-    tvFocusSelector: TvFocusSelectorState,
-    automaticQualityMode: Boolean
-) {
-    val isAllSelected = state.selectedCategory?.categoryId == "all"
-    var showCategoryPicker by remember { mutableStateOf(false) }
-    val categoryTriggerFocusRequester = remember { FocusRequester() }
-    // Cible de descente depuis le déclencheur de catégorie : la première
-    // vignette de la grille, colonne de gauche (B22).
-    val gridEntryFocusRequester = remember { FocusRequester() }
-    val pivotViewport = rememberTvPivotViewport()
+    val filteredStreamsUiState = remember(filteredStreams) {
+        filteredStreams.toUiState()
+    }
 
-    // Voir VodScreen : regroupement mesuré, thread principal.
-    val groupedStreams = remember(filteredStreams) {
-        val startedAt = System.nanoTime()
-        filteredStreams.groupBy { it.categoryId }
-            .also {
-                com.cstv.app.di.IptvLog.d(
-                    "PERF",
-                    "Live regroupement ${filteredStreams.size} flux en ${(System.nanoTime() - startedAt) / 1_000_000}ms"
-                )
-            }
+    val recentlyWatchedUiState = remember(state.recentlyWatched) {
+        state.recentlyWatched.toUiState()
     }
-    val actualCategories = remember(state.categories) {
-        state.categories.filter { it.categoryId != "all" }
-    }
-    // Chaînes favorites (Phase 35), section dédiée du mode "Tout", sous
-    // "Récemment regardées" — comme sur Films/Séries.
-    // Voir VodScreen : rangée pilotée par `favoritesList`, pour qu'une chaîne
-    // favorite classée au-delà de la centième de sa catégorie ne disparaisse
-    // pas. L'entrée du catalogue est préférée quand elle est chargée : elle
-    // seule porte `epgChannelId`, donc le programme en cours.
-    val favoriteStreams = remember(filteredStreams, favoritesList, searchQuery) {
+
+    // [m3] Phase 35 : Favoris — On préfère l'entrée catalogue (filteredStreams) qui seule porte
+    // l'epgChannelId résolu, plutôt que de reconstruire une instance LiveStream vierge qui en serait privée
+    // (ce qui empêcherait l'association EPG correcte dans la rangée des favoris).
+    val favoriteStreamsUiState = remember(filteredStreams, favoritesList, searchQuery) {
         val loadedById = filteredStreams.associateBy { it.streamId }
-        favoritesList.asSequence()
+        val streams = favoritesList.asSequence()
             .filter { it.type == "live" }
             .map { favorite ->
                 loadedById[favorite.id] ?: LiveStream(
@@ -263,13 +174,118 @@ private fun TvLayout(
             }
             .filter { searchQuery.isBlank() || it.name.contains(searchQuery, ignoreCase = true) }
             .toList()
+        streams.toUiState()
     }
-    val firstCategoryId = actualCategories.firstOrNull { (groupedStreams[it.categoryId] ?: emptyList()).isNotEmpty() }?.categoryId
+
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(if (isTv) Surface1 else Color.Transparent)
+    ) {
+        if (isTv) {
+            TvLayout(
+                state = state,
+                onCategorySelected = { viewModel.selectCategory(it) },
+                // Un flux Live exige toujours le serveur : hors ligne, la sélection
+                // n'ouvre pas le player, elle affiche le motif du refus.
+                onStreamSelected = { stream -> viewModel.requestPlayback { onStreamSelected(stream, filteredStreams) } },
+                onRefresh = { viewModel.refresh() },
+                favoritesList = favoriteListWrapped,
+                onToggleFavorite = onToggleFavorite,
+                filteredStreams = filteredStreamsUiState,
+                pagedStreams = pagedStreams,
+                searchQuery = searchQuery,
+                onLoadEpg = { viewModel.loadEpgForStream(it) },
+                onHistoryRemove = { pendingRemoval = it },
+                getScroll = getScroll,
+                saveScroll = saveScroll,
+                tvFocusSelector = tvFocusSelector,
+                automaticQualityMode = automaticQualityMode,
+                recentlyWatched = recentlyWatchedUiState,
+                favoriteStreams = favoriteStreamsUiState,
+                epgPrograms = state.epgPrograms
+            )
+            TvFocusSelectorOverlay(tvFocusSelector, modifier = Modifier.fillMaxSize())
+        } else {
+            MobileLayout(
+                state = state,
+                onCategorySelected = { viewModel.selectCategory(it) },
+                // Un flux Live exige toujours le serveur : hors ligne, la sélection
+                // n'ouvre pas le player, elle affiche le motif du refus.
+                onStreamSelected = { stream -> viewModel.requestPlayback { onStreamSelected(stream, filteredStreams) } },
+                onRefresh = { viewModel.refresh() },
+                favoritesList = favoriteListWrapped,
+                onToggleFavorite = onToggleFavorite,
+                filteredStreams = filteredStreamsUiState,
+                pagedStreams = pagedStreams,
+                searchQuery = searchQuery,
+                onSearchQueryChanged = { searchQuery = it },
+                isSpecificCategory = isSpecificCategory,
+                onLoadEpg = { viewModel.loadEpgForStream(it) },
+                onHistoryRemove = { pendingRemoval = it },
+                getScroll = getScroll,
+                saveScroll = saveScroll,
+                automaticQualityMode = automaticQualityMode,
+                recentlyWatched = recentlyWatchedUiState,
+                favoriteStreams = favoriteStreamsUiState,
+                epgPrograms = state.epgPrograms
+            )
+        }
+        SnackbarHost(historySnackbarHost, Modifier.align(Alignment.BottomCenter))
+        pendingRemoval?.let { stream -> HistoryRemovalDialog(stream.name, isTv, state.isRemovingHistory, { viewModel.removeRecentlyWatched(stream) }, { if (!state.isRemovingHistory) pendingRemoval = null }) }
+    }
+}
+
+@Composable
+private fun TvLayout(
+    state: LiveTvState,
+    onCategorySelected: (LiveCategory) -> Unit,
+    onStreamSelected: (LiveStream) -> Unit,
+    onRefresh: () -> Unit,
+    favoritesList: FavoriteList,
+    onToggleFavorite: (LiveStream) -> Unit,
+    filteredStreams: LiveStreamList,
+    pagedStreams: androidx.paging.compose.LazyPagingItems<LiveStream>,
+    searchQuery: String,
+    onLoadEpg: (Int) -> Unit,
+    onHistoryRemove: (LiveStream) -> Unit,
+    getScroll: (String) -> Pair<Int, Int>,
+    saveScroll: (String, Int, Int) -> Unit,
+    tvFocusSelector: TvFocusSelectorState,
+    automaticQualityMode: Boolean,
+    recentlyWatched: LiveStreamList,
+    favoriteStreams: LiveStreamList,
+    epgPrograms: Map<Int, LiveEpgProgram>
+) {
+    val isAllSelected = state.selectedCategory?.categoryId == "all"
+    var showCategoryPicker by remember { mutableStateOf(false) }
+    val categoryTriggerFocusRequester = remember { FocusRequester() }
+    // Cible de descente depuis le déclencheur de catégorie : la première
+    // vignette de la grille, colonne de gauche (B22).
+    val gridEntryFocusRequester = remember { FocusRequester() }
+    val pivotViewport = rememberTvPivotViewport()
+
+    // Voir VodScreen : regroupement mesuré, thread principal.
+    val groupedStreams = remember(filteredStreams) {
+        val startedAt = System.nanoTime()
+        filteredStreams.items.groupBy { it.stream.categoryId }
+            .mapValues { (_, list) -> LiveStreamList(items = list) }
+            .also {
+                com.cstv.app.di.IptvLog.d(
+                    "PERF",
+                    "Live regroupement ${filteredStreams.items.size} flux en ${(System.nanoTime() - startedAt) / 1_000_000}ms"
+                )
+            }
+    }
+    val actualCategories = remember(state.categories) {
+        LiveCategoryList(state.categories.filter { it.categoryId != "all" })
+    }
+    val firstCategoryId = actualCategories.items.firstOrNull { (groupedStreams[it.categoryId]?.items ?: emptyList()).isNotEmpty() }?.categoryId
     // B17 review (C1) : `filteredStreams` (déjà scopé à la catégorie active et
     // filtré par le texte) est stable, contrairement à `pagedStreams.itemCount`
     // qui retombe transitoirement à 0 à chaque frappe (voir VodScreen).
-    val initialTarget = remember(isAllSelected, state.recentlyWatched, favoriteStreams, firstCategoryId, filteredStreams.size) {
-        CatalogInitialFocusTarget.of(isAllSelected, state.recentlyWatched.isNotEmpty(), favoriteStreams.isNotEmpty(), firstCategoryId, filteredStreams.size)
+    val initialTarget = remember(isAllSelected, state.recentlyWatched, favoriteStreams, firstCategoryId, filteredStreams.items.size) {
+        CatalogInitialFocusTarget.of(isAllSelected, state.recentlyWatched.isNotEmpty(), favoriteStreams.items.isNotEmpty(), firstCategoryId, filteredStreams.items.size)
     }
     // B17 (M4, décision 6) : voir VodScreen — un scroll restauré prime sur le
     // focus par défaut en tête de liste.
@@ -352,26 +368,26 @@ private fun TvLayout(
             ) {
                 tvPivotVerticalStartReserve(true)
                 // Section 1: Récemment regardées (if not empty)
-                if (state.recentlyWatched.isNotEmpty()) {
+                if (recentlyWatched.items.isNotEmpty()) {
                     item(key = "recently_watched") {
                         RecentlyWatchedRow(
-                            streams = state.recentlyWatched,
+                            streams = recentlyWatched,
                             onStreamSelected = onStreamSelected,
                             isTv = true,
-                            epgPrograms = epgPrograms,
                             onLoadEpg = onLoadEpg,
                             onLongClick = onHistoryRemove,
                             getScroll = getScroll,
                             saveScroll = saveScroll,
                             sectionListState = listState
                             ,initialFocusState = initialFocus
-                            ,isInitialTarget = initialTarget == CatalogFocusTarget.RESUME
+                            ,isInitialTarget = initialTarget == CatalogFocusTarget.RESUME,
+                            epgPrograms = epgPrograms
                         )
                     }
                 }
 
                 // Section 2: Favoris (Phase 35), sous "Récemment regardées"
-                if (favoriteStreams.isNotEmpty()) {
+                if (favoriteStreams.items.isNotEmpty()) {
                     item(key = "favorites") {
                         CategorySectionRow(
                             categoryId = "favorites",
@@ -381,20 +397,20 @@ private fun TvLayout(
                             onToggleFavorite = onToggleFavorite,
                             onStreamSelected = onStreamSelected,
                             isTv = true,
-                            epgPrograms = epgPrograms,
                             onLoadEpg = onLoadEpg,
                             getScroll = getScroll,
                             saveScroll = saveScroll,
                             sectionListState = listState
                             ,initialFocusState = initialFocus
-                            ,isInitialTarget = initialTarget == CatalogFocusTarget.FAVORITES
+                            ,isInitialTarget = initialTarget == CatalogFocusTarget.FAVORITES,
+                            epgPrograms = epgPrograms
                         )
                     }
                 }
 
-                items(actualCategories, key = { it.categoryId }) { category ->
-                    val catStreams = groupedStreams[category.categoryId] ?: emptyList()
-                    if (catStreams.isNotEmpty()) {
+                items(actualCategories.items, key = { it.categoryId }) { category ->
+                    val catStreams = groupedStreams[category.categoryId] ?: LiveStreamList(emptyList())
+                    if (catStreams.items.isNotEmpty()) {
                         CategorySectionRow(
                             categoryId = category.categoryId,
                             title = category.categoryName,
@@ -403,7 +419,6 @@ private fun TvLayout(
                             onToggleFavorite = onToggleFavorite,
                             onStreamSelected = onStreamSelected,
                             isTv = true,
-                            epgPrograms = epgPrograms,
                             onLoadEpg = onLoadEpg,
                             getScroll = getScroll,
                             saveScroll = saveScroll,
@@ -411,7 +426,8 @@ private fun TvLayout(
                             ,onSeeAll = { onCategorySelected(category) }
                             ,totalCount = state.categoryCounts[category.categoryId]
                             ,initialFocusState = initialFocus
-                            ,isInitialTarget = initialTarget == CatalogFocusTarget.FIRST_CATEGORY && category.categoryId == firstCategoryId
+                            ,isInitialTarget = initialTarget == CatalogFocusTarget.FIRST_CATEGORY && category.categoryId == firstCategoryId,
+                            epgPrograms = epgPrograms
                         )
                     }
                 }
@@ -430,7 +446,7 @@ private fun TvLayout(
                 modifier = Modifier.padding(bottom = 12.dp)
             )
 
-            val visibleCount = if (automaticQualityMode) filteredStreams.size else pagedStreams.itemCount
+            val visibleCount = if (automaticQualityMode) filteredStreams.items.size else pagedStreams.itemCount
             if (visibleCount == 0) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(
@@ -448,12 +464,29 @@ private fun TvLayout(
                     pivotViewport = pivotViewport,
                     onFocusLost = { tvFocusSelector.clear() }
                 ) {
-                    items(visibleCount) { index ->
+                    items(
+                        count = visibleCount,
+                        key = { index ->
+                            LiveTvGridKeyGenerator.generateKey(
+                                index = index,
+                                automaticQualityMode = automaticQualityMode,
+                                streamIdAt = { idx ->
+                                    if (automaticQualityMode) filteredStreams.items[idx].stream.streamId
+                                    else pagedStreams.peek(idx)?.streamId
+                                }
+                            )
+                        }
+                    ) { index ->
                         // `filteredStreams` (déjà regroupée) en mode automatique, `pagedStreams`
                         // (Paging3) sinon — voir `automaticQualityMode` ci-dessus.
-                        val stream = if (automaticQualityMode) filteredStreams[index] else pagedStreams[index]
-                        if (stream != null) {
-                            val isFav = favoritesList.any { it.id == stream.streamId && it.type == "live" }
+                        val stream = if (automaticQualityMode) null else pagedStreams[index]
+                        val streamUiState = if (automaticQualityMode) {
+                            filteredStreams.items[index]
+                        } else {
+                            stream?.let { LiveStreamUiState(it, null) }
+                        }
+                        if (streamUiState != null) {
+                            val isFav = favoritesList.items.any { it.id == streamUiState.stream.streamId && it.type == "live" }
                             Box(
                                 // Rayon 12.dp : StreamTvCard n'a pas été unifiée au
                                 // rayon 14.dp de B18 (hors périmètre de ce ticket-là).
@@ -466,12 +499,12 @@ private fun TvLayout(
                                 propagateMinConstraints = true
                             ) {
                                 StreamTvCard(
-                                    stream = stream,
+                                    channel = streamUiState,
+                                    overrideEpg = epgPrograms[streamUiState.stream.streamId],
                                     isFavorite = isFav,
-                                    epgProgram = epgPrograms[stream.streamId],
-                                    onLoadEpg = { onLoadEpg(stream.streamId) },
-                                    onToggleFavorite = { onToggleFavorite(stream) },
-                                    onClick = { onStreamSelected(stream) }
+                                    onLoadEpg = { onLoadEpg(streamUiState.stream.streamId) },
+                                    onToggleFavorite = { onToggleFavorite(streamUiState.stream) },
+                                    onClick = { onStreamSelected(streamUiState.stream) }
                                 )
                             }
                         }
@@ -490,58 +523,38 @@ private fun MobileLayout(
     onCategorySelected: (LiveCategory) -> Unit,
     onStreamSelected: (LiveStream) -> Unit,
     onRefresh: () -> Unit,
-    favoritesList: List<FavoriteItem>,
+    favoritesList: FavoriteList,
     onToggleFavorite: (LiveStream) -> Unit,
-    filteredStreams: List<LiveStream>,
+    filteredStreams: LiveStreamList,
     pagedStreams: androidx.paging.compose.LazyPagingItems<LiveStream>,
     searchQuery: String,
     onSearchQueryChanged: (String) -> Unit,
     isSpecificCategory: Boolean,
-    epgPrograms: Map<Int, LiveEpgProgram>,
     onLoadEpg: (Int) -> Unit,
     onHistoryRemove: (LiveStream) -> Unit,
     getScroll: (String) -> Pair<Int, Int>,
     saveScroll: (String, Int, Int) -> Unit,
-    automaticQualityMode: Boolean
+    automaticQualityMode: Boolean,
+    recentlyWatched: LiveStreamList,
+    favoriteStreams: LiveStreamList,
+    epgPrograms: Map<Int, LiveEpgProgram>
 ) {
     val isAllSelected = state.selectedCategory?.categoryId == "all"
 
     // Voir VodScreen : mesure présente sur TvLayout, manquante ici.
     val groupedStreams = remember(filteredStreams) {
         val startedAt = System.nanoTime()
-        filteredStreams.groupBy { it.categoryId }
+        filteredStreams.items.groupBy { it.stream.categoryId }
+            .mapValues { (_, list) -> LiveStreamList(items = list) }
             .also {
                 com.cstv.app.di.IptvLog.d(
                     "PERF",
-                    "Live regroupement ${filteredStreams.size} flux en ${(System.nanoTime() - startedAt) / 1_000_000}ms"
+                    "Live regroupement ${filteredStreams.items.size} flux en ${(System.nanoTime() - startedAt) / 1_000_000}ms"
                 )
             }
     }
     val actualCategories = remember(state.categories) {
-        state.categories.filter { it.categoryId != "all" }
-    }
-    // Chaînes favorites (Phase 35), section dédiée du mode "Tout", sous
-    // "Récemment regardées" — comme sur Films/Séries.
-    // Voir VodScreen : rangée pilotée par `favoritesList`, pour qu'une chaîne
-    // favorite classée au-delà de la centième de sa catégorie ne disparaisse
-    // pas. L'entrée du catalogue est préférée quand elle est chargée : elle
-    // seule porte `epgChannelId`, donc le programme en cours.
-    val favoriteStreams = remember(filteredStreams, favoritesList, searchQuery) {
-        val loadedById = filteredStreams.associateBy { it.streamId }
-        favoritesList.asSequence()
-            .filter { it.type == "live" }
-            .map { favorite ->
-                loadedById[favorite.id] ?: LiveStream(
-                    streamId = favorite.id,
-                    name = favorite.name,
-                    streamIcon = favorite.cover,
-                    epgChannelId = null,
-                    num = 0,
-                    categoryId = favorite.categoryId
-                )
-            }
-            .filter { searchQuery.isBlank() || it.name.contains(searchQuery, ignoreCase = true) }
-            .toList()
+        LiveCategoryList(state.categories.filter { it.categoryId != "all" })
     }
 
     var showCategorySheet by remember { mutableStateOf(false) }
@@ -611,25 +624,25 @@ private fun MobileLayout(
                 contentPadding = PaddingValues(vertical = 8.dp)
             ) {
                 // Récemment regardées
-                if (state.recentlyWatched.isNotEmpty()) {
-                    item {
+                if (recentlyWatched.items.isNotEmpty()) {
+                    item(key = "recently_watched") {
                         RecentlyWatchedRow(
-                            streams = state.recentlyWatched,
+                            streams = recentlyWatched,
                             onStreamSelected = onStreamSelected,
                             isTv = false,
-                            epgPrograms = epgPrograms,
                             onLoadEpg = onLoadEpg,
                             onLongClick = onHistoryRemove,
                             getScroll = getScroll,
                             saveScroll = saveScroll,
-                            sectionListState = listState
+                            sectionListState = listState,
+                            epgPrograms = epgPrograms
                         )
                     }
                 }
 
                 // Favoris (Phase 35), sous "Récemment regardées"
-                if (favoriteStreams.isNotEmpty()) {
-                    item {
+                if (favoriteStreams.items.isNotEmpty()) {
+                    item(key = "favorites") {
                         CategorySectionRow(
                             categoryId = "favorites",
                             title = "Favoris",
@@ -638,18 +651,18 @@ private fun MobileLayout(
                             onToggleFavorite = onToggleFavorite,
                             onStreamSelected = onStreamSelected,
                             isTv = false,
-                            epgPrograms = epgPrograms,
                             onLoadEpg = onLoadEpg,
                             getScroll = getScroll,
                             saveScroll = saveScroll,
-                            sectionListState = listState
+                            sectionListState = listState,
+                            epgPrograms = epgPrograms
                         )
                     }
                 }
 
-                items(actualCategories) { category ->
-                    val catStreams = groupedStreams[category.categoryId] ?: emptyList()
-                    if (catStreams.isNotEmpty()) {
+                items(actualCategories.items, key = { it.categoryId }) { category ->
+                    val catStreams = groupedStreams[category.categoryId] ?: LiveStreamList(emptyList())
+                    if (catStreams.items.isNotEmpty()) {
                         CategorySectionRow(
                             categoryId = category.categoryId,
                             title = category.categoryName,
@@ -658,13 +671,13 @@ private fun MobileLayout(
                             onToggleFavorite = onToggleFavorite,
                             onStreamSelected = onStreamSelected,
                             isTv = false,
-                            epgPrograms = epgPrograms,
                             onLoadEpg = onLoadEpg,
                             getScroll = getScroll,
                             saveScroll = saveScroll,
                             sectionListState = listState,
                             onSeeAll = { onCategorySelected(category) },
-                            totalCount = state.categoryCounts[category.categoryId]
+                            totalCount = state.categoryCounts[category.categoryId],
+                            epgPrograms = epgPrograms
                         )
                     }
                 }
@@ -681,7 +694,8 @@ private fun MobileLayout(
                 )
             }
 
-            if ((if (automaticQualityMode) filteredStreams.size else pagedStreams.itemCount) == 0) {
+            val visibleCount = if (automaticQualityMode) filteredStreams.items.size else pagedStreams.itemCount
+            if (visibleCount == 0) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(
                         text = if (searchQuery.isBlank()) "Aucune chaîne dans cette catégorie" else "Aucun résultat pour « $searchQuery »",
@@ -700,17 +714,34 @@ private fun MobileLayout(
                         .padding(horizontal = 16.dp)
                 ) {
                     // Voir TvLayout : `filteredStreams` (déjà regroupée) en mode automatique.
-                    items(if (automaticQualityMode) filteredStreams.size else pagedStreams.itemCount) { index ->
-                        val stream = if (automaticQualityMode) filteredStreams[index] else pagedStreams[index]
-                        if (stream != null) {
-                            val isFav = favoritesList.any { it.id == stream.streamId && it.type == "live" }
+                    items(
+                        count = visibleCount,
+                        key = { index ->
+                            LiveTvGridKeyGenerator.generateKey(
+                                index = index,
+                                automaticQualityMode = automaticQualityMode,
+                                streamIdAt = { idx ->
+                                    if (automaticQualityMode) filteredStreams.items[idx].stream.streamId
+                                    else pagedStreams.peek(idx)?.streamId
+                                }
+                            )
+                        }
+                    ) { index ->
+                        val stream = if (automaticQualityMode) null else pagedStreams[index]
+                        val streamUiState = if (automaticQualityMode) {
+                            filteredStreams.items[index]
+                        } else {
+                            stream?.let { LiveStreamUiState(it, null) }
+                        }
+                        if (streamUiState != null) {
+                            val isFav = favoritesList.items.any { it.id == streamUiState.stream.streamId && it.type == "live" }
                             MobileChannelGridCard(
-                                stream = stream,
+                                channel = streamUiState,
                                 isFavorite = isFav,
-                                epgProgram = epgPrograms[stream.streamId],
-                                onLoadEpg = { onLoadEpg(stream.streamId) },
-                                onToggleFavorite = { onToggleFavorite(stream) },
-                                onClick = { onStreamSelected(stream) }
+                                onLoadEpg = { onLoadEpg(streamUiState.stream.streamId) },
+                                onToggleFavorite = { onToggleFavorite(streamUiState.stream) },
+                                onClick = { onStreamSelected(streamUiState.stream) },
+                                overrideEpg = epgPrograms[streamUiState.stream.streamId]
                             )
                         }
                     }

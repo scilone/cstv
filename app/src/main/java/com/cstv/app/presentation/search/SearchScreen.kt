@@ -23,6 +23,7 @@ import com.cstv.app.presentation.components.TvPivotViewportState
 import com.cstv.app.presentation.home.components.HomeSeriesShowCard
 import com.cstv.app.presentation.home.components.HomeVodMovieCard
 import com.cstv.app.presentation.livetv.components.StreamTvCard
+import com.cstv.app.presentation.livetv.LiveStreamUiState
 import androidx.compose.foundation.lazy.items
 import com.cstv.app.presentation.components.rememberTvInitialFocus
 import com.cstv.app.presentation.components.tvInitialFocusTarget
@@ -644,10 +645,10 @@ private fun SearchExpandedGridTv(
                     // propagation de la contrainte min de la cellule à l'enfant.
                     propagateMinConstraints = true
                 ) {
+                    val streamUiState = remember(stream) { LiveStreamUiState(stream, null) }
                     StreamTvCard(
-                        stream = stream,
+                        channel = streamUiState,
                         isFavorite = favorites.any { it.id == stream.streamId && it.type == "live" },
-                        epgProgram = null,
                         onLoadEpg = null,
                         onToggleFavorite = { onToggleFavorite(stream) },
                         onClick = { onPlayLive(stream) }

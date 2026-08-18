@@ -250,6 +250,18 @@ Aucun.
 - `git diff --check` : aucune anomalie.
 - Aucun test UI Compose n'existe pour la géométrie ou la navigation D-Pad ; ce point n'est pas déclaré validé par les contrôles JVM.
 
+## Validation finale (étape 8)
+
+Date : 2026-08-18
+
+- Comportement attendu : conforme — champ de recherche TV supprimé des catégories spécifiques Films et Séries ; sélecteur et filtres conservés.
+- Règles métier : conformes — comportement de la recherche (reset au changement de catégorie) maintenu et aligné sur les décisions PO.
+- Absence de régression : `./gradlew testDebugUnitTest assembleDebug lintDebug` — `BUILD SUCCESSFUL`.
+- Tests validés : non-régression de l'état de recherche vérifiée.
+- Expérience utilisateur : disposition visuelle (espacement 12 dp, masquage) non vérifiable en JVM (règle n°9) — revient au PO sur device.
+
+Status : VALIDATED
+
 ---
 
 # 9. Release

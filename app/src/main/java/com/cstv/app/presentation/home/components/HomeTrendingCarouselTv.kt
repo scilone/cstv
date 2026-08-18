@@ -61,8 +61,6 @@ import kotlin.math.absoluteValue
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-private const val HERO_PREVIEW_DELAY_MS = 1_500L
-
 /** Tranche laissée visible des tendances voisines de part et d'autre. */
 internal val TV_HERO_PEEK = 72.dp
 
@@ -106,7 +104,11 @@ fun HomeTrendingCarouselTv(
     }
 
     val currentItem = trendingItems.getOrNull(pagerState.currentPage)
-    val previewEligible = hasFocus && lifecycleStarted && !pagerState.isScrollInProgress
+    val previewEligible = hasFocus && TrailerPreviewDwellPolicy.isEligible(
+        activeItem = currentItem,
+        isScrollInProgress = pagerState.isScrollInProgress,
+        lifecycleStarted = lifecycleStarted
+    )
 
     // Couche avant du focus TV (F23) : la Hero ne défile pas via un pivot
     // (TvPivotScroll) — sa position est déjà définitive dès que la carte
@@ -126,6 +128,11 @@ fun HomeTrendingCarouselTv(
         }
     }
 
+    // [Asymmetry Note (m2)]
+    // TV carousel uses a single-gated system:
+    // It delays the actual preview request (onPreviewRequested) by 1.5 seconds (Dwell Time).
+    // Once requested, the WebView is composed immediately when state becomes Playing.
+    // Unlike mobile, it does not immediately request metadata and does not have a second layout gate.
     // La clé inclut la slide courante : changer de tendance annule l'aperçu en
     // cours et repart d'une temporisation complète.
     LaunchedEffect(previewEligible, currentItem?.trendingTitle?.canonicalId) {
@@ -133,7 +140,7 @@ fun HomeTrendingCarouselTv(
             onPreviewContextEnded()
             return@LaunchedEffect
         }
-        delay(HERO_PREVIEW_DELAY_MS)
+        delay(TRAILER_PREVIEW_DWELL_MS)
         onPreviewRequested(currentItem)
     }
     DisposableEffect(lifecycleOwner) {

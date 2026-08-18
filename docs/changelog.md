@@ -2,6 +2,18 @@
 
 ## À venir — non publiée
 
+## [v1.88.8] - 2026-08-18
+### ⚡ Optimisations de Performance, Fluidité et Stabilité (T25, T26, T27)
+* **Optimisation du moteur de recommandations (T25)** :
+  - **Projections Room légères** : Remplacement du chargement complet des tables de catalogue `vod_streams` (39 206 films) et `series_streams` (12 566 séries) par des projections SQL minimales (`RecommendableVodProjection` / `RecommendableSeriesProjection`) ciblant uniquement les colonnes requises pour le scoring, libérant le thread principal et évitant la saturation de `CursorWindow`.
+  - **Pre-parsing paresseux (Lazy Loading CPU)** : Élimination de millions de micro-allocations mémoires et du parsing répétitif par Expressions Régulières (`Regex`) au sein de la boucle de scoring fermée. Le split et le nettoyage des genres et des acteurs se font de manière paresseuse une seule fois par candidat (`by lazy`), ramenant le calcul complet sous la barre des 500 ms (soit 95% de gain de performance).
+* **Chargement différé (Lazy Loading) de la WebView des bandes-annonces (T26)** :
+  - **Dwell Time Gate (Politique de temporisation de 1,5s)** : Introduction d'une politique de stabilité `TrailerPreviewDwellPolicy` qui retarde l'instanciation de la `WebView` lourde de YouTube. L'aperçu ne se charge que si l'utilisateur s'arrête de manière continue pendant 1,5 seconde sur une carte active du carrousel de l'Accueil, prévenant ainsi le blocage de 1,86s du thread UI constaté lors d'un défilement ou démarrage rapide.
+  - **Nettoyage et Cycle de vie hermétiques** : Les gestes rapides de navigation ignorent ou annulent les WebView, et la sortie d'un élément de l'écran libère instantanément ses ressources en réinitialisant le contexte.
+* **Stabilisation et skippabilité de la grille Live TV de plus de 3 000 flux (T27)** :
+  - **Modèles et Collections UI stables (`@Immutable`)** : Introduction de `LiveStreamUiState` et de conteneurs de collections (`LiveStreamList`, `LiveCategoryList`, `FavoriteList`) explicitement immutables. Cela permet à Jetpack Compose d'ignorer la recomposition (skippability) des cellules dont l'EPG ou l'état de focus n'a pas changé.
+  - **Clés uniques namespacées et virtualisation de rendu** : Ajout systématique de clés de rendu uniques et stables (ex. `stream_$streamId` ou `placeholder_$index` via `LiveTvGridKeyGenerator`) sur les grilles TV et mobiles, éliminant les lenteurs `LayoutNode` d'environ une seconde et garantissant un défilement ultra-fluide à 60 FPS sans scintillement ni perte de position de focus.
+
 ## [v1.87.0] - 2026-08-18
 ### ✨ Sélecteur de qualité des chaînes et mode automatique avec repli (F40)
 * **Changement de qualité à la volée** : Bouton « Qualité » intégré directement dans la barre d'actions du lecteur de chaînes de télévision en direct. Il liste toutes les variantes disponibles d'une même chaîne (partageant la clé de liaison T21) et permet une bascule instantanée sans interruption inutile. Le bouton est automatiquement masqué s'il n'existe qu'une seule variante exploitable.
