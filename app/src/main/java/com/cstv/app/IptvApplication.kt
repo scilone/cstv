@@ -10,6 +10,8 @@ import com.cstv.app.data.local.storage.SettingsManager
 import com.cstv.app.data.update.UpdateApkStore
 import com.cstv.app.data.local.storage.SyncFrequency
 import com.cstv.app.data.util.DiagnosticManager
+import com.cstv.app.data.util.FrameJankWatchdog
+import com.cstv.app.data.util.MainThreadWatchdog
 import com.cstv.app.data.worker.DatabaseSyncWorker
 import com.cstv.app.data.worker.CatalogNormalizationWorker
 import com.cstv.app.data.worker.SyncScheduling
@@ -58,6 +60,11 @@ class IptvApplication : Application(), ImageLoaderFactory {
         if (settingsManager.getDebugModeEnabled()) {
             diagnosticManager.startLogging()
         }
+        // Diagnostic lenteurs/freezes (retour utilisateur du 2026-08-18) : coût
+        // négligeable, démarré inconditionnellement pour capturer un incident
+        // même si le mode debug n'a pas été activé avant qu'il survienne.
+        MainThreadWatchdog.start()
+        FrameJankWatchdog.start()
         scheduleDefaultBackgroundSync()
         warmUpDatabase()
         scheduleCatalogNormalization()

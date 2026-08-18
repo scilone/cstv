@@ -52,6 +52,7 @@ import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import coil.compose.AsyncImage
+import com.cstv.app.di.IptvLog
 import com.cstv.app.domain.model.Credentials
 import com.cstv.app.domain.model.LiveStream
 import com.cstv.app.domain.model.LiveCategory
@@ -423,17 +424,30 @@ fun PlayerScreen(
         showOverlay = true
     }
 
-    fun runKeyIntent(intent: PlayerKeyIntent): Boolean = when (intent) {
-        PlayerKeyIntent.PlayPause -> { togglePlayPause(); true }
-        PlayerKeyIntent.Play -> { exoPlayer.play(); showOverlay = true; true }
-        PlayerKeyIntent.Pause -> { exoPlayer.pause(); showOverlay = true; true }
-        // Un flux live n'est pas seekable : les touches d'avance et de retour
-        // sont consommées sans effet plutôt que de déplacer le focus.
-        PlayerKeyIntent.FastForward, PlayerKeyIntent.Rewind -> { showOverlay = true; true }
-        PlayerKeyIntent.Next -> { zapNext(); true }
-        PlayerKeyIntent.Previous -> { zapPrev(); true }
-        PlayerKeyIntent.Stop -> { handleClose(); true }
-        PlayerKeyIntent.RevealControls -> { showOverlay = true; true }
+    // Diagnostic lenteurs télécommande (retour utilisateur du 2026-08-18) : chronomètre
+    // le traitement de chaque intention dpad sur le thread principal. Un `runKeyIntent`
+    // lent révèle qu'une touche a été reçue mais traitée en retard (recomposition lourde,
+    // GC, travail bloquant ailleurs sur le thread principal) — utile pour corréler avec
+    // les captures « télécommande qui ne répond plus ».
+    fun runKeyIntent(intent: PlayerKeyIntent): Boolean {
+        val startedAt = System.nanoTime()
+        val handled = when (intent) {
+            PlayerKeyIntent.PlayPause -> { togglePlayPause(); true }
+            PlayerKeyIntent.Play -> { exoPlayer.play(); showOverlay = true; true }
+            PlayerKeyIntent.Pause -> { exoPlayer.pause(); showOverlay = true; true }
+            // Un flux live n'est pas seekable : les touches d'avance et de retour
+            // sont consommées sans effet plutôt que de déplacer le focus.
+            PlayerKeyIntent.FastForward, PlayerKeyIntent.Rewind -> { showOverlay = true; true }
+            PlayerKeyIntent.Next -> { zapNext(); true }
+            PlayerKeyIntent.Previous -> { zapPrev(); true }
+            PlayerKeyIntent.Stop -> { handleClose(); true }
+            PlayerKeyIntent.RevealControls -> { showOverlay = true; true }
+        }
+        val elapsedMs = (System.nanoTime() - startedAt) / 1_000_000
+        if (elapsedMs > 32) {
+            IptvLog.w("PERF", "Player dpad intent=$intent traité en ${elapsedMs}ms")
+        }
+        return handled
     }
 
     // Full screen capture key events for TV zapping and gesture capture for Mobile swipe zapping
@@ -861,13 +875,31 @@ fun PlayerScreen(
             val liveTvState by viewModel.state.collectAsStateWithLifecycle()
 
             // Simple et fluide : le tiroir liste les vraies catégories du direct
-            // (dont « Tout »), pas d'entrée synthétique. Sélection initiale = la
-            // catégorie déjà active côté Live TV.
-            var selectedDrawerCategory by remember {
-                mutableStateOf(liveTvState.selectedCategory ?: LiveCategory("all", "Tout", 0))
+            // (le bouquet Xtream), pas d'entrée synthétique — « Tout » (agrégat
+            // ajouté par le ViewModel, pas une catégorie du fournisseur) en est
+            // exclu ici, tout comme l'ancienne « Récemment regardé ».
+            val realCategories = remember(liveTvState.categories) {
+                liveTvState.categories.filterNot { it.categoryId == "all" }
             }
-            val dropdownCategories = liveTvState.categories
+            var selectedDrawerCategory by remember {
+                mutableStateOf(
+                    liveTvState.selectedCategory?.takeIf { it.categoryId != "all" }
+                        ?: realCategories.firstOrNull()
+                        ?: LiveCategory("all", "Tout", 0)
+                )
+            }
+            val dropdownCategories = realCategories
             val drawerStreams = liveTvState.streams
+
+            // Si le Live TV était en mode « Tout » à l'ouverture, `liveTvState.streams`
+            // contient encore les 3094 chaînes de « Tout » alors que l'en-tête affiche
+            // déjà une vraie catégorie : on aligne les deux en sélectionnant la
+            // catégorie par défaut une seule fois à l'ouverture du tiroir.
+            LaunchedEffect(Unit) {
+                if (liveTvState.selectedCategory?.categoryId == "all" && selectedDrawerCategory.categoryId != "all") {
+                    viewModel.selectCategory(selectedDrawerCategory)
+                }
+            }
 
             val listState = rememberLazyListState()
             val currentItemFocusRequester = remember { FocusRequester() }
