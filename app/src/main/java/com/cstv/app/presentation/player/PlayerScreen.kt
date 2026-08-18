@@ -263,7 +263,16 @@ fun PlayerScreen(
 
     // Prepare and play the stream whenever the stream index or extension changes
     LaunchedEffect(currentStream, streamExtension, lockUi.canStartPlayback) {
-        if (!lockUi.canStartPlayback) return@LaunchedEffect
+        if (!lockUi.canStartPlayback) {
+            // Retour utilisateur du 2026-08-18 : un changement de chaîne/qualité pendant que le
+            // verrou est relâché (ex. pause transitoire côté `onPlayWhenReadyChanged`) restait
+            // bloqué indéfiniment — rien ne redemandait le verrou tant que l'utilisateur ne
+            // rejouait pas manuellement. Cet effet redémarre déjà sur `lockUi.canStartPlayback` :
+            // redemander ici suffit à le relancer automatiquement avec `currentStream` toujours à
+            // jour dès que le verrou revient.
+            viewModel.resumePlaybackLock()
+            return@LaunchedEffect
+        }
         isBuffering = true
         isDeviceUnrepairable = false
         playbackError = null
@@ -802,20 +811,23 @@ fun PlayerScreen(
 
                         Spacer(modifier = Modifier.height(4.dp))
 
-                        // Barre d'actions : « Chaînes » (ouvre le tiroir de zapping)
-                        if (activeStreamsList.isNotEmpty()) {
-                            PlayerBottomAction(
-                                icon = Icons.Default.Tv,
-                                label = "Chaînes",
-                                onClick = { showChannelList = true }
-                            )
-                        }
-                        if (qualityVariants.size > 1) {
-                            PlayerBottomAction(
-                                icon = Icons.Default.AspectRatio,
-                                label = stringResource(R.string.player_quality_action_label),
-                                onClick = { showQualitySelector = true }
-                            )
+                        // Retour utilisateur du 2026-08-18 : « Qualité » à côté de « Chaînes »,
+                        // pas en dessous — une seule barre d'actions, plus jamais deux rangées.
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (activeStreamsList.isNotEmpty()) {
+                                PlayerBottomAction(
+                                    icon = Icons.Default.Tv,
+                                    label = "Chaînes",
+                                    onClick = { showChannelList = true }
+                                )
+                            }
+                            if (qualityVariants.size > 1) {
+                                PlayerBottomAction(
+                                    icon = Icons.Default.AspectRatio,
+                                    label = stringResource(R.string.player_quality_action_label),
+                                    onClick = { showQualitySelector = true }
+                                )
+                            }
                         }
                     }
                 }

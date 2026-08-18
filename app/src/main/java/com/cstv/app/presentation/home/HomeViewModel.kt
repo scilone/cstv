@@ -6,6 +6,7 @@ import com.cstv.app.domain.model.PlaybackPosition
 import com.cstv.app.domain.model.FavoriteItem
 import com.cstv.app.domain.model.LiveCategory
 import com.cstv.app.domain.model.LiveStream
+import com.cstv.app.domain.model.collapsedForAutomaticQuality
 import com.cstv.app.domain.model.VodStream
 import com.cstv.app.domain.model.SeriesStream
 import com.cstv.app.domain.model.SeriesCategory
@@ -114,7 +115,10 @@ class HomeViewModel @Inject constructor(
     private val getTrailerPreviewUseCase: GetTrailerPreviewUseCase,
     private val invalidateTrailerPreviewUseCase: com.cstv.app.domain.usecase.InvalidateTrailerPreviewUseCase,
     private val profileManager: ProfileManager,
-    private val canPlayContentUseCase: com.cstv.app.domain.usecase.CanPlayContentUseCase
+    private val canPlayContentUseCase: com.cstv.app.domain.usecase.CanPlayContentUseCase,
+    /** Retour utilisateur du 2026-08-18 : nullable pour ne pas casser les tests positionnels
+     * existants — sans lui, la rangée Live TV de l'accueil garde une vignette par variante. */
+    private val settingsManager: com.cstv.app.data.local.storage.SettingsManager? = null
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(HomeState())
@@ -642,7 +646,12 @@ class HomeViewModel @Inject constructor(
                 val firstLiveCat = liveCategories.firstOrNull()
                 val firstLiveStreams = if (firstLiveCat != null) {
                     try {
-                        liveTvRepository.getCachedLiveStreams(firstLiveCat.categoryId)
+                        val streams = liveTvRepository.getCachedLiveStreams(firstLiveCat.categoryId)
+                        // Retour utilisateur du 2026-08-18 : voir LiveTvViewModel.observeStreams
+                        // — une seule vignette par chaîne en mode automatique, accueil compris.
+                        if (settingsManager?.getLiveQualityModeDefault() == true) {
+                            streams.collapsedForAutomaticQuality()
+                        } else streams
                     } catch (e: Exception) {
                         if (e is kotlinx.coroutines.CancellationException) throw e
                         emptyList()

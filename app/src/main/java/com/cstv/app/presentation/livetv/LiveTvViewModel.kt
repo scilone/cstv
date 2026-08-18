@@ -7,6 +7,7 @@ import com.cstv.app.domain.model.Credentials
 import com.cstv.app.domain.model.LiveCategory
 import com.cstv.app.domain.model.LiveStream
 import com.cstv.app.domain.model.LiveVariant
+import com.cstv.app.domain.model.collapsedForAutomaticQuality
 import com.cstv.app.domain.usecase.GetLiveCategoriesUseCase
 import com.cstv.app.domain.usecase.GetLiveCategoryCountsUseCase
 import com.cstv.app.domain.usecase.GetLiveEpgUseCase
@@ -60,6 +61,9 @@ class LiveTvViewModel @Inject constructor(
     val playbackRepairRepository: com.cstv.app.domain.repository.PlaybackRepairRepository? = null,
     /** F40: local grouping is a domain contract; test callers may supply the inert default. */
     private val liveVariantRepository: com.cstv.app.domain.repository.LiveVariantRepository = EmptyLiveVariantRepository,
+    /** F40 (révision produit du 2026-08-18) : mémorise un repli automatique d'un zapping à
+     * l'autre sur la même chaîne. Nullable pour ne pas casser les tests positionnels existants. */
+    private val qualityDowngradeMemory: com.cstv.app.presentation.player.core.LiveQualityDowngradeMemory? = null,
 ) : ViewModel() {
 
     private val qualityController = LiveQualityController()
@@ -114,7 +118,15 @@ class LiveTvViewModel @Inject constructor(
         val variants = liveVariantRepository.variantsFor(stream.streamId)
         val candidates = variants.ifEmpty { listOf(LiveVariant(stream)) }
         stabilityMonitor.reset()
-        val automaticCandidate = qualityController.start("", candidates, liveQualityModeDefault())
+        val linkKey = stream.linkKey
+        val automatic = liveQualityModeDefault()
+        // Révision produit du 2026-08-18 : un repli mémorisé pour cette chaîne (pas encore
+        // reconfirmé, §LiveQualityDowngradeMemory) fait démarrer directement dessus plutôt que de
+        // retenter la meilleure qualité à chaque zapping.
+        val preferredStreamId = qualityDowngradeMemory
+            ?.takeIf { automatic && linkKey.isNotBlank() }
+            ?.rememberedStreamId(linkKey, nowMs())
+        val automaticCandidate = qualityController.start(linkKey, candidates, automatic, preferredStreamId)
         val selected = automaticCandidate?.stream ?: stream
         if (automaticCandidate == null) qualityController.retainManualInitial(LiveVariant(selected))
         return LiveQualityPlayerState(
@@ -127,17 +139,32 @@ class LiveTvViewModel @Inject constructor(
     fun liveQualityGeneration(): Long = qualityController.generation()
     fun onLiveQualityReady(token: Long) {
         stabilityMonitor.onReady()
-        qualityController.onReady(token, (System.nanoTime() / 1_000_000L))
+        qualityController.onReady(token, nowMs())
+        confirmTopQualityHealthyIfPlaying()
     }
     fun onLiveQualityBufferingStarted(token: Long): LiveStream? {
         if (!stabilityMonitor.onBufferingStarted()) return null
-        return qualityController.onFailure(token, stabilityMonitor.measurement(), (System.nanoTime() / 1_000_000L))?.stream
+        return qualityController.onFailure(token, stabilityMonitor.measurement(), nowMs())?.also(::rememberDowngrade)?.stream
     }
     fun onLiveQualityBufferingEnded() = stabilityMonitor.onBufferingEnded()
     fun onLiveQualityFailure(token: Long): LiveStream? =
-        qualityController.onFailure(token, stabilityMonitor.measurement(), (System.nanoTime() / 1_000_000L))?.stream
+        qualityController.onFailure(token, stabilityMonitor.measurement(), nowMs())?.also(::rememberDowngrade)?.stream
     fun selectLiveQuality(variant: LiveVariant): LiveStream = qualityController.selectManually(variant).stream
     fun resetLiveQualityMeasurement() = stabilityMonitor.reset()
+    private fun nowMs(): Long = System.nanoTime() / 1_000_000L
+    /** Révision produit du 2026-08-18 : le mode automatique vient de descendre — on le retient. */
+    private fun rememberDowngrade(next: LiveVariant) {
+        val linkKey = qualityController.currentSession()?.linkKey ?: return
+        if (linkKey.isNotBlank()) qualityDowngradeMemory?.recordDowngrade(linkKey, next.stream.streamId, nowMs())
+    }
+    /** Révision produit du 2026-08-18 : la meilleure candidate vient de prouver sa stabilité. */
+    private fun confirmTopQualityHealthyIfPlaying() {
+        val session = qualityController.currentSession() ?: return
+        val top = session.candidates.firstOrNull() ?: return
+        if (session.linkKey.isNotBlank() && qualityController.activeStreamId() == top.stream.streamId) {
+            qualityDowngradeMemory?.confirmTopHealthy(session.linkKey)
+        }
+    }
 
     // EPG « en cours + suivant » pour le player Live TV (Phase 60, informatif).
     // Rechargé à chaque changement de chaîne dans le player ; null tant que non
@@ -348,7 +375,11 @@ class LiveTvViewModel @Inject constructor(
                             "en ${(System.nanoTime() - subscribedAt) / 1_000_000}ms"
                     )
                 }
-                _state.update { it.copy(streams = streams, isLoadingStreams = false) }
+                // Retour utilisateur du 2026-08-18 : en mode automatique, une seule vignette par
+                // chaîne (linkKey) dans « Tout » comme dans les catégories filtrées — le mode
+                // automatique choisit déjà la meilleure qualité à l'ouverture du lecteur (§8.4).
+                val displayedStreams = if (liveQualityModeDefault()) streams.collapsedForAutomaticQuality() else streams
+                _state.update { it.copy(streams = displayedStreams, isLoadingStreams = false) }
                 refreshCategoryCounts()
             }
         }

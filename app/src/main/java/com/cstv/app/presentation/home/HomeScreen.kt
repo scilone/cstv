@@ -652,6 +652,7 @@ fun HomeScreen(
                                         .tvRowFocusEntryTarget(isTv, rowEntry, rowState, index)
                                         .tvInitialFocusTarget(homeInitialFocus, index == 0 && homeInitialTarget == HomeFocusTarget.VOD)) {
                                         HomeVodMovieCard(
+                                            showVersionBadge = false,
                                             stream = stream,
                                             onClick = { onSelectMovieDetail(stream) },
                                             onLongClick = { toggleMovieFavorite(stream) },
@@ -691,6 +692,7 @@ fun HomeScreen(
                                         .tvRowFocusEntryTarget(isTv, rowEntry, rowState, index)
                                         .tvInitialFocusTarget(homeInitialFocus, index == 0 && homeInitialTarget == HomeFocusTarget.TOP_MOVIES)) {
                                         HomeVodMovieCard(
+                                            showVersionBadge = false,
                                             stream = stream,
                                             onClick = { onSelectMovieDetail(stream) },
                                             rank = index + 1,
@@ -728,6 +730,7 @@ fun HomeScreen(
                                         .tvRowFocusEntryTarget(isTv, rowEntry, rowState, index)
                                         .tvInitialFocusTarget(homeInitialFocus, index == 0 && homeInitialTarget == HomeFocusTarget.RECOMMENDED_MOVIES)) {
                                         HomeVodMovieCard(
+                                            showVersionBadge = false,
                                             stream = stream,
                                             onClick = { onSelectMovieDetail(stream) },
                                             onLongClick = { toggleMovieFavorite(stream) },
@@ -764,6 +767,7 @@ fun HomeScreen(
                                         .tvRowFocusEntryTarget(isTv, rowEntry, rowState, index)
                                         .tvInitialFocusTarget(homeInitialFocus, index == 0 && homeInitialTarget == HomeFocusTarget.SERIES)) {
                                         HomeSeriesShowCard(
+                                            showVersionBadge = false,
                                             stream = stream,
                                             onClick = { onSelectSeriesDetail(stream) },
                                             onLongClick = { toggleSeriesFavorite(stream) },
@@ -800,6 +804,7 @@ fun HomeScreen(
                                         .tvRowFocusEntryTarget(isTv, rowEntry, rowState, index)
                                         .tvInitialFocusTarget(homeInitialFocus, index == 0 && homeInitialTarget == HomeFocusTarget.TOP_SERIES)) {
                                         HomeSeriesShowCard(
+                                            showVersionBadge = false,
                                             stream = stream,
                                             onClick = { onSelectSeriesDetail(stream) },
                                             rank = index + 1,
@@ -837,6 +842,7 @@ fun HomeScreen(
                                         .tvRowFocusEntryTarget(isTv, rowEntry, rowState, index)
                                         .tvInitialFocusTarget(homeInitialFocus, index == 0 && homeInitialTarget == HomeFocusTarget.RECOMMENDED_SERIES)) {
                                         HomeSeriesShowCard(
+                                            showVersionBadge = false,
                                             stream = stream,
                                             onClick = { onSelectSeriesDetail(stream) },
                                             onLongClick = { toggleSeriesFavorite(stream) },
@@ -1000,6 +1006,7 @@ private fun HomeExpandedGrid(
                 }
                 HomeExpandedSection.RECOMMENDED_MOVIES -> gridItems(recommendedMovies) { stream ->
                     HomeVodMovieCard(
+                        showVersionBadge = false,
                         stream = stream,
                         onClick = { onMovieClick(stream) },
                         onLongClick = { onToggleMovieFavorite(stream) },
@@ -1010,6 +1017,7 @@ private fun HomeExpandedGrid(
                 }
                 HomeExpandedSection.RECOMMENDED_SERIES -> gridItems(recommendedSeries) { stream ->
                     HomeSeriesShowCard(
+                        showVersionBadge = false,
                         stream = stream,
                         onClick = { onSeriesClick(stream) },
                         onLongClick = { onToggleSeriesFavorite(stream) },

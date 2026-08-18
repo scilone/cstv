@@ -151,11 +151,44 @@ class LiveTvViewModelTest {
         assertTrue(viewModel.playbackLockUiState.value.canStartPlayback)
     }
 
-    private fun createViewModel(requester: com.cstv.app.domain.usecase.PlaybackLockRequester? = null) = LiveTvViewModel(
+    // Retour utilisateur du 2026-08-18 : un repli automatique mémorisé pour une chaîne est réutilisé
+    // au zapping suivant plutôt que de retenter systématiquement la meilleure qualité.
+    @Test
+    fun `retour utilisateur 2026-08-18 - a memorized downgrade is reused on the next zap`() = runTest(dispatcher) {
+        whenever(settingsManager.getLiveQualityModeDefault()).thenReturn(true)
+        val top = LiveStream(1, "TF1 4K", null, null, 1, "1", linkKey = "tf1", qualityTag = "uhd_4k")
+        val lower = LiveStream(2, "TF1 HD", null, null, 1, "1", linkKey = "tf1", qualityTag = "hd")
+        val variantRepository = object : com.cstv.app.domain.repository.LiveVariantRepository {
+            override suspend fun variantsFor(streamId: Int) = listOf(
+                com.cstv.app.domain.model.LiveVariant(top),
+                com.cstv.app.domain.model.LiveVariant(lower)
+            )
+        }
+        val memory = com.cstv.app.presentation.player.core.LiveQualityDowngradeMemory()
+        // `nowMs()` du ViewModel repose sur `System.nanoTime()`, une origine arbitraire (pas
+        // l'époque Unix) : semer `0` ici la ferait paraître expirée dès le premier appel réel.
+        memory.recordDowngrade("tf1", streamId = lower.streamId, nowMs = System.nanoTime() / 1_000_000L)
+        val viewModel = createViewModel(liveVariantRepository = variantRepository, qualityDowngradeMemory = memory)
+
+        val state = viewModel.startLiveQualitySession(top)
+
+        assertEquals(lower.streamId, state.selectedStream.streamId)
+    }
+
+    private fun createViewModel(
+        requester: com.cstv.app.domain.usecase.PlaybackLockRequester? = null,
+        liveVariantRepository: com.cstv.app.domain.repository.LiveVariantRepository? = null,
+        qualityDowngradeMemory: com.cstv.app.presentation.player.core.LiveQualityDowngradeMemory? = null
+    ) = LiveTvViewModel(
         getCategories, getCategoryCounts, getStreams, observeRecentlyWatched,
         removeRecentlyWatched, saveRecentlyWatched, getEpg, getEpgNowNext,
         credentialsManager, categoryPreferences, settingsManager, liveTvRepository,
         observeCatalogStatusUseCase, catalogSyncManager, canPlayContentUseCase,
-        requester
+        requester,
+        releasePlaybackLockUseCase = null,
+        playbackLockManager = null,
+        playbackRepairRepository = null,
+        liveVariantRepository = liveVariantRepository ?: com.cstv.app.presentation.livetv.EmptyLiveVariantRepository,
+        qualityDowngradeMemory = qualityDowngradeMemory
     )
 }

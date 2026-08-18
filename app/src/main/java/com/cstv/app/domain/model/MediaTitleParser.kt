@@ -56,6 +56,20 @@ object MediaTitleParser {
     // Symétrique de `trailingSeparator` côté début de chaîne : un tag retiré en tête
     // (ex. `|FR|`, `|VO|STFR|`) ne laisse jamais les séparateurs `|` orphelins visibles.
     private val leadingSeparator = Regex("^[\\s|_+/.:\\-]+")
+    // Retour utilisateur du 2026-08-18 : le linkKey (T21) ne doit plus dépendre uniquement du
+    // lexique fini ci-dessus pour exclure une étiquette du texte de rapprochement — toute
+    // étiquette placée entre parenthèses/crochets/accolades, ou dans un bloc de tags `|...|`
+    // (convention du catalogue), est retirée qu'elle soit connue (`HD`, `VOSTFR`…) ou non (`DV`,
+    // `REMUX`, …), sans avoir à l'ajouter au lexique à chaque nouveau cas. Le lexique reste
+    // nécessaire pour `cleanTitle`/`language`/`quality`/`versionLabel`, qui doivent reconnaître le
+    // sens de chaque fragment (y compris hors délimiteur, ex. `Film X 1080p MULTI 4K`), pas
+    // seulement l'exclure.
+    // Un seul `|` d'ouverture, puis N répétitions de « contenu-sans-pipe suivi d'un `|` » : les
+    // tags consécutifs du catalogue partagent leurs pipes (`|VO|STFR|` = 3 `|` pour 2 tags), donc
+    // chaque répétition ne peut pas exiger son propre `|` d'ouverture.
+    private val leadingPipeTagBlock = Regex("^\\s*\\|(?:[^|]*\\|)+")
+    private val pipePair = Regex("\\|[^|]*\\|")
+    private val bracketedGroup = Regex("[(\\[{][^)\\]}]*[)\\]}]")
     // ThreadLocal.withInitial(Supplier) requires API 26 (minSdk 21) : sous-classe manuelle.
     private val digest = object : ThreadLocal<MessageDigest>() {
         override fun initialValue(): MessageDigest = MessageDigest.getInstance("SHA-256")
@@ -118,7 +132,7 @@ object MediaTitleParser {
         cleaned = cleanupDisplayTitle(cleaned, stripLeading = isVod)
         if (cleaned.length < 2) cleaned = source
 
-        val canonical = matchingTitleOf(cleaned, mediaKind)
+        val canonical = linkingCanonicalOf(source, cleaned, mediaKind)
         return ParsedMediaTitle(
             cleanTitle = cleaned,
             linkKey = if (canonical.isBlank()) singletonKey(mediaKind, providerId) else hashKey(canonical),
@@ -149,21 +163,50 @@ object MediaTitleParser {
     private fun parseForMatching(rawTitle: String?): String {
         val source = rawTitle.orEmpty().trim()
         if (source.isEmpty()) return ""
+        return cleanupDisplayTitle(stripLexiconTokens(source)).ifBlank { source }
+    }
+
+    /** Retire les fragments reconnus par le lexique langue/qualité/technique, sans y toucher sinon. */
+    private fun stripLexiconTokens(value: String): String {
         val ranges = mutableListOf<IntRange>()
-        tokenRegex.findAll(source).forEach { match ->
+        tokenRegex.findAll(value).forEach { match ->
             val token = match.value.uppercase(Locale.ROOT)
             if (languageMarkers.any { it.token == token } || qualityMarkers.any { it.token == token } || token in technicalTokens) {
                 ranges += match.range
             }
         }
-        var cleaned = source
-        ranges.sortedByDescending { it.first }.forEach { cleaned = cleaned.removeRange(it.first, it.last + 1) }
-        return cleanupDisplayTitle(cleaned).ifBlank { source }
+        var result = value
+        ranges.sortedByDescending { it.first }.forEach { result = result.removeRange(it.first, it.last + 1) }
+        return result
     }
 
-    private fun matchingTitleOf(cleanTitle: String, mediaKind: MediaTitleKind): String =
-        if (mediaKind == MediaTitleKind.LIVE) canonicalize(cleanTitle)
-        else canonicalize(removeYearsForMatching(cleanTitle))
+    /**
+     * Texte de rapprochement du linkKey (T21), calculé depuis `source` (pas `cleanTitle`) : les
+     * délimiteurs d'un tag que le lexique n'a pas reconnu (ex. `DV`/`REMUX` dans `|4K-DV|`) sont
+     * déjà mangés par `cleanTitle` (`cleanupDisplayTitle(stripLeading = true)` dans `parse()`),
+     * ce qui laisserait le fragment inconnu traîner sans ses délimiteurs. LIVE garde `cleanTitle`
+     * tel quel (`|FR|` y est l'identité de la chaîne, jamais un tag à exclure). VOD/SERIES retire
+     * tout bloc de tags `|...|` en tête, tout groupe entre parenthèses/crochets/accolades où qu'il
+     * soit, puis les fragments lexicaux restés hors délimiteur (ex. `Film X 1080p MULTI 4K`, sans
+     * crochets) — sans qu'il faille ajouter la moindre étiquette au lexique. Repli sur `cleanTitle`
+     * si le dépouillement laisse une chaîne vide (titre entièrement entre délimiteurs).
+     */
+    private fun linkingCanonicalOf(source: String, cleanTitle: String, mediaKind: MediaTitleKind): String {
+        if (mediaKind == MediaTitleKind.LIVE) return canonicalize(cleanTitle)
+        var stripped = source
+        var previous: String
+        do {
+            previous = stripped
+            stripped = stripped
+                .replace(leadingPipeTagBlock, " ")
+                .replace(pipePair, " ")
+                .replace(bracketedGroup, " ")
+        } while (stripped != previous)
+        stripped = stripLexiconTokens(stripped)
+        stripped = cleanupDisplayTitle(stripped, stripLeading = true)
+        val structural = canonicalize(removeYearsForMatching(stripped))
+        return structural.ifBlank { canonicalize(removeYearsForMatching(cleanTitle)) }
+    }
 
     private fun removeYearsForMatching(value: String): String {
         val withoutYears = cleanupDisplayTitle(year.replace(value, " "))

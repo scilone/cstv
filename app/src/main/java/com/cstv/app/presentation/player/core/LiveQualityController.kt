@@ -22,11 +22,24 @@ class LiveQualityController(
     private var readyAtMs: Long? = null
     private var finalRetryUsed = false
 
-    fun start(linkKey: String, candidates: List<LiveVariant>, automatic: Boolean): LiveVariant? {
+    /**
+     * [preferredStreamId] : révision produit F40 du 2026-08-18 — quand un repli automatique a été
+     * mémorisé pour cette chaîne ([LiveQualityDowngradeMemory]), l'appelant y démarre directement
+     * plutôt qu'à la meilleure candidate. Les candidates mieux classées sont marquées `attempted`
+     * dès le départ : un échec ultérieur continue de descendre, il ne les retente jamais toutes
+     * seules (ce serait exactement le comportement que la mémorisation doit éviter).
+     */
+    fun start(linkKey: String, candidates: List<LiveVariant>, automatic: Boolean, preferredStreamId: Int? = null): LiveVariant? {
         val filtered = candidateFilter.filter(candidates)
-        session = LiveQualitySession(linkKey, if (automatic && filtered.size > 1) QualityMode.AUTOMATIC else QualityMode.MANUAL, filtered)
+        val mode = if (automatic && filtered.size > 1) QualityMode.AUTOMATIC else QualityMode.MANUAL
+        val startIndex = preferredStreamId
+            ?.let { id -> filtered.indexOfFirst { it.stream.streamId == id } }
+            ?.takeIf { it > 0 } ?: 0
+        val preAttempted = if (mode == QualityMode.AUTOMATIC) filtered.take(startIndex).map { it.stream.streamId }.toSet() else emptySet()
+        session = LiveQualitySession(linkKey, mode, filtered, attempted = preAttempted)
         generation++; finalRetryUsed = false; readyAtMs = null
-        return filtered.firstOrNull()?.takeIf { session?.mode == QualityMode.AUTOMATIC }?.also { activeStreamId = it.stream.streamId }
+        if (mode != QualityMode.AUTOMATIC) return null
+        return filtered.getOrNull(startIndex)?.also { activeStreamId = it.stream.streamId }
     }
     fun currentSession(): LiveQualitySession? = session
     fun generation(): Long = generation

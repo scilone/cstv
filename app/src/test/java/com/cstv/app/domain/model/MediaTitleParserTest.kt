@@ -113,6 +113,17 @@ class MediaTitleParserTest {
     }
 
     @Test
+    fun `retour utilisateur 2026-08-18 - a delimited tag unknown to the lexicon never breaks linking`() {
+        // "REMUX" n'est dans aucune liste de MediaTitleParser : seul son délimiteur d'origine
+        // (`|...|`) le fait tomber du texte de rapprochement, pas une entrée de lexique dédiée.
+        val fr = MediaTitleParser.parse("|FR| House of the Dragon (2022)", MediaTitleKind.SERIES, providerId = 1)
+        val unknownTag = MediaTitleParser.parse("|4K-REMUX| House of the Dragon (2022)", MediaTitleKind.SERIES, providerId = 2)
+
+        assertEquals(fr.linkKey, unknownTag.linkKey)
+        assertFalse(fr.linkKey.startsWith("invalid:"))
+    }
+
+    @Test
     fun `storage codes are unique and stable`() {
         assertEquals(MediaLanguage.entries.size, MediaLanguage.entries.map { it.storageCode }.toSet().size)
         assertEquals(MediaQuality.entries.size, MediaQuality.entries.map { it.storageCode }.toSet().size)

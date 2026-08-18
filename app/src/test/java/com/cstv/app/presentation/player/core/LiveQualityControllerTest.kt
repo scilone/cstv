@@ -62,6 +62,32 @@ class LiveQualityControllerTest {
         assertNull(controller.onFailure(controller.generation(), VariantMeasurement(), 12_000))
     }
 
+    @Test fun `retour utilisateur 2026-08-18 - preferredStreamId starts below the top candidate`() {
+        val controller = LiveQualityController()
+
+        val started = controller.start("news", listOf(variant(1), variant(2), variant(3)), automatic = true, preferredStreamId = 2)
+
+        assertEquals(2, started?.stream?.streamId)
+        assertEquals(2, controller.activeStreamId())
+    }
+
+    @Test fun `retour utilisateur 2026-08-18 - a failure below a preferred start never climbs back to the skipped top`() {
+        val controller = LiveQualityController()
+        controller.start("news", listOf(variant(1), variant(2), variant(3)), automatic = true, preferredStreamId = 2)
+
+        val next = controller.onFailure(controller.generation(), VariantMeasurement(), 4_000)
+
+        assertEquals("descend vers 3, ne remonte jamais vers 1 (sauté volontairement)", 3, next?.stream?.streamId)
+    }
+
+    @Test fun `retour utilisateur 2026-08-18 - an unknown preferredStreamId falls back to the top candidate`() {
+        val controller = LiveQualityController()
+
+        val started = controller.start("news", listOf(variant(1), variant(2)), automatic = true, preferredStreamId = 999)
+
+        assertEquals(1, started?.stream?.streamId)
+    }
+
     @Test fun `future F41 and F42 hooks are callable without a hard dependency`() {
         var purges = 0
         val controller = LiveQualityController(
