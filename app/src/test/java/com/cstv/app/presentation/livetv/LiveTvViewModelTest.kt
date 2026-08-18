@@ -32,6 +32,7 @@ import org.junit.Test
 import org.junit.rules.Timeout
 import org.mockito.MockitoAnnotations
 import org.mockito.kotlin.any
+import org.mockito.kotlin.eq
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
@@ -164,10 +165,10 @@ class LiveTvViewModelTest {
                 com.cstv.app.domain.model.LiveVariant(lower)
             )
         }
-        val memory = com.cstv.app.presentation.player.core.LiveQualityDowngradeMemory()
-        // `nowMs()` du ViewModel repose sur `System.nanoTime()`, une origine arbitraire (pas
-        // l'époque Unix) : semer `0` ici la ferait paraître expirée dès le premier appel réel.
-        memory.recordDowngrade("tf1", streamId = lower.streamId, nowMs = System.nanoTime() / 1_000_000L)
+        // `LiveQualityDowngradeMemory` est persisté (SharedPreferences) : simple double en
+        // mémoire ici, la classe réelle est couverte par LiveQualityDowngradeMemoryTest.
+        val memory: com.cstv.app.presentation.player.core.LiveQualityDowngradeMemory = mock()
+        whenever(memory.rememberedStreamId(eq("tf1"), any())).thenReturn(lower.streamId)
         val viewModel = createViewModel(liveVariantRepository = variantRepository, qualityDowngradeMemory = memory)
 
         val state = viewModel.startLiveQualitySession(top)

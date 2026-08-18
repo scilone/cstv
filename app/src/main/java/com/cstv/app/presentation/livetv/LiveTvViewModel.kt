@@ -7,7 +7,6 @@ import com.cstv.app.domain.model.Credentials
 import com.cstv.app.domain.model.LiveCategory
 import com.cstv.app.domain.model.LiveStream
 import com.cstv.app.domain.model.LiveVariant
-import com.cstv.app.domain.model.collapsedForAutomaticQuality
 import com.cstv.app.domain.usecase.GetLiveCategoriesUseCase
 import com.cstv.app.domain.usecase.GetLiveCategoryCountsUseCase
 import com.cstv.app.domain.usecase.GetLiveEpgUseCase
@@ -125,7 +124,7 @@ class LiveTvViewModel @Inject constructor(
         // retenter la meilleure qualité à chaque zapping.
         val preferredStreamId = qualityDowngradeMemory
             ?.takeIf { automatic && linkKey.isNotBlank() }
-            ?.rememberedStreamId(linkKey, nowMs())
+            ?.rememberedStreamId(linkKey, wallClockMs())
         val automaticCandidate = qualityController.start(linkKey, candidates, automatic, preferredStreamId)
         val selected = automaticCandidate?.stream ?: stream
         if (automaticCandidate == null) qualityController.retainManualInitial(LiveVariant(selected))
@@ -152,10 +151,13 @@ class LiveTvViewModel @Inject constructor(
     fun selectLiveQuality(variant: LiveVariant): LiveStream = qualityController.selectManually(variant).stream
     fun resetLiveQualityMeasurement() = stabilityMonitor.reset()
     private fun nowMs(): Long = System.nanoTime() / 1_000_000L
+    // `LiveQualityDowngradeMemory` est persisté : il lui faut une horloge murale, stable d'un
+    // redémarrage de process à l'autre — jamais `nowMs()` (nanoTime, origine arbitraire).
+    private fun wallClockMs(): Long = System.currentTimeMillis()
     /** Révision produit du 2026-08-18 : le mode automatique vient de descendre — on le retient. */
     private fun rememberDowngrade(next: LiveVariant) {
         val linkKey = qualityController.currentSession()?.linkKey ?: return
-        if (linkKey.isNotBlank()) qualityDowngradeMemory?.recordDowngrade(linkKey, next.stream.streamId, nowMs())
+        if (linkKey.isNotBlank()) qualityDowngradeMemory?.recordDowngrade(linkKey, next.stream.streamId, wallClockMs())
     }
     /** Révision produit du 2026-08-18 : la meilleure candidate vient de prouver sa stabilité. */
     private fun confirmTopQualityHealthyIfPlaying() {
@@ -375,11 +377,11 @@ class LiveTvViewModel @Inject constructor(
                             "en ${(System.nanoTime() - subscribedAt) / 1_000_000}ms"
                     )
                 }
-                // Retour utilisateur du 2026-08-18 : en mode automatique, une seule vignette par
-                // chaîne (linkKey) dans « Tout » comme dans les catégories filtrées — le mode
-                // automatique choisit déjà la meilleure qualité à l'ouverture du lecteur (§8.4).
-                val displayedStreams = if (liveQualityModeDefault()) streams.collapsedForAutomaticQuality() else streams
-                _state.update { it.copy(streams = displayedStreams, isLoadingStreams = false) }
+                // Retour utilisateur du 2026-08-18 : le regroupement « une vignette par chaîne »
+                // en mode automatique se fait côté Compose (LiveTvScreen), pas ici — sinon il
+                // reste figé dans `state.streams` tant que Room ne réémet pas, périmé dès qu'on
+                // bascule le réglage en cours de session sans quitter l'écran.
+                _state.update { it.copy(streams = streams, isLoadingStreams = false) }
                 refreshCategoryCounts()
             }
         }

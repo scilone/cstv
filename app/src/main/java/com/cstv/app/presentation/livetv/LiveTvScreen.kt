@@ -56,6 +56,7 @@ import com.cstv.app.domain.model.FavoriteItem
 import com.cstv.app.domain.model.LiveCategory
 import com.cstv.app.domain.model.LiveEpgProgram
 import com.cstv.app.domain.model.LiveStream
+import com.cstv.app.domain.model.collapsedForAutomaticQuality
 import com.cstv.app.presentation.theme.AccentLavande
 import com.cstv.app.presentation.theme.BricolageGrotesque
 import com.cstv.app.presentation.theme.HankenGrotesk
@@ -114,12 +115,17 @@ fun LiveTvScreen(
             !selectedCategoryName.equals("Tout", ignoreCase = true) && 
             !selectedCategoryName.equals("All", ignoreCase = true)
 
-    val filteredStreams = remember(state.streams, searchQuery) {
-        if (searchQuery.isBlank()) {
-            state.streams
-        } else {
-            state.streams.filter { it.name.contains(searchQuery, ignoreCase = true) }
-        }
+    // Retour utilisateur du 2026-08-18 : lu ici (pas dans le ViewModel) pour que le regroupement
+    // réagisse immédiatement à un changement du réglage — `state.streams` reste en cache tant que
+    // Room ne réémet pas, un regroupement figé côté ViewModel au moment de la collecte serait
+    // resté périmé jusqu'à la prochaine synchro après une bascule du réglage en cours de session.
+    val automaticQualityMode = viewModel.liveQualityModeDefault()
+
+    val filteredStreams = remember(state.streams, searchQuery, automaticQualityMode) {
+        // Une seule vignette par chaîne (linkKey) en mode automatique — accueil, « Tout » et
+        // catégories filtrées (§8.4 : le mode automatique choisit déjà la meilleure qualité).
+        val base = if (automaticQualityMode) state.streams.collapsedForAutomaticQuality() else state.streams
+        if (searchQuery.isBlank()) base else base.filter { it.name.contains(searchQuery, ignoreCase = true) }
     }
 
     val pagedStreams = remember(viewModel.pagedStreams, searchQuery) {
@@ -135,6 +141,9 @@ fun LiveTvScreen(
     val getScroll: (String) -> Pair<Int, Int> = { viewModel.getScrollPosition(it) }
     val saveScroll: (String, Int, Int) -> Unit = { k, i, o -> viewModel.saveScrollPosition(k, i, o) }
     val tvFocusSelector = remember { TvFocusSelectorState() }
+    // La grille d'une catégorie filtrée se lit via `pagedStreams` (Paging3, direct Room), qui ne
+    // passe jamais par ce regroupement : en mode automatique, elle se lit depuis `filteredStreams`
+    // (déjà regroupée ci-dessus) à la place — voir TvLayout/MobileLayout.
 
     Box(
         modifier = modifier
@@ -159,7 +168,8 @@ fun LiveTvScreen(
                 onHistoryRemove = { pendingRemoval = it },
                 getScroll = getScroll,
                 saveScroll = saveScroll,
-                tvFocusSelector = tvFocusSelector
+                tvFocusSelector = tvFocusSelector,
+                automaticQualityMode = automaticQualityMode
             )
             TvFocusSelectorOverlay(tvFocusSelector, modifier = Modifier.fillMaxSize())
         } else {
@@ -181,7 +191,8 @@ fun LiveTvScreen(
                 onLoadEpg = { viewModel.loadEpgForStream(it) },
                 onHistoryRemove = { pendingRemoval = it },
                 getScroll = getScroll,
-                saveScroll = saveScroll
+                saveScroll = saveScroll,
+                automaticQualityMode = automaticQualityMode
             )
         }
         SnackbarHost(historySnackbarHost, Modifier.align(Alignment.BottomCenter))
@@ -205,7 +216,8 @@ private fun TvLayout(
     onHistoryRemove: (LiveStream) -> Unit,
     getScroll: (String) -> Pair<Int, Int>,
     saveScroll: (String, Int, Int) -> Unit,
-    tvFocusSelector: TvFocusSelectorState
+    tvFocusSelector: TvFocusSelectorState,
+    automaticQualityMode: Boolean
 ) {
     val isAllSelected = state.selectedCategory?.categoryId == "all"
     var showCategoryPicker by remember { mutableStateOf(false) }
@@ -418,7 +430,8 @@ private fun TvLayout(
                 modifier = Modifier.padding(bottom = 12.dp)
             )
 
-            if (pagedStreams.itemCount == 0) {
+            val visibleCount = if (automaticQualityMode) filteredStreams.size else pagedStreams.itemCount
+            if (visibleCount == 0) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(
                         text = if (searchQuery.isBlank()) "Aucune chaîne dans cette catégorie" else "Aucun résultat pour « $searchQuery »",
@@ -435,8 +448,10 @@ private fun TvLayout(
                     pivotViewport = pivotViewport,
                     onFocusLost = { tvFocusSelector.clear() }
                 ) {
-                    items(pagedStreams.itemCount) { index ->
-                        val stream = pagedStreams[index]
+                    items(visibleCount) { index ->
+                        // `filteredStreams` (déjà regroupée) en mode automatique, `pagedStreams`
+                        // (Paging3) sinon — voir `automaticQualityMode` ci-dessus.
+                        val stream = if (automaticQualityMode) filteredStreams[index] else pagedStreams[index]
                         if (stream != null) {
                             val isFav = favoritesList.any { it.id == stream.streamId && it.type == "live" }
                             Box(
@@ -486,7 +501,8 @@ private fun MobileLayout(
     onLoadEpg: (Int) -> Unit,
     onHistoryRemove: (LiveStream) -> Unit,
     getScroll: (String) -> Pair<Int, Int>,
-    saveScroll: (String, Int, Int) -> Unit
+    saveScroll: (String, Int, Int) -> Unit,
+    automaticQualityMode: Boolean
 ) {
     val isAllSelected = state.selectedCategory?.categoryId == "all"
 
@@ -665,7 +681,7 @@ private fun MobileLayout(
                 )
             }
 
-            if (pagedStreams.itemCount == 0) {
+            if ((if (automaticQualityMode) filteredStreams.size else pagedStreams.itemCount) == 0) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(
                         text = if (searchQuery.isBlank()) "Aucune chaîne dans cette catégorie" else "Aucun résultat pour « $searchQuery »",
@@ -683,8 +699,9 @@ private fun MobileLayout(
                         .fillMaxSize()
                         .padding(horizontal = 16.dp)
                 ) {
-                    items(pagedStreams.itemCount) { index ->
-                        val stream = pagedStreams[index]
+                    // Voir TvLayout : `filteredStreams` (déjà regroupée) en mode automatique.
+                    items(if (automaticQualityMode) filteredStreams.size else pagedStreams.itemCount) { index ->
+                        val stream = if (automaticQualityMode) filteredStreams[index] else pagedStreams[index]
                         if (stream != null) {
                             val isFav = favoritesList.any { it.id == stream.streamId && it.type == "live" }
                             MobileChannelGridCard(
