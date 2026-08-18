@@ -272,7 +272,15 @@ class SeriesViewModel @Inject constructor(
     suspend fun getSeriesVersions(seriesId: Int): List<SeriesStream> {
         val current = seriesRepository.getStreamById(seriesId) ?: return emptyList()
         if (current.linkKey.isBlank()) return emptyList()
-        return seriesRepository.getVersionsByLinkKey(current.linkKey, current.releaseYear)
+        val allVersions = seriesRepository.getVersionsByLinkKey(current.linkKey, current.releaseYear)
+        val hiddenCategories = try {
+            categoryPreferenceRepository.getPreferences(com.cstv.app.domain.model.CategoryType.SERIES)
+                .filterValues { it.hidden }
+                .keys
+        } catch (e: Exception) {
+            emptySet()
+        }
+        return allVersions.filter { it.categoryId !in hiddenCategories }
     }
 
     /** Mémorise le choix explicite de version pour toute la série (§8.5 pt. 5, §7.3). */

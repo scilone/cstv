@@ -22,9 +22,7 @@ fun QualitySelectorSheet(
         options = options.map { option ->
             VersionOption(
                 option.variant.stream.streamId,
-                option.variant.displayQuality(automaticFallback).let { label ->
-                    option.variant.stream.num.takeIf { it > 0 }?.let { "$label ($it)" } ?: label
-                },
+                option.variant.displayQuality(automaticFallback),
                 option.isActive,
                 option.enabled,
                 option.disabledReason

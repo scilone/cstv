@@ -47,10 +47,11 @@ object MediaTitleParser {
     // Retour utilisateur du 2026-08-18 : `DV` (Dolby Vision, souvent accolé à la
     // qualité — ex. `4K-DV`) restait dans le titre nettoyé et cassait le
     // rattachement au linkKey des autres versions de la même série/du même film.
-    private val technicalTokens = setOf("HDR", "X265", "X264", "H265", "H264", "3D", "EN", "STFR", "DV")
+    private val technicalTokens = setOf("HDR", "X265", "X264", "H265", "H264", "3D", "EN", "STFR", "DV", "AR", "CAM")
     private val tokenRegex = Regex("[\\p{L}\\p{N}]+")
     private val whitespace = Regex("\\s+")
     private val year = Regex("(?:19|20)\\d{2}")
+    private val yearWithDelimiters = Regex("[(\\[{]?\\s*(?:19|20)\\d{2}\\s*[)\\]}]?")
     private val emptyBrackets = Regex("[\\[({]\\s*[\\])}]")
     private val trailingSeparator = Regex("\\s+[|_+/.:\\-]+(?=\\s*$)")
     // Symétrique de `trailingSeparator` côté début de chaîne : un tag retiré en tête
@@ -80,7 +81,7 @@ object MediaTitleParser {
         mediaKind: MediaTitleKind,
         // `releaseYear` deliberately does not participate in `linkKey`: consumers apply
         // yearsAreCompatible pairwise so an undated entry can remain compatible.
-        @Suppress("UNUSED_PARAMETER") releaseYear: Int? = null,
+        releaseYear: Int? = null,
         providerId: Int = 0
     ): ParsedMediaTitle {
         val source = rawTitle.orEmpty().trim()
@@ -96,7 +97,44 @@ object MediaTitleParser {
         // retiennent qu'une seule valeur chacun pour le tri des versions.
         val recognizedFragments = mutableListOf<String>()
 
+        // Extraction dynamique des tags du catalogue entre délimiteurs en tête de titre (VOD uniquement)
+        val pipeMatch = if (isVod) leadingPipeTagBlock.find(source) else null
+        val bracketMatch = if (isVod && pipeMatch == null) Regex("^\\s*\\[[^\\]]+\\]").find(source) else null
+        val delimiterMatch = pipeMatch ?: bracketMatch
+
+        if (delimiterMatch != null) {
+            removableRanges += delimiterMatch.range
+            val rawBlock = delimiterMatch.value
+            val cleanBlock = if (delimiterMatch == pipeMatch) rawBlock else rawBlock.trim('[', ']')
+            val segments = cleanBlock.split("|")
+                .map { it.trim() }
+                .filter { it.isNotEmpty() }
+
+            segments.forEach { segment ->
+                tokenRegex.findAll(segment).forEach { match ->
+                    val token = match.value.uppercase(Locale.ROOT)
+
+                    val languageMatch = languageMarkers.firstOrNull { it.token == token }
+                    if (languageMatch != null) {
+                        if (selectedLanguage == null) selectedLanguage = languageMatch.value to match.value
+                    }
+
+                    val qualityMatch = qualityMarkers.firstOrNull { it.token == token }
+                    if (qualityMatch != null) {
+                        val current = selectedQuality
+                        if (current == null || qualityMatch.value.rank > current.first.rank) {
+                            selectedQuality = qualityMatch.value to match.value
+                        }
+                    }
+                }
+                recognizedFragments += segment
+            }
+        }
+
         tokenRegex.findAll(source).forEach { match ->
+            if (removableRanges.any { it.contains(match.range.first) || it.contains(match.range.last) }) {
+                return@forEach
+            }
             val token = match.value.uppercase(Locale.ROOT)
 
             val languageMatch = if (isVod) languageMarkers.firstOrNull { it.token == token } else null
@@ -130,6 +168,25 @@ object MediaTitleParser {
             cleaned = cleaned.removeRange(range.first, range.last + 1)
         }
         cleaned = cleanupDisplayTitle(cleaned, stripLeading = isVod)
+        if (isVod) {
+            var tempCleaned = cleaned
+            yearWithDelimiters.findAll(cleaned).forEach { match ->
+                val matchedStr = match.value
+                val extractedYear = year.find(matchedStr)?.value?.toIntOrNull()
+                if (extractedYear != null) {
+                    val shouldStrip = if (releaseYear != null && releaseYear > 0) {
+                        extractedYear == releaseYear
+                    } else {
+                        val testWithout = cleanupDisplayTitle(tempCleaned.replace(matchedStr, " "), stripLeading = true)
+                        canonicalize(testWithout).isNotBlank()
+                    }
+                    if (shouldStrip) {
+                        tempCleaned = tempCleaned.replace(matchedStr, " ")
+                    }
+                }
+            }
+            cleaned = cleanupDisplayTitle(tempCleaned, stripLeading = true)
+        }
         if (cleaned.length < 2) cleaned = source
 
         val canonical = linkingCanonicalOf(source, cleaned, mediaKind)

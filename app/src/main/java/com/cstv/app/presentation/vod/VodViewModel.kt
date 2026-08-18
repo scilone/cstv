@@ -237,7 +237,15 @@ class VodViewModel @Inject constructor(
     suspend fun getMovieVersions(streamId: Int): List<com.cstv.app.domain.model.VodStream> {
         val current = vodRepository.getStreamById(streamId) ?: return emptyList()
         if (current.linkKey.isBlank()) return emptyList()
-        return vodRepository.getVersionsByLinkKey(current.linkKey, current.releaseYear)
+        val allVersions = vodRepository.getVersionsByLinkKey(current.linkKey, current.releaseYear)
+        val hiddenCategories = try {
+            categoryPreferenceRepository.getPreferences(com.cstv.app.domain.model.CategoryType.VOD)
+                .filterValues { it.hidden }
+                .keys
+        } catch (e: Exception) {
+            emptySet()
+        }
+        return allVersions.filter { it.categoryId !in hiddenCategories }
     }
 
     /** F39 §8.6 : extension de conteneur nécessaire pour construire l'URL Xtream d'une version choisie. */

@@ -49,7 +49,40 @@ class SeriesVersionResolverTest {
         }
     }
 
+    private class FakeCategoryPreferenceRepository(private val preferences: Map<String, CategoryPreference>) : com.cstv.app.domain.repository.CategoryPreferenceRepository {
+        override val changes: Flow<Unit> = flowOf(Unit)
+        override suspend fun getPreferences(type: CategoryType) = preferences
+        override suspend fun setHidden(type: CategoryType, categoryId: String, hidden: Boolean) {}
+        override suspend fun saveOrder(type: CategoryType, orderedCategoryIds: List<String>) {}
+    }
+
     // --- resolve() : tâche 2 ---
+
+    @Test
+    fun `a candidate series belonging to a hidden category is filtered out`() = runTest {
+        val completeInVisibleCat = SeriesStream(
+            seriesId = 1, name = "Série 1", cover = null, rating = null, added = null, categoryId = "visible"
+        )
+        val completeInHiddenCat = SeriesStream(
+            seriesId = 2, name = "Série 2", cover = null, rating = null, added = null, categoryId = "hidden"
+        )
+        val repo = FakeSeriesRepository(
+            versions = listOf(completeInVisibleCat, completeInHiddenCat),
+            episodesBySeriesId = mapOf(
+                1 to episode(101, season = 1, ep = 3),
+                2 to episode(102, season = 1, ep = 3)
+            )
+        )
+        val catPrefs = mapOf("hidden" to CategoryPreference("hidden", hidden = true, sortOrder = null))
+        val fakeCatPrefRepo = FakeCategoryPreferenceRepository(catPrefs)
+        val resolver = SeriesVersionResolver(repo, FakePreferenceRepository(null), fakeCatPrefRepo)
+
+        val result = resolver.resolve(linkKey = "key", releaseYear = null, seasonNum = 1, episodeNum = 3)
+
+        assertEquals(1, result.size)
+        assertEquals(completeInVisibleCat, result.single().series)
+        assertEquals(101, result.single().episode.id)
+    }
 
     @Test
     fun `a candidate series without the equivalent episode is filtered out`() = runTest {

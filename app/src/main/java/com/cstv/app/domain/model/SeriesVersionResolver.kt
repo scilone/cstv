@@ -15,16 +15,25 @@ import javax.inject.Inject
  */
 class SeriesVersionResolver @Inject constructor(
     private val seriesRepository: SeriesRepository,
-    private val preferenceRepository: SeriesVersionPreferenceRepository
+    private val preferenceRepository: SeriesVersionPreferenceRepository,
+    private val categoryPreferenceRepository: com.cstv.app.domain.repository.CategoryPreferenceRepository? = null
 ) {
 
     suspend fun resolve(linkKey: String, releaseYear: Int?, seasonNum: Int, episodeNum: Int): List<SeriesVersionCandidate> {
         if (linkKey.isBlank()) return emptyList()
-        return seriesRepository.getVersionsByLinkKey(linkKey, releaseYear)
-            .mapNotNull { series ->
-                seriesRepository.getEpisodeBySeasonEpisode(series.seriesId, seasonNum, episodeNum)
-                    ?.let { episode -> SeriesVersionCandidate(series, episode) }
-            }
+        val allSeries = seriesRepository.getVersionsByLinkKey(linkKey, releaseYear)
+        val hiddenCategories = try {
+            categoryPreferenceRepository?.getPreferences(com.cstv.app.domain.model.CategoryType.SERIES)
+                ?.filterValues { it.hidden }
+                ?.keys ?: emptySet()
+        } catch (e: Exception) {
+            emptySet()
+        }
+        val allowedSeries = if (hiddenCategories.isEmpty()) allSeries else allSeries.filter { it.categoryId !in hiddenCategories }
+        return allowedSeries.mapNotNull { series ->
+            seriesRepository.getEpisodeBySeasonEpisode(series.seriesId, seasonNum, episodeNum)
+                ?.let { episode -> SeriesVersionCandidate(series, episode) }
+        }
     }
 
     /**

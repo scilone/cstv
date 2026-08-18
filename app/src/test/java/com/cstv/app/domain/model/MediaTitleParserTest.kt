@@ -55,11 +55,11 @@ class MediaTitleParserTest {
     }
 
     @Test
-    fun `display title keeps punctuation and year while link key uses the year free canonical form`() {
+    fun `display title keeps punctuation and strips year while link key uses the year free canonical form`() {
         val first = MediaTitleParser.parse("Spider-Man: No Way Home (2021) VF HD", MediaTitleKind.VOD)
         val second = MediaTitleParser.parse("Spider-Man: No Way Home MULTI 4K", MediaTitleKind.VOD)
 
-        assertEquals("Spider-Man: No Way Home (2021)", first.cleanTitle)
+        assertEquals("Spider-Man: No Way Home", first.cleanTitle)
         assertEquals(first.linkKey, second.linkKey)
     }
 
@@ -121,6 +121,60 @@ class MediaTitleParserTest {
 
         assertEquals(fr.linkKey, unknownTag.linkKey)
         assertFalse(fr.linkKey.startsWith("invalid:"))
+    }
+
+    @Test
+    fun `AR and CAM variants are parsed correctly into versionLabel and share link key`() {
+        val fr = MediaTitleParser.parse("|FR| Evil Dead Burn (2026)", MediaTitleKind.VOD, providerId = 1)
+        val arCam = MediaTitleParser.parse("|AR-CAM| Evil Dead Burn (2026)", MediaTitleKind.VOD, providerId = 2)
+        val ar = MediaTitleParser.parse("|AR| Evil Dead Burn (2026)", MediaTitleKind.VOD, providerId = 3)
+
+        assertEquals("Evil Dead Burn", fr.cleanTitle)
+        assertEquals("Evil Dead Burn", arCam.cleanTitle)
+        assertEquals("Evil Dead Burn", ar.cleanTitle)
+
+        assertEquals("FR", fr.versionLabel)
+        assertEquals("AR-CAM", arCam.versionLabel)
+        assertEquals("AR", ar.versionLabel)
+
+        assertEquals(fr.linkKey, arCam.linkKey)
+        assertEquals(fr.linkKey, ar.linkKey)
+    }
+
+    @Test
+    fun `any unknown delimiter tag like PT at the beginning is dynamically extracted into versionLabel`() {
+        val pt = MediaTitleParser.parse("|PT| Evil Dead Burn (2026)", MediaTitleKind.VOD, providerId = 1)
+        val remuxBracket = MediaTitleParser.parse("[REMUX] Evil Dead Burn (2026)", MediaTitleKind.VOD, providerId = 2)
+
+        assertEquals("Evil Dead Burn", pt.cleanTitle)
+        assertEquals("Evil Dead Burn", remuxBracket.cleanTitle)
+
+        assertEquals("PT", pt.versionLabel)
+        assertEquals("REMUX", remuxBracket.versionLabel)
+
+        assertEquals(pt.linkKey, remuxBracket.linkKey)
+    }
+
+    @Test
+    fun `year in cleanTitle is stripped only if it matches the official release year of the media`() {
+        // Film "2012" sorti en 2009
+        val movie2012WithYear = MediaTitleParser.parse("2012 (2009) VF HD", MediaTitleKind.VOD, releaseYear = 2009)
+        val movie2012WithoutYear = MediaTitleParser.parse("2012 VF HD", MediaTitleKind.VOD, releaseYear = 2009)
+
+        assertEquals("2012", movie2012WithYear.cleanTitle)
+        assertEquals("2012", movie2012WithoutYear.cleanTitle)
+
+        // Film "1917" sorti en 2019
+        val movie1917WithYear = MediaTitleParser.parse("1917 (2019) VF HD", MediaTitleKind.VOD, releaseYear = 2019)
+        assertEquals("1917", movie1917WithYear.cleanTitle)
+
+        // Cas standard : Spider-Man sorti en 2021
+        val spiderman = MediaTitleParser.parse("Spider-Man: No Way Home (2021) VF HD", MediaTitleKind.VOD, releaseYear = 2021)
+        assertEquals("Spider-Man: No Way Home", spiderman.cleanTitle)
+
+        // Si l'année officielle n'est pas fournie (null), repli sur le nettoyage de sécurité
+        val ptNoYear = MediaTitleParser.parse("|PT| Evil Dead Burn (2026)", MediaTitleKind.VOD)
+        assertEquals("Evil Dead Burn", ptNoYear.cleanTitle)
     }
 
     @Test

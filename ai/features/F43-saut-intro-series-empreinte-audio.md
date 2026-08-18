@@ -180,11 +180,14 @@ restent protégés par un seuil conservateur : en cas de doute, aucun bouton.
 - **Signalement d'une détection erronée puis nouvelle analyse toujours
   fausse** : aucune limite au nombre de signalements ; chaque signalement
   efface et relance, sans mécanisme de blocage après plusieurs échecs (V1).
-- **Génériques de durée variable au sein d'une même saison** (rare) : les
+- **Génériques de durée ou de position variable au sein d'une même saison** (rare) : les
   bornes mémorisées, calculées une fois, peuvent devenir imprécises pour un
-  épisode atypique — corrigible via le signalement d'erreur, pas de
-  détection par épisode individuel en V1 (hypothèse étape 1 : bornes
-  réutilisables pour tous les épisodes de la saison).
+  épisode atypique (ex: cold open de longueur variable) — corrigible via le signalement
+  d'erreur, pas de détection par épisode individuel en V1 (hypothèse étape 1 : bornes
+  réutilisables pour tous les épisodes de la saison). Une piste d'amélioration
+  (compromis hybride V2) consiste à conserver l'empreinte du générique validé
+  et à effectuer une détection ultra-légère "au vol" sur les épisodes suivants
+  pour repositionner dynamiquement le bouton sans consommer le CPU en continu.
 
 ## 7.5 Critères d'acceptation
 
@@ -592,6 +595,23 @@ inchangés. Aucune nouvelle dépendance Gradle, aucune nouvelle permission
 ---
 
 # 11. Notes de développement
+
+## Compromis Hybride & Pistes d'Évolution (V2)
+
+### Problématique des génériques à position variable (Cold Opens)
+Dans certains cas, l'emplacement du générique varie d'un épisode à l'autre (ex: scène d'introduction ou cold open plus ou moins long). La V1 stockant des bornes absolues par saison (`startMs` et `endMs`), le bouton peut apparaître en décalé sur certains épisodes si ces derniers ne suivent pas le format majoritaire de la saison.
+
+### Solution cible (Compromis Hybride V2)
+Pour résoudre ce problème sans impacter l'autonomie et les performances sur les box Android TV d'entrée de gamme, la stratégie suivante est envisagée comme évolution naturelle après validation de la V1 :
+1. **Identification de l'intro (Épisodes 1 & 2) :** On extrait et on compare les empreintes pour valider l'existence du générique et isoler la signature de référence de ce dernier (sa "durée" et sa "forme" audio / hashes).
+2. **Stockage de la signature de référence :** Au lieu de stocker uniquement des bornes temporelles absolues pour la saison, on enregistre également l'empreinte de la portion "générique" (quelques Ko de hashes de référence) dans la table `season_intro_detections`.
+3. **Détection "au vol" optimisée (Épisodes suivants) :**
+   * Dès le démarrage de la lecture de l'épisode 3+, l'extraction audio s'active en tâche de fond.
+   * L'algorithme cherche par corrélation rapide si les hashes du flux correspondent à la signature de référence du générique de la saison.
+   * **Dès que le début du générique est identifié**, l'application affiche le bouton « Passer l'intro » pour la durée mémorisée, et **éteint immédiatement le processeur audio** pour le reste de l'épisode.
+   * Si aucun match n'est trouvé après les 12 premières minutes, l'acquisition s'arrête également par sécurité.
+
+Ce compromis permet d'allier la précision absolue (générique détecté au bon endroit peu importe le cold open) et la sobriété CPU (le processeur ne tourne que pendant les toutes premières minutes de chaque épisode).
 
 ---
 
