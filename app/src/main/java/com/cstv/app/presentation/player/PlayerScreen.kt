@@ -860,19 +860,18 @@ fun PlayerScreen(
         if (showChannelList && activeStreamsList.isNotEmpty() && !isInPipMode) {
             val liveTvState by viewModel.state.collectAsStateWithLifecycle()
 
-            val initialListCategory = remember { LiveCategory("initial", "Liste de zapping", 0) }
+            val initialListCategory = remember { LiveCategory("recent", "Récemment regardé", 0) }
             var selectedDrawerCategory by remember { mutableStateOf(initialListCategory) }
 
             val dropdownCategories = remember(liveTvState.categories) {
-                // « Tout » est écarté : « Liste de zapping » joue déjà ce rôle
-                // ici (les chaînes réellement zappables), les deux entrées côte
-                // à côte n'étaient pas distinguables.
-                listOf(initialListCategory) + liveTvState.categories.filterNot { it.categoryId == "all" }
+                // On inclut désormais « Tout » car « Récemment regardé » n'affiche que les chaînes récentes.
+                // Sinon, l'utilisateur n'aurait plus accès à « Tout » depuis le player !
+                listOf(initialListCategory) + liveTvState.categories
             }
 
-            val drawerStreams = remember(selectedDrawerCategory, liveTvState.streams, streamsList) {
-                if (selectedDrawerCategory.categoryId == "initial") {
-                    streamsList
+            val drawerStreams = remember(selectedDrawerCategory, liveTvState.streams, liveTvState.recentlyWatched) {
+                if (selectedDrawerCategory.categoryId == "recent") {
+                    liveTvState.recentlyWatched
                 } else {
                     liveTvState.streams
                 }
@@ -893,15 +892,19 @@ fun PlayerScreen(
             // Auto-scroll vers la chaîne active à l'ouverture, puis lui donne le focus D-pad
             // pour que la première pression haut/bas navigue directement dans la liste.
             LaunchedEffect(showChannelList, selectedDrawerCategory, drawerStreams) {
-                val isInitial = selectedDrawerCategory.categoryId == "initial"
-                if (isInitial && currentStreamIndex >= 0) {
-                    listState.animateScrollToItem(currentStreamIndex)
-                    runCatching { currentItemFocusRequester.requestFocus() }
-                } else if (!isInitial && drawerStreams.isNotEmpty()) {
-                    val matchingIndex = drawerStreams.indexOfFirst { it.streamId == currentStream.streamId }
+                val isRecent = selectedDrawerCategory.categoryId == "recent"
+                val matchingIndex = drawerStreams.indexOfFirst { it.streamId == currentStream.streamId }
+                if (isRecent) {
                     if (matchingIndex >= 0) {
                         listState.animateScrollToItem(matchingIndex)
-                    } else {
+                    } else if (drawerStreams.isNotEmpty()) {
+                        listState.animateScrollToItem(0)
+                    }
+                    runCatching { currentItemFocusRequester.requestFocus() }
+                } else {
+                    if (matchingIndex >= 0) {
+                        listState.animateScrollToItem(matchingIndex)
+                    } else if (drawerStreams.isNotEmpty()) {
                         listState.animateScrollToItem(0)
                     }
                 }
@@ -1009,7 +1012,7 @@ fun PlayerScreen(
                                     },
                                     onClick = {
                                         selectedDrawerCategory = category
-                                        if (category.categoryId != "initial") {
+                                        if (category.categoryId != "recent") {
                                             viewModel.selectCategory(category)
                                         }
                                         dropdownExpanded = false
@@ -1028,11 +1031,7 @@ fun PlayerScreen(
                             .fillMaxWidth()
                     ) {
                         itemsIndexed(drawerStreams) { index, stream ->
-                            val isCurrent = if (selectedDrawerCategory.categoryId == "initial") {
-                                index == currentStreamIndex
-                            } else {
-                                stream.streamId == currentStream.streamId
-                            }
+                            val isCurrent = stream.streamId == currentStream.streamId
                             var isFocused by remember { mutableStateOf(false) }
 
                             Box(
@@ -1054,11 +1053,7 @@ fun PlayerScreen(
                                         shape = RoundedCornerShape(8.dp)
                                     )
                                     .clickable {
-                                        if (selectedDrawerCategory.categoryId != "initial") {
-                                            activeStreamsList = drawerStreams
-                                        } else {
-                                            activeStreamsList = streamsList
-                                        }
+                                        activeStreamsList = drawerStreams
                                         selectedQualityStream = null
                                         val newIndex = activeStreamsList.indexOfFirst { it.streamId == stream.streamId }
                                         currentStreamIndex = if (newIndex != -1) newIndex else 0
