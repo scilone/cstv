@@ -3,6 +3,7 @@ package com.cstv.app.domain.usecase
 import com.cstv.app.domain.model.CanonicalMediaLink
 import com.cstv.app.domain.model.TrendingCatalogItem
 import com.cstv.app.domain.model.CategoryType
+import com.cstv.app.domain.model.CpuLowPriorityDispatcher
 import com.cstv.app.domain.model.TmdbCatalogMatcher
 import com.cstv.app.domain.repository.CanonicalMediaLinkRepository
 import com.cstv.app.domain.repository.TrendingRepository
@@ -26,7 +27,15 @@ class GetTrendingInCatalogUseCase @Inject constructor(
     private val canonicalMediaLinkRepository: CanonicalMediaLinkRepository
 ) {
 
-    suspend operator fun invoke(): List<TrendingCatalogItem> = withContext(Dispatchers.Default) {
+    // Retour utilisateur du 2026-08-18 (F39/T21) : sur cache expiré,
+    // `buildMatchedTrends` relit et normalise tout le catalogue (films +
+    // séries) puis fait tourner le matcher de similarité dessus — même
+    // famine de temps CPU que le moteur de recommandations avant son passage
+    // sur un fil dédié (voir `GetRecommendationsUseCase`). `Dispatchers.Default`
+    // prenait les quatre cœurs de l'appareil pendant ce calcul, au détriment
+    // de la navigation. `CpuLowPriorityDispatcher` sérialise ce travail
+    // derrière l'UI au lieu de la concurrencer.
+    suspend operator fun invoke(): List<TrendingCatalogItem> = withContext(CpuLowPriorityDispatcher.instance) {
         com.cstv.app.di.IptvLog.d("TMDB", "🚀 GetTrendingInCatalogUseCase triggered.")
 
         // Invalidate cache if catalog was resynchronized after cache generation (Bug B-3)

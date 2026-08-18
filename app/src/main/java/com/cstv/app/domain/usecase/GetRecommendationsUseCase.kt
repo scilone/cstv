@@ -15,7 +15,6 @@ import com.cstv.app.data.local.storage.ProfileManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
-import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -23,7 +22,6 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.first
 import java.util.concurrent.CancellationException
-import java.util.concurrent.Executors
 import javax.inject.Inject
 import javax.inject.Named
 import javax.inject.Singleton
@@ -45,13 +43,13 @@ import javax.inject.Singleton
  * céder l'ordonnanceur devant les fils d'interface. Les recommandations
  * arrivent un peu plus tard sur l'Accueil : c'est une garniture, pas un contenu
  * qu'on attend.
+ *
+ * [CpuLowPriorityDispatcher] : fil partagé avec les autres calculs lourds sur
+ * catalogue complet (matching TMDB des tendances, F39) plutôt qu'un fil dédié
+ * par use case — les concurrencer sur deux fils MIN_PRIORITY distincts recrée
+ * la même famine à deux au lieu de l'éliminer.
  */
-private val recommendationDispatcher = Executors.newSingleThreadExecutor { runnable ->
-    Thread(runnable, "reco-engine").apply {
-        isDaemon = true
-        priority = Thread.MIN_PRIORITY
-    }
-}.asCoroutineDispatcher()
+private val recommendationDispatcher = com.cstv.app.domain.model.CpuLowPriorityDispatcher.instance
 
 // `open` pour la même raison que `ClearCatalogCacheUseCase` : le projet n'a pas
 // `mockito-inline` (voir AGENTS.md), et `FavoritesViewModel` doit pouvoir être
