@@ -19,7 +19,7 @@ class LocalSearchQuery private constructor(
 
     companion object {
         fun parse(raw: String): LocalSearchQuery = LocalSearchQuery(
-            raw.trim().split(Regex("\\s+")).map(::normalize).filter { it.isNotEmpty() }
+            raw.trim().split(WHITESPACE).map(::normalize).filter { it.isNotEmpty() }
         )
 
         fun normalize(value: String): String {
@@ -53,5 +53,9 @@ class LocalSearchQuery private constructor(
             'œ' to "oe", 'æ' to "ae", 'ß' to "ss", 'ø' to "o", 'ł' to "l", 'đ' to "d"
         )
         private val COMBINING_MARKS = Regex("\\p{Mn}+")
+        // Recompiler un Regex coûte cher sur certains chipsets Android TV (voir
+        // MediaTitleParser, même correctif) — `parse()` tourne à chaque frappe
+        // d'une recherche, donc à chaque caractère tapé.
+        private val WHITESPACE = Regex("\\s+")
     }
 }

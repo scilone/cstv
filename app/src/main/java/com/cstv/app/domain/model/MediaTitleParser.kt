@@ -71,6 +71,15 @@ object MediaTitleParser {
     private val leadingPipeTagBlock = Regex("^\\s*\\|(?:[^|]*\\|)+")
     private val pipePair = Regex("\\|[^|]*\\|")
     private val bracketedGroup = Regex("[(\\[{][^)\\]}]*[)\\]}]")
+    private val leadingBracketTagBlock = Regex("^\\s*\\[[^\\]]+\\]")
+    // Retour utilisateur du 2026-08-18 (T21/F39, lenteurs) : ces deux-là étaient
+    // recompilés à chaque appel de `canonicalize`, elle-même appelée plusieurs
+    // fois par titre analysé (`parse`, `matchingTitleOf`, `linkingCanonicalOf`) —
+    // des milliers de compilations `Pattern.compile` évitables par synchronisation
+    // de catalogue, chacune coûteuse sur ce chipset (watchdog : thread principal
+    // bloqué jusqu'à plusieurs secondes dans `PatternNative.compileImpl`).
+    private val combiningMarks = Regex("\\p{M}+")
+    private val nonAlphanumeric = Regex("[^\\p{L}\\p{N}]+")
     // ThreadLocal.withInitial(Supplier) requires API 26 (minSdk 21) : sous-classe manuelle.
     private val digest = object : ThreadLocal<MessageDigest>() {
         override fun initialValue(): MessageDigest = MessageDigest.getInstance("SHA-256")
@@ -99,7 +108,7 @@ object MediaTitleParser {
 
         // Extraction dynamique des tags du catalogue entre délimiteurs en tête de titre (VOD uniquement)
         val pipeMatch = if (isVod) leadingPipeTagBlock.find(source) else null
-        val bracketMatch = if (isVod && pipeMatch == null) Regex("^\\s*\\[[^\\]]+\\]").find(source) else null
+        val bracketMatch = if (isVod && pipeMatch == null) leadingBracketTagBlock.find(source) else null
         val delimiterMatch = pipeMatch ?: bracketMatch
 
         if (delimiterMatch != null) {
@@ -202,9 +211,9 @@ object MediaTitleParser {
     }
 
     fun canonicalize(value: String?): String = Normalizer.normalize(value.orEmpty(), Normalizer.Form.NFD)
-        .replace(Regex("\\p{M}+"), "")
+        .replace(combiningMarks, "")
         .lowercase(Locale.ROOT)
-        .replace(Regex("[^\\p{L}\\p{N}]+"), " ")
+        .replace(nonAlphanumeric, " ")
         .trim()
         .replace(whitespace, " ")
 

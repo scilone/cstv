@@ -26,6 +26,28 @@ class CredentialsManager @Inject constructor(context: Context) {
         )
     }
 
+    /**
+     * Cache mémoire des identifiants déchiffrés (retour utilisateur du
+     * 2026-08-18 : freezes app-wide, notamment au zapping).
+     *
+     * `getCredentials()` est appelé partout — repositories Live/VOD/Séries,
+     * construction d'URL de flux à chaque zap, sync, écrans de compte — et
+     * chacun de ces appels touchait `EncryptedSharedPreferences`, donc
+     * l'Android Keystore : le rapport diagnostic montrait le thread principal
+     * bloqué 800ms à 4s+ dans `Cipher.chooseProvider`/`tryCombinations`, ce
+     * choix de provider JCE étant coûteux sur ce chipset. Trois valeurs lues
+     * (host/username/password) valent trois `Cipher.init` synchrones à
+     * chaque appel. Un identifiant ne change qu'à la connexion/déconnexion :
+     * le déchiffrer une fois et servir la copie mémoire ensuite supprime le
+     * coût pour tous les appelants d'un coup, sans toucher à leur code.
+     * `@Volatile` suffit : une lecture concurrente pendant une écriture voit
+     * au pire l'ancienne valeur une fois, jamais un état incohérent.
+     */
+    @Volatile
+    private var cachedCredentials: Credentials? = null
+    @Volatile
+    private var credentialsCacheLoaded = false
+
     fun saveCredentials(credentials: Credentials) {
         sharedPreferences.edit().apply {
             putString("host", credentials.host)
@@ -34,14 +56,24 @@ class CredentialsManager @Inject constructor(context: Context) {
             putString("password", credentials.password)
             apply()
         }
+        cachedCredentials = credentials
+        credentialsCacheLoaded = true
     }
 
     fun getCredentials(): Credentials? {
-        val host = sharedPreferences.getString("host", null) ?: return null
-        val port = sharedPreferences.getInt("port", 0)
-        val username = sharedPreferences.getString("username", null) ?: return null
-        val password = sharedPreferences.getString("password", null) ?: return null
-        return Credentials(host, port, username, password)
+        if (credentialsCacheLoaded) return cachedCredentials
+        val host = sharedPreferences.getString("host", null)
+        val result = if (host == null) {
+            null
+        } else {
+            val port = sharedPreferences.getInt("port", 0)
+            val username = sharedPreferences.getString("username", null)
+            val password = sharedPreferences.getString("password", null)
+            if (username == null || password == null) null else Credentials(host, port, username, password)
+        }
+        cachedCredentials = result
+        credentialsCacheLoaded = true
+        return result
     }
 
     /**
@@ -115,6 +147,8 @@ class CredentialsManager @Inject constructor(context: Context) {
 
     fun clearCredentials() {
         sharedPreferences.edit().clear().apply()
+        cachedCredentials = null
+        credentialsCacheLoaded = true
     }
 
     companion object {
