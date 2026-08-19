@@ -41,6 +41,30 @@ final class ProfileIdorApiTest extends FunctionalTestCase
         );
     }
 
+    public function testMaxAgeRatingCanBeSetAndUnset(): void
+    {
+        $account = $this->createAccount();
+        $headers = $this->auth($account['token']);
+        $profileId = $account['profileIds'][0];
+
+        $created = $this->api->get('/v1/profiles', $headers)->json()['profiles'][0];
+        self::assertNull($created['maxAgeRating']);
+
+        $bridged = $this->api->patchJson('/v1/profiles/' . $profileId, ['maxAgeRating' => 12], $headers);
+        self::assertSame(200, $bridged->status);
+        self::assertSame(12, $bridged->json()['maxAgeRating']);
+
+        $unbridged = $this->api->patchJson('/v1/profiles/' . $profileId, ['maxAgeRating' => null], $headers);
+        self::assertSame(200, $unbridged->status);
+        self::assertNull($unbridged->json()['maxAgeRating']);
+
+        $this->assertError(
+            $this->api->patchJson('/v1/profiles/' . $profileId, ['maxAgeRating' => 13], $headers),
+            422,
+            'INVALID_MAX_AGE_RATING',
+        );
+    }
+
     public function testLastProfileCannotBeDeleted(): void
     {
         $account = $this->createAccount();

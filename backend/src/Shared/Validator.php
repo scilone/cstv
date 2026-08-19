@@ -52,6 +52,18 @@ final class Validator
         return $value;
     }
 
+    public static function maxAgeRating(mixed $value): ?int
+    {
+        if ($value === null) {
+            return null;
+        }
+        if (!is_int($value) || !in_array($value, [0, 10, 12, 16, 18], true)) {
+            throw new ApiException(422, 'INVALID_MAX_AGE_RATING', 'maxAgeRating must be one of 0, 10, 12, 16, 18 or null.');
+        }
+
+        return $value;
+    }
+
     public static function namespace(mixed $value): string
     {
         if (!is_string($value) || !preg_match('/^[a-z0-9][a-z0-9._-]{0,63}$/D', $value)) {

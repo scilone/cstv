@@ -80,6 +80,14 @@ class ProfileRepositoryImpl @Inject constructor(
         profileDao.update(existing.copy(name = remote?.name ?: existing.name, avatarId = remote?.avatarId ?: avatarId))
     }
 
+    override suspend fun updateMaxAgeRating(id: Int, maxAgeRating: Int?) {
+        val existing = profileDao.getById(id) ?: return
+        val remote = cstvProfileGateway?.let { gateway ->
+            existing.remoteId?.let { gateway.update(it, maxAgeRatingProvided = true, maxAgeRating = maxAgeRating) }
+        }
+        profileDao.update(existing.copy(maxAgeRating = remote?.maxAgeRating ?: maxAgeRating))
+    }
+
     override suspend fun deleteProfile(id: Int): Boolean {
         if (profileDao.count() <= 1) return false
 
@@ -169,5 +177,5 @@ class ProfileRepositoryImpl @Inject constructor(
         database?.withTransaction { purge() } ?: purge()
     }
 
-    private fun ProfileEntity.toDomain() = Profile(id, name, avatarId, createdAt, remoteId)
+    private fun ProfileEntity.toDomain() = Profile(id, name, avatarId, createdAt, remoteId, maxAgeRating)
 }

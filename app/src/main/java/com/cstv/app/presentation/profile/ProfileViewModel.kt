@@ -24,8 +24,18 @@ data class ProfileUiState(
     val initialized: Boolean = false,
     val autoStartProfileId: Int = -1,
     val cloudCrudEnabled: Boolean = false,
-    @StringRes val profileActionErrorRes: Int? = null
+    @StringRes val profileActionErrorRes: Int? = null,
+    /**
+     * F44 : demande de changement de niveau d'âge en attente de PIN.
+     * `requiresPinCreation = true` signifie qu'aucun PIN appareil n'existe
+     * encore — l'écran doit d'abord en faire créer un (§8.6, première
+     * activation) avant de redemander confirmation.
+     */
+    val pendingAgeRatingChange: PendingAgeRatingChange? = null,
+    val ageRatingChangeFeedback: com.cstv.app.domain.model.ParentalPinFeedback? = null
 )
+
+data class PendingAgeRatingChange(val profileId: Int, val newMaxAgeRating: Int?, val requiresPinCreation: Boolean)
 
 /**
  * ViewModel partagé pour la sélection de profil (après login) et la gestion des
@@ -34,7 +44,9 @@ data class ProfileUiState(
 @HiltViewModel
 class ProfileViewModel @Inject constructor(
     private val profileRepository: ProfileRepository,
-    private val cstvAuthRepository: CstvAuthRepository? = null
+    private val cstvAuthRepository: CstvAuthRepository? = null,
+    /** F44 : nullable pour ne pas casser les tests existants qui construisent ce ViewModel positionnellement. */
+    private val parentalPinStore: com.cstv.app.data.security.ParentalPinStore? = null,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(ProfileUiState())
@@ -126,6 +138,62 @@ class ProfileViewModel @Inject constructor(
     }
 
     fun clearProfileActionError() = _state.update { it.copy(profileActionErrorRes = null) }
+
+    // --- F44 : niveau d'âge protégé par PIN ---
+
+    /**
+     * Modifier un niveau autorisé exige toujours le PIN (§7.2/§8.6), y
+     * compris pour débrider (`newMaxAgeRating = null`). Si aucun PIN appareil
+     * n'existe encore, l'écran doit d'abord en faire créer un.
+     */
+    fun requestMaxAgeRatingChange(profileId: Int, newMaxAgeRating: Int?) {
+        val store = parentalPinStore ?: return
+        _state.update {
+            it.copy(
+                pendingAgeRatingChange = PendingAgeRatingChange(profileId, newMaxAgeRating, requiresPinCreation = !store.hasPin()),
+                ageRatingChangeFeedback = null
+            )
+        }
+    }
+
+    /** Première activation (§8.6) : crée le PIN appareil puis applique le changement en attente. */
+    fun createDevicePinAndApplyPendingChange(pin: String) {
+        val store = parentalPinStore ?: return
+        val pending = _state.value.pendingAgeRatingChange ?: return
+        store.createPin(pin)
+        applyAgeRatingChange(pending)
+    }
+
+    /** Confirme un changement en attente avec le PIN existant. */
+    fun confirmAgeRatingChange(pin: String) {
+        val store = parentalPinStore ?: return
+        val pending = _state.value.pendingAgeRatingChange ?: return
+        when (val verification = store.verifyPin(pin)) {
+            com.cstv.app.data.security.PinVerificationResult.Correct -> applyAgeRatingChange(pending)
+            com.cstv.app.data.security.PinVerificationResult.Incorrect ->
+                _state.update { it.copy(ageRatingChangeFeedback = com.cstv.app.domain.model.ParentalPinFeedback.Incorrect) }
+            is com.cstv.app.data.security.PinVerificationResult.JustLocked ->
+                _state.update { it.copy(ageRatingChangeFeedback = com.cstv.app.domain.model.ParentalPinFeedback.Locked(verification.remainingMillis)) }
+            is com.cstv.app.data.security.PinVerificationResult.Locked ->
+                _state.update { it.copy(ageRatingChangeFeedback = com.cstv.app.domain.model.ParentalPinFeedback.Locked(verification.remainingMillis)) }
+        }
+    }
+
+    fun cancelAgeRatingChange() {
+        _state.update { it.copy(pendingAgeRatingChange = null, ageRatingChangeFeedback = null) }
+    }
+
+    private fun applyAgeRatingChange(pending: PendingAgeRatingChange) {
+        _state.update { it.copy(pendingAgeRatingChange = null, ageRatingChangeFeedback = null) }
+        viewModelScope.launch {
+            try {
+                profileRepository.updateMaxAgeRating(pending.profileId, pending.newMaxAgeRating)
+            } catch (error: Exception) {
+                if (error is kotlinx.coroutines.CancellationException) throw error
+                _state.update { it.copy(profileActionErrorRes = error.toProfileActionMessageRes()) }
+            }
+        }
+    }
 
     private fun canMutateProfiles(): Boolean {
         if (_state.value.cloudCrudEnabled || cstvAuthRepository == null) return true

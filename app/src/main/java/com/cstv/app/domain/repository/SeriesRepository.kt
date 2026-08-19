@@ -80,6 +80,14 @@ interface SeriesRepository {
     /** Récupère une série du cache local par son identifiant unique, ou null s'elle n'existe plus. */
     suspend fun getStreamById(seriesId: Int): SeriesStream?
 
+    /**
+     * F44 : identifiant de la série mère d'un épisode, ou `null` si l'épisode
+     * est absent du cache local. Utilisé par la garde parentale — la
+     * classification d'un épisode est celle de sa série entière (décision F44
+     * étape 1, pas de granularité par saison/épisode).
+     */
+    suspend fun getSeriesIdForEpisode(episodeId: Int): Int? = null
+
     /** F39 §8.2 : voir [com.cstv.app.domain.repository.VodRepository.getVersionsByLinkKey]. */
     suspend fun getVersionsByLinkKey(linkKey: String, releaseYear: Int?): List<SeriesStream> = emptyList()
 

@@ -11,5 +11,7 @@ data class ProfileEntity(
     val avatarId: Int,
     val createdAt: Long,
     /** UUID CSTV. Null means that this local profile has not been reconciled yet. */
-    val remoteId: String? = null
+    val remoteId: String? = null,
+    /** `null` = profil non bridé (F44). Sinon, une des valeurs [com.cstv.app.domain.model.AgeRating]. */
+    val maxAgeRating: Int? = null
 )

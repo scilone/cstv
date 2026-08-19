@@ -37,5 +37,8 @@ data class VodState(
     /** Aperçu trailer demandé par la fiche ; son rendu sera branché à l'étape F13 suivante. */
     val trailerPreview: TrailerPreviewUiState = TrailerPreviewUiState.Poster,
     /** Fraîcheur du catalogue local : alimente la bannière hors ligne. */
-    val catalogStatus: com.cstv.app.domain.sync.CatalogStatus = com.cstv.app.domain.sync.CatalogStatus()
+    val catalogStatus: com.cstv.app.domain.sync.CatalogStatus = com.cstv.app.domain.sync.CatalogStatus(),
+    /** F44 : profil bridé, PIN requis pour cette œuvre précise. */
+    val parentalPinRequest: com.cstv.app.domain.usecase.PlaybackAvailability.RequiresParentalPin? = null,
+    val parentalPinFeedback: com.cstv.app.domain.model.ParentalPinFeedback? = null
 )

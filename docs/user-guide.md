@@ -441,6 +441,49 @@ Pour éviter d'avoir à zapper manuellement lorsque votre connexion faiblit, vou
 * **Priorité manuelle** : Si vous choisissez manuellement une qualité alors que le mode automatique est actif, l'automatisme est désactivé pour cette chaîne le temps de votre visionnage, respectant pleinement votre contrôle direct.
 * **Sélection de la « moins mauvaise »** : Si toutes les qualités de la chaîne subissent des pannes réseau ou des coupures, l'application calcule de manière intelligente la moins mauvaise variante testée et s'y fixe pour vous garantir une continuité d'affichage plutôt que de vous laisser devant un écran noir.
 
+---
+
+## 23. Contrôle parental et restriction par âge par profil (F44)
+
+Pour vous permettre de confier l'application à un enfant en toute sécurité, CSTV IPTV intègre un système de contrôle parental défensif complet qui permet de brider l'accès aux catégories ou aux médias trop matures pour un profil spécifique.
+
+### 👶 Brider un profil
+Par défaut, tout nouveau profil est créé sans restriction. Pour activer le bridage :
+1. Rendez-vous dans l'écran de gestion des profils (lors du choix du profil au démarrage ou via les Paramètres).
+2. Sélectionnez le profil à modifier.
+3. Cochez l'option de restriction d'âge et choisissez le niveau maximum autorisé selon la classification française standard : **Tous publics, 10, 12, 16 ou 18 ans**.
+4. Lors de l'activation ou de l'enregistrement de ces modifications, l'application vous demandera de créer ou de saisir le **Code PIN parental à 4 chiffres**.
+
+### 🔒 Comportement en cas de blocage (Règle défensive)
+Lorsqu'un profil bridé tente d'ouvrir la fiche détaillée ou de lancer la lecture d'un film ou d'un épisode de série :
+* **Contenu trop mature** : Si la classification d'âge de l'œuvre dépasse le niveau du profil (ex. un film classé "16" pour un profil limité à "12"), l'accès est bloqué et un écran de refus s'affiche avec la raison : *« Ce contenu nécessite une classification d'âge supérieure à celle de votre profil. »*
+* **Contenu non classifié ou inconnu** : Si la classification d'âge du média ne peut pas être déterminée (œuvre absente des bases de données ou service de classification temporairement indisponible), **l'application applique un refus défensif** par mesure de précaution. Un écran de refus distinct s'affiche : *« Ce contenu n'a pas pu être classifié et a été bloqué par précaution. »*
+* **Visibilité préservée** : Les fiches et cartes de ces médias restent visibles dans les catalogues et les résultats de recherche (la restriction n'est évaluée qu'au clic pour préserver la fluidité), mais leur lecture ou leur consultation détaillée reste hermétiquement bloquée.
+
+### 🔑 Déverrouillage ponctuel (One-Shot)
+Si vous souhaitez autoriser exceptionnellement votre enfant à regarder un film bloqué :
+1. Sur l'écran de refus, cliquez sur le bouton de saisie du PIN.
+2. Saisissez le code PIN parental de l'appareil.
+3. Si le code est correct, **la lecture en cours est débloquée uniquement pour cette fois**. 
+4. Si vous quittez la lecture ou revenez ultérieurement sur cette même fiche, l'accès se reverrouille immédiatement et le code PIN sera à nouveau demandé. Cela évite qu'un enfant ne puisse rouvrir le film en douce plus tard.
+
+### 🛡️ Sécurité anti-bruteforce et protection du PIN
+* **Temporisation progressive** : Pour empêcher un enfant de deviner le PIN par essais successifs, l'application intègre un verrouillage après **5 tentatives infructueuses de PIN**. La saisie est alors bloquée pendant 30 secondes. Chaque nouvel échec consécutif double ce délai (`30s, 60s, 120s...` jusqu'à un maximum de 15 minutes).
+* **PIN strictement local** : Le code PIN reste local à l'appareil et chiffré de manière forte. Il n'est jamais envoyé sur internet ni sauvegardé dans le cloud. En revanche, le niveau de bridage choisi pour un profil (ex: "Limité à 12 ans") est synchronisé dans le cloud CSTV : votre enfant reste ainsi bridé de la même manière sur tous les téléviseurs et smartphones du foyer.
+
+### 🌐 Réinitialisation en cas d'oubli
+Si vous oubliez votre PIN parental :
+1. Cliquez sur le lien **« PIN oublié »** affiché sous l'écran de saisie du code PIN.
+2. L'application lance le parcours de réauthentification OTP lié à votre compte CSTV.
+3. Saisissez le code de sécurité reçu par email sur l'adresse du propriétaire du compte.
+4. Une fois votre identité validée, l'application vous permet de configurer un nouveau PIN de sécurité local.
+*Note : Cette réinitialisation exige une connexion Internet active.*
+
+### 📂 Téléchargements hors-ligne
+* **Blocage au téléchargement** : Un profil bridé ne peut pas télécharger un contenu qui dépasse ses restrictions d'âge ou qui est non classifié.
+* **Limite connue (V1)** : Pour des raisons de performance et de lecture hors-ligne, un contenu déjà téléchargé localement sur l'appareil avant que le profil ne soit bridé (ou avant que son niveau ne soit abaissé) reste lisible sans demande de PIN.
+
+
 
 
 

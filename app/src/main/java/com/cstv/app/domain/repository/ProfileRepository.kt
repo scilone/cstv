@@ -24,6 +24,14 @@ interface ProfileRepository {
     suspend fun updateAvatar(id: Int, avatarId: Int)
 
     /**
+     * F44 : `maxAgeRating = null` débride explicitement le profil. Synchronisé
+     * dans le cloud comme le nom/avatar (arbitrage étape 3) ; l'appel du PIN
+     * reste entièrement à la charge de l'appelant (ViewModel), ce repository
+     * ne connaît pas le PIN.
+     */
+    suspend fun updateMaxAgeRating(id: Int, maxAgeRating: Int?)
+
+    /**
      * Supprime un profil et toutes ses données (favoris, historique, positions).
      * Refuse de supprimer le dernier profil restant (retourne false).
      */

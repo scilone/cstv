@@ -2,6 +2,17 @@
 
 ## À venir — non publiée
 
+## [v1.89.0] - 2026-08-19
+### ✨ Restriction d'âge par profil (Contrôle parental) (F44)
+* **Échelle de restriction d'âge (certifications françaises TMDB via T22)** : Restriction complète par profil fondée sur les classifications françaises standard : *Tous publics, 10, 12, 16, 18*.
+* **Gestion défensive stricte** : Si la classification de l'œuvre ne peut pas être déterminée (média non trouvé localement ou en cas d'erreur réseau transitoire sur TMDB), la lecture et le téléchargement sont refusés par précaution avec affichage d'un message distinct de celui d'un contenu trop mature.
+* **Code PIN 4 chiffres local & chiffré** : Intégration d'un PIN unique d'appareil (chiffré via PBKDF2-HMAC-SHA256 avec 120 000 itérations et sel aléatoire), géré localement pour protéger l'accès.
+* **Anti-bruteforce progressive** : Blocage temporaire de la saisie après 5 tentatives incorrectes, doublant le délai à chaque échec consécutif (`30s, 60s, 120s...` jusqu'à 15 minutes) pour empêcher de deviner le PIN.
+* **Déverrouillage ponctuel de lecture (One-Shot Grant)** : Un code PIN valide déverrouille uniquement la lecture courante en cours. Revenir sur le contenu ou le rouvrir ultérieurement redemande le PIN.
+* **Synchronisation du bridage de profil** : Le niveau d'âge maximum autorisé (`maxAgeRating`) est synchronisé de manière bidirectionnelle avec le cloud PostgreSQL. Le code PIN reste quant à lui strictement confiné localement sur l'appareil.
+* **Réinitialisation en ligne par OTP** : Permet de réinitialiser le PIN oublié depuis les Paramètres après vérification et validation d'une session fraîche par code de sécurité OTP (reçu par email lié au compte CSTV).
+* **Parcours adulte préservé** : Les profils non bridés contournent toutes les vérifications et n'effectuent aucun appel réseau ou de base de données supplémentaire pour la classification, garantissant l'absence de surcoût sur le parcours adulte.
+
 ## [v1.88.8] - 2026-08-18
 ### ⚡ Optimisations de Performance, Fluidité et Stabilité (T25, T26, T27)
 * **Optimisation du moteur de recommandations (T25)** :

@@ -28,7 +28,14 @@ data class CstvAccount(
     val profiles: List<CstvProfile>
 )
 
-data class CstvProfile(val id: String, val name: String, val avatarId: Int, val createdAtMillis: Long)
+data class CstvProfile(
+    val id: String,
+    val name: String,
+    val avatarId: Int,
+    val createdAtMillis: Long,
+    /** F44 : `null` = profil non bridé (ou serveur trop ancien pour connaître le champ). */
+    val maxAgeRating: Int? = null
+)
 
 sealed interface CstvError {
     data object InvalidOtp : CstvError

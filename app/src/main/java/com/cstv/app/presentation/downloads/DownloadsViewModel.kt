@@ -21,7 +21,13 @@ import javax.inject.Inject
 
 data class DownloadsUiState(
     val downloads: List<DownloadedItem> = emptyList(),
-    val usedBytes: Long = 0L
+    val usedBytes: Long = 0L,
+    /**
+     * F44 : refus défensif/trop mature pour ce téléchargement précis. Pas de
+     * déverrouillage PIN pour le téléchargement (§7.2/§8.4) — champ purement
+     * informatif, effacé par [DownloadsViewModel.consumeParentalPinRequest].
+     */
+    val parentalPinRequest: com.cstv.app.domain.usecase.DownloadStartResult.RequiresParentalPin? = null
 )
 
 @HiltViewModel
@@ -30,7 +36,7 @@ class DownloadsViewModel @Inject constructor(
     private val startDownloadUseCase: StartDownloadUseCase,
     private val removeDownloadUseCase: RemoveDownloadUseCase,
     private val getDownloadsUsedBytesUseCase: GetDownloadsUsedBytesUseCase,
-    private val credentialsManager: CredentialsManager
+    private val credentialsManager: CredentialsManager,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(DownloadsUiState())
@@ -63,8 +69,8 @@ class DownloadsViewModel @Inject constructor(
     fun downloadMovie(details: VodDetails) {
         val creds = credentialsManager.getCredentials() ?: return
         viewModelScope.launch {
-            startDownloadUseCase(
-                DownloadRequestFactory.forMovie(details, creds.baseUrl, creds.username, creds.password)
+            handleDownloadStart(
+                startDownloadUseCase(DownloadRequestFactory.forMovie(details, creds.baseUrl, creds.username, creds.password))
             )
         }
     }
@@ -72,11 +78,25 @@ class DownloadsViewModel @Inject constructor(
     fun downloadEpisode(episode: SeriesEpisode, seriesId: Int, seriesTitle: String, cover: String?) {
         val creds = credentialsManager.getCredentials() ?: return
         viewModelScope.launch {
-            startDownloadUseCase(
-                DownloadRequestFactory.forEpisode(episode, seriesId, seriesTitle, cover, creds.baseUrl, creds.username, creds.password)
+            handleDownloadStart(
+                startDownloadUseCase(DownloadRequestFactory.forEpisode(episode, seriesId, seriesTitle, cover, creds.baseUrl, creds.username, creds.password))
             )
         }
     }
+
+    /**
+     * F44 : contrairement à la lecture, le téléchargement n'a pas de
+     * déverrouillage ponctuel par PIN (§7.2/§8.4) — un contenu au-dessus du
+     * niveau autorisé est refusé, sans parcours de contournement. Seul un
+     * nouvel essai (fiche enrichie) peut faire aboutir la demande.
+     */
+    private fun handleDownloadStart(result: com.cstv.app.domain.usecase.DownloadStartResult) {
+        if (result is com.cstv.app.domain.usecase.DownloadStartResult.RequiresParentalPin) {
+            _state.update { it.copy(parentalPinRequest = result) }
+        }
+    }
+
+    fun consumeParentalPinRequest() { _state.update { it.copy(parentalPinRequest = null) } }
 
     fun remove(contentId: String) {
         viewModelScope.launch { removeDownloadUseCase(contentId) }

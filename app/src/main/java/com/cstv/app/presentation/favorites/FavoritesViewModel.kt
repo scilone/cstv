@@ -41,7 +41,10 @@ data class FavoritesUiState(
     // de l'invite initiale "Saisissez un mot-clé...".
     val hasBrowsedAll: Boolean = false,
     /** Motif d'un refus de lecture (hors ligne, ou session à revalider). */
-    val playbackError: String? = null
+    val playbackError: String? = null,
+    /** F44 : profil bridé, PIN requis pour cette œuvre précise. */
+    val parentalPinRequest: com.cstv.app.domain.usecase.PlaybackAvailability.RequiresParentalPin? = null,
+    val parentalPinFeedback: com.cstv.app.domain.model.ParentalPinFeedback? = null
 )
 
 @HiltViewModel
@@ -57,7 +60,9 @@ class FavoritesViewModel @Inject constructor(
     private val getCatalogYearRangeUseCase: GetCatalogYearRangeUseCase,
     private val categoryPreferenceRepository: com.cstv.app.domain.repository.CategoryPreferenceRepository,
     private val canPlayContentUseCase: com.cstv.app.domain.usecase.CanPlayContentUseCase,
-    private val getRecommendationsUseCase: GetRecommendationsUseCase
+    private val getRecommendationsUseCase: GetRecommendationsUseCase,
+    /** F44 : nullable pour ne pas casser les tests existants qui construisent ce ViewModel positionnellement. */
+    private val parentalUnlockUseCase: com.cstv.app.domain.usecase.ParentalUnlockUseCase? = null,
 ) : ViewModel() {
 
     /**
@@ -67,17 +72,49 @@ class FavoritesViewModel @Inject constructor(
      */
     fun requestPlayback(contentId: String?, onAllowed: () -> Unit) {
         viewModelScope.launch {
-            when (canPlayContentUseCase(contentId)) {
+            when (val result = canPlayContentUseCase(contentId)) {
                 com.cstv.app.domain.usecase.PlaybackAvailability.Allowed -> onAllowed()
                 com.cstv.app.domain.usecase.PlaybackAvailability.RequiresConnection ->
                     _state.update { it.copy(playbackError = com.cstv.app.presentation.OFFLINE_PLAYBACK_MESSAGE) }
                 com.cstv.app.domain.usecase.PlaybackAvailability.RequiresReauthentication ->
                     _state.update { it.copy(playbackError = com.cstv.app.presentation.REAUTHENTICATION_MESSAGE) }
+                is com.cstv.app.domain.usecase.PlaybackAvailability.RequiresParentalPin -> {
+                    pendingParentalOnAllowed = onAllowed
+                    _state.update { it.copy(parentalPinRequest = result) }
+                }
             }
         }
     }
 
+    private var pendingParentalOnAllowed: (() -> Unit)? = null
+
     fun consumePlaybackError() { _state.update { it.copy(playbackError = null) } }
+    fun consumeParentalPinRequest() {
+        pendingParentalOnAllowed = null
+        _state.update { it.copy(parentalPinRequest = null, parentalPinFeedback = null) }
+    }
+
+    /** F44 : PIN saisi depuis l'écran de refus. */
+    fun submitParentalPin(pin: String) {
+        val request = _state.value.parentalPinRequest ?: return
+        val unlockUseCase = parentalUnlockUseCase ?: return
+        viewModelScope.launch {
+            when (val unlock = unlockUseCase.unlock(pin, request.mediaUid)) {
+                is com.cstv.app.domain.usecase.ParentalUnlockResult.Unlocked -> {
+                    val callback = pendingParentalOnAllowed
+                    pendingParentalOnAllowed = null
+                    _state.update { it.copy(parentalPinRequest = null) }
+                    if (canPlayContentUseCase(request.mediaUid, unlock.nonce) == com.cstv.app.domain.usecase.PlaybackAvailability.Allowed) {
+                        callback?.invoke()
+                    }
+                }
+                com.cstv.app.domain.usecase.ParentalUnlockResult.Incorrect ->
+                    _state.update { it.copy(parentalPinFeedback = com.cstv.app.domain.model.ParentalPinFeedback.Incorrect) }
+                is com.cstv.app.domain.usecase.ParentalUnlockResult.Locked ->
+                    _state.update { it.copy(parentalPinFeedback = com.cstv.app.domain.model.ParentalPinFeedback.Locked(unlock.remainingMillis)) }
+            }
+        }
+    }
 
     private val _state = MutableStateFlow(FavoritesUiState())
     val state: StateFlow<FavoritesUiState> = _state.asStateFlow()

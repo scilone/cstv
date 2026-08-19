@@ -5,7 +5,9 @@ data class Profile(
     val name: String,
     val avatarId: Int,
     val createdAt: Long,
-    val remoteId: String? = null
+    val remoteId: String? = null,
+    /** `null` = profil non bridé (F44). Sinon, une des valeurs [AgeRating]. */
+    val maxAgeRating: Int? = null
 )
 
 /**

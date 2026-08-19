@@ -117,6 +117,17 @@ fun HomeScreen(
     lazyListState: LazyListState = rememberLazyListState()
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+
+    // F44 : écran de refus + saisie PIN pour une reprise de lecture bridée.
+    state.parentalPinRequest?.let { request ->
+        com.cstv.app.presentation.components.ParentalPinEntryDialog(
+            reason = request.reason,
+            feedback = state.parentalPinFeedback,
+            onSubmit = { pin -> viewModel.submitParentalPin(pin) },
+            onDismiss = { viewModel.consumeParentalPinRequest() }
+        )
+    }
+
     val displayedTopVodStreams = state.popularTopVodStreams.orEmpty()
     val displayedTopSeriesStreams = state.popularTopSeriesStreams.orEmpty()
     val onSeeAllVod = remember(state.firstVodCategory, onNavigateToVodCategory) {

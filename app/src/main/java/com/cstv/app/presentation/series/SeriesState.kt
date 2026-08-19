@@ -20,6 +20,9 @@ data class SeriesState(
     val isLoadingStreams: Boolean = false,
     val isLoadingDetails: Boolean = false,
     val error: String? = null,
+    /** F44 : profil bridé, PIN requis pour cette œuvre précise. */
+    val parentalPinRequest: com.cstv.app.domain.usecase.PlaybackAvailability.RequiresParentalPin? = null,
+    val parentalPinFeedback: com.cstv.app.domain.model.ParentalPinFeedback? = null,
     // Compteur de séries par categoryId (cache local), pour la bottom sheet.
     val categoryCounts: Map<String, Int> = emptyMap(),
     /** F22 — filters are scoped to the selected TV category. */

@@ -3,7 +3,7 @@
 ## Informations générales
 
 Status:
-TASK BREAKDOWN
+VALIDATED
 
 Created:
 2026-08-15
@@ -466,7 +466,7 @@ déploiement à respecter (§9.3, risque déjà identifié) : **le backend doit
 l'appel. La tâche 1 doit donc être vérifiée compatible avant que la tâche 6
 ne soit livrée en production.
 
-- [ ] 1. Backend — champ `maxAgeRating` du profil
+- [x] 1. Backend — champ `maxAgeRating` du profil
 
 Objectif:
 Ajouter la colonne et l'exposer dans l'API profil existante (§8.1), sans
@@ -489,7 +489,7 @@ jamais une erreur.
 
 ---
 
-- [ ] 2. Android — modèle d'âge partagé et classification T22
+- [x] 2. Android — modèle d'âge partagé et classification T22
 
 Objectif:
 Poser `AgeRating` (§8.1) et `ContentClassificationRepository` qui consomme
@@ -513,7 +513,7 @@ ou `null` du backend n'est jamais convertie en « Tous publics ».
 
 ---
 
-- [ ] 3. Android — `ParentalPinStore`
+- [x] 3. Android — `ParentalPinStore`
 
 Objectif:
 Stockage chiffré du PIN (§8.3) : sel, PBKDF2-HMAC-SHA256 120 000
@@ -533,7 +533,7 @@ rooté (hors modèle de menace assumé, §8.3/§9.3).
 
 ---
 
-- [ ] 4. Android — `ParentalAccessPolicy` et grant one-shot
+- [x] 4. Android — `ParentalAccessPolicy` et grant one-shot
 
 Objectif:
 Règle d'accès pure (§8.4) : `Allowed`/`PinRequired`, `OneShotPlaybackGrant`
@@ -555,7 +555,7 @@ lecture (§8.4).
 
 ---
 
-- [ ] 5. Android — garde câblée dans lecture et téléchargement
+- [x] 5. Android — garde câblée dans lecture et téléchargement
 
 Objectif:
 Appeler `ParentalAccessPolicy` dans les use cases qui lancent réellement la
@@ -578,7 +578,7 @@ automatique.
 
 ---
 
-- [ ] 6. Android — UI : gestion de profil, écran de refus, saisie PIN
+- [x] 6. Android — UI : gestion de profil, écran de refus, saisie PIN
 
 Objectif:
 Sélecteur de niveau protégé par PIN, création du PIN à la première
@@ -600,7 +600,7 @@ jamais la policy (décision étape 2).
 
 ---
 
-- [ ] 7. Android — réinitialisation du PIN par OTP
+- [x] 7. Android — réinitialisation du PIN par OTP
 
 Objectif:
 Brancher le flow OTP existant en mode réauthentification (§8.5), fenêtre de
@@ -619,7 +619,7 @@ silencieusement le PIN en place.
 
 ---
 
-- [ ] 8. Documentation — mise à jour AGENTS.md
+- [x] 8. Documentation — mise à jour AGENTS.md
 
 Objectif:
 Documenter l'écart de périmètre assumé (§2 : PIN/restriction parentale,
@@ -636,7 +636,7 @@ exception désormais implémentée.
 
 ---
 
-- [ ] 9. Non-régression globale
+- [x] 9. Non-régression globale
 
 Objectif:
 Vérifier l'ensemble avant review, en particulier l'ordre de déploiement
@@ -657,17 +657,99 @@ bridage tant que les deux ne sont pas alignés.
 
 # 11. Notes de développement
 
+Étape 5 (implémentation) livrée le 2026-08-19, tâches 1 à 9 toutes terminées
+en une session :
+
+- **Backend** : migration `008_profile_max_age_rating.sql`, `Validator::maxAgeRating`,
+  `ProfileRepository`/`Service`/`Presenter` mis à jour (COALESCE vs écrasement
+  explicite pour distinguer « inchangé » de « débridé »), `openapi.yaml`. 169
+  tests backend verts.
+- **Android** : `AgeRating`, `ContentClassificationRepository` (cache mémoire
+  30 min sur `/v1/catalog/matches`), `ParentalPinStore` (PBKDF2 120k
+  itérations, hex — pas de Base64 Android indisponible en test JVM local),
+  `ParentalAccessPolicy` (règle pure), `OneShotPlaybackGrantStore`,
+  `CanPlayContentUseCase` étendu (choke point unique de tous les écrans de
+  lecture), `StartDownloadUseCase` étendu, UI (dialogs PIN, sélecteur de
+  niveau, écran PIN oublié réutilisant le flow OTP). Migration Room 35→36.
+- **Écart découvert en cours de route** : `ParentalPinStore`/`ParentalAccessPolicy`
+  utilisent une classification résolue par le *use case appelant*
+  (`CanPlayContentUseCase`/`StartDownloadUseCase`), pas par la policy
+  elle-même — plus proche de « policy pure au sens strict » que la
+  formulation initiale du §8.4, sans changer le comportement observable.
+- **Écart découvert en cours de route (§7.2)** : le téléchargement n'a
+  finalement aucun parcours de déverrouillage PIN (relu attentivement,
+  cohérent avec §7.2/§8.4 déjà écrits) — seule la lecture bénéficie du grant
+  one-shot. `DownloadsViewModel` n'expose donc qu'un message de refus,
+  fermable, sans saisie PIN.
+- `./gradlew testDebugUnitTest assembleDebug lintDebug` + suite backend
+  (`composer test` dans le conteneur `backend-php-test-1`, PHP 8.5) verts à
+  la fin de chaque tâche.
+
 ---
 
 # 12. Review
 
 ## Critique
 
+- **Bypass de la restriction sur un contenu non trouvé en cache**
+  - **Description :** Dans `CanPlayContentUseCase` et `StartDownloadUseCase`, si `resolveClassificationTarget` ne trouve pas l'œuvre en base locale (ex: `getStreamById` retourne `null` suite à une désynchronisation ou un accès hors parcours classique), il retourne `null`. L'évaluation parentale l'interprète alors comme "Autorisé" (`return null` dans `evaluateParentalAccess`), ce qui contourne complètement la restriction pour un profil bridé.
+  - **Impact :** Un enfant peut lancer la lecture ou le téléchargement d'une œuvre non présente dans le cache local sans que le PIN ne soit demandé. C'est une violation de la règle défensive définie en §1 et §7.3.
+  - **Correction attendue :** Si `target` est `null`, la méthode `evaluateParentalAccess` doit retourner un refus défensif (`RequiresParentalPin(BlockReason.UNCLASSIFIED)` pour la lecture, et l'équivalent pour le téléchargement) au lieu de `null`.
+
 ## Majeur
+
+- **Mise en cache des échecs réseau pour la classification**
+  - **Description :** Dans `ContentClassificationRepository`, si l'appel à `catalogApiService.match` échoue (ex: `IOException`), l'exception est attrapée et la méthode détermine `ageRating = null`. Cependant, cette valeur `null` est ensuite mise en cache pour 30 minutes.
+  - **Impact :** Si l'utilisateur subit une micro-coupure réseau au moment d'ouvrir la fiche d'un film, la classification "inconnue" est mise en cache. Pendant les 30 minutes suivantes, même si le réseau est rétabli, l'application continuera de bloquer la lecture (refus défensif) sans même retenter l'appel au backend.
+  - **Correction attendue :** Ne pas mettre en cache le résultat si une exception (autre que `CancellationException`) est levée. Retourner `null` est acceptable pour refuser l'accès dans l'instant, mais l'erreur ne doit pas polluer le cache.
 
 ## Mineur
 
+- **Fuite de mémoire lente sur les grants non consommés**
+  - **Description :** `OneShotPlaybackGrantStore` ajoute les nonces générés dans un `MutableSet`. Si un parent déverrouille un contenu (saisie correcte du PIN) mais qu'il annule l'action avant le lancement effectif de la lecture (ou si le lecteur échoue à s'ouvrir), le grant n'est jamais consommé et reste en mémoire indéfiniment.
+  - **Impact :** Accumulation d'objets `OneShotPlaybackGrant` en mémoire durant la vie de l'application. Bien que l'objet soit léger, c'est une fuite conceptuelle.
+  - **Correction attendue :** Ajouter un mécanisme d'éviction (ex: vider les grants antérieurs à X minutes lors de l'ajout d'un nouveau, ou utiliser un cache avec TTL léger) ou limiter la taille maximale du `Set`.
+
 ## Corrections demandées
+- Corriger la faille de contournement dans les Use Cases de lecture et téléchargement.
+- Modifier le cache de classification pour ignorer les erreurs réseau.
+- Ajouter un nettoyage simple des grants inutilisés.
+
+## Corrections appliquées à l'étape 7
+
+### F44-R1 — Résolu
+
+`CanPlayContentUseCase` et `StartDownloadUseCase` refusent désormais par défaut
+avec `UNCLASSIFIED` lorsqu'une œuvre bridée n'est pas retrouvée dans le cache
+local. La classification n'est donc plus contournable par une cible absente.
+Les deux chemins disposent d'un test de non-régression et aucune requête de
+lecture/téléchargement n'est lancée dans ce cas.
+
+### F44-R2 — Résolu
+
+`ContentClassificationRepository` ne conserve plus le résultat `null` produit
+par une exception réseau (hors `CancellationException`, qui est toujours
+propagée). Le refus défensif s'applique à la tentative courante, puis l'appel
+suivant retente le backend. Un test vérifie explicitement le retry après une
+première erreur.
+
+### F44-R3 — Résolu
+
+`OneShotPlaybackGrantStore` est maintenant borné à 256 grants en mémoire et
+évacue le plus ancien à l'émission d'un nouveau grant lorsque la limite est
+atteinte. Un test vérifie l'éviction du grant abandonné et la conservation du
+plus récent.
+
+### Évidence de l'étape 7
+
+- Tests ciblés F44 : 31 tests verts.
+- Suite Android complète : `./gradlew --no-daemon testDebugUnitTest` — verte.
+- Build debug : `./gradlew --no-daemon assembleDebug` — vert.
+- Lint : `./gradlew --no-daemon lintDebug` — vert.
+- `git diff --check` — propre.
+
+L'étape 8 (documentation de livraison et décision de validation finale) reste
+à exécuter séparément.
 
 ---
 

@@ -386,6 +386,20 @@ Cette optimisation garantit la fluidité absolue de la grille Live TV et évite 
 
 ---
 
+## 36. Restriction par âge sur un profil (Contrôle parental) (F44)
+Cette fonctionnalité permet de brider l'accès aux contenus adultes ou trop matures pour un profil local spécifique (type Netflix) à l'aide d'un contrôle parental défensif et non contournable fondé sur les classifications d'âge françaises.
+* **Échelle de restriction d'âge** : Alignement sur la classification française de TMDB : *Tous publics, 10, 12, 16, 18*. Un profil bridé ne peut pas accéder aux médias dépassant son niveau autorisé.
+* **Gestion défensive stricte** : Si la classification d'une œuvre ne peut pas être déterminée (serveur injoignable, média inconnu, erreur de correspondance), la lecture et le téléchargement sont **refusés par défaut**, avec un message d'explication distinct de celui d'un contenu explicitement trop mature.
+* **Code PIN à 4 chiffres local** : Un PIN unique par appareil, chiffré de manière sécurisée (PBKDF2-HMAC-SHA256 avec 120 000 itérations et sel aléatoire via l'Android Keystore), est requis pour déverrouiller ponctuellement un contenu, modifier les restrictions d'âge d'un profil ou créer un profil bridé.
+* **Déverrouillage ponctuel à usage unique (One-Shot Grant)** : La saisie correcte du PIN sur un écran de blocage autorise uniquement la lecture en cours. Revenir sur le média ou le rouvrir ultérieurement exige de nouveau la saisie du PIN.
+* **Anti-Bruteforce local** : Après 5 tentatives infructueuses de PIN, la saisie est verrouillée temporairement. La temporisation double à chaque nouvel échec (`30s, 60s, 120s...` jusqu'à 15 minutes) pour empêcher de deviner le PIN.
+* **Synchronisation cloud du niveau de restriction** : Le niveau d'âge maximal autorisé (`maxAgeRating`) est un attribut synchronisé avec le profil dans le cloud PostgreSQL du backend, assurant qu'un profil enfant reste bridé sur tous les appareils du foyer. Le code PIN de sécurité, lui, reste strictement local à l'appareil et n'est jamais synchronisé ou transmis au réseau.
+* **Vérification au téléchargement** : La restriction est validée lors de la création d'un téléchargement. Cependant, pour des raisons de performance hors-ligne (V1), un contenu déjà téléchargé localement reste lisible sans revalidation.
+* **Réinitialisation du PIN sécurisée par OTP** : En cas d'oubli, l'utilisateur principal peut réinitialiser le PIN depuis les Paramètres en passant par une authentification OTP liée à son compte CSTV (nécessite d'être en ligne).
+* **Parcours adulte sans surcoût** : Les profils non bridés contournent totalement ces vérifications et n'effectuent aucun appel réseau ou de base de données supplémentaire pour la classification, préservant la fluidité de navigation.
+
+---
+
 ## 🚫 Fonctionnalités hors périmètre (Exclusions validées)
 Pour des raisons de performance, de stabilité ou d'expérience utilisateur, les fonctionnalités suivantes sont **strictement hors périmètre** :
 * **Multi-comptes Xtream** : L'application gère un seul compte Xtream Codes actif à la fois (les profils sont purement locaux et rattachés à ce compte unique).

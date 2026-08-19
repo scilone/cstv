@@ -409,6 +409,9 @@ class LiveTvViewModel @Inject constructor(
                     _state.update { it.copy(error = com.cstv.app.presentation.OFFLINE_PLAYBACK_MESSAGE) }
                 com.cstv.app.domain.usecase.PlaybackAvailability.RequiresReauthentication ->
                     _state.update { it.copy(error = com.cstv.app.presentation.REAUTHENTICATION_MESSAGE) }
+                // Live TV est hors périmètre F44 (§7.3) : `canPlayContentUseCase(null)`
+                // ne déclenche jamais la garde parentale, cette branche est inatteignable.
+                is com.cstv.app.domain.usecase.PlaybackAvailability.RequiresParentalPin -> Unit
             }
         }
     }

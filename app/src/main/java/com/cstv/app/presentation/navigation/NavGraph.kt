@@ -776,6 +776,16 @@ fun AppNavGraph(
                     onBack = { navController.popBackStack() }
                 )
             }
+
+            // F44 : écran de refus + saisie PIN, en surimpression de la fiche.
+            state.parentalPinRequest?.let { request ->
+                com.cstv.app.presentation.components.ParentalPinEntryDialog(
+                    reason = request.reason,
+                    feedback = state.parentalPinFeedback,
+                    onSubmit = { pin -> vodViewModel.submitParentalPin(pin) },
+                    onDismiss = { vodViewModel.consumeParentalPinRequest() }
+                )
+            }
         }
         composable("series_details") {
             val seriesViewModel: SeriesViewModel = hiltViewModel()
@@ -865,6 +875,16 @@ fun AppNavGraph(
                     message = state.error,
                     onRetry = { seriesViewModel.selectStreamId(entrySeriesId) },
                     onBack = { navController.popBackStack() }
+                )
+            }
+
+            // F44 : écran de refus + saisie PIN, en surimpression de la fiche.
+            state.parentalPinRequest?.let { request ->
+                com.cstv.app.presentation.components.ParentalPinEntryDialog(
+                    reason = request.reason,
+                    feedback = state.parentalPinFeedback,
+                    onSubmit = { pin -> seriesViewModel.submitParentalPin(pin) },
+                    onDismiss = { seriesViewModel.consumeParentalPinRequest() }
                 )
             }
         }

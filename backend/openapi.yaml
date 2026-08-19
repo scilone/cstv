@@ -569,7 +569,7 @@ components:
     Profile:
       type: object
       additionalProperties: false
-      required: [id, name, avatarId, createdAt, updatedAt]
+      required: [id, name, avatarId, maxAgeRating, createdAt, updatedAt]
       properties:
         id:
           type: string
@@ -582,6 +582,11 @@ components:
           type: integer
           minimum: 0
           maximum: 10000
+        maxAgeRating:
+          type: integer
+          enum: [0, 10, 12, 16, 18]
+          nullable: true
+          description: Classification française maximale autorisée (F44). `null` = profil non bridé.
         createdAt:
           type: string
           format: date-time
@@ -615,6 +620,11 @@ components:
           type: integer
           minimum: 0
           maximum: 10000
+        maxAgeRating:
+          type: integer
+          enum: [0, 10, 12, 16, 18]
+          nullable: true
+          description: Envoyer `null` déverrouille le profil (non bridé).
     Namespace:
       type: string
       minLength: 1

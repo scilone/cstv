@@ -81,6 +81,8 @@ class SeriesViewModel @Inject constructor(
     private val seriesVersionResolver: com.cstv.app.domain.model.SeriesVersionResolver? = null,
     private val seriesVersionPreferenceRepository: com.cstv.app.domain.repository.SeriesVersionPreferenceRepository? = null,
     private val profileManager: com.cstv.app.data.local.storage.ProfileManager? = null,
+    /** F44 : nullable pour ne pas casser les tests existants qui construisent ce ViewModel positionnellement. */
+    private val parentalUnlockUseCase: com.cstv.app.domain.usecase.ParentalUnlockUseCase? = null,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(SeriesState())
@@ -497,24 +499,66 @@ class SeriesViewModel @Inject constructor(
     fun requestPlayback(episodeId: Int, onAllowed: () -> Unit) {
         viewModelScope.launch {
             val contentId = com.cstv.app.domain.model.DownloadedItem.episodeContentId(episodeId)
-            when (canPlayContentUseCase(contentId)) {
+            when (val result = canPlayContentUseCase(contentId)) {
                 com.cstv.app.domain.usecase.PlaybackAvailability.Allowed -> onAllowed()
                 com.cstv.app.domain.usecase.PlaybackAvailability.RequiresConnection ->
                     _state.update { it.copy(error = com.cstv.app.presentation.OFFLINE_PLAYBACK_MESSAGE) }
                 com.cstv.app.domain.usecase.PlaybackAvailability.RequiresReauthentication ->
                     _state.update { it.copy(error = com.cstv.app.presentation.REAUTHENTICATION_MESSAGE) }
+                is com.cstv.app.domain.usecase.PlaybackAvailability.RequiresParentalPin -> {
+                    pendingParentalOnAllowed = onAllowed
+                    _state.update { it.copy(parentalPinRequest = result) }
+                }
             }
         }
     }
 
     fun requestPlayback(position: PlaybackPosition, onAllowed: suspend () -> Unit) {
         viewModelScope.launch {
-            when (canPlayContentUseCase(com.cstv.app.domain.model.DownloadedItem.episodeContentId(position.streamId))) {
+            when (val result = canPlayContentUseCase(com.cstv.app.domain.model.DownloadedItem.episodeContentId(position.streamId))) {
                 com.cstv.app.domain.usecase.PlaybackAvailability.Allowed -> onAllowed()
                 com.cstv.app.domain.usecase.PlaybackAvailability.RequiresConnection ->
                     _state.update { it.copy(error = com.cstv.app.presentation.OFFLINE_PLAYBACK_MESSAGE) }
                 com.cstv.app.domain.usecase.PlaybackAvailability.RequiresReauthentication ->
                     _state.update { it.copy(error = com.cstv.app.presentation.REAUTHENTICATION_MESSAGE) }
+                is com.cstv.app.domain.usecase.PlaybackAvailability.RequiresParentalPin -> {
+                    pendingParentalSuspendOnAllowed = onAllowed
+                    _state.update { it.copy(parentalPinRequest = result) }
+                }
+            }
+        }
+    }
+
+    private var pendingParentalOnAllowed: (() -> Unit)? = null
+    private var pendingParentalSuspendOnAllowed: (suspend () -> Unit)? = null
+
+    fun consumeParentalPinRequest() {
+        pendingParentalOnAllowed = null
+        pendingParentalSuspendOnAllowed = null
+        _state.update { it.copy(parentalPinRequest = null, parentalPinFeedback = null) }
+    }
+
+    /** F44 : PIN saisi depuis l'écran de refus. */
+    fun submitParentalPin(pin: String) {
+        val request = _state.value.parentalPinRequest ?: return
+        val unlockUseCase = parentalUnlockUseCase ?: return
+        viewModelScope.launch {
+            when (val unlock = unlockUseCase.unlock(pin, request.mediaUid)) {
+                is com.cstv.app.domain.usecase.ParentalUnlockResult.Unlocked -> {
+                    val callback = pendingParentalOnAllowed
+                    val suspendCallback = pendingParentalSuspendOnAllowed
+                    pendingParentalOnAllowed = null
+                    pendingParentalSuspendOnAllowed = null
+                    _state.update { it.copy(parentalPinRequest = null) }
+                    if (canPlayContentUseCase(request.mediaUid, unlock.nonce) == com.cstv.app.domain.usecase.PlaybackAvailability.Allowed) {
+                        callback?.invoke()
+                        suspendCallback?.invoke()
+                    }
+                }
+                com.cstv.app.domain.usecase.ParentalUnlockResult.Incorrect ->
+                    _state.update { it.copy(parentalPinFeedback = com.cstv.app.domain.model.ParentalPinFeedback.Incorrect) }
+                is com.cstv.app.domain.usecase.ParentalUnlockResult.Locked ->
+                    _state.update { it.copy(parentalPinFeedback = com.cstv.app.domain.model.ParentalPinFeedback.Locked(unlock.remainingMillis)) }
             }
         }
     }

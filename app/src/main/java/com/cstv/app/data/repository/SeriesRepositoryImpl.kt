@@ -683,6 +683,9 @@ class SeriesRepositoryImpl @Inject constructor(
         // `linkKey` toujours "" côté appelant, sélecteur de versions jamais déclenché.
         seriesDao.getStreamById(seriesId)?.toDomain()
 
+    override suspend fun getSeriesIdForEpisode(episodeId: Int): Int? =
+        seriesDao.getEpisodeById(episodeId)?.seriesId
+
     override suspend fun getVersionsByLinkKey(linkKey: String, releaseYear: Int?): List<SeriesStream> {
         if (linkKey.isBlank()) return emptyList()
         // F39-R8 : interroge un rang de plus que le plafond pour distinguer une vraie troncature

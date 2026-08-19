@@ -85,6 +85,32 @@ object AppModule {
 
     @Provides
     @Singleton
+    fun provideMonotonicClock(): com.cstv.app.domain.util.MonotonicClock =
+        com.cstv.app.data.util.SystemMonotonicClock()
+
+    /**
+     * Stockage chiffré du PIN parental (F44), délibérément séparé de
+     * `secret_shared_prefs` (`CredentialsManager`) : un secret différent, un
+     * cycle de vie différent (jamais effacé par une déconnexion, §8.5).
+     */
+    @Provides
+    @Singleton
+    @javax.inject.Named("parentalPinPrefs")
+    fun provideParentalPinPrefs(@ApplicationContext context: Context): android.content.SharedPreferences {
+        val masterKey = androidx.security.crypto.MasterKey.Builder(context)
+            .setKeyScheme(androidx.security.crypto.MasterKey.KeyScheme.AES256_GCM)
+            .build()
+        return androidx.security.crypto.EncryptedSharedPreferences.create(
+            context,
+            "parental_pin_prefs",
+            masterKey,
+            androidx.security.crypto.EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            androidx.security.crypto.EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+        )
+    }
+
+    @Provides
+    @Singleton
     fun provideApplicationContext(@ApplicationContext context: Context): Context {
         return context
     }

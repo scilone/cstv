@@ -17,7 +17,7 @@ final readonly class ProfileRepository
     public function listForAccount(string $accountId): array
     {
         $statement = $this->pdo->prepare(
-            'SELECT id, name, avatar_id, created_at, updated_at FROM profiles '
+            'SELECT id, name, avatar_id, max_age_rating, created_at, updated_at FROM profiles '
             . 'WHERE account_id = :account_id ORDER BY created_at, id',
         );
         $statement->execute(['account_id' => $accountId]);
@@ -31,7 +31,7 @@ final readonly class ProfileRepository
     public function findOwned(string $profileId, string $accountId): ?array
     {
         $statement = $this->pdo->prepare(
-            'SELECT id, account_id, name, avatar_id, created_at, updated_at FROM profiles '
+            'SELECT id, account_id, name, avatar_id, max_age_rating, created_at, updated_at FROM profiles '
             . 'WHERE id = :id AND account_id = :account_id',
         );
         $statement->execute(['id' => $profileId, 'account_id' => $accountId]);
@@ -44,7 +44,7 @@ final readonly class ProfileRepository
     public function findOwnedForShare(string $profileId, string $accountId): ?array
     {
         $statement = $this->pdo->prepare(
-            'SELECT id, account_id, name, avatar_id, created_at, updated_at FROM profiles '
+            'SELECT id, account_id, name, avatar_id, max_age_rating, created_at, updated_at FROM profiles '
             . 'WHERE id = :id AND account_id = :account_id FOR SHARE',
         );
         $statement->execute(['id' => $profileId, 'account_id' => $accountId]);
@@ -56,10 +56,12 @@ final readonly class ProfileRepository
     /** @return array<string, mixed> */
     public function create(string $accountId, string $name, int $avatarId): array
     {
+        // max_age_rating est volontairement omis : la colonne défaut à NULL, et un
+        // profil est toujours créé non bridé (décision F44 étape 2).
         $statement = $this->pdo->prepare(
             'INSERT INTO profiles (id, account_id, name, avatar_id, created_at, updated_at) '
             . 'VALUES (:id, :account_id, :name, :avatar_id, NOW(), NOW()) '
-            . 'RETURNING id, name, avatar_id, created_at, updated_at',
+            . 'RETURNING id, name, avatar_id, max_age_rating, created_at, updated_at',
         );
         $statement->execute([
             'id' => Uuid::v4(),
@@ -73,17 +75,35 @@ final readonly class ProfileRepository
         return $row;
     }
 
-    /** @return array<string, mixed>|null */
-    public function updateOwned(string $profileId, string $accountId, ?string $name, ?int $avatarId): ?array
-    {
+    /**
+     * maxAgeRating utilise COALESCE comme name/avatarId (null = inchangé) sauf si
+     * $maxAgeRatingProvided vaut true : un déverrouillage explicite (retour à
+     * `null`, profil non bridé) doit alors écraser la colonne, ce que COALESCE ne
+     * permet pas de distinguer d'une absence de changement.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function updateOwned(
+        string $profileId,
+        string $accountId,
+        ?string $name,
+        ?int $avatarId,
+        bool $maxAgeRatingProvided,
+        ?int $maxAgeRating,
+    ): ?array {
+        $maxAgeRatingAssignment = $maxAgeRatingProvided ? ':max_age_rating' : 'max_age_rating';
         $statement = $this->pdo->prepare(
             'UPDATE profiles SET '
-            . 'name = COALESCE(:name, name), avatar_id = COALESCE(:avatar_id, avatar_id), updated_at = NOW() '
+            . 'name = COALESCE(:name, name), avatar_id = COALESCE(:avatar_id, avatar_id), '
+            . "max_age_rating = {$maxAgeRatingAssignment}, updated_at = NOW() "
             . 'WHERE id = :id AND account_id = :account_id '
-            . 'RETURNING id, name, avatar_id, created_at, updated_at',
+            . 'RETURNING id, name, avatar_id, max_age_rating, created_at, updated_at',
         );
         $statement->bindValue(':name', $name, $name === null ? PDO::PARAM_NULL : PDO::PARAM_STR);
         $statement->bindValue(':avatar_id', $avatarId, $avatarId === null ? PDO::PARAM_NULL : PDO::PARAM_INT);
+        if ($maxAgeRatingProvided) {
+            $statement->bindValue(':max_age_rating', $maxAgeRating, $maxAgeRating === null ? PDO::PARAM_NULL : PDO::PARAM_INT);
+        }
         $statement->bindValue(':id', $profileId);
         $statement->bindValue(':account_id', $accountId);
         $statement->execute();

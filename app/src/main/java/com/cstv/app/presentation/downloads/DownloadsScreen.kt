@@ -57,6 +57,21 @@ fun DownloadsScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
 
+    // F44 : pas de déverrouillage PIN pour le téléchargement (§7.2/§8.4) —
+    // simple message de refus, fermable.
+    state.parentalPinRequest?.let { request ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = viewModel::consumeParentalPinRequest,
+            title = { androidx.compose.material3.Text(stringResource(com.cstv.app.R.string.parental_pin_dialog_title)) },
+            text = { androidx.compose.material3.Text(com.cstv.app.presentation.components.parentalBlockReasonMessage(request.reason)) },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = viewModel::consumeParentalPinRequest) {
+                    androidx.compose.material3.Text(stringResource(com.cstv.app.R.string.profile_dialog_cancel))
+                }
+            }
+        )
+    }
+
     Box(
         modifier = modifier
             .fillMaxSize()

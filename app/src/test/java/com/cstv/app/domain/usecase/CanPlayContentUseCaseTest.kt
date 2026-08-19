@@ -4,9 +4,16 @@ import com.cstv.app.data.local.dao.DownloadDao
 import com.cstv.app.data.local.entity.DownloadedMediaEntity
 import com.cstv.app.data.local.storage.CredentialsManager
 import com.cstv.app.data.local.storage.CurrentAccountKeyProvider
+import com.cstv.app.data.repository.ContentClassificationRepository
 import com.cstv.app.domain.model.Credentials
 import com.cstv.app.domain.model.DownloadStatus
+import com.cstv.app.domain.model.OneShotPlaybackGrantStore
+import com.cstv.app.domain.model.ParentalAccessPolicy
+import com.cstv.app.domain.model.Profile
 import com.cstv.app.domain.network.NetworkMonitor
+import com.cstv.app.domain.repository.ProfileRepository
+import com.cstv.app.domain.repository.SeriesRepository
+import com.cstv.app.domain.repository.VodRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -16,6 +23,7 @@ import org.junit.Test
 import org.junit.rules.Timeout
 import org.mockito.Mock
 import org.mockito.MockitoAnnotations
+import org.mockito.kotlin.mock
 import org.mockito.kotlin.whenever
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -34,20 +42,38 @@ class CanPlayContentUseCaseTest {
     @Mock private lateinit var credentialsManager: CredentialsManager
     @Mock private lateinit var accountKeyProvider: CurrentAccountKeyProvider
 
+    private val profileRepository: ProfileRepository = mock()
+    private val vodRepository: VodRepository = mock()
+    private val seriesRepository: SeriesRepository = mock()
+    private val classificationRepository: ContentClassificationRepository = mock()
+    private val parentalAccessPolicy = ParentalAccessPolicy()
+
     private lateinit var useCase: CanPlayContentUseCase
 
     private val credentials = Credentials("panel.example.com", 8080, "user", "secret")
     private val accountKey = "account-key"
+    private val unbridgedProfile = Profile(id = 1, name = "Nico", avatarId = 0, createdAt = 0L, maxAgeRating = null)
 
     @Before
     fun setUp() {
         MockitoAnnotations.openMocks(this)
         whenever(credentialsManager.getCredentials()).thenReturn(credentials)
         whenever(accountKeyProvider.current()).thenReturn(accountKey)
+        // Profil non bridé par défaut : la garde parentale F44 ne doit jamais
+        // interférer avec les tests de disponibilité réseau/téléchargement déjà
+        // couverts ici (voir CanPlayContentParentalGuardTest pour F44).
+        whenever(profileRepository.currentProfileId()).thenReturn(1)
+        runTest { whenever(profileRepository.getProfiles()).thenReturn(listOf(unbridgedProfile)) }
         useCase = CanPlayContentUseCase(
             IsContentDownloadedUseCase(downloadDao, accountKeyProvider),
             networkMonitor,
             credentialsManager,
+            profileRepository,
+            vodRepository,
+            seriesRepository,
+            classificationRepository,
+            parentalAccessPolicy,
+            OneShotPlaybackGrantStore(),
         )
     }
 

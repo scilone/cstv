@@ -5,7 +5,6 @@ import com.cstv.app.data.local.entity.ProfileEntity
 import com.cstv.app.data.remote.CstvErrorMapper
 import com.cstv.app.data.remote.api.CstvApiService
 import com.cstv.app.data.remote.dto.CstvProfileCreateDto
-import com.cstv.app.data.remote.dto.CstvProfileUpdateDto
 import com.cstv.app.domain.model.CstvAccount
 import com.cstv.app.domain.model.CstvError
 import com.cstv.app.domain.model.CstvProfile
@@ -25,7 +24,11 @@ class ProfileCloudReconciler @Inject constructor(
         val cloudById = cloudProfiles.associateBy { it.id }
         val local = profileDao.getAll()
         local.filter { it.remoteId != null }.forEach { localProfile ->
-            cloudById[localProfile.remoteId]?.let { remote -> profileDao.update(localProfile.copy(name = remote.name, avatarId = remote.avatarId, createdAt = remote.createdAtMillis)) }
+            cloudById[localProfile.remoteId]?.let { remote ->
+                // F44 : le niveau d'âge est synchronisé comme le nom/avatar (§9, arbitrage
+                // étape 3) — un profil bridé depuis un autre appareil du foyer le reste ici.
+                profileDao.update(localProfile.copy(name = remote.name, avatarId = remote.avatarId, createdAt = remote.createdAtMillis, maxAgeRating = remote.maxAgeRating))
+            }
         }
         val associated = profileDao.getAll()
         val knownRemoteIds = associated.mapNotNull { it.remoteId }.toSet()
@@ -36,7 +39,10 @@ class ProfileCloudReconciler @Inject constructor(
         ) {
             val update = api.updateProfile(
                 loneCloudProfile.id,
-                CstvProfileUpdateDto(firstLocalWithoutRemote.name, firstLocalWithoutRemote.avatarId)
+                com.google.gson.JsonObject().apply {
+                    addProperty("name", firstLocalWithoutRemote.name)
+                    addProperty("avatarId", firstLocalWithoutRemote.avatarId)
+                }
             )
             if (!update.isSuccessful) throw CstvException(errors.from(update))
             profileDao.setRemoteId(firstLocalWithoutRemote.id, loneCloudProfile.id)
@@ -44,7 +50,7 @@ class ProfileCloudReconciler @Inject constructor(
         val afterAutomaticMatch = profileDao.getAll()
         val remoteIdsAfterMatch = afterAutomaticMatch.mapNotNull { it.remoteId }.toSet()
         cloudProfiles.filterNot { it.id in remoteIdsAfterMatch }.forEach { remote ->
-            profileDao.insert(ProfileEntity(name = remote.name, avatarId = remote.avatarId, createdAt = remote.createdAtMillis, remoteId = remote.id))
+            profileDao.insert(ProfileEntity(name = remote.name, avatarId = remote.avatarId, createdAt = remote.createdAtMillis, remoteId = remote.id, maxAgeRating = remote.maxAgeRating))
         }
         profileDao.getAllWithoutRemoteId().forEach { profile ->
             val response = api.createProfile(CstvProfileCreateDto(profile.name, profile.avatarId))

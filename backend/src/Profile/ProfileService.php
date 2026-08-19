@@ -50,13 +50,15 @@ final readonly class ProfileService
     /** @param array<string, mixed> $changes @return array<string, mixed> */
     public function update(string $accountId, string $profileId, array $changes): array
     {
-        if (!array_key_exists('name', $changes) && !array_key_exists('avatarId', $changes)) {
+        $maxAgeRatingProvided = array_key_exists('maxAgeRating', $changes);
+        if (!array_key_exists('name', $changes) && !array_key_exists('avatarId', $changes) && !$maxAgeRatingProvided) {
             throw new ApiException(422, 'EMPTY_UPDATE', 'At least one profile field must be provided.');
         }
 
         $name = array_key_exists('name', $changes) ? Validator::profileName($changes['name']) : null;
         $avatarId = array_key_exists('avatarId', $changes) ? Validator::avatarId($changes['avatarId']) : null;
-        $profile = $this->profiles->updateOwned($profileId, $accountId, $name, $avatarId);
+        $maxAgeRating = $maxAgeRatingProvided ? Validator::maxAgeRating($changes['maxAgeRating']) : null;
+        $profile = $this->profiles->updateOwned($profileId, $accountId, $name, $avatarId, $maxAgeRatingProvided, $maxAgeRating);
         if ($profile === null) {
             throw new ApiException(404, 'PROFILE_NOT_FOUND', 'Profile was not found.');
         }

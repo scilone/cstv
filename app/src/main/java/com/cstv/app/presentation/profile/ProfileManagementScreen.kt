@@ -5,6 +5,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -165,8 +167,49 @@ fun ProfileManagementScreen(
                 }
                 editingProfile = null
             },
-            onDismiss = { editingProfile = null }
+            onDismiss = { editingProfile = null },
+            onAgeRatingChange = { newLevel -> viewModel.requestMaxAgeRatingChange(profile.id, newLevel) }
         )
+    }
+
+    // F44 : le changement de niveau reste modal au-dessus de l'écran de
+    // gestion (et de ProfileEditDialog, qui reste ouvert derrière) tant que le
+    // PIN n'est pas résolu ou annulé.
+    var showingPinReset by remember { mutableStateOf(false) }
+    state.pendingAgeRatingChange?.let { pending ->
+        if (pending.requiresPinCreation) {
+            com.cstv.app.presentation.components.ParentalPinCreationDialog(
+                onCreate = { pin -> viewModel.createDevicePinAndApplyPendingChange(pin) },
+                onDismiss = { viewModel.cancelAgeRatingChange() }
+            )
+        } else {
+            com.cstv.app.presentation.components.ParentalPinEntryDialog(
+                reason = null,
+                feedback = state.ageRatingChangeFeedback,
+                onSubmit = { pin -> viewModel.confirmAgeRatingChange(pin) },
+                onDismiss = { viewModel.cancelAgeRatingChange() },
+                onForgotPin = { showingPinReset = true }
+            )
+        }
+    }
+
+    if (showingPinReset) {
+        val resetViewModel: ParentalPinResetViewModel = androidx.hilt.navigation.compose.hiltViewModel()
+        val resetState by resetViewModel.state.collectAsStateWithLifecycle()
+        com.cstv.app.presentation.components.ParentalPinResetDialog(
+            state = resetState,
+            onStart = resetViewModel::start,
+            onSubmitOtp = resetViewModel::submitOtp,
+            onSubmitNewPin = resetViewModel::submitNewPin,
+            onDismiss = {
+                resetViewModel.cancel()
+                showingPinReset = false
+            }
+        )
+        if (resetState.completed) {
+            resetViewModel.consumeCompleted()
+            showingPinReset = false
+        }
     }
 }
 
@@ -312,7 +355,9 @@ private fun ProfileEditDialog(
     isAutoStart: Boolean,
     onSave: (name: String, avatarId: Int, autoStart: Boolean) -> Unit,
     onDelete: () -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    /** F44 : chaque changement de niveau passe par le PIN, indépendamment de "Enregistrer". */
+    onAgeRatingChange: (Int?) -> Unit = {}
 ) {
     var name by remember { mutableStateOf(profile.name) }
     var avatarId by remember { mutableStateOf(profile.avatarId) }
@@ -365,6 +410,33 @@ private fun ProfileEditDialog(
                         onCheckedChange = { autoStart = it },
                         colors = SwitchDefaults.colors(checkedTrackColor = AccentLavande)
                     )
+                }
+
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(stringResource(R.string.parental_age_rating_label), fontSize = 13.sp, color = Color.White)
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
+                    ) {
+                        // `null` = non bridé (aucune restriction) ; 0 = bridé sur "Tous publics"
+                        // (bloque tout ce qui est classifié au-dessus). Deux options distinctes,
+                        // jamais confondues (F44 §7.3/§8.1).
+                        val options = listOf(
+                            null to stringResource(R.string.parental_age_rating_none),
+                            0 to stringResource(R.string.parental_age_rating_option_all),
+                            10 to stringResource(R.string.parental_age_rating_option_10),
+                            12 to stringResource(R.string.parental_age_rating_option_12),
+                            16 to stringResource(R.string.parental_age_rating_option_16),
+                            18 to stringResource(R.string.parental_age_rating_option_18),
+                        )
+                        options.forEach { (value, label) ->
+                            FilterChip(
+                                selected = value == profile.maxAgeRating,
+                                onClick = { if (value != profile.maxAgeRating) onAgeRatingChange(value) },
+                                label = { Text(label, fontSize = 12.sp) }
+                            )
+                        }
+                    }
                 }
 
                 if (confirmingDelete) {

@@ -15,6 +15,7 @@ final class ProfilePresenter
             'id' => (string) $profile['id'],
             'name' => (string) $profile['name'],
             'avatarId' => (int) $profile['avatar_id'],
+            'maxAgeRating' => $profile['max_age_rating'] === null ? null : (int) $profile['max_age_rating'],
             'createdAt' => DateFormatter::iso8601((string) $profile['created_at']),
             'updatedAt' => DateFormatter::iso8601((string) $profile['updated_at']),
         ];
