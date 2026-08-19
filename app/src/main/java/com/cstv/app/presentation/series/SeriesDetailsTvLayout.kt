@@ -1,4 +1,5 @@
 package com.cstv.app.presentation.series
+import com.cstv.app.presentation.common.displayLabel
 
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
@@ -872,7 +873,7 @@ private fun TvSeriesMetadata(details: SeriesDetails, ageRating: com.cstv.app.dom
         }
         ageRating?.let {
             TvSeriesMetadataSeparator()
-            Text(stringResource(R.string.media_age_rating, it.value), color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 13.sp, fontFamily = HankenGrotesk)
+            Text(it.displayLabel(), color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 13.sp, fontFamily = HankenGrotesk)
         }
     }
 }

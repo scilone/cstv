@@ -60,6 +60,10 @@ class CstvAuthRepositoryImplTest {
     @Before
     fun setUp() {
         MockitoAnnotations.openMocks(this)
+        // Réplique du repli reconnexion (cf. CatalogSyncManagerImplTest) : sans stub,
+        // `network.isOnline` mocké renvoie `null` et la veille lancée dans `init` plante
+        // sur un thread réel, dont l'exception non captée pollue les tests suivants.
+        whenever(network.isOnline).thenReturn(kotlinx.coroutines.flow.MutableStateFlow(true))
         stateHolder = CstvSessionStateHolder()
         repository = CstvAuthRepositoryImpl(
             api = api,

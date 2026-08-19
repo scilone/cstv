@@ -1,4 +1,5 @@
 package com.cstv.app.presentation.vod
+import com.cstv.app.presentation.common.displayLabel
 
 import com.cstv.app.presentation.components.formatReleaseYear
 import com.cstv.app.presentation.components.ExpandableText
@@ -313,7 +314,7 @@ private fun MobileLayoutDetails(
             }
             ageRating?.let {
                 Text("  •  ", color = Color.DarkGray)
-                Text(stringResource(R.string.media_age_rating, it.value), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                Text(it.displayLabel(), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
             }
         }
 

@@ -11,7 +11,13 @@ import com.cstv.app.domain.repository.CstvAuthRepository
 import com.cstv.app.domain.util.TimeProvider
 import com.cstv.app.domain.network.NetworkMonitor
 import com.cstv.app.domain.repository.ProfileRepository
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -27,6 +33,33 @@ class CstvAuthRepositoryImpl @Inject constructor(
     private val profileCloudReconciler: ProfileCloudReconciler
 ) : CstvAuthRepository {
     override val sessionState: StateFlow<CstvSessionState> = stateHolder.state
+
+    // Scope de la durée de vie du singleton : la veille de reconnexion doit
+    // survivre à toute navigation.
+    private val repoScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    init { observeReconnections() }
+
+    /**
+     * `resolveSession()` n'est appelé qu'une fois au démarrage (VM de la
+     * porte CSTV). Si `NetworkMonitor` n'a pas encore validé la connexion à
+     * cet instant (cf. commentaire Philips dans `NetworkMonitorImpl`), la
+     * session reste figée sur `Offline` pour tout le reste de la session
+     * app même une fois le réseau réellement disponible — l'utilisateur
+     * voit alors "connexion internet requise" alors qu'il est en ligne.
+     * On revérifie donc dès que le réseau redevient validé.
+     */
+    @OptIn(FlowPreview::class)
+    private fun observeReconnections() {
+        repoScope.launch {
+            networkMonitor.isOnline
+                .debounce(RECONNECT_DEBOUNCE_MILLIS)
+                .collect { online ->
+                    if (!online) return@collect
+                    if (stateHolder.state.value is CstvSessionState.Offline) resolveSession()
+                }
+        }
+    }
     override suspend fun requestOtp(email: String): Result<Unit> = try {
         val result = api.requestOtp(CstvOtpRequestDto(email.trim()))
         if (result.isSuccessful) Result.success(Unit) else Result.failure(CstvException(errors.from(result)))
@@ -95,3 +128,5 @@ class CstvAuthRepositoryImpl @Inject constructor(
 }
 
 class CstvException(val cstvError: CstvError) : Exception(cstvError.toString())
+
+private const val RECONNECT_DEBOUNCE_MILLIS = 2_000L

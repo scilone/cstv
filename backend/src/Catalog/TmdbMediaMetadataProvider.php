@@ -52,23 +52,57 @@ final readonly class TmdbMediaMetadataProvider implements MediaMetadataProvider
         return ['id' => $kind . ':' . (int) $row['id'], 'kind' => $kind, 'title' => $title, 'originalTitle' => is_string($row['original_title'] ?? $row['original_name'] ?? null) ? ($row['original_title'] ?? $row['original_name']) : null, 'releaseYear' => $year, 'overview' => is_string($row['overview'] ?? null) ? $row['overview'] : null, 'rating' => is_numeric($row['vote_average'] ?? null) ? round((float) $row['vote_average'], 1) : null, 'posterUrl' => $image($row['poster_path'] ?? null, 'w500'), 'backdropUrl' => $image($row['backdrop_path'] ?? null, 'w780'), 'ageRatingFr' => $includeAgeRating ? $this->ageRatingFr($kind, (int) $row['id'], $locale) : null];
     }
 
+    /**
+     * FR est la source d'autorité. Quand TMDb n'a pas de certification FR
+     * (fréquent pour des œuvres hors France), on retombe sur US puis GB pour
+     * ne pas priver le contrôle parental d'une info disponible ailleurs.
+     * Absence totale d'info -> `null`, jamais `0` : `0` signifie « tout
+     * public confirmé », pas « inconnu » (règle défensive F44, §8.2).
+     */
     private function ageRatingFr(string $kind, int $id, string $locale): ?int
     {
         $response = $this->client->get(($kind === 'movie' ? 'movie' : 'tv') . '/' . $id . ($kind === 'movie' ? '/release_dates' : '/content_ratings'), ['language' => $locale]);
         $entries = $response['results'] ?? [];
         if (!is_array($entries)) return null;
-        foreach ($entries as $entry) {
-            if (!is_array($entry) || ($entry['iso_3166_1'] ?? null) !== 'FR') continue;
-            $raw = $kind === 'movie' ? ($entry['release_dates'][0]['certification'] ?? null) : ($entry['rating'] ?? null);
-            return match (is_string($raw) ? trim($raw) : '') {
-                '', 'TP', 'U', 'G' => 0,
+        foreach (['FR', 'US', 'GB'] as $country) {
+            foreach ($entries as $entry) {
+                if (!is_array($entry) || ($entry['iso_3166_1'] ?? null) !== $country) continue;
+                $raw = $kind === 'movie' ? ($entry['release_dates'][0]['certification'] ?? null) : ($entry['rating'] ?? null);
+                if (!is_string($raw) || trim($raw) === '') continue; // pas de certification renseignée pour ce pays
+                $mapped = $this->mapCertification($country, trim($raw));
+                if ($mapped !== null) return $mapped;
+            }
+        }
+        return null;
+    }
+
+    /** Convertit une certification pays vers l'échelle FR (0/10/12/16/18). */
+    private function mapCertification(string $country, string $certification): ?int
+    {
+        return match ($country) {
+            'FR' => match ($certification) {
+                'TP', 'U', 'G' => 0,
                 '10', '10+' => 10,
                 '12', '12+' => 12,
                 '16', '16+' => 16,
                 '18', '18+' => 18,
                 default => null,
-            };
-        }
-        return null;
+            },
+            'US' => match ($certification) {
+                'G', 'PG' => 0,
+                'PG-13' => 12,
+                'R' => 16,
+                'NC-17' => 18,
+                default => null,
+            },
+            'GB' => match ($certification) {
+                'U', 'PG' => 0,
+                '12', '12A' => 12,
+                '15' => 16,
+                '18', 'R18' => 18,
+                default => null,
+            },
+            default => null,
+        };
     }
 }

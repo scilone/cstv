@@ -1,4 +1,5 @@
 package com.cstv.app.presentation.vod
+import com.cstv.app.presentation.common.displayLabel
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -371,7 +372,7 @@ fun VodDetailsTvLayout(
                         }
                         ageRating?.let {
                             MetadataSeparator()
-                            Text(stringResource(R.string.media_age_rating, it.value), color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 13.sp, fontFamily = HankenGrotesk)
+                            Text(it.displayLabel(), color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 13.sp, fontFamily = HankenGrotesk)
                         }
                     }
 

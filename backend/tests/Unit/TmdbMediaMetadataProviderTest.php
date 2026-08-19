@@ -66,4 +66,75 @@ final class TmdbMediaMetadataProviderTest extends TestCase
 
         self::assertSame(16, $provider->match('series', 'Show', 2020, 'fr-FR')['ageRatingFr']);
     }
+
+    public function testMatchFallsBackToUsThenGbCertificationWhenFrIsMissing(): void
+    {
+        $provider = new TmdbMediaMetadataProvider(new TmdbClient('unused', static function (string $path): array {
+            return match ($path) {
+                'search/movie' => ['results' => [
+                    ['id' => 42, 'title' => 'Dune', 'release_date' => '2021-09-15'],
+                ]],
+                'movie/42/release_dates' => ['results' => [
+                    ['iso_3166_1' => 'DE', 'release_dates' => [['certification' => '12']]],
+                    ['iso_3166_1' => 'US', 'release_dates' => [['certification' => 'PG-13']]],
+                    ['iso_3166_1' => 'GB', 'release_dates' => [['certification' => '15']]],
+                ]],
+                default => self::fail('Unexpected TMDB route: ' . $path),
+            };
+        }));
+
+        self::assertSame(12, $provider->match('movie', 'Dune', 2021, 'fr-FR')['ageRatingFr']);
+    }
+
+    public function testMatchFallsBackToGbWhenFrAndUsAreMissing(): void
+    {
+        $provider = new TmdbMediaMetadataProvider(new TmdbClient('unused', static function (string $path): array {
+            return match ($path) {
+                'search/tv' => ['results' => [
+                    ['id' => 24, 'name' => 'Show', 'first_air_date' => '2020-01-01'],
+                ]],
+                'tv/24/content_ratings' => ['results' => [['iso_3166_1' => 'GB', 'rating' => '18']]],
+                default => self::fail('Unexpected TMDB route: ' . $path),
+            };
+        }));
+
+        self::assertSame(18, $provider->match('series', 'Show', 2020, 'fr-FR')['ageRatingFr']);
+    }
+
+    public function testMatchReturnsNullRatherThanZeroWhenFrentryHasNoCertification(): void
+    {
+        // Une entrée FR existe mais sans certification renseignée (TMDb la
+        // liste avec `certification: ''`) : ne doit jamais devenir 0 (« tout
+        // public confirmé ») ni bloquer le repli US/GB.
+        $provider = new TmdbMediaMetadataProvider(new TmdbClient('unused', static function (string $path): array {
+            return match ($path) {
+                'search/movie' => ['results' => [
+                    ['id' => 42, 'title' => 'Dune', 'release_date' => '2021-09-15'],
+                ]],
+                'movie/42/release_dates' => ['results' => [
+                    ['iso_3166_1' => 'FR', 'release_dates' => [['certification' => '']]],
+                ]],
+                default => self::fail('Unexpected TMDB route: ' . $path),
+            };
+        }));
+
+        self::assertNull($provider->match('movie', 'Dune', 2021, 'fr-FR')['ageRatingFr']);
+    }
+
+    public function testMatchReturnsNullWhenNoCountryHasACertification(): void
+    {
+        $provider = new TmdbMediaMetadataProvider(new TmdbClient('unused', static function (string $path): array {
+            return match ($path) {
+                'search/movie' => ['results' => [
+                    ['id' => 42, 'title' => 'Dune', 'release_date' => '2021-09-15'],
+                ]],
+                'movie/42/release_dates' => ['results' => [
+                    ['iso_3166_1' => 'DE', 'release_dates' => [['certification' => '12']]],
+                ]],
+                default => self::fail('Unexpected TMDB route: ' . $path),
+            };
+        }));
+
+        self::assertNull($provider->match('movie', 'Dune', 2021, 'fr-FR')['ageRatingFr']);
+    }
 }

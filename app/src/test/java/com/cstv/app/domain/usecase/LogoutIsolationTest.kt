@@ -58,6 +58,9 @@ class LogoutIsolationTest {
     @Before
     fun setUp() {
         MockitoAnnotations.openMocks(this)
+        // Voir CstvAuthRepositoryImplTest : sans stub, `network.isOnline` mocké renvoie
+        // `null` et la veille de reconnexion lancée dans `init` plante sur un thread réel.
+        whenever(network.isOnline).thenReturn(kotlinx.coroutines.flow.MutableStateFlow(true))
         stateHolder = CstvSessionStateHolder()
         cstvAuthRepository = CstvAuthRepositoryImpl(
             api = api,
