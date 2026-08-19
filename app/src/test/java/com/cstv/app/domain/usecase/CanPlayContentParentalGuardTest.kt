@@ -91,7 +91,10 @@ class CanPlayContentParentalGuardTest {
 
         val result = useCase("movie_42")
 
-        assertEquals(PlaybackAvailability.RequiresParentalPin(BlockReason.TOO_MATURE, "movie_42"), result)
+        assertEquals(
+            PlaybackAvailability.RequiresParentalPin(BlockReason.TOO_MATURE, "movie_42", AgeRating.SIXTEEN),
+            result
+        )
     }
 
     @Test
@@ -137,7 +140,10 @@ class CanPlayContentParentalGuardTest {
 
         val result = useCase("episode_99")
 
-        assertEquals(PlaybackAvailability.RequiresParentalPin(BlockReason.TOO_MATURE, "episode_99"), result)
+        assertEquals(
+            PlaybackAvailability.RequiresParentalPin(BlockReason.TOO_MATURE, "episode_99", AgeRating.SIXTEEN),
+            result
+        )
     }
 
     @Test
@@ -161,7 +167,10 @@ class CanPlayContentParentalGuardTest {
         useCase("movie_42", oneShotGrantNonce = nonce) // consomme le grant
 
         val secondAttempt = useCase("movie_42", oneShotGrantNonce = nonce)
-        assertEquals(PlaybackAvailability.RequiresParentalPin(BlockReason.TOO_MATURE, "movie_42"), secondAttempt)
+        assertEquals(
+            PlaybackAvailability.RequiresParentalPin(BlockReason.TOO_MATURE, "movie_42", AgeRating.SIXTEEN),
+            secondAttempt
+        )
     }
 
     @Test

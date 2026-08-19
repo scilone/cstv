@@ -34,7 +34,12 @@ sealed interface PlaybackAvailability {
      * autorisé (ou n'est pas classifiée). [mediaUid] identifie précisément le
      * média pour l'écran de saisie PIN et le grant one-shot émis à sa suite.
      */
-    data class RequiresParentalPin(val reason: BlockReason, val mediaUid: String) : PlaybackAvailability
+    data class RequiresParentalPin(
+        val reason: BlockReason,
+        val mediaUid: String,
+        /** Classification effectivement résolue par le contrôle parental. */
+        val classification: AgeRating? = null
+    ) : PlaybackAvailability
 }
 
 /**
@@ -109,7 +114,7 @@ class CanPlayContentUseCase @Inject constructor(
 
         val decision = parentalAccessPolicy.evaluate(maxAgeRating, classification, ParentalActionType.PLAY)
         return (decision as? AccessDecision.PinRequired)?.let {
-            PlaybackAvailability.RequiresParentalPin(it.reason, contentId)
+            PlaybackAvailability.RequiresParentalPin(it.reason, contentId, classification)
         }
     }
 

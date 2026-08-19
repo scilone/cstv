@@ -513,7 +513,12 @@ class VodViewModel @Inject constructor(
                     _state.update { it.copy(error = com.cstv.app.presentation.REAUTHENTICATION_MESSAGE) }
                 is com.cstv.app.domain.usecase.PlaybackAvailability.RequiresParentalPin -> {
                     pendingParentalOnAllowed = onAllowed
-                    _state.update { it.copy(parentalPinRequest = result) }
+                    _state.update {
+                        it.copy(
+                            ageRating = result.classification ?: it.ageRating,
+                            parentalPinRequest = result
+                        )
+                    }
                 }
             }
         }
