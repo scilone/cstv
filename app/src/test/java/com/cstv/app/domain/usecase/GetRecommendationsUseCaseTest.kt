@@ -103,13 +103,22 @@ class GetRecommendationsUseCaseTest {
         // Repo should only be called once so far
         verify(vodRepository, times(1)).getRecommendableVodItems()
 
-        // 3rd call for Profile 1 but 25 hours later -> cache expired
+        // 3rd call for Profile 1 but 25 hours later -> cache still fresh because TTL is 7 days
         useCase(currentTimeMs = 1000L + (25L * 3600 * 1000L))
+        verify(vodRepository, times(1)).getRecommendableVodItems()
+
+        // 4th call for Profile 1 but 8 days later -> cache expired
+        useCase(currentTimeMs = 1000L + (8L * 24 * 3600 * 1000L))
         verify(vodRepository, times(2)).getRecommendableVodItems()
 
-        // 4th call immediately, but for Profile 2 -> cache invalidate due to profile switch
+        // 5th call for Profile 2 -> since Profile 2 is not in cache, it must compute
         whenever(profileManager.currentProfileId()).thenReturn(2)
-        useCase(currentTimeMs = 1000L + (25L * 3600 * 1000L) + 10L)
+        useCase(currentTimeMs = 1000L + (8L * 24 * 3600 * 1000L) + 10L)
+        verify(vodRepository, times(3)).getRecommendableVodItems()
+
+        // 6th call for Profile 1 again -> Profile 1 cache is still preserved and within TTL! Should use cache
+        whenever(profileManager.currentProfileId()).thenReturn(1)
+        useCase(currentTimeMs = 1000L + (8L * 24 * 3600 * 1000L) + 20L)
         verify(vodRepository, times(3)).getRecommendableVodItems()
     }
 

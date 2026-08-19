@@ -17,6 +17,7 @@ import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -90,11 +91,19 @@ open class GetRecommendationsUseCase @Inject constructor(
 
     private val mutex = Mutex()
 
-    // Ecrits depuis le fil du moteur, lus depuis les appelants : `@Volatile`
-    // garantit la visibilite sans elargir la portee du verrou.
-    @Volatile private var cachedResult: RecommendationResult? = null
-    @Volatile private var cachedProfileId: Int = -1
-    @Volatile private var cacheTimestamp: Long = 0L
+    private data class CacheEntry(
+        val result: RecommendationResult,
+        val timestamp: Long,
+        val generation: Long
+    )
+
+    private val profileCaches = mutableMapOf<Int, CacheEntry>()
+
+    private class InvokeResult(
+        val computation: Deferred<RecommendationResult>?,
+        val generation: Long,
+        val cachedResult: RecommendationResult?
+    )
 
     /** Calcul en cours, partage par tous les appelants (voir [invoke]). */
     private var inFlight: Deferred<RecommendationResult>? = null
@@ -106,7 +115,7 @@ open class GetRecommendationsUseCase @Inject constructor(
      * nouveau calcul pour la nouvelle version.
      */
     private var cacheGeneration = 0L
-    private val TTL_MILLIS = 24L * 60 * 60 * 1000L
+    private val TTL_MILLIS = 7L * 24 * 60 * 60 * 1000L
     private val _invalidations = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val invalidations: SharedFlow<Unit> = _invalidations.asSharedFlow()
 
@@ -125,34 +134,35 @@ open class GetRecommendationsUseCase @Inject constructor(
     ): RecommendationResult {
         val currentProfileId = profileManager.currentProfileId()
 
-        val (computation, computationGeneration) = mutex.withLock {
-            val cached = cachedResult
+        val invokeResult = mutex.withLock {
+            val cached = profileCaches[currentProfileId]
             if (cached != null &&
-                cachedProfileId == currentProfileId &&
-                (currentTimeMs - cacheTimestamp) < TTL_MILLIS) {
+                (currentTimeMs - cached.timestamp) < TTL_MILLIS &&
+                cached.generation == cacheGeneration) {
                 com.cstv.app.di.IptvLog.d("RECO", "Serving recommendations from cache for profile $currentProfileId")
-                return@withLock null to cacheGeneration
+                return@withLock InvokeResult(null, cacheGeneration, cached.result)
             }
 
             val running = inFlight?.takeIf { it.isActive }
             if (running != null) {
-                running to cacheGeneration
+                InvokeResult(running, cacheGeneration, null)
             } else {
                 val generation = cacheGeneration
-                applicationScope
+                val computation = applicationScope
                     .async(recommendationDispatcher) { compute(currentProfileId, currentTimeMs, generation) }
                     .also {
                         inFlight = it
-                    } to generation
+                    }
+                InvokeResult(computation, generation, null)
             }
         }
-        if (computation == null) {
-            val cached = cachedResult ?: return RecommendationResult(emptyList(), emptyList())
+        if (invokeResult.computation == null) {
+            val cached = invokeResult.cachedResult ?: return RecommendationResult(emptyList(), emptyList())
             return withoutHiddenCategories(cached)
         }
 
-        val result = computation.await()
-        val mustRecompute = mutex.withLock { computationGeneration != cacheGeneration }
+        val result = invokeResult.computation.await()
+        val mustRecompute = mutex.withLock { invokeResult.generation != cacheGeneration }
         return if (mustRecompute) invoke(currentTimeMs) else result
     }
 
@@ -344,9 +354,11 @@ open class GetRecommendationsUseCase @Inject constructor(
     ) {
         mutex.withLock {
             if (generation != cacheGeneration) return
-            cachedProfileId = profileId
-            cacheTimestamp = timeMs
-            cachedResult = result
+            profileCaches[profileId] = CacheEntry(
+                result = result,
+                timestamp = timeMs,
+                generation = generation
+            )
         }
     }
 
@@ -375,10 +387,20 @@ open class GetRecommendationsUseCase @Inject constructor(
     open suspend fun invalidateCache() {
         mutex.withLock {
             cacheGeneration++
-            cachedProfileId = -1
-            cachedResult = null
+            profileCaches.clear()
         }
         _invalidations.emit(Unit)
+    }
+
+    open suspend fun warmUpCache() {
+        invalidateCache()
+        applicationScope.launch(recommendationDispatcher) {
+            try {
+                invoke()
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+            }
+        }
     }
 
     // Visible for existing tests.

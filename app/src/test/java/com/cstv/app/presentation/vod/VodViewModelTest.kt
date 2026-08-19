@@ -53,6 +53,7 @@ class VodViewModelTest {
     @Mock private lateinit var setMediaRatingUseCase: com.cstv.app.domain.usecase.SetMediaRatingUseCase
     @Mock private lateinit var getTrailerPreviewUseCase: GetTrailerPreviewUseCase
     @Mock private lateinit var invalidateTrailerPreviewUseCase: InvalidateTrailerPreviewUseCase
+    @Mock private lateinit var getRecommendationsUseCase: GetRecommendationsUseCase
 
     private val testDispatcher = StandardTestDispatcher()
     private lateinit var viewModel: VodViewModel
@@ -108,6 +109,7 @@ class VodViewModelTest {
             canPlayContentUseCase,
             getTrailerPreviewUseCase,
             invalidateTrailerPreviewUseCase,
+            getRecommendationsUseCase,
             testDispatcher
         )
         runCurrent()
@@ -132,7 +134,7 @@ class VodViewModelTest {
             getVodDetailsUseCase, getRelatedMoviesUseCase, savePlaybackPositionUseCase, credentialsManager,
             settingsManager, trackPreferenceRepository, categoryPreferenceRepository, vodRepository,
             removeFromContinueWatchingUseCase, mediaRatingRepository, setMediaRatingUseCase,
-            observeCatalogStatusUseCase, catalogSyncManager, canPlayContentUseCase, getTrailerPreviewUseCase, invalidateTrailerPreviewUseCase, testDispatcher)
+            observeCatalogStatusUseCase, catalogSyncManager, canPlayContentUseCase, getTrailerPreviewUseCase, invalidateTrailerPreviewUseCase, getRecommendationsUseCase, testDispatcher)
         runCurrent()
 
         viewModel.selectStreamId(42)
@@ -153,7 +155,7 @@ class VodViewModelTest {
             getVodDetailsUseCase, getRelatedMoviesUseCase, savePlaybackPositionUseCase, credentialsManager,
             settingsManager, trackPreferenceRepository, categoryPreferenceRepository, vodRepository,
             removeFromContinueWatchingUseCase, mediaRatingRepository, setMediaRatingUseCase,
-            observeCatalogStatusUseCase, catalogSyncManager, canPlayContentUseCase, getTrailerPreviewUseCase, invalidateTrailerPreviewUseCase, testDispatcher)
+            observeCatalogStatusUseCase, catalogSyncManager, canPlayContentUseCase, getTrailerPreviewUseCase, invalidateTrailerPreviewUseCase, getRecommendationsUseCase, testDispatcher)
         runCurrent()
 
         viewModel.selectStreamId(42)
@@ -175,7 +177,7 @@ class VodViewModelTest {
             getVodDetailsUseCase, getRelatedMoviesUseCase, savePlaybackPositionUseCase, credentialsManager,
             settingsManager, trackPreferenceRepository, categoryPreferenceRepository, vodRepository,
             removeFromContinueWatchingUseCase, mediaRatingRepository, setMediaRatingUseCase,
-            observeCatalogStatusUseCase, catalogSyncManager, canPlayContentUseCase, getTrailerPreviewUseCase, invalidateTrailerPreviewUseCase, testDispatcher)
+            observeCatalogStatusUseCase, catalogSyncManager, canPlayContentUseCase, getTrailerPreviewUseCase, invalidateTrailerPreviewUseCase, getRecommendationsUseCase, testDispatcher)
         runCurrent()
 
         viewModel.selectStreamId(42)
@@ -518,6 +520,6 @@ class VodViewModelTest {
         settingsManager, trackPreferenceRepository, categoryPreferenceRepository, vodRepository,
         removeFromContinueWatchingUseCase, mediaRatingRepository, setMediaRatingUseCase,
         observeCatalogStatusUseCase, catalogSyncManager, canPlayContentUseCase, getTrailerPreviewUseCase, invalidateTrailerPreviewUseCase,
-        testDispatcher
+        getRecommendationsUseCase, testDispatcher
     )
 }

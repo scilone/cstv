@@ -76,8 +76,20 @@ data class RecommendableVodProjection(
 interface VodDao {
 
     // --- Recommendations ---
-    @Query("SELECT streamId, categoryId, genre, actors, director, rating, added, releaseYear FROM vod_streams")
-    suspend fun getRecommendableVodStreams(): List<RecommendableVodProjection>
+    @Query("""
+        SELECT streamId, categoryId, genre, actors, director, rating, added, releaseYear 
+        FROM vod_streams 
+        WHERE categoryId NOT IN (
+            SELECT cr.providerCategoryId 
+            FROM category_preferences cp
+            JOIN category_refs cr ON cp.catUid = cr.catUid
+            WHERE cp.profileId = :profileId 
+              AND cr.accountKey = :accountKey 
+              AND cr.kind = 'vod' 
+              AND cp.hidden = 1
+        )
+    """)
+    suspend fun getRecommendableVodStreams(profileId: Int, accountKey: String): List<RecommendableVodProjection>
 
     // --- Categories ---
     @Query("SELECT * FROM vod_categories ORDER BY orderIndex ASC")

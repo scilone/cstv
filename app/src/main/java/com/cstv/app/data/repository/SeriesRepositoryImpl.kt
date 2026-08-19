@@ -711,8 +711,10 @@ class SeriesRepositoryImpl @Inject constructor(
         )
     }
 
-    override suspend fun getRecommendableSeriesItems(): List<com.cstv.app.domain.model.RecommendationEngine.RecommendableItem> =
-        seriesDao.getRecommendableSeriesStreams().map { projection ->
+    override suspend fun getRecommendableSeriesItems(): List<com.cstv.app.domain.model.RecommendationEngine.RecommendableItem> {
+        val profileId = profileManager.currentProfileId()
+        val accountKey = accountKeyProvider.current()
+        return seriesDao.getRecommendableSeriesStreams(profileId, accountKey).map { projection ->
             com.cstv.app.domain.model.RecommendationEngine.RecommendableSeries(
                 uniqueId = projection.seriesId.toString(),
                 genres = projection.genre,
@@ -724,6 +726,7 @@ class SeriesRepositoryImpl @Inject constructor(
                 director = projection.director
             )
         }
+    }
 
     override suspend fun getStreamsByIds(seriesIds: List<Int>): List<SeriesStream> =
         seriesDao.getStreamsByIds(seriesIds).map { it.toDomain() }

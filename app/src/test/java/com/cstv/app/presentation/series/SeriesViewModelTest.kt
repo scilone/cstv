@@ -55,6 +55,7 @@ class SeriesViewModelTest {
     @Mock private lateinit var getTrailerPreviewUseCase: GetTrailerPreviewUseCase
     @Mock private lateinit var seriesVersionPreferenceRepository: com.cstv.app.domain.repository.SeriesVersionPreferenceRepository
     @Mock private lateinit var invalidateTrailerPreviewUseCase: InvalidateTrailerPreviewUseCase
+    @Mock private lateinit var getRecommendationsUseCase: GetRecommendationsUseCase
 
     private val testDispatcher = StandardTestDispatcher()
     private lateinit var viewModel: SeriesViewModel
@@ -110,6 +111,7 @@ class SeriesViewModelTest {
             canPlayContentUseCase,
             getTrailerPreviewUseCase,
             invalidateTrailerPreviewUseCase,
+            getRecommendationsUseCase,
             testDispatcher
         )
         runCurrent()
@@ -134,7 +136,7 @@ class SeriesViewModelTest {
             getSeriesDetailsUseCase, getRelatedSeriesUseCase, savePlaybackPositionUseCase, credentialsManager,
             settingsManager, trackPreferenceRepository, categoryPreferenceRepository, vodRepository, seriesRepository,
             removeFromContinueWatchingUseCase, mediaRatingRepository, setMediaRatingUseCase,
-            observeCatalogStatusUseCase, catalogSyncManager, canPlayContentUseCase, getTrailerPreviewUseCase, invalidateTrailerPreviewUseCase, testDispatcher)
+            observeCatalogStatusUseCase, catalogSyncManager, canPlayContentUseCase, getTrailerPreviewUseCase, invalidateTrailerPreviewUseCase, getRecommendationsUseCase, testDispatcher)
         runCurrent()
 
         viewModel.selectStreamId(42)
@@ -155,7 +157,7 @@ class SeriesViewModelTest {
             getSeriesDetailsUseCase, getRelatedSeriesUseCase, savePlaybackPositionUseCase, credentialsManager,
             settingsManager, trackPreferenceRepository, categoryPreferenceRepository, vodRepository, seriesRepository,
             removeFromContinueWatchingUseCase, mediaRatingRepository, setMediaRatingUseCase,
-            observeCatalogStatusUseCase, catalogSyncManager, canPlayContentUseCase, getTrailerPreviewUseCase, invalidateTrailerPreviewUseCase, testDispatcher)
+            observeCatalogStatusUseCase, catalogSyncManager, canPlayContentUseCase, getTrailerPreviewUseCase, invalidateTrailerPreviewUseCase, getRecommendationsUseCase, testDispatcher)
         runCurrent()
 
         viewModel.selectStreamId(42)
@@ -177,7 +179,7 @@ class SeriesViewModelTest {
             getSeriesDetailsUseCase, getRelatedSeriesUseCase, savePlaybackPositionUseCase, credentialsManager,
             settingsManager, trackPreferenceRepository, categoryPreferenceRepository, vodRepository, seriesRepository,
             removeFromContinueWatchingUseCase, mediaRatingRepository, setMediaRatingUseCase,
-            observeCatalogStatusUseCase, catalogSyncManager, canPlayContentUseCase, getTrailerPreviewUseCase, invalidateTrailerPreviewUseCase, testDispatcher)
+            observeCatalogStatusUseCase, catalogSyncManager, canPlayContentUseCase, getTrailerPreviewUseCase, invalidateTrailerPreviewUseCase, getRecommendationsUseCase, testDispatcher)
         runCurrent()
 
         viewModel.selectStreamId(42)
@@ -198,6 +200,7 @@ class SeriesViewModelTest {
             settingsManager, trackPreferenceRepository, categoryPreferenceRepository, vodRepository, seriesRepository,
             removeFromContinueWatchingUseCase, mediaRatingRepository, setMediaRatingUseCase,
             observeCatalogStatusUseCase, catalogSyncManager, canPlayContentUseCase, getTrailerPreviewUseCase, invalidateTrailerPreviewUseCase,
+            getRecommendationsUseCase,
             testDispatcher
         )
         runCurrent()
@@ -242,6 +245,7 @@ class SeriesViewModelTest {
             settingsManager, trackPreferenceRepository, categoryPreferenceRepository, vodRepository, seriesRepository,
             removeFromContinueWatchingUseCase, mediaRatingRepository, setMediaRatingUseCase,
             observeCatalogStatusUseCase, catalogSyncManager, canPlayContentUseCase, getTrailerPreviewUseCase, invalidateTrailerPreviewUseCase,
+            getRecommendationsUseCase,
             testDispatcher
         )
         runCurrent()
@@ -284,7 +288,7 @@ class SeriesViewModelTest {
             getSeriesDetailsUseCase, getRelatedSeriesUseCase, savePlaybackPositionUseCase, credentialsManager,
             settingsManager, trackPreferenceRepository, categoryPreferenceRepository, vodRepository, seriesRepository,
             removeFromContinueWatchingUseCase, mediaRatingRepository, setMediaRatingUseCase,
-            observeCatalogStatusUseCase, catalogSyncManager, canPlayContentUseCase, getTrailerPreviewUseCase, invalidateTrailerPreviewUseCase, testDispatcher)
+            observeCatalogStatusUseCase, catalogSyncManager, canPlayContentUseCase, getTrailerPreviewUseCase, invalidateTrailerPreviewUseCase, getRecommendationsUseCase, testDispatcher)
         runCurrent()
 
         verify(catalogSyncManager).syncIfStale()
@@ -300,7 +304,7 @@ class SeriesViewModelTest {
             getSeriesDetailsUseCase, getRelatedSeriesUseCase, savePlaybackPositionUseCase, credentialsManager,
             settingsManager, trackPreferenceRepository, categoryPreferenceRepository, vodRepository, seriesRepository,
             removeFromContinueWatchingUseCase, mediaRatingRepository, setMediaRatingUseCase,
-            observeCatalogStatusUseCase, catalogSyncManager, canPlayContentUseCase, getTrailerPreviewUseCase, invalidateTrailerPreviewUseCase, testDispatcher)
+            observeCatalogStatusUseCase, catalogSyncManager, canPlayContentUseCase, getTrailerPreviewUseCase, invalidateTrailerPreviewUseCase, getRecommendationsUseCase, testDispatcher)
         runCurrent()
 
         verify(catalogSyncManager).syncIfStale()
@@ -546,6 +550,7 @@ class SeriesViewModelTest {
         removeFromContinueWatchingUseCase, mediaRatingRepository, setMediaRatingUseCase,
         observeCatalogStatusUseCase, catalogSyncManager, canPlayContentUseCase, getTrailerPreviewUseCase,
         invalidateTrailerPreviewUseCase,
+        getRecommendationsUseCase,
         testDispatcher,
         markPlaybackSyncUseCase = null,
         requestPlaybackLockUseCase = null,
@@ -563,6 +568,7 @@ class SeriesViewModelTest {
         removeFromContinueWatchingUseCase, mediaRatingRepository, setMediaRatingUseCase,
         observeCatalogStatusUseCase, catalogSyncManager, canPlayContentUseCase, getTrailerPreviewUseCase,
         invalidateTrailerPreviewUseCase,
+        getRecommendationsUseCase,
         testDispatcher
     )
 }

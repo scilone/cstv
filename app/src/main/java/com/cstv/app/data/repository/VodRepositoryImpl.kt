@@ -710,8 +710,10 @@ class VodRepositoryImpl @Inject constructor(
     override suspend fun getContainerExtension(streamId: Int): String? =
         vodDao.getStreamById(streamId)?.containerExtension
 
-    override suspend fun getRecommendableVodItems(): List<com.cstv.app.domain.model.RecommendationEngine.RecommendableItem> =
-        vodDao.getRecommendableVodStreams().map { projection ->
+    override suspend fun getRecommendableVodItems(): List<com.cstv.app.domain.model.RecommendationEngine.RecommendableItem> {
+        val profileId = profileManager.currentProfileId()
+        val accountKey = accountKeyProvider.current()
+        return vodDao.getRecommendableVodStreams(profileId, accountKey).map { projection ->
             com.cstv.app.domain.model.RecommendationEngine.RecommendableVod(
                 uniqueId = projection.streamId.toString(),
                 genres = projection.genre,
@@ -723,6 +725,7 @@ class VodRepositoryImpl @Inject constructor(
                 director = projection.director
             )
         }
+    }
 
     override suspend fun getStreamsByIds(streamIds: List<Int>): List<VodStream> =
         vodDao.getStreamsByIds(streamIds).map { it.toDomain() }

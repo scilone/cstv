@@ -18,6 +18,7 @@ import com.cstv.app.domain.usecase.GetRelatedMoviesUseCase
 import com.cstv.app.domain.usecase.GetVodStreamsUseCase
 import com.cstv.app.domain.usecase.SavePlaybackPositionUseCase
 import com.cstv.app.domain.usecase.RemoveFromContinueWatchingUseCase
+import com.cstv.app.domain.usecase.GetRecommendationsUseCase
 import com.cstv.app.domain.model.PlaybackPosition
 import dagger.hilt.android.lifecycle.HiltViewModel
 import androidx.paging.PagingData
@@ -63,6 +64,7 @@ class VodViewModel @Inject constructor(
     private val canPlayContentUseCase: com.cstv.app.domain.usecase.CanPlayContentUseCase,
     private val getTrailerPreviewUseCase: GetTrailerPreviewUseCase,
     private val invalidateTrailerPreviewUseCase: com.cstv.app.domain.usecase.InvalidateTrailerPreviewUseCase,
+    private val getRecommendationsUseCase: GetRecommendationsUseCase,
     @com.cstv.app.di.DefaultDispatcher
     private val computationDispatcher: kotlinx.coroutines.CoroutineDispatcher,
     private val markPlaybackSyncUseCase: com.cstv.app.domain.usecase.MarkPlaybackSyncUseCase? = null,
@@ -673,6 +675,21 @@ class VodViewModel @Inject constructor(
     /** Called only from the player lifecycle: start, pause and natural end. */
     fun markPlaybackForCloud() {
         viewModelScope.launch { markPlaybackSyncUseCase?.invoke() }
+    }
+
+    fun triggerRecommendationWarmupIfNewMedia(streamId: Int) {
+        viewModelScope.launch {
+            try {
+                val hasPosition = vodRepository.getAllPlaybackPositions().any {
+                    it.streamId == streamId && it.type == com.cstv.app.domain.model.MediaKind.MOVIE.storageValue
+                }
+                if (!hasPosition) {
+                    getRecommendationsUseCase.warmUpCache()
+                }
+            } catch (e: Exception) {
+                // Ignore errors to ensure completely robust playback launch
+            }
+        }
     }
 
     fun getCredentials(): Credentials? {

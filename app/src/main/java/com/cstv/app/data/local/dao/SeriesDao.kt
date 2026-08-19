@@ -28,8 +28,20 @@ data class RecommendableSeriesProjection(
 interface SeriesDao {
 
     // --- Recommendations ---
-    @Query("SELECT seriesId, categoryId, genre, actors, director, rating, added, releaseYear FROM series_streams")
-    suspend fun getRecommendableSeriesStreams(): List<RecommendableSeriesProjection>
+    @Query("""
+        SELECT seriesId, categoryId, genre, actors, director, rating, added, releaseYear 
+        FROM series_streams 
+        WHERE categoryId NOT IN (
+            SELECT cr.providerCategoryId 
+            FROM category_preferences cp
+            JOIN category_refs cr ON cp.catUid = cr.catUid
+            WHERE cp.profileId = :profileId 
+              AND cr.accountKey = :accountKey 
+              AND cr.kind = 'series' 
+              AND cp.hidden = 1
+        )
+    """)
+    suspend fun getRecommendableSeriesStreams(profileId: Int, accountKey: String): List<RecommendableSeriesProjection>
 
     // --- Categories ---
     @Query("SELECT * FROM series_categories ORDER BY orderIndex ASC")

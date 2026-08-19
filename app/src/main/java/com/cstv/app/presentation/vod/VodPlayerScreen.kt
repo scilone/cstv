@@ -166,6 +166,10 @@ fun VodPlayerScreen(
     val lockUi by viewModel.playbackLockUiState.collectAsStateWithLifecycle()
     val currentLockUi by rememberUpdatedState(lockUi)
     LaunchedEffect(lockUi.takenOverBy) { if (lockUi.takenOverBy != null) exoPlayer.stop() }
+    
+    LaunchedEffect(details.streamId) {
+        viewModel.triggerRecommendationWarmupIfNewMedia(details.streamId)
+    }
 
     var isPlayerVisible by remember { mutableStateOf(true) }
     var isLeaving by remember { mutableStateOf(false) }
