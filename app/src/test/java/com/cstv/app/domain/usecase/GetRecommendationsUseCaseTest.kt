@@ -12,8 +12,10 @@ import com.cstv.app.domain.repository.SeriesRepository
 import com.cstv.app.domain.repository.VodRepository
 import com.cstv.app.data.local.storage.ProfileManager
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -109,6 +111,54 @@ class GetRecommendationsUseCaseTest {
         whenever(profileManager.currentProfileId()).thenReturn(2)
         useCase(currentTimeMs = 1000L + (25L * 3600 * 1000L) + 10L)
         verify(vodRepository, times(3)).getRecommendableVodItems()
+    }
+
+    @Test
+    fun concurrentCalls_shareOneInFlightComputation() = runTest {
+        val vodRepository = mock<VodRepository>()
+        val seriesRepository = mock<SeriesRepository>()
+        val categoryPreferenceRepository = mock<CategoryPreferenceRepository>()
+        val profileManager = mock<ProfileManager>()
+        val mediaRatingRepository = mock<com.cstv.app.domain.repository.MediaRatingRepository>()
+        val favoritesRepository = mock<com.cstv.app.domain.repository.FavoritesRepository>()
+
+        whenever(profileManager.currentProfileId()).thenReturn(1)
+        whenever(mediaRatingRepository.getAllRatings()).thenReturn(emptyList())
+        whenever(favoritesRepository.observeFavorites()).thenReturn(flowOf(emptyList()))
+        whenever(vodRepository.getAllPlaybackPositions()).thenReturn(
+            listOf(
+                PlaybackPosition(1, 1L, 10L, 0L, type = "movie"),
+                PlaybackPosition(2, 1L, 10L, 0L, type = "movie"),
+                PlaybackPosition(3, 1L, 10L, 0L, type = "movie")
+            )
+        )
+        whenever(categoryPreferenceRepository.getPreferences(any())).thenReturn(emptyMap())
+        whenever(vodRepository.getRecommendableVodItems()).thenAnswer {
+            Thread.sleep(50L)
+            emptyList<com.cstv.app.domain.model.RecommendationEngine.RecommendableItem>()
+        }
+        whenever(seriesRepository.getRecommendableSeriesItems()).thenAnswer {
+            Thread.sleep(50L)
+            emptyList<com.cstv.app.domain.model.RecommendationEngine.RecommendableItem>()
+        }
+
+        val useCase = GetRecommendationsUseCase(
+            vodRepository,
+            seriesRepository,
+            categoryPreferenceRepository,
+            profileManager,
+            mediaRatingRepository,
+            favoritesRepository,
+            CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        )
+
+        val first = async { useCase(currentTimeMs = 1_000L) }
+        val second = async { useCase(currentTimeMs = 1_000L) }
+        first.await()
+        second.await()
+
+        verify(vodRepository, times(1)).getRecommendableVodItems()
+        verify(seriesRepository, times(1)).getRecommendableSeriesItems()
     }
 
     @Test

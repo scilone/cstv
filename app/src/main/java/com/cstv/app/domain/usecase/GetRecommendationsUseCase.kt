@@ -14,7 +14,9 @@ import com.cstv.app.domain.model.RatedMediaType
 import com.cstv.app.data.local.storage.ProfileManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -223,18 +225,24 @@ open class GetRecommendationsUseCase @Inject constructor(
 
             // 2. Fetch lightweight projections
             val catalogAt = System.nanoTime()
-            val allMovies = try {
-                vodRepository.getRecommendableVodItems()
-            } catch (e: Exception) {
-                if (e is CancellationException) throw e
-                emptyList()
-            }
-
-            val allSeries = try {
-                seriesRepository.getRecommendableSeriesItems()
-            } catch (e: Exception) {
-                if (e is CancellationException) throw e
-                emptyList()
+            val (allMovies, allSeries) = coroutineScope {
+                val movies = async(Dispatchers.IO) {
+                    try {
+                        vodRepository.getRecommendableVodItems()
+                    } catch (e: Exception) {
+                        if (e is CancellationException) throw e
+                        emptyList()
+                    }
+                }
+                val series = async(Dispatchers.IO) {
+                    try {
+                        seriesRepository.getRecommendableSeriesItems()
+                    } catch (e: Exception) {
+                        if (e is CancellationException) throw e
+                        emptyList()
+                    }
+                }
+                movies.await() to series.await()
             }
             com.cstv.app.di.IptvLog.d(
                 "PERF",
