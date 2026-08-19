@@ -1061,4 +1061,31 @@ internal fun migration33To34Statements(): List<String> = listOf(
         "qualityTag = NULL, qualityRaw = NULL, versionLabel = NULL"
 )
 
-val ALL_MIGRATIONS = arrayOf(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33, MIGRATION_33_34)
+/**
+ * Correctif hotfix (2026-08-19) : même mécanisme que 33→34. `MediaTitleParser`
+ * corrige `leadingPipeTagBlock` (regex de bloc de tags de tête débordant sur un
+ * `|` réapparu plus loin dans le titre, ex. `|4K-DV| ... (VO|STFR)`, avalait le
+ * titre entier dans `versionLabel`/`cleanTitle`) — mais les lignes déjà
+ * normalisées (`linkKey` non vide) ne sont jamais retraitées par
+ * `CatalogNormalizationWorker` (`WHERE linkKey = ''`), et `getVodDetails`/
+ * `getSeriesDetails` servent la fiche depuis le cache local tant que
+ * `detailsCachedAt` est frais (TTL 7 jours) : revisiter la fiche d'un titre
+ * déjà mis en cache ne déclenche donc aucun réseau ni reparsing. Vider
+ * `linkKey`/`cleanTitle`/tags fait retomber ces lignes dans la file de
+ * `CatalogNormalizationWorker`, qui reparse `name` (déjà en base, aucun appel
+ * réseau nécessaire).
+ */
+val MIGRATION_34_35 = object : Migration(34, 35) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        migration34To35Statements().forEach(db::execSQL)
+    }
+}
+
+internal fun migration34To35Statements(): List<String> = listOf(
+    "UPDATE vod_streams SET cleanTitle = '', linkKey = '', languageTag = NULL, languageRaw = NULL, " +
+        "qualityTag = NULL, qualityRaw = NULL, versionLabel = NULL",
+    "UPDATE series_streams SET cleanTitle = '', linkKey = '', languageTag = NULL, languageRaw = NULL, " +
+        "qualityTag = NULL, qualityRaw = NULL, versionLabel = NULL"
+)
+
+val ALL_MIGRATIONS = arrayOf(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33, MIGRATION_33_34, MIGRATION_34_35)
