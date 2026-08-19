@@ -3,10 +3,13 @@
 ## Informations générales
 
 Status:
-VALIDATED
+RELEASED
 
-Created:
-2026-08-15
+Version:
+v1.89.0
+
+Date:
+2026-08-19
 
 Dépendances:
 T22 (classification d'âge servie par le backend) — bloquant.
