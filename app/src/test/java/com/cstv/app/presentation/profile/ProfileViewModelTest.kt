@@ -182,6 +182,33 @@ class ProfileViewModelTest {
         verify(profileRepository, never()).renameProfile(any(), any())
     }
 
+    /**
+     * Hotfix : `NetworkMonitor` (capacité `VALIDATED`) peut battre quelques
+     * secondes sur certains boîtiers TV, et la veille de reconnexion de
+     * `CstvAuthRepositoryImpl` absorbe ces micro-coupures en quelques
+     * secondes. Sans débounce ici, chaque battement affichait "connexion
+     * internet requise" à l'utilisateur alors qu'il était bien en ligne, y
+     * compris sans avoir touché à rien (bandeau proactif). Un flottement bref
+     * qui se résout tout seul avant la fenêtre de débounce ne doit jamais
+     * afficher le bandeau.
+     */
+    @Test
+    fun test_briefOfflineBlip_thatSelfResolvesBeforeDebounce_neverShowsTheMessage() = runTest {
+        val session = CstvSession("token", "account", "mail@example.test", Long.MAX_VALUE)
+        val account = com.cstv.app.domain.model.CstvAccount("account", "mail@example.test", true, Long.MAX_VALUE, emptyList())
+        val sessionFlow = MutableStateFlow<CstvSessionState>(CstvSessionState.Active(account))
+        whenever(cstvAuthRepository.sessionState).thenReturn(sessionFlow)
+        val viewModel = buildViewModel(cstvRepository = cstvAuthRepository)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        sessionFlow.value = CstvSessionState.Offline(session)
+        testDispatcher.scheduler.advanceTimeBy(500)
+        sessionFlow.value = CstvSessionState.Active(account)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(null, viewModel.state.value.profileActionErrorRes)
+    }
+
     // T19-R4/T19: T14's backend quota rejections must reach the user as their dedicated
     // message, not the generic "action failed" fallback -- proven end to end through the
     // real exception mapping in ProfileViewModel, not just CstvErrorMapperTest in isolation.

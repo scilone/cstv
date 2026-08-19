@@ -11,12 +11,19 @@ import com.cstv.app.domain.model.CstvSessionState
 import com.cstv.app.R
 import androidx.annotation.StringRes
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+
+/** Aligné sur RECONNECT_DEBOUNCE_MILLIS de CstvAuthRepositoryImpl : laisse le
+ *  temps à la veille de reconnexion de résorber une micro-coupure avant
+ *  d'alarmer l'utilisateur avec le bandeau "connexion internet requise". */
+private const val OFFLINE_MESSAGE_DEBOUNCE_MILLIS = 2_000L
 
 data class ProfileUiState(
     val profiles: List<Profile> = emptyList(),
@@ -41,6 +48,7 @@ data class PendingAgeRatingChange(val profileId: Int, val newMaxAgeRating: Int?,
  * ViewModel partagé pour la sélection de profil (après login) et la gestion des
  * profils (Paramètres). Phase 27.
  */
+@OptIn(FlowPreview::class)
 @HiltViewModel
 class ProfileViewModel @Inject constructor(
     private val profileRepository: ProfileRepository,
@@ -66,19 +74,28 @@ class ProfileViewModel @Inject constructor(
             }
         }
         cstvAuthRepository?.let { repository ->
+            // Boutons Modifier/Ajouter : suivent l'état en direct, sans délai —
+            // un profil grisé qui reste cliquable une seconde de trop serait pire
+            // qu'un profil qui se dégrise vite si la connexion revient.
             viewModelScope.launch {
                 repository.sessionState.collect { session ->
-                    _state.update {
-                        it.copy(
-                            cloudCrudEnabled = session is CstvSessionState.Active,
-                            profileActionErrorRes = if (session is CstvSessionState.Offline) {
-                                R.string.profile_cloud_offline
-                            } else {
-                                it.profileActionErrorRes
-                            }
-                        )
-                    }
+                    _state.update { it.copy(cloudCrudEnabled = session is CstvSessionState.Active) }
                 }
+            }
+            // Bandeau d'erreur : débouncé. `NetworkMonitor` (capacité `VALIDATED`)
+            // peut battre plusieurs secondes sur certains boîtiers TV (cf.
+            // NetworkMonitorImpl) et la veille de reconnexion de
+            // CstvAuthRepositoryImpl absorbe déjà ces micro-coupures — sans ce
+            // délai, l'utilisateur en ligne voyait "connexion internet requise"
+            // clignoter à chaque flottement, avant que ça ne se résolve tout seul.
+            viewModelScope.launch {
+                repository.sessionState
+                    .debounce(OFFLINE_MESSAGE_DEBOUNCE_MILLIS)
+                    .collect { session ->
+                        if (session is CstvSessionState.Offline) {
+                            _state.update { it.copy(profileActionErrorRes = R.string.profile_cloud_offline) }
+                        }
+                    }
             }
         }
     }
