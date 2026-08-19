@@ -93,6 +93,20 @@ class MediaTitleParserTest {
     }
 
     @Test
+    fun `leading pipe tag block does not swallow a later unrelated pipe inside the title`() {
+        val parsed = MediaTitleParser.parse(
+            "|4K-DV| Dragon ball super: super hero (VO|STFR)",
+            MediaTitleKind.VOD,
+            providerId = 4
+        )
+
+        assertEquals(MediaQuality.UHD_4K, parsed.quality)
+        assertEquals(MediaLanguage.VO, parsed.language)
+        assertEquals("4K-DV · VO · STFR", parsed.versionLabel)
+        assertEquals("Dragon ball super: super hero", parsed.cleanTitle)
+    }
+
+    @Test
     fun `standalone STFR is kept literal in versionLabel, not remapped to VOSTFR`() {
         val parsed = MediaTitleParser.parse("|STFR| Supergirl", MediaTitleKind.SERIES, providerId = 3)
 

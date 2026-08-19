@@ -52,7 +52,11 @@ object MediaTitleParser {
     private val whitespace = Regex("\\s+")
     private val year = Regex("(?:19|20)\\d{2}")
     private val yearWithDelimiters = Regex("[(\\[{]?\\s*(?:19|20)\\d{2}\\s*[)\\]}]?")
-    private val emptyBrackets = Regex("[\\[({]\\s*[\\])}]")
+    // Bug 2026-08-19 : après retrait des tokens reconnus (ex. `VO`/`STFR` dans `(VO|STFR)`), le
+    // séparateur `|` qui les liait restait seul entre les crochets (`(|)`) — la regex d'origine ne
+    // couvrait que des crochets strictement vides (espace uniquement), pas ceux ne contenant plus
+    // que des séparateurs de tags résiduels.
+    private val emptyBrackets = Regex("[\\[({]\\s*[|_+/.:\\-]*\\s*[\\])}]")
     private val trailingSeparator = Regex("\\s+[|_+/.:\\-]+(?=\\s*$)")
     // Symétrique de `trailingSeparator` côté début de chaîne : un tag retiré en tête
     // (ex. `|FR|`, `|VO|STFR|`) ne laisse jamais les séparateurs `|` orphelins visibles.
@@ -68,7 +72,12 @@ object MediaTitleParser {
     // Un seul `|` d'ouverture, puis N répétitions de « contenu-sans-pipe suivi d'un `|` » : les
     // tags consécutifs du catalogue partagent leurs pipes (`|VO|STFR|` = 3 `|` pour 2 tags), donc
     // chaque répétition ne peut pas exiger son propre `|` d'ouverture.
-    private val leadingPipeTagBlock = Regex("^\\s*\\|(?:[^|]*\\|)+")
+    // Bug 2026-08-19 : `[^|]*` (autorisant les espaces) laissait le bloc déborder sur un `|`
+    // réapparu plus loin dans le titre lui-même (ex. `|4K-DV| ... (VO|STFR)`), avalant tout le
+    // texte entre les deux pipes comme si c'était un tag — chaque segment de tag du catalogue
+    // est un seul token sans espace (`4K-DV`, `VOSTFR`, `AR-CAM`…), donc `[^|\\s]*` borne
+    // correctement la répétition sans pouvoir traverser un espace.
+    private val leadingPipeTagBlock = Regex("^\\s*\\|(?:[^|\\s]*\\|)+")
     private val pipePair = Regex("\\|[^|]*\\|")
     private val bracketedGroup = Regex("[(\\[{][^)\\]}]*[)\\]}]")
     private val leadingBracketTagBlock = Regex("^\\s*\\[[^\\]]+\\]")
