@@ -76,6 +76,7 @@ fun SettingsScreen(
                 onSyncFrequencyChanged = { viewModel.updateSyncFrequency(it) },
                 onForceSyncNow = { viewModel.forceSyncNow() },
                 onLiveQualityModeChanged = { viewModel.updateLiveQualityModeDefault(it) },
+                onAutoPlayNextEpisodeChanged = { viewModel.updateAutoPlayNextEpisode(it) },
                 onSubtitleSizeChanged = { viewModel.updateSubtitleSize(it) },
                 onSubtitleColorChanged = { viewModel.updateSubtitleColor(it) },
                 onSubtitleBackgroundChanged = { viewModel.updateSubtitleBackground(it) },
@@ -96,6 +97,7 @@ fun SettingsScreen(
                 onSyncFrequencyChanged = { viewModel.updateSyncFrequency(it) },
                 onForceSyncNow = { viewModel.forceSyncNow() },
                 onLiveQualityModeChanged = { viewModel.updateLiveQualityModeDefault(it) },
+                onAutoPlayNextEpisodeChanged = { viewModel.updateAutoPlayNextEpisode(it) },
                 onSubtitleSizeChanged = { viewModel.updateSubtitleSize(it) },
                 onSubtitleColorChanged = { viewModel.updateSubtitleColor(it) },
                 onSubtitleBackgroundChanged = { viewModel.updateSubtitleBackground(it) },
@@ -211,6 +213,7 @@ private fun TvSettingsLayout(
     onSyncFrequencyChanged: (SyncFrequency) -> Unit,
     onForceSyncNow: () -> Unit,
     onLiveQualityModeChanged: (Boolean) -> Unit,
+    onAutoPlayNextEpisodeChanged: (Boolean) -> Unit,
     onSubtitleSizeChanged: (SubtitleTextSize) -> Unit,
     onSubtitleColorChanged: (SubtitleTextColor) -> Unit,
     onSubtitleBackgroundChanged: (SubtitleBackground) -> Unit,
@@ -265,6 +268,11 @@ private fun TvSettingsLayout(
         TvLiveQualityCard(
             enabled = state.liveQualityModeDefault,
             onEnabledChanged = onLiveQualityModeChanged
+        )
+
+        TvAutoPlayNextEpisodeCard(
+            enabled = state.autoPlayNextEpisode,
+            onEnabledChanged = onAutoPlayNextEpisodeChanged
         )
 
         TvSubtitleStyleCard(
@@ -468,6 +476,7 @@ private fun MobileSettingsLayout(
     onSyncFrequencyChanged: (SyncFrequency) -> Unit,
     onForceSyncNow: () -> Unit,
     onLiveQualityModeChanged: (Boolean) -> Unit,
+    onAutoPlayNextEpisodeChanged: (Boolean) -> Unit,
     onSubtitleSizeChanged: (SubtitleTextSize) -> Unit,
     onSubtitleColorChanged: (SubtitleTextColor) -> Unit,
     onSubtitleBackgroundChanged: (SubtitleBackground) -> Unit,
@@ -536,6 +545,11 @@ private fun MobileSettingsLayout(
         MobileLiveQualityCard(
             enabled = state.liveQualityModeDefault,
             onEnabledChanged = onLiveQualityModeChanged
+        )
+
+        MobileAutoPlayNextEpisodeCard(
+            enabled = state.autoPlayNextEpisode,
+            onEnabledChanged = onAutoPlayNextEpisodeChanged
         )
 
         // Subtitle appearance
@@ -968,6 +982,41 @@ private fun MobileLiveQualityCard(enabled: Boolean, onEnabledChanged: (Boolean) 
                 colors = ButtonDefaults.buttonColors(containerColor = AccentLavande),
                 modifier = Modifier.fillMaxWidth()
             ) { Text(stringResource(if (enabled) R.string.settings_live_quality_automatic else R.string.settings_live_quality_manual), color = Color.White) }
+        }
+    }
+}
+
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+private fun TvAutoPlayNextEpisodeCard(enabled: Boolean, onEnabledChanged: (Boolean) -> Unit) {
+    Card(colors = CardDefaults.cardColors(containerColor = Surface3), modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            TvText(stringResource(R.string.settings_auto_next_episode_title), color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, style = TvTheme.typography.titleMedium)
+            TvText(stringResource(R.string.settings_auto_next_episode_summary), color = Color.Gray, style = TvTheme.typography.bodySmall)
+            TvSettingsActionButton(
+                text = stringResource(if (enabled) R.string.settings_enabled else R.string.settings_disabled),
+                onClick = { onEnabledChanged(!enabled) },
+                containerColor = AccentLavande,
+                focusBorderColor = Color.White,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+    }
+}
+
+@Composable
+private fun MobileAutoPlayNextEpisodeCard(enabled: Boolean, onEnabledChanged: (Boolean) -> Unit) {
+    Card(colors = CardDefaults.cardColors(containerColor = Surface3), modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(stringResource(R.string.settings_auto_next_episode_title), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+            Text(stringResource(R.string.settings_auto_next_episode_summary), color = Color.Gray, fontSize = 12.sp)
+            Button(
+                onClick = { onEnabledChanged(!enabled) },
+                colors = ButtonDefaults.buttonColors(containerColor = AccentLavande),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(stringResource(if (enabled) R.string.settings_enabled else R.string.settings_disabled), color = Color.White)
+            }
         }
     }
 }

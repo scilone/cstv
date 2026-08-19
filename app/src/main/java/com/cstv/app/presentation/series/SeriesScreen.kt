@@ -71,6 +71,7 @@ import com.cstv.app.domain.model.EpisodeLabel
 import com.cstv.app.domain.model.FavoriteItem
 import com.cstv.app.domain.model.SeriesCategory
 import com.cstv.app.domain.model.SeriesStream
+import com.cstv.app.domain.model.PlaybackPosition
 import com.cstv.app.presentation.theme.AccentLavande
 import com.cstv.app.presentation.theme.BricolageGrotesque
 import com.cstv.app.presentation.theme.HankenGrotesk
@@ -104,6 +105,7 @@ fun SeriesScreen(
     isTv: Boolean,
     favoritesList: List<FavoriteItem>,
     onSeriesSelected: (SeriesStream) -> Unit,
+    onResumeSeriesSelected: (PlaybackPosition) -> Unit = {},
     /** Appui long sur une vignette = bascule favori (mobile et TV). */
     onToggleFavorite: (SeriesStream) -> Unit = {},
     onNavigateToFavorites: () -> Unit = {},
@@ -193,6 +195,7 @@ fun SeriesScreen(
                 state = state,
                 onCategorySelected = { viewModel.selectCategory(it) },
                 onSeriesSelected = onSeriesSelected,
+                onResumeSeriesSelected = { stream -> state.resumeSeries.firstOrNull { (it.seriesId ?: it.streamId) == stream.seriesId }?.let(onResumeSeriesSelected) },
                 onRefresh = { viewModel.refresh() },
                 filteredStreams = filteredStreams,
                 pagedStreams = pagedStreams,
@@ -230,6 +233,7 @@ fun SeriesScreen(
                 state = state,
                 onCategorySelected = { viewModel.selectCategory(it) },
                 onSeriesSelected = onSeriesSelected,
+                onResumeSeriesSelected = { stream -> state.resumeSeries.firstOrNull { (it.seriesId ?: it.streamId) == stream.seriesId }?.let(onResumeSeriesSelected) },
                 onRefresh = { viewModel.refresh() },
                 filteredStreams = filteredStreams,
                 pagedStreams = pagedStreams,
@@ -264,6 +268,7 @@ private fun TvLayout(
     state: SeriesState,
     onCategorySelected: (SeriesCategory) -> Unit,
     onSeriesSelected: (SeriesStream) -> Unit,
+    onResumeSeriesSelected: (SeriesStream) -> Unit,
     onRefresh: () -> Unit,
     filteredStreams: List<SeriesStream>,
     pagedStreams: androidx.paging.compose.LazyPagingItems<SeriesStream>,
@@ -469,6 +474,7 @@ private fun TvLayout(
                             title = stringResource(R.string.home_resume),
                             series = resumeSeriesStreams,
                             onSeriesSelected = onSeriesSelected,
+                            onResumeSeriesSelected = onResumeSeriesSelected,
                             isTv = true,
                             onLongClick = onHistoryRemove,
                             getScroll = getScroll,
@@ -615,6 +621,7 @@ private fun MobileLayout(
     state: SeriesState,
     onCategorySelected: (SeriesCategory) -> Unit,
     onSeriesSelected: (SeriesStream) -> Unit,
+    onResumeSeriesSelected: (SeriesStream) -> Unit,
     onRefresh: () -> Unit,
     filteredStreams: List<SeriesStream>,
     pagedStreams: androidx.paging.compose.LazyPagingItems<SeriesStream>,
@@ -759,6 +766,7 @@ private fun MobileLayout(
                             title = stringResource(R.string.home_resume),
                             series = resumeSeriesStreams,
                             onSeriesSelected = onSeriesSelected,
+                            onResumeSeriesSelected = onResumeSeriesSelected,
                             isTv = false,
                             onLongClick = onHistoryRemove,
                             getScroll = getScroll,
@@ -861,6 +869,7 @@ private fun CategorySectionRow(
     title: String,
     series: List<SeriesStream>,
     onSeriesSelected: (SeriesStream) -> Unit,
+    onResumeSeriesSelected: ((SeriesStream) -> Unit)? = null,
     isTv: Boolean,
     getScroll: (String) -> Pair<Int, Int>,
     saveScroll: (String, Int, Int) -> Unit,
@@ -941,7 +950,7 @@ private fun CategorySectionRow(
                     .tvInitialFocusTarget(focusState, isRestoredTarget || (index == 0 && isInitialTarget))) {
                     HomeSeriesShowCard(
                         stream = stream,
-                        onClick = { onSeriesSelected(stream) },
+                        onClick = { if (categoryId == "resume_watching") onResumeSeriesSelected?.invoke(stream) else onSeriesSelected(stream) },
                         onLongClick = onLongClick?.let { { it(stream) } },
                         longClickLabel = longClickLabel,
                         isFavorite = stream.seriesId in favoriteIds,

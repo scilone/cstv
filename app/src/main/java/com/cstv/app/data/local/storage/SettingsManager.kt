@@ -45,6 +45,7 @@ class SettingsManager @Inject constructor(context: Context) {
         private const val KEY_NEW_EPISODES_SERIES_CURSOR_PREFIX = "new_episodes_series_cursor_"
         private const val KEY_NOTIFICATION_PERMISSION_REQUESTED = "notification_permission_requested"
         private const val KEY_LIVE_QUALITY_MODE_DEFAULT = "live_quality_mode_default"
+        private const val KEY_AUTO_PLAY_NEXT_EPISODE_PREFIX = "auto_play_next_episode_"
     }
 
     // --- F12 : détection de nouveaux épisodes en arrière-plan ---
@@ -172,6 +173,16 @@ class SettingsManager @Inject constructor(context: Context) {
 
     fun setLiveQualityModeDefault(enabled: Boolean) {
         sharedPreferences.edit().putBoolean(KEY_LIVE_QUALITY_MODE_DEFAULT, enabled).apply()
+    }
+
+    /** Préférence de lecture liée au profil actif, synchronisée par CSTV. */
+    fun getAutoPlayNextEpisode(profileId: Int): Boolean =
+        sharedPreferences.getBoolean(KEY_AUTO_PLAY_NEXT_EPISODE_PREFIX + profileId, true)
+
+    fun setAutoPlayNextEpisode(profileId: Int, enabled: Boolean) {
+        sharedPreferences.edit()
+            .putBoolean(KEY_AUTO_PLAY_NEXT_EPISODE_PREFIX + profileId, enabled)
+            .apply()
     }
 
     private inline fun <reified T : Enum<T>> enumOrDefault(name: String?, default: T): T {

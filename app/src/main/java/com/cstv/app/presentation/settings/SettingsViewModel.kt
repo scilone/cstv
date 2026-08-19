@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.work.*
 import com.cstv.app.data.local.storage.CredentialsManager
 import com.cstv.app.data.local.storage.SettingsManager
+import com.cstv.app.data.local.storage.ProfileManager
 import com.cstv.app.data.local.storage.SyncFrequency
 import com.cstv.app.data.util.DiagnosticManager
 import com.cstv.app.data.worker.DatabaseSyncWorker
@@ -34,7 +35,8 @@ class SettingsViewModel @Inject constructor(
     private val cloudSyncManager: CloudSyncManager,
     private val credentialsManager: CredentialsManager,
     private val signOutCstvUseCase: SignOutCstvUseCase,
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
+    private val profileManager: ProfileManager
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(SettingsState())
@@ -60,6 +62,9 @@ class SettingsViewModel @Inject constructor(
                 subtitleStyle = settingsManager.getSubtitleStyle(),
                 debugModeEnabled = settingsManager.getDebugModeEnabled(),
                 liveQualityModeDefault = settingsManager.getLiveQualityModeDefault(),
+                autoPlayNextEpisode = profileManager.currentProfileId()
+                    .takeIf { it != ProfileManager.NO_PROFILE }
+                    ?.let(settingsManager::getAutoPlayNextEpisode) ?: true,
                 cstvEmail = cstvAuthRepository.storedEmail(),
                 // B27 : repli sur le dernier UserInfo connu, seule source restante
                 // quand la session courante tourne sans identifiants mémorisés.
@@ -91,6 +96,16 @@ class SettingsViewModel @Inject constructor(
         settingsManager.setSyncFrequency(frequency)
         _state.update { it.copy(syncFrequency = frequency) }
         scheduleBackgroundSync(frequency)
+    }
+
+    fun updateAutoPlayNextEpisode(enabled: Boolean) {
+        val profileId = profileManager.currentProfileId()
+        if (profileId == ProfileManager.NO_PROFILE) return
+        settingsManager.setAutoPlayNextEpisode(profileId, enabled)
+        _state.update { it.copy(autoPlayNextEpisode = enabled) }
+        viewModelScope.launch {
+            cloudSyncManager.markDirty(profileId, com.cstv.app.domain.sync.SyncNamespace.PROFILE_PREFERENCES)
+        }
     }
 
     private fun scheduleBackgroundSync(frequency: SyncFrequency) {

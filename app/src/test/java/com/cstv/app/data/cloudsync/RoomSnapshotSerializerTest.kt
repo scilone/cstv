@@ -18,6 +18,7 @@ import com.cstv.app.data.local.dao.TrackPreferenceRow
 import com.cstv.app.data.local.dao.VodDao
 import com.cstv.app.data.local.db.AppDatabase
 import com.cstv.app.data.local.storage.CurrentAccountKeyProvider
+import com.cstv.app.data.local.storage.SettingsManager
 import com.cstv.app.domain.sync.SyncNamespace
 import com.google.gson.Gson
 import kotlinx.coroutines.test.runTest
@@ -54,6 +55,7 @@ class RoomSnapshotSerializerTest {
     @Mock private lateinit var mediaRefDao: MediaRefDao
     @Mock private lateinit var categoryRefDao: CategoryRefDao
     @Mock private lateinit var accountKeyProvider: CurrentAccountKeyProvider
+    @Mock private lateinit var settingsManager: SettingsManager
 
     private lateinit var serializer: RoomSnapshotSerializer
 
@@ -63,7 +65,7 @@ class RoomSnapshotSerializerTest {
         whenever(accountKeyProvider.current()).thenReturn(accountKey)
         serializer = RoomSnapshotSerializer(
             favorites, vod, ratings, tracks, series, categories, live, Gson(), database,
-            mediaRefDao, categoryRefDao, accountKeyProvider,
+            mediaRefDao, categoryRefDao, accountKeyProvider, settingsManager,
         )
     }
 
@@ -115,6 +117,16 @@ class RoomSnapshotSerializerTest {
 
         assertEquals(1, snapshot.schemaVersion)
         org.mockito.kotlin.verifyNoInteractions(favorites, vod, live)
+    }
+
+    @Test
+    fun `profile preferences snapshot carries the per-profile episode autoplay choice`() = runTest {
+        whenever(settingsManager.getAutoPlayNextEpisode(profileId)).thenReturn(false)
+
+        val snapshot = serializer.snapshot(profileId, SyncNamespace.PROFILE_PREFERENCES)
+
+        assertEquals(1, snapshot.schemaVersion)
+        assertEquals(false, snapshot.objects.getValue("player").asJsonObject.get("autoPlayNextEpisode").asBoolean)
     }
 
     // T20-R2: `ratings`, `track-preferences`, `series-watch-state` and `category-preferences` are

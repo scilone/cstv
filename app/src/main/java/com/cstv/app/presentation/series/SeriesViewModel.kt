@@ -80,6 +80,7 @@ class SeriesViewModel @Inject constructor(
     /** F39 §8.6 : sélecteur de versions — même raison de nullabilité que ci-dessus. */
     private val seriesVersionResolver: com.cstv.app.domain.model.SeriesVersionResolver? = null,
     private val seriesVersionPreferenceRepository: com.cstv.app.domain.repository.SeriesVersionPreferenceRepository? = null,
+    private val profileManager: com.cstv.app.data.local.storage.ProfileManager? = null,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(SeriesState())
@@ -293,6 +294,12 @@ class SeriesViewModel @Inject constructor(
     }
 
     fun getResizeMode() = settingsManager.getResizeMode()
+
+    fun getAutoPlayNextEpisode(): Boolean = profileManager
+        ?.currentProfileId()
+        ?.takeIf { it != com.cstv.app.data.local.storage.ProfileManager.NO_PROFILE }
+        ?.let(settingsManager::getAutoPlayNextEpisode)
+        ?: true
     fun setResizeMode(mode: ResizeMode) {
         settingsManager.setResizeMode(mode)
     }
@@ -500,6 +507,18 @@ class SeriesViewModel @Inject constructor(
         }
     }
 
+    fun requestPlayback(position: PlaybackPosition, onAllowed: suspend () -> Unit) {
+        viewModelScope.launch {
+            when (canPlayContentUseCase(com.cstv.app.domain.model.DownloadedItem.episodeContentId(position.streamId))) {
+                com.cstv.app.domain.usecase.PlaybackAvailability.Allowed -> onAllowed()
+                com.cstv.app.domain.usecase.PlaybackAvailability.RequiresConnection ->
+                    _state.update { it.copy(error = com.cstv.app.presentation.OFFLINE_PLAYBACK_MESSAGE) }
+                com.cstv.app.domain.usecase.PlaybackAvailability.RequiresReauthentication ->
+                    _state.update { it.copy(error = com.cstv.app.presentation.REAUTHENTICATION_MESSAGE) }
+            }
+        }
+    }
+
     // Compteurs de la bottom sheet, rafraîchis après chaque sync de streams
     // (le cache local vient potentiellement de changer). Échec silencieux :
     // les compteurs sont un enrichissement, jamais bloquants.
@@ -594,6 +613,14 @@ class SeriesViewModel @Inject constructor(
                 }
             }
         }
+    }
+
+    /** Détails complets nécessaires à une reprise directe depuis une rangée de catalogue. */
+    suspend fun loadSeriesDetailsForResume(seriesId: Int): SeriesDetails? = try {
+        getSeriesDetailsUseCase(seriesId)
+    } catch (error: Exception) {
+        if (error is kotlinx.coroutines.CancellationException) throw error
+        null
     }
 
     // Suggestions "Titres associés" : échec/vide silencieux, jamais bloquant

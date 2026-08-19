@@ -35,3 +35,5 @@ data class SeriesWatchStateWire(
 )
 
 data class CategoryPreferenceWire(val categoryId: String, val type: String, val hidden: Boolean, val sortOrder: Int?)
+
+data class ProfilePreferencesWire(val autoPlayNextEpisode: Boolean)

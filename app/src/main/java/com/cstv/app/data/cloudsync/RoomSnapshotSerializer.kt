@@ -7,10 +7,12 @@ import com.cstv.app.data.cloudsync.wire.RatingWire
 import com.cstv.app.data.cloudsync.wire.RecentlyWatchedWire
 import com.cstv.app.data.cloudsync.wire.SeriesWatchStateWire
 import com.cstv.app.data.cloudsync.wire.TrackPreferenceWire
+import com.cstv.app.data.cloudsync.wire.ProfilePreferencesWire
 import com.cstv.app.data.local.dao.*
 import com.cstv.app.data.local.entity.*
 import com.cstv.app.data.local.db.AppDatabase
 import com.cstv.app.data.local.storage.CurrentAccountKeyProvider
+import com.cstv.app.data.local.storage.SettingsManager
 import com.cstv.app.domain.sync.SyncNamespace
 import com.google.gson.Gson
 import com.google.gson.JsonElement
@@ -38,7 +40,7 @@ class RoomSnapshotSerializer @Inject constructor(
     private val tracks: TrackPreferenceDao, private val series: SeriesWatchStateDao,
     private val categories: CategoryPreferenceDao, private val live: LiveTvDao, private val gson: Gson,
     private val database: AppDatabase, private val mediaRefDao: MediaRefDao, private val categoryRefDao: CategoryRefDao,
-    private val accountKeyProvider: CurrentAccountKeyProvider,
+    private val accountKeyProvider: CurrentAccountKeyProvider, private val settingsManager: SettingsManager,
 ) : SnapshotSerializer {
     override suspend fun snapshot(profileId: Int, namespace: SyncNamespace): NamespaceSnapshot {
         // T19-R2: prune Room itself before reading -- see RoomSnapshotSerializer's prior revision
@@ -64,6 +66,9 @@ class RoomSnapshotSerializer @Inject constructor(
                 .associate { it.providerId.toString() to gson.toJsonTree(SeriesWatchStateWire(it.providerId, it.lastKnownSeason, it.lastKnownEpisode, it.lastNotifiedSeason, it.lastNotifiedEpisode, it.updatedAt)) }
             SyncNamespace.CATEGORY_PREFERENCES -> categories.getAllForProfile(profileId, accountKey)
                 .associate { "${it.kind}:${it.categoryId}" to gson.toJsonTree(CategoryPreferenceWire(it.categoryId, it.kind, it.hidden, it.sortOrder)) }
+            SyncNamespace.PROFILE_PREFERENCES -> mapOf(
+                "player" to gson.toJsonTree(ProfilePreferencesWire(settingsManager.getAutoPlayNextEpisode(profileId)))
+            )
             SyncNamespace.RECENTLY_WATCHED_LIVE -> {
                 live.pruneRecentlyWatchedToMostRecent(profileId, SnapshotLimits.RECENTLY_WATCHED_LIVE)
                 live.wireRows(profileId, accountKey).associate { "live:${it.providerId}" to gson.toJsonTree(RecentlyWatchedWire(it.watchedAt)) }
@@ -139,6 +144,14 @@ class RoomSnapshotSerializer @Inject constructor(
                     val wire = gson.fromJson(value, CategoryPreferenceWire::class.java)
                     val catUid = categoryRefDao.resolve(accountKey, kind, categoryId)
                     categories.upsert(CategoryPreferenceEntity(profileId = profileId, catUid = catUid, hidden = wire.hidden, sortOrder = wire.sortOrder))
+                }
+            }
+            SyncNamespace.PROFILE_PREFERENCES -> {
+                snapshot.objects["player"]?.let { value ->
+                    val enabled = runCatching {
+                        value.asJsonObject.get("autoPlayNextEpisode")?.asBoolean
+                    }.getOrNull() ?: true
+                    settingsManager.setAutoPlayNextEpisode(profileId, enabled)
                 }
             }
             SyncNamespace.RECENTLY_WATCHED_LIVE -> {

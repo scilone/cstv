@@ -10,6 +10,7 @@ data class SettingsState(
     val subtitleStyle: SubtitleStyle = SubtitleStyle(),
     val debugModeEnabled: Boolean = false,
     val liveQualityModeDefault: Boolean = false,
+    val autoPlayNextEpisode: Boolean = true,
     val isUploadingLogs: Boolean = false,
     val uploadedLogsUrl: String? = null,
     val uploadLogsError: String? = null,

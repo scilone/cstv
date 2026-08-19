@@ -71,6 +71,7 @@ import com.cstv.app.domain.model.EpisodeLabel
 import com.cstv.app.domain.model.FavoriteItem
 import com.cstv.app.domain.model.VodCategory
 import com.cstv.app.domain.model.VodStream
+import com.cstv.app.domain.model.PlaybackPosition
 import com.cstv.app.presentation.theme.AccentLavande
 import com.cstv.app.presentation.theme.BricolageGrotesque
 import com.cstv.app.presentation.theme.HankenGrotesk
@@ -102,6 +103,7 @@ fun VodScreen(
     isTv: Boolean,
     favoritesList: List<FavoriteItem>,
     onMovieSelected: (VodStream) -> Unit,
+    onResumeMovieSelected: (PlaybackPosition) -> Unit = {},
     /** Appui long sur une vignette = bascule favori (mobile et TV). */
     onToggleFavorite: (VodStream) -> Unit = {},
     onNavigateToFavorites: () -> Unit = {},
@@ -192,6 +194,7 @@ fun VodScreen(
                 state = state,
                 onCategorySelected = { viewModel.selectCategory(it) },
                 onMovieSelected = onMovieSelected,
+                onResumeMovieSelected = { stream -> state.resumeMovies.firstOrNull { it.streamId == stream.streamId }?.let(onResumeMovieSelected) },
                 onRefresh = { viewModel.refresh() },
                 filteredStreams = filteredStreams,
                 pagedStreams = pagedStreams,
@@ -229,6 +232,7 @@ fun VodScreen(
                 state = state,
                 onCategorySelected = { viewModel.selectCategory(it) },
                 onMovieSelected = onMovieSelected,
+                onResumeMovieSelected = { stream -> state.resumeMovies.firstOrNull { it.streamId == stream.streamId }?.let(onResumeMovieSelected) },
                 onRefresh = { viewModel.refresh() },
                 filteredStreams = filteredStreams,
                 pagedStreams = pagedStreams,
@@ -263,6 +267,7 @@ private fun TvLayout(
     state: VodState,
     onCategorySelected: (VodCategory) -> Unit,
     onMovieSelected: (VodStream) -> Unit,
+    onResumeMovieSelected: (VodStream) -> Unit,
     onRefresh: () -> Unit,
     filteredStreams: List<VodStream>,
     pagedStreams: androidx.paging.compose.LazyPagingItems<VodStream>,
@@ -479,6 +484,7 @@ private fun TvLayout(
                             title = stringResource(R.string.home_resume),
                             movies = resumeMoviesStreams,
                             onMovieSelected = onMovieSelected,
+                            onResumeMovieSelected = onResumeMovieSelected,
                             isTv = true,
                             onLongClick = onHistoryRemove,
                             getScroll = getScroll,
@@ -625,6 +631,7 @@ private fun MobileLayout(
     state: VodState,
     onCategorySelected: (VodCategory) -> Unit,
     onMovieSelected: (VodStream) -> Unit,
+    onResumeMovieSelected: (VodStream) -> Unit,
     onRefresh: () -> Unit,
     filteredStreams: List<VodStream>,
     pagedStreams: androidx.paging.compose.LazyPagingItems<VodStream>,
@@ -776,6 +783,7 @@ private fun MobileLayout(
                             title = stringResource(R.string.home_resume),
                             movies = resumeMoviesStreams,
                             onMovieSelected = onMovieSelected,
+                            onResumeMovieSelected = onResumeMovieSelected,
                             isTv = false,
                             onLongClick = onHistoryRemove,
                             getScroll = getScroll,
@@ -878,6 +886,7 @@ private fun CategorySectionRow(
     title: String,
     movies: List<VodStream>,
     onMovieSelected: (VodStream) -> Unit,
+    onResumeMovieSelected: ((VodStream) -> Unit)? = null,
     isTv: Boolean,
     getScroll: (String) -> Pair<Int, Int>,
     saveScroll: (String, Int, Int) -> Unit,
@@ -966,7 +975,7 @@ private fun CategorySectionRow(
                     .tvInitialFocusTarget(focusState, isRestoredTarget || (index == 0 && isInitialTarget))) {
                     HomeVodMovieCard(
                         stream = stream,
-                        onClick = { onMovieSelected(stream) },
+                        onClick = { if (categoryId == "resume_watching") onResumeMovieSelected?.invoke(stream) else onMovieSelected(stream) },
                         onLongClick = onLongClick?.let { { it(stream) } },
                         longClickLabel = longClickLabel,
                         isFavorite = stream.streamId in favoriteIds,

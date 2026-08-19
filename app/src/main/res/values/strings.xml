@@ -235,6 +235,10 @@
     <string name="settings_live_quality_summary">Choisit automatiquement une variante plus stable en cas de coupure.</string>
     <string name="settings_live_quality_manual">Mode manuel</string>
     <string name="settings_live_quality_automatic">Mode automatique</string>
+    <string name="settings_auto_next_episode_title">Lecture automatique de l’épisode suivant</string>
+    <string name="settings_auto_next_episode_summary">Passe automatiquement à l’épisode suivant à la fin de l’épisode en cours.</string>
+    <string name="settings_enabled">Activée</string>
+    <string name="settings_disabled">Désactivée</string>
     <string name="vod_details_resume_playback">REPRENDRE LA LECTURE</string>
     <string name="vod_details_play_movie">LIRE LE FILM</string>
     <string name="vod_details_replay_movie">RELIRE DEPUIS LE DÉBUT</string>

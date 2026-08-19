@@ -438,6 +438,28 @@ fun AppNavGraph(
                     onActiveVodMovieChanged(stream)
                     navController.navigate("vod_details")
                 },
+                onResumeMovieSelected = { position ->
+                    val details = VodDetails(
+                        streamId = position.streamId,
+                        name = position.title ?: "Film",
+                        director = "",
+                        actors = "",
+                        releaseDate = position.releaseDate ?: "",
+                        genre = position.genre.orEmpty(),
+                        plot = position.plot.orEmpty(),
+                        rating = "0",
+                        coverBig = position.coverUrl,
+                        containerExtension = position.containerExtension ?: "mp4",
+                        resumePositionMs = position.positionMs,
+                        durationMs = position.durationMs
+                    )
+                    vodViewModel.requestPlayback(position.streamId) {
+                        onActiveVodDetailsChanged(details)
+                        onIsVodPlaybackOfflineChanged(false)
+                        onResumePositionMsChanged(position.positionMs)
+                        navController.navigate("vod_player")
+                    }
+                },
                 // Appui long sur une vignette de film.
                 onToggleFavorite = { stream ->
                     favoritesViewModel.toggleFavorite(
@@ -474,6 +496,38 @@ fun AppNavGraph(
                 onSeriesSelected = { stream ->
                     onActiveSeriesShowChanged(stream)
                     navController.navigate("series_details")
+                },
+                onResumeSeriesSelected = { position ->
+                    seriesViewModel.requestPlayback(position) {
+                        val fallbackEpisode = SeriesEpisode(
+                            id = position.streamId,
+                            episodeNum = position.episodeNum ?: 1,
+                            title = position.title.orEmpty(),
+                            containerExtension = position.containerExtension ?: "mp4",
+                            plot = position.plot.orEmpty(),
+                            duration = position.duration ?: "00:00",
+                            releaseDate = position.releaseDate.orEmpty(),
+                            resumePositionMs = position.positionMs,
+                            durationMs = position.durationMs,
+                            seasonNum = position.seasonNum ?: 1
+                        )
+                        val fallbackDetails = SeriesDetails(
+                            seriesId = position.seriesId ?: 0,
+                            name = position.title?.substringBefore(" - ") ?: "Série",
+                            cover = position.coverUrl,
+                            rating = "0",
+                            seasons = emptyList(),
+                            episodes = emptyMap()
+                        )
+                        val fullDetails = position.seriesId?.let { seriesViewModel.loadSeriesDetailsForResume(it) }
+                        val realEpisode = fullDetails?.episodes?.values?.flatten()
+                            ?.firstOrNull { it.id == position.streamId }
+                            ?.copy(resumePositionMs = position.positionMs, durationMs = position.durationMs)
+                        onActiveEpisodeChanged(realEpisode ?: fallbackEpisode)
+                        onActiveSeriesDetailsChanged(fullDetails ?: fallbackDetails)
+                        onIsSeriesPlaybackOfflineChanged(false)
+                        navController.navigate("series_player")
+                    }
                 },
                 // Appui long sur une vignette de série.
                 onToggleFavorite = { stream ->

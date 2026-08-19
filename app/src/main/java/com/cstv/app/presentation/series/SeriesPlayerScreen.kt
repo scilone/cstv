@@ -271,7 +271,15 @@ fun SeriesPlayerScreen(
     LaunchedEffect(versionCoordinator) {
         versionCoordinator.resolveAndSet(episode.seasonNum, episode.episodeNum, episode)
         currentVersionSeriesId = versionCoordinator.currentSeriesId
-        currentEpisode = versionCoordinator.currentEpisode
+        currentEpisode = versionCoordinator.currentEpisode.let { resolved ->
+            if (resolved.id == episode.id) {
+                resolved.copy(
+                    resumePositionMs = episode.resumePositionMs,
+                    durationMs = episode.durationMs,
+                    lastAccessedAt = episode.lastAccessedAt
+                )
+            } else resolved
+        }
         currentSeriesName = versionCoordinator.currentSeriesName
         initialVersionResolved = true
     }
@@ -622,7 +630,7 @@ fun SeriesPlayerScreen(
                     // Fin d'épisode : enchaîner sur le suivant s'il existe
                     // (Phase 59), sinon comportement historique (fermeture).
                     val next = computeNextEpisode(seriesEpisodes, currentEpisode)
-                    if (next != null) {
+                    if (next != null && viewModel.getAutoPlayNextEpisode()) {
                         goToEpisode(next, true)
                     } else {
                         viewModel.clearPosition(currentEpisode.id)

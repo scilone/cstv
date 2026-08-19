@@ -2,6 +2,7 @@ package com.cstv.app.presentation.settings
 
 import com.cstv.app.data.local.storage.CredentialsManager
 import com.cstv.app.data.local.storage.SettingsManager
+import com.cstv.app.data.local.storage.ProfileManager
 import com.cstv.app.data.local.storage.SyncFrequency
 import com.cstv.app.data.util.DiagnosticManager
 import com.cstv.app.domain.model.Credentials
@@ -60,6 +61,9 @@ class SettingsViewModelTest {
     @Mock
     private lateinit var signOutCstvUseCase: SignOutCstvUseCase
 
+    @Mock
+    private lateinit var profileManager: ProfileManager
+
     private lateinit var viewModel: SettingsViewModel
     private val testDispatcher = UnconfinedTestDispatcher()
 
@@ -73,6 +77,8 @@ class SettingsViewModelTest {
         whenever(settingsManager.getSubtitleStyle()).thenReturn(SubtitleStyle())
         whenever(settingsManager.getDebugModeEnabled()).thenReturn(false)
         whenever(settingsManager.getLiveQualityModeDefault()).thenReturn(false)
+        whenever(profileManager.currentProfileId()).thenReturn(7)
+        whenever(settingsManager.getAutoPlayNextEpisode(7)).thenReturn(true)
         whenever(cstvAuthRepository.storedEmail()).thenReturn(null)
         whenever(cloudSyncManager.status).thenReturn(kotlinx.coroutines.flow.MutableStateFlow(CloudSyncStatus.Idle))
         whenever(credentialsManager.getCredentials()).thenReturn(
@@ -90,7 +96,8 @@ class SettingsViewModelTest {
         cloudSyncManager,
         credentialsManager,
         signOutCstvUseCase,
-        context
+        context,
+        profileManager
     )
 
     @After
@@ -124,6 +131,17 @@ class SettingsViewModelTest {
         viewModel.updateLiveQualityModeDefault(true)
         verify(settingsManager).setLiveQualityModeDefault(true)
         assertEquals(true, viewModel.state.value.liveQualityModeDefault)
+    }
+
+    @Test
+    fun `episode autoplay preference is profile scoped and marked dirty for cloud sync`() = runTest {
+        assertEquals(true, viewModel.state.value.autoPlayNextEpisode)
+
+        viewModel.updateAutoPlayNextEpisode(false)
+
+        verify(settingsManager).setAutoPlayNextEpisode(7, false)
+        verify(cloudSyncManager).markDirty(7, com.cstv.app.domain.sync.SyncNamespace.PROFILE_PREFERENCES)
+        assertEquals(false, viewModel.state.value.autoPlayNextEpisode)
     }
 
     @Test
