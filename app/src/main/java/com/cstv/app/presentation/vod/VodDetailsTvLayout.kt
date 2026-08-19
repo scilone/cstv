@@ -329,7 +329,8 @@ fun VodDetailsTvLayout(
                     // Metadata Row
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        modifier = Modifier.fillMaxWidth()
                     ) {
                         Text(
                             text = formatReleaseYear(details.releaseDate),
@@ -345,7 +346,9 @@ fun VodDetailsTvLayout(
                             fontSize = 13.sp,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f, fill = false),
+                            modifier = Modifier
+                                .weight(1f, fill = false)
+                                .wrapContentWidth(Alignment.Start),
                             fontFamily = HankenGrotesk
                         )
                         details.duration?.let { dur ->

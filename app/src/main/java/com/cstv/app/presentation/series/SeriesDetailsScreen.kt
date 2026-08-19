@@ -436,7 +436,9 @@ private fun TvLayout(
                         fontSize = 13.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false)
+                        modifier = Modifier
+                            .weight(1f, fill = false)
+                            .wrapContentWidth(Alignment.Start)
                     )
                     Text("|", color = Color.DarkGray)
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -622,7 +624,9 @@ private fun MobileLayout(
                 fontSize = 12.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f, fill = false)
+                modifier = Modifier
+                    .weight(1f, fill = false)
+                    .wrapContentWidth(Alignment.Start)
             )
             Text("  •  ", color = Color.DarkGray)
             Row(verticalAlignment = Alignment.CenterVertically) {

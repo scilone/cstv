@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
@@ -868,13 +869,27 @@ private fun TvSeriesHeroPanel(
 
 @Composable
 private fun TvSeriesMetadata(details: SeriesDetails, ageRating: com.cstv.app.domain.model.AgeRating?) {
-    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth()
+    ) {
         formatReleaseYear(details.releaseDate).takeIf { it.isNotBlank() }?.let {
             Text(it, color = AccentLavande, fontWeight = FontWeight.Bold, fontSize = 14.sp, fontFamily = HankenGrotesk)
         }
         details.genre?.takeIf { it.isNotBlank() }?.let {
             TvSeriesMetadataSeparator()
-            Text(it, color = TextSecondary, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false), fontFamily = HankenGrotesk)
+            Text(
+                it,
+                color = TextSecondary,
+                fontSize = 13.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .weight(1f, fill = false)
+                    .wrapContentWidth(Alignment.Start),
+                fontFamily = HankenGrotesk
+            )
         }
         details.rating?.takeIf { it.isNotBlank() && it != "0" && it != "0.0" }?.let {
             TvSeriesMetadataSeparator()

@@ -42,6 +42,8 @@ import com.cstv.app.domain.model.VodStream
 import com.cstv.app.domain.model.SeriesStream
 import com.cstv.app.domain.model.SeriesDetails
 import com.cstv.app.domain.model.SeriesEpisode
+import com.cstv.app.domain.model.AgeRating
+import com.cstv.app.domain.model.Profile
 import com.cstv.app.presentation.home.HomeScreen
 import com.cstv.app.presentation.home.HomeViewModel
 import com.cstv.app.presentation.home.RecentlyAddedScreen
@@ -74,6 +76,9 @@ import androidx.compose.foundation.lazy.LazyListState
 // Xtream stream identifiers are positive; this marks an entry reached without
 // its required navigation seed, which is defensively popped below.
 private const val NO_STREAM_ID = -1
+
+private fun Profile.hasAgeRestriction(): Boolean =
+    AgeRating.fromValueOrNull(maxAgeRating) != null
 
 /** Exécute une sortie player atomique et ne navigue jamais au-dessus d'un player non dépilé. */
 private fun NavHostController.openPlayerDetails(
@@ -698,6 +703,14 @@ fun AppNavGraph(
                 }
             } else {
                 state.selectedVodDetails?.let { details ->
+                    val activeProfile = profileState.profiles.firstOrNull { it.id == profileState.activeProfileId }
+                    val isWaitingForRestrictedProfileRating =
+                        activeProfile?.hasAgeRestriction() == true && state.isLoadingAgeRating
+                    if (isWaitingForRestrictedProfileRating) {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                        }
+                    } else {
                     onActiveVodDetailsChanged(details)
                     onIsVodPlaybackOfflineChanged(false)
                     val isFav = favsState.favorites.any { it.id == details.streamId && it.type == "movie" }
@@ -771,6 +784,7 @@ fun AppNavGraph(
                         onSelectVersion = { streamId -> vodViewModel.selectStreamId(streamId) },
                         ageRating = state.ageRating
                     )
+                    }
                 } ?: MediaDetailsErrorState(
                     message = state.error,
                     onRetry = { vodViewModel.selectStreamId(entryStreamId) },
@@ -809,6 +823,14 @@ fun AppNavGraph(
                 }
             } else {
                 state.selectedSeriesDetails?.let { details ->
+                    val activeProfile = profileState.profiles.firstOrNull { it.id == profileState.activeProfileId }
+                    val isWaitingForRestrictedProfileRating =
+                        activeProfile?.hasAgeRestriction() == true && state.isLoadingAgeRating
+                    if (isWaitingForRestrictedProfileRating) {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                        }
+                    } else {
                     onActiveSeriesDetailsChanged(details)
                     onIsSeriesPlaybackOfflineChanged(false)
                     val isFav = favsState.favorites.any { it.id == details.seriesId && it.type == "series" }
@@ -873,6 +895,7 @@ fun AppNavGraph(
                         onSelectVersion = { newSeriesId -> seriesViewModel.selectStreamId(newSeriesId) },
                         ageRating = state.ageRating
                     )
+                    }
                 } ?: MediaDetailsErrorState(
                     message = state.error,
                     onRetry = { seriesViewModel.selectStreamId(entrySeriesId) },

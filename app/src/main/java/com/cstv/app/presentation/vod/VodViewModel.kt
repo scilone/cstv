@@ -657,7 +657,13 @@ class VodViewModel @Inject constructor(
             _state.update { it.copy(isLoadingDetails = true, error = null) }
             try {
                 val details = getVodDetailsUseCase(streamId)
-                _state.update { it.copy(selectedVodDetails = details, isLoadingDetails = false) }
+                _state.update {
+                    it.copy(
+                        selectedVodDetails = details,
+                        isLoadingDetails = false,
+                        isLoadingAgeRating = contentClassificationRepository != null
+                    )
+                }
                 resolveAndPublishAgeRating(streamId, details.name, details.releaseDate)
                 loadRelatedMovies(details.streamId, details.genre)
             } catch (e: Exception) {

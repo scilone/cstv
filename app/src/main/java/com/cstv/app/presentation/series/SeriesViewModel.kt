@@ -661,7 +661,13 @@ class SeriesViewModel @Inject constructor(
             _state.update { it.copy(isLoadingDetails = true, error = null) }
             try {
                 val details = getSeriesDetailsUseCase(seriesId)
-                _state.update { it.copy(selectedSeriesDetails = details, isLoadingDetails = false) }
+                _state.update {
+                    it.copy(
+                        selectedSeriesDetails = details,
+                        isLoadingDetails = false,
+                        isLoadingAgeRating = contentClassificationRepository != null
+                    )
+                }
                 resolveAndPublishAgeRating(seriesId, details.name, details.releaseDate)
                 loadRelatedSeries(details.seriesId, details.genre)
             } catch (e: Exception) {
