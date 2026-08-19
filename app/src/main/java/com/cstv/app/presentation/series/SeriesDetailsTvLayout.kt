@@ -864,7 +864,7 @@ private fun TvSeriesMetadata(details: SeriesDetails, ageRating: com.cstv.app.dom
         }
         details.genre?.takeIf { it.isNotBlank() }?.let {
             TvSeriesMetadataSeparator()
-            Text(it, color = TextSecondary, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, fontFamily = HankenGrotesk)
+            Text(it, color = TextSecondary, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f), fontFamily = HankenGrotesk)
         }
         details.rating?.takeIf { it.isNotBlank() && it != "0" && it != "0.0" }?.let {
             TvSeriesMetadataSeparator()
@@ -1008,14 +1008,14 @@ private fun TvSeriesPlayButtonWithVersionsChevron(
         )
         return
     }
-    Row(modifier = modifier.fillMaxWidth()) {
+    Row(modifier = Modifier.fillMaxWidth()) {
         TvSeriesPlayButton(
             text = text,
             onClick = onClick,
             active = active,
             onMoveDown = onMoveDown,
             shape = RoundedCornerShape(topStart = 14.dp, bottomStart = 14.dp, topEnd = 0.dp, bottomEnd = 0.dp),
-            modifier = Modifier.weight(1f)
+            modifier = modifier.weight(1f)
         )
         Box(
             modifier = Modifier

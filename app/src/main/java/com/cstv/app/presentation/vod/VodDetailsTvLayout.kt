@@ -339,7 +339,7 @@ fun VodDetailsTvLayout(
                             fontSize = 13.sp,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f, fill = false),
+                            modifier = Modifier.weight(1f),
                             fontFamily = HankenGrotesk
                         )
                         details.duration?.let { dur ->
@@ -730,14 +730,14 @@ private fun PlayButtonWithVersionsChevron(
         PlayButton(text = text, icon = icon, onClick = onClick, primary = primary, modifier = modifier)
         return
     }
-    Row(modifier = modifier) {
+    Row(modifier = Modifier.fillMaxWidth()) {
         PlayButton(
             text = text,
             icon = icon,
             onClick = onClick,
             primary = primary,
             shape = RoundedCornerShape(topStart = 8.dp, bottomStart = 8.dp, topEnd = 0.dp, bottomEnd = 0.dp),
-            modifier = Modifier.weight(1f)
+            modifier = modifier.weight(1f)
         )
         Box(
             modifier = Modifier

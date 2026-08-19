@@ -178,6 +178,10 @@ fun SeriesPlayerScreen(
 
     var isPlayerVisible by remember { mutableStateOf(true) }
     var isLeaving by remember { mutableStateOf(false) }
+    // Quand l'autoplay est désactivé, la fin naturelle doit rester une reprise
+    // visible dans « Continuer à regarder ». Le tracker de position ne doit
+    // donc pas l'effacer pendant le démontage du player.
+    var keepEndedEpisodeInContinueWatching by remember { mutableStateOf(false) }
     var currentResizeMode by remember { mutableStateOf(viewModel.getResizeMode()) }
     var overlayNotification by remember { mutableStateOf<String?>(null) }
     val coverFocusRequester = remember { FocusRequester() }
@@ -606,7 +610,7 @@ fun SeriesPlayerScreen(
         },
         onTrackerDispose = { positionMs, durationMs ->
             if (positionMs > 0L && durationMs > 0L) {
-                if (positionMs >= durationMs - 15_000L) {
+                if (positionMs >= durationMs - 15_000L && !keepEndedEpisodeInContinueWatching) {
                     viewModel.clearPosition(currentEpisode.id)
                 } else {
                     viewModel.savePosition(currentEpisode, positionMs, durationMs, seriesName, seriesCover, seriesId.takeIf { it > 0 })
@@ -633,7 +637,24 @@ fun SeriesPlayerScreen(
                     if (next != null && viewModel.getAutoPlayNextEpisode()) {
                         goToEpisode(next, true)
                     } else {
-                        viewModel.clearPosition(currentEpisode.id)
+                        if (next != null) {
+                            // La liste exclut les positions à moins de 15 s de
+                            // la fin ; conserver une position juste avant ce
+                            // seuil rend l'épisode terminé visible sans le
+                            // relancer automatiquement.
+                            keepEndedEpisodeInContinueWatching = true
+                            val retainedPosition = (exoPlayer.duration - 15_001L).coerceAtLeast(1L)
+                            viewModel.savePosition(
+                                currentEpisode,
+                                retainedPosition,
+                                exoPlayer.duration.coerceAtLeast(retainedPosition + 1L),
+                                seriesName,
+                                seriesCover,
+                                seriesId.takeIf { it > 0 }
+                            )
+                        } else {
+                            viewModel.clearPosition(currentEpisode.id)
+                        }
                         handleClose()
                     }
                 }

@@ -498,6 +498,12 @@ class VodViewModel @Inject constructor(
 
     fun requestPlayback(streamId: Int, onAllowed: () -> Unit) {
         viewModelScope.launch {
+            // La tentative de lecture et le badge de fiche doivent partager la
+            // même résolution. Sinon le bloc parental peut apparaître avant
+            // que le résultat de classification ne soit rendu dans la fiche.
+            _state.value.selectedVodDetails
+                ?.takeIf { it.streamId == streamId }
+                ?.let { details -> resolveAndPublishAgeRating(streamId, details.name, details.releaseDate) }
             val contentId = com.cstv.app.domain.model.DownloadedItem.movieContentId(streamId)
             when (val result = canPlayContentUseCase(contentId)) {
                 com.cstv.app.domain.usecase.PlaybackAvailability.Allowed -> onAllowed()
@@ -667,14 +673,24 @@ class VodViewModel @Inject constructor(
     private fun loadAgeRating(streamId: Int, fallbackTitle: String, fallbackDate: String?) {
         val repository = contentClassificationRepository ?: return
         viewModelScope.launch {
-            _state.update { it.copy(isLoadingAgeRating = true, ageRating = null) }
-            val source = vodRepository.getStreamById(streamId)
-            val title = source?.cleanTitle?.ifBlank { source.name } ?: fallbackTitle
-            val year = source?.releaseYear ?: fallbackDate?.let { Regex("\\d{4}").find(it)?.value?.toIntOrNull() }
-            val rating = repository.classificationFor(MediaClassificationKind.MOVIE, title, year, streamId)
-            _state.update { current ->
-                if (current.selectedStreamId == streamId) current.copy(ageRating = rating, isLoadingAgeRating = false) else current
-            }
+            resolveAndPublishAgeRating(streamId, fallbackTitle, fallbackDate, repository)
+        }
+    }
+
+    private suspend fun resolveAndPublishAgeRating(
+        streamId: Int,
+        fallbackTitle: String,
+        fallbackDate: String?,
+        repository: ContentClassificationRepository? = contentClassificationRepository
+    ) {
+        if (repository == null) return
+        _state.update { it.copy(isLoadingAgeRating = true, ageRating = null) }
+        val source = vodRepository.getStreamById(streamId)
+        val title = source?.cleanTitle?.ifBlank { source.name } ?: fallbackTitle
+        val year = source?.releaseYear ?: fallbackDate?.let { Regex("\\d{4}").find(it)?.value?.toIntOrNull() }
+        val rating = repository.classificationFor(MediaClassificationKind.MOVIE, title, year, streamId)
+        _state.update { current ->
+            if (current.selectedStreamId == streamId) current.copy(ageRating = rating, isLoadingAgeRating = false) else current
         }
     }
 

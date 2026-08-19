@@ -501,6 +501,9 @@ class SeriesViewModel @Inject constructor(
      */
     fun requestPlayback(episodeId: Int, onAllowed: () -> Unit) {
         viewModelScope.launch {
+            _state.value.selectedSeriesDetails?.let { details ->
+                resolveAndPublishAgeRating(details.seriesId, details.name, details.releaseDate)
+            }
             val contentId = com.cstv.app.domain.model.DownloadedItem.episodeContentId(episodeId)
             when (val result = canPlayContentUseCase(contentId)) {
                 com.cstv.app.domain.usecase.PlaybackAvailability.Allowed -> onAllowed()
@@ -518,6 +521,9 @@ class SeriesViewModel @Inject constructor(
 
     fun requestPlayback(position: PlaybackPosition, onAllowed: suspend () -> Unit) {
         viewModelScope.launch {
+            _state.value.selectedSeriesDetails?.let { details ->
+                resolveAndPublishAgeRating(details.seriesId, details.name, details.releaseDate)
+            }
             when (val result = canPlayContentUseCase(com.cstv.app.domain.model.DownloadedItem.episodeContentId(position.streamId))) {
                 com.cstv.app.domain.usecase.PlaybackAvailability.Allowed -> onAllowed()
                 com.cstv.app.domain.usecase.PlaybackAvailability.RequiresConnection ->
@@ -666,14 +672,24 @@ class SeriesViewModel @Inject constructor(
     private fun loadAgeRating(seriesId: Int, fallbackTitle: String, fallbackDate: String?) {
         val repository = contentClassificationRepository ?: return
         viewModelScope.launch {
-            _state.update { it.copy(isLoadingAgeRating = true, ageRating = null) }
-            val source = seriesRepository.getStreamById(seriesId)
-            val title = source?.cleanTitle?.ifBlank { source.name } ?: fallbackTitle
-            val year = source?.releaseYear ?: fallbackDate?.let { Regex("\\d{4}").find(it)?.value?.toIntOrNull() }
-            val rating = repository.classificationFor(MediaClassificationKind.SERIES, title, year, seriesId)
-            _state.update { current ->
-                if (current.selectedStreamId == seriesId) current.copy(ageRating = rating, isLoadingAgeRating = false) else current
-            }
+            resolveAndPublishAgeRating(seriesId, fallbackTitle, fallbackDate, repository)
+        }
+    }
+
+    private suspend fun resolveAndPublishAgeRating(
+        seriesId: Int,
+        fallbackTitle: String,
+        fallbackDate: String?,
+        repository: ContentClassificationRepository? = contentClassificationRepository
+    ) {
+        if (repository == null) return
+        _state.update { it.copy(isLoadingAgeRating = true, ageRating = null) }
+        val source = seriesRepository.getStreamById(seriesId)
+        val title = source?.cleanTitle?.ifBlank { source.name } ?: fallbackTitle
+        val year = source?.releaseYear ?: fallbackDate?.let { Regex("\\d{4}").find(it)?.value?.toIntOrNull() }
+        val rating = repository.classificationFor(MediaClassificationKind.SERIES, title, year, seriesId)
+        _state.update { current ->
+            if (current.selectedStreamId == seriesId) current.copy(ageRating = rating, isLoadingAgeRating = false) else current
         }
     }
 

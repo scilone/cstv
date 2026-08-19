@@ -161,8 +161,8 @@
     <string name="parental_age_rating_option_12">12 ans et plus</string>
     <string name="parental_age_rating_option_16">16 ans et plus</string>
     <string name="parental_age_rating_option_18">18 ans et plus</string>
-    <string name="media_age_rating">- %1$d ans</string>
-    <string name="media_age_rating_all">- TP</string>
+    <string name="media_age_rating">%1$d ans</string>
+    <string name="media_age_rating_all">TP</string>
     <string name="parental_block_too_mature">Ce contenu dépasse le niveau autorisé sur ce profil.</string>
     <string name="parental_block_unclassified">La classification de ce contenu est inconnue : lecture bloquée par précaution.</string>
     <string name="parental_pin_dialog_title">Code PIN requis</string>

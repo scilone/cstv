@@ -300,7 +300,7 @@ private fun MobileLayoutDetails(
                 fontSize = 12.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f, fill = false)
+                modifier = Modifier.weight(1f)
             )
             details.duration?.let { dur ->
                 Text("  •  ", color = Color.DarkGray)
