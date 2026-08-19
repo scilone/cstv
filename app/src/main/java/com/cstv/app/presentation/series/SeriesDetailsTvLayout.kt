@@ -399,7 +399,17 @@ fun SeriesDetailsTvLayout(
         details.seasons.associate { it.seasonNumber to it.name }
     }
     val playbackTarget = remember(details) { tvSeriesPlaybackTarget(details) }
-    val initialFocus = rememberTvInitialFocus(isTv = true, ready = true, targetKey = details.seriesId)
+    val initialFocus = rememberTvInitialFocus(
+        isTv = true,
+        ready = true,
+        targetKey = Triple(details.seriesId, playbackTarget.isResume, hasMultipleVersions)
+    )
+    LaunchedEffect(details.seriesId, playbackTarget.isResume, hasMultipleVersions) {
+        repeat(10) {
+            withFrameNanos { }
+            runCatching { initialFocus.requester.requestFocus() }
+        }
+    }
     var section by remember(details.seriesId) { mutableStateOf(TvSeriesDetailsSection.HERO) }
     var returnToLastEpisode by remember(details.seriesId, selectedSeason) { mutableStateOf(false) }
 
@@ -864,7 +874,7 @@ private fun TvSeriesMetadata(details: SeriesDetails, ageRating: com.cstv.app.dom
         }
         details.genre?.takeIf { it.isNotBlank() }?.let {
             TvSeriesMetadataSeparator()
-            Text(it, color = TextSecondary, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f), fontFamily = HankenGrotesk)
+            Text(it, color = TextSecondary, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false), fontFamily = HankenGrotesk)
         }
         details.rating?.takeIf { it.isNotBlank() && it != "0" && it != "0.0" }?.let {
             TvSeriesMetadataSeparator()

@@ -208,8 +208,14 @@ fun VodDetailsTvLayout(
         val focusState = rememberTvInitialFocus(
             isTv = true,
             ready = true,
-            targetKey = details.streamId
+            targetKey = Triple(details.streamId, hasHistory, hasMultipleVersions)
         )
+        LaunchedEffect(details.streamId, hasHistory, hasMultipleVersions) {
+            repeat(10) {
+                withFrameNanos { }
+                runCatching { focusState.requester.requestFocus() }
+            }
+        }
 
         var mainBlockHeightPx by remember { mutableFloatStateOf(0f) }
         var relatedRowHeightPx by remember { mutableFloatStateOf(0f) }
@@ -339,7 +345,7 @@ fun VodDetailsTvLayout(
                             fontSize = 13.sp,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f),
+                            modifier = Modifier.weight(1f, fill = false),
                             fontFamily = HankenGrotesk
                         )
                         details.duration?.let { dur ->

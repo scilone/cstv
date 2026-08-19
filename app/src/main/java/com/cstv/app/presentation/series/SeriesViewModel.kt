@@ -652,7 +652,7 @@ class SeriesViewModel @Inject constructor(
             try {
                 val details = getSeriesDetailsUseCase(seriesId)
                 _state.update { it.copy(selectedSeriesDetails = details, isLoadingDetails = false) }
-                loadAgeRating(seriesId, details.name, details.releaseDate)
+                resolveAndPublishAgeRating(seriesId, details.name, details.releaseDate)
                 loadRelatedSeries(details.seriesId, details.genre)
             } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException) throw e
@@ -669,13 +669,6 @@ class SeriesViewModel @Inject constructor(
         }
     }
 
-    private fun loadAgeRating(seriesId: Int, fallbackTitle: String, fallbackDate: String?) {
-        val repository = contentClassificationRepository ?: return
-        viewModelScope.launch {
-            resolveAndPublishAgeRating(seriesId, fallbackTitle, fallbackDate, repository)
-        }
-    }
-
     private suspend fun resolveAndPublishAgeRating(
         seriesId: Int,
         fallbackTitle: String,
@@ -684,12 +677,19 @@ class SeriesViewModel @Inject constructor(
     ) {
         if (repository == null) return
         _state.update { it.copy(isLoadingAgeRating = true, ageRating = null) }
-        val source = seriesRepository.getStreamById(seriesId)
-        val title = source?.cleanTitle?.ifBlank { source.name } ?: fallbackTitle
-        val year = source?.releaseYear ?: fallbackDate?.let { Regex("\\d{4}").find(it)?.value?.toIntOrNull() }
-        val rating = repository.classificationFor(MediaClassificationKind.SERIES, title, year, seriesId)
-        _state.update { current ->
-            if (current.selectedStreamId == seriesId) current.copy(ageRating = rating, isLoadingAgeRating = false) else current
+        try {
+            val source = seriesRepository.getStreamById(seriesId)
+            val title = source?.cleanTitle?.ifBlank { source.name } ?: fallbackTitle
+            val year = source?.releaseYear ?: fallbackDate?.let { Regex("\\d{4}").find(it)?.value?.toIntOrNull() }
+            val rating = repository.classificationFor(MediaClassificationKind.SERIES, title, year, seriesId)
+            _state.update { current ->
+                if (current.selectedStreamId == seriesId) current.copy(ageRating = rating, isLoadingAgeRating = false) else current
+            }
+        } catch (error: Exception) {
+            if (error is kotlinx.coroutines.CancellationException) throw error
+            _state.update { current ->
+                if (current.selectedStreamId == seriesId) current.copy(isLoadingAgeRating = false) else current
+            }
         }
     }
 
