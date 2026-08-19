@@ -227,17 +227,40 @@ class CstvAuthRepositoryImplTest {
     }
 
     @Test
-    fun resolveSession_validTokenButBackendUnreachable_isOffline_withoutTouchingProfiles() = runTest {
+    fun resolveSession_apiCallFails_isOffline_withoutTouchingProfiles() = runTest {
         val session = CstvSession("token", "acc", "mail@example.test", 5_000L)
         whenever(sessions.get()).thenReturn(session)
         doReturn(1_000L).whenever(clock).nowMillis()
-        doReturn(false).whenever(network).isCurrentlyOnline()
+        doReturn(true).whenever(network).isCurrentlyOnline()
+        whenever(api.getMe()).thenAnswer { throw IOException("unreachable") }
 
         val state = repository.resolveSession()
 
         assertEquals(CstvSessionState.Offline(session), state)
-        verify(api, never()).getMe()
         verify(profiles, never()).purgeAllProfiles()
+    }
+
+    /**
+     * `NetworkMonitor.isCurrentlyOnline()` reflète `NET_CAPABILITY_VALIDATED`,
+     * une sonde captive-portal système sur un domaine tiers — pas notre
+     * backend. DNS privé/VPN/pare-feu peuvent la faire échouer alors que le
+     * vrai trafic marche (rapporté en mobile Wi-Fi). `resolveSession()` ne
+     * doit donc jamais s'y fier comme repli anticipé : seul l'échec réel de
+     * l'appel `/v1/me` fait foi.
+     */
+    @Test
+    fun resolveSession_ignoresStaleOfflineFlag_whenTheRealApiCallSucceeds() = runTest {
+        val session = CstvSession("token", "acc", "mail@example.test", 5_000L)
+        whenever(sessions.get()).thenReturn(session)
+        doReturn(1_000L).whenever(clock).nowMillis()
+        doReturn(false).whenever(network).isCurrentlyOnline() // faussement hors ligne
+        whenever(api.getMe()).thenReturn(Response.success(accountDto(id = "acc")))
+        stubEmptyReconciliation()
+
+        val state = repository.resolveSession()
+
+        assertTrue(state is CstvSessionState.Active)
+        verify(api).getMe()
     }
 
     @Test

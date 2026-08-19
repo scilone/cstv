@@ -98,7 +98,15 @@ class CstvAuthRepositoryImpl @Inject constructor(
     override suspend fun resolveSession(): CstvSessionState {
         val session = sessions.get() ?: return CstvSessionState.SignedOut().also(stateHolder::publish)
         if (session.isExpired(clock.nowMillis())) return CstvSessionState.SignedOut(SignedOutReason.TokenExpired).also(stateHolder::publish)
-        if (!networkMonitor.isCurrentlyOnline()) return CstvSessionState.Offline(session).also(stateHolder::publish)
+        // Pas de repli anticipé sur `networkMonitor.isCurrentlyOnline()` : ce
+        // flag reflète `NET_CAPABILITY_VALIDATED`, une sonde captive-portal
+        // système sur un domaine tiers, distincte de notre backend. DNS privé,
+        // VPN ou pare-feu/bloqueur peuvent la faire échouer alors que l'appel
+        // réel ci-dessous réussit très bien (rapporté en mobile Wi-Fi, pas
+        // seulement sur les boîtiers TV visés par la veille de reconnexion
+        // ci-dessus) — l'utilisateur voyait alors "connexion internet requise"
+        // en étant bel et bien en ligne. Seul l'échec réel de l'appel /v1/me
+        // fait foi (catch IOException plus bas).
         return try {
             val response = api.getMe()
             if (response.isSuccessful && response.body() != null) {
