@@ -127,6 +127,7 @@ fun VodDetailsTvLayout(
     /** F39 §8.6 (évolution PO) : voir VodDetailsScreen. */
     hasMultipleVersions: Boolean = false,
     onOpenVersions: () -> Unit = {},
+    ageRating: com.cstv.app.domain.model.AgeRating? = null,
     modifier: Modifier = Modifier
 ) {
     val trailerMedia = remember(details.streamId) { TrailerMedia.Movie(details.streamId) }
@@ -367,6 +368,10 @@ fun VodDetailsTvLayout(
                                     fontFamily = HankenGrotesk
                                 )
                             }
+                        }
+                        ageRating?.let {
+                            MetadataSeparator()
+                            Text(stringResource(R.string.media_age_rating, it.value), color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 13.sp, fontFamily = HankenGrotesk)
                         }
                     }
 

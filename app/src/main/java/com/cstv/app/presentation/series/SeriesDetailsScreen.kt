@@ -93,7 +93,8 @@ fun SeriesDetailsScreen(
     /** F39 §8.6 (évolution PO) : autres versions de cette série partageant le `linkKey` T21, la
      *  version affichée incluse. Bouton « Versions » masqué si moins de deux entrées. */
     availableVersions: List<SeriesStream> = emptyList(),
-    onSelectVersion: (Int) -> Unit = {}
+    onSelectVersion: (Int) -> Unit = {},
+    ageRating: com.cstv.app.domain.model.AgeRating? = null
 ) {
     val trailerMedia = remember(details.seriesId) { TrailerMedia.Series(details.seriesId) }
     // Sur TV le trailer est sonore d'emblée et sans contrôle dédié : la
@@ -224,7 +225,8 @@ fun SeriesDetailsScreen(
                     onTrailerFailed = onTrailerFailed,
                     trailerMuted = trailerMuted,
                     hasMultipleVersions = availableVersions.size > 1,
-                    onOpenVersions = { showVersionDialog = true }
+                    onOpenVersions = { showVersionDialog = true },
+                    ageRating = ageRating
                 )
             } else {
                 MobileLayout(
@@ -239,10 +241,11 @@ fun SeriesDetailsScreen(
                     relatedSeries = relatedSeries,
                     onSelectRelated = onSelectRelated,
                     episodeDownloads = episodeDownloads,
-                    versionOptions = versionOptions,
-                    onSelectVersion = onSelectVersion,
+                            versionOptions = versionOptions,
+                            onSelectVersion = onSelectVersion,
                     onDownloadEpisode = onDownloadEpisode,
                     onRemoveEpisodeDownload = onRemoveEpisodeDownload,
+                    ageRating = ageRating,
                     mediaRating = mediaRating,
                     isRatingSaving = isRatingSaving,
                     onLike = onLike,
@@ -554,6 +557,7 @@ private fun MobileLayout(
     episodeDownloads: Map<Int, com.cstv.app.domain.model.DownloadedItem> = emptyMap(),
     versionOptions: List<com.cstv.app.presentation.player.VersionOption> = emptyList(),
     onSelectVersion: (Int) -> Unit = {},
+    ageRating: com.cstv.app.domain.model.AgeRating? = null,
     onDownloadEpisode: (SeriesEpisode) -> Unit = {},
     onRemoveEpisodeDownload: (Int) -> Unit = {},
     mediaRating: MediaRatingValue?,
@@ -624,6 +628,10 @@ private fun MobileLayout(
                 Icon(Icons.Default.Star, contentDescription = null, tint = Color.Yellow, modifier = Modifier.size(14.dp))
                 Spacer(modifier = Modifier.width(3.dp))
                 Text(details.rating ?: "0.0", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+            }
+            ageRating?.let {
+                Text("  •  ", color = Color.DarkGray)
+                Text(stringResource(R.string.media_age_rating, it.value), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
             }
         }
 

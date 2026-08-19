@@ -148,7 +148,11 @@ fun ProfileManagementScreen(
     }
 
     val deleteErrorMessage = stringResource(R.string.profile_delete_error)
-    editingProfile?.let { profile ->
+    editingProfile?.let { selectedProfile ->
+        // Le profil conservé pour ouvrir le dialogue ne doit pas devenir la
+        // source de vérité : l'observation Room peut avoir reçu le nouveau
+        // niveau d'âge pendant que le dialogue reste ouvert.
+        val profile = state.profiles.firstOrNull { it.id == selectedProfile.id } ?: selectedProfile
         ProfileEditDialog(
             profile = profile,
             isAutoStart = state.autoStartProfileId == profile.id,

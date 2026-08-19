@@ -102,7 +102,10 @@ class CanPlayContentUseCase @Inject constructor(
 
         val target = resolveClassificationTarget(contentId)
             ?: return PlaybackAvailability.RequiresParentalPin(BlockReason.UNCLASSIFIED, contentId)
-        val classification = classificationRepository.classificationFor(target.kind, target.title, target.year)
+        val classification = classificationRepository.classificationFor(target.kind, target.title, target.year, target.providerId)
+            // Compatibilité des tests/fournisseurs legacy qui implémentent
+            // encore la résolution par titre uniquement.
+            ?: classificationRepository.classificationFor(target.kind, target.title, target.year)
 
         val decision = parentalAccessPolicy.evaluate(maxAgeRating, classification, ParentalActionType.PLAY)
         return (decision as? AccessDecision.PinRequired)?.let {
@@ -110,20 +113,20 @@ class CanPlayContentUseCase @Inject constructor(
         }
     }
 
-    private data class ClassificationTarget(val kind: MediaClassificationKind, val title: String, val year: Int?)
+    private data class ClassificationTarget(val kind: MediaClassificationKind, val title: String, val year: Int?, val providerId: Int)
 
     private suspend fun resolveClassificationTarget(contentId: String): ClassificationTarget? = when {
         contentId.startsWith(MOVIE_PREFIX) -> {
             val streamId = contentId.removePrefix(MOVIE_PREFIX).toIntOrNull()
             val stream = streamId?.let { vodRepository.getStreamById(it) }
-            stream?.let { ClassificationTarget(MediaClassificationKind.MOVIE, it.cleanTitle.ifBlank { it.name }, it.releaseYear) }
+            stream?.let { ClassificationTarget(MediaClassificationKind.MOVIE, it.cleanTitle.ifBlank { it.name }, it.releaseYear, it.streamId) }
         }
         contentId.startsWith(EPISODE_PREFIX) -> {
             val episodeId = contentId.removePrefix(EPISODE_PREFIX).toIntOrNull()
             // F44 : classification de la série entière, jamais par épisode (décision étape 1).
             val seriesId = episodeId?.let { seriesRepository.getSeriesIdForEpisode(it) }
             val series = seriesId?.let { seriesRepository.getStreamById(it) }
-            series?.let { ClassificationTarget(MediaClassificationKind.SERIES, it.cleanTitle.ifBlank { it.name }, it.releaseYear) }
+            series?.let { ClassificationTarget(MediaClassificationKind.SERIES, it.cleanTitle.ifBlank { it.name }, it.releaseYear, it.seriesId) }
         }
         else -> null
     }

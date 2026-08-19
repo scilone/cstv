@@ -384,6 +384,7 @@ fun SeriesDetailsTvLayout(
     /** F39 §8.6 (évolution PO) : voir SeriesDetailsScreen. */
     hasMultipleVersions: Boolean = false,
     onOpenVersions: () -> Unit = {},
+    ageRating: com.cstv.app.domain.model.AgeRating? = null,
     modifier: Modifier = Modifier
 ) {
     val seasons = remember(details.seasons, details.episodes) { tvSeriesSeasonNumbers(details) }
@@ -559,6 +560,7 @@ fun SeriesDetailsTvLayout(
                     isFavorite = isFavorite,
                     playbackTarget = playbackTarget,
                     mediaRating = mediaRating,
+                    ageRating = ageRating,
                     isRatingSaving = isRatingSaving,
                     onToggleFavorite = onToggleFavorite,
                     onLike = onLike,
@@ -759,6 +761,7 @@ private fun TvSeriesHeroPanel(
     isFavorite: Boolean,
     playbackTarget: TvSeriesPlaybackTarget,
     mediaRating: MediaRatingValue?,
+    ageRating: com.cstv.app.domain.model.AgeRating?,
     isRatingSaving: Boolean,
     onToggleFavorite: () -> Unit,
     onLike: () -> Unit,
@@ -790,7 +793,7 @@ private fun TvSeriesHeroPanel(
                 overflow = TextOverflow.Ellipsis
             )
             Spacer(Modifier.height(8.dp))
-            TvSeriesMetadata(details)
+            TvSeriesMetadata(details, ageRating)
             Spacer(Modifier.height(12.dp))
             details.plot?.takeIf { it.isNotBlank() }?.let {
                 Text(
@@ -853,7 +856,7 @@ private fun TvSeriesHeroPanel(
 }
 
 @Composable
-private fun TvSeriesMetadata(details: SeriesDetails) {
+private fun TvSeriesMetadata(details: SeriesDetails, ageRating: com.cstv.app.domain.model.AgeRating?) {
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
         formatReleaseYear(details.releaseDate).takeIf { it.isNotBlank() }?.let {
             Text(it, color = AccentLavande, fontWeight = FontWeight.Bold, fontSize = 14.sp, fontFamily = HankenGrotesk)
@@ -866,6 +869,10 @@ private fun TvSeriesMetadata(details: SeriesDetails) {
             TvSeriesMetadataSeparator()
             Icon(Icons.Default.Star, null, tint = FavoriteGold, modifier = Modifier.size(15.dp))
             Text(it, color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 13.sp, fontFamily = HankenGrotesk)
+        }
+        ageRating?.let {
+            TvSeriesMetadataSeparator()
+            Text(stringResource(R.string.media_age_rating, it.value), color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 13.sp, fontFamily = HankenGrotesk)
         }
     }
 }

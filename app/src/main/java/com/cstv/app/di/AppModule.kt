@@ -247,6 +247,9 @@ object AppModule {
     fun provideMediaRatingDao(database: AppDatabase): MediaRatingDao = database.mediaRatingDao()
 
     @Provides
+    fun provideContentClassificationDao(database: AppDatabase): com.cstv.app.data.local.dao.ContentClassificationDao = database.contentClassificationDao()
+
+    @Provides
     @Singleton
     fun provideCatalogSyncStateDao(database: AppDatabase): com.cstv.app.data.local.dao.CatalogSyncStateDao =
         database.catalogSyncStateDao()

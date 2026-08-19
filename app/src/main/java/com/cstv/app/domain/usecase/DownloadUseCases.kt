@@ -65,7 +65,8 @@ class StartDownloadUseCase @Inject constructor(
 
         val target = resolveClassificationTarget(data)
             ?: return DownloadStartResult.RequiresParentalPin(BlockReason.UNCLASSIFIED, data.contentId)
-        val classification = classificationRepository.classificationFor(target.kind, target.title, target.year)
+        val classification = classificationRepository.classificationFor(target.kind, target.title, target.year, target.providerId)
+            ?: classificationRepository.classificationFor(target.kind, target.title, target.year)
 
         val decision = parentalAccessPolicy.evaluate(maxAgeRating, classification, ParentalActionType.DOWNLOAD)
         return (decision as? AccessDecision.PinRequired)?.let {
@@ -73,17 +74,17 @@ class StartDownloadUseCase @Inject constructor(
         }
     }
 
-    private data class ClassificationTarget(val kind: MediaClassificationKind, val title: String, val year: Int?)
+    private data class ClassificationTarget(val kind: MediaClassificationKind, val title: String, val year: Int?, val providerId: Int)
 
     /** Classification de la série entière pour un épisode (décision F44 étape 1). */
     private suspend fun resolveClassificationTarget(data: DownloadRequestData): ClassificationTarget? {
         val seriesId = data.seriesId
         return if (seriesId != null) {
             seriesRepository.getStreamById(seriesId)
-                ?.let { ClassificationTarget(MediaClassificationKind.SERIES, it.cleanTitle.ifBlank { it.name }, it.releaseYear) }
+                ?.let { ClassificationTarget(MediaClassificationKind.SERIES, it.cleanTitle.ifBlank { it.name }, it.releaseYear, it.seriesId) }
         } else {
             vodRepository.getStreamById(data.streamId)
-                ?.let { ClassificationTarget(MediaClassificationKind.MOVIE, it.cleanTitle.ifBlank { it.name }, it.releaseYear) }
+                ?.let { ClassificationTarget(MediaClassificationKind.MOVIE, it.cleanTitle.ifBlank { it.name }, it.releaseYear, it.streamId) }
         }
     }
 }

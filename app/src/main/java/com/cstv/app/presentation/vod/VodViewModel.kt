@@ -42,6 +42,8 @@ import com.cstv.app.domain.model.TrailerMedia
 import com.cstv.app.domain.usecase.GetTrailerPreviewUseCase
 import com.cstv.app.presentation.components.TrailerPreviewUiState
 import javax.inject.Inject
+import com.cstv.app.data.repository.ContentClassificationRepository
+import com.cstv.app.data.repository.MediaClassificationKind
 
 @HiltViewModel
 class VodViewModel @Inject constructor(
@@ -76,6 +78,7 @@ class VodViewModel @Inject constructor(
     val playbackRepairRepository: com.cstv.app.domain.repository.PlaybackRepairRepository? = null,
     /** F44 : nullable pour ne pas casser les tests existants qui construisent ce ViewModel positionnellement. */
     private val parentalUnlockUseCase: com.cstv.app.domain.usecase.ParentalUnlockUseCase? = null,
+    private val contentClassificationRepository: ContentClassificationRepository? = null,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(VodState())
@@ -568,7 +571,7 @@ class VodViewModel @Inject constructor(
 
         cancelTrailerPreview()
         ratingObservation?.cancel()
-        _state.update { it.copy(selectedStreamId = streamId, selectedVodDetails = null, relatedStreams = emptyList(), mediaRating = null, ratingError = null) }
+        _state.update { it.copy(selectedStreamId = streamId, selectedVodDetails = null, relatedStreams = emptyList(), mediaRating = null, ratingError = null, ageRating = null, isLoadingAgeRating = false) }
         if (streamId != null) {
             ratingObservation = viewModelScope.launch {
                 mediaRatingRepository.observeRating(streamId, RatedMediaType.MOVIE).collect { rating ->
@@ -644,6 +647,7 @@ class VodViewModel @Inject constructor(
             try {
                 val details = getVodDetailsUseCase(streamId)
                 _state.update { it.copy(selectedVodDetails = details, isLoadingDetails = false) }
+                loadAgeRating(streamId, details.name, details.releaseDate)
                 loadRelatedMovies(details.streamId, details.genre)
             } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException) throw e
@@ -656,6 +660,20 @@ class VodViewModel @Inject constructor(
                         )
                     )
                 }
+            }
+        }
+    }
+
+    private fun loadAgeRating(streamId: Int, fallbackTitle: String, fallbackDate: String?) {
+        val repository = contentClassificationRepository ?: return
+        viewModelScope.launch {
+            _state.update { it.copy(isLoadingAgeRating = true, ageRating = null) }
+            val source = vodRepository.getStreamById(streamId)
+            val title = source?.cleanTitle?.ifBlank { source.name } ?: fallbackTitle
+            val year = source?.releaseYear ?: fallbackDate?.let { Regex("\\d{4}").find(it)?.value?.toIntOrNull() }
+            val rating = repository.classificationFor(MediaClassificationKind.MOVIE, title, year, streamId)
+            _state.update { current ->
+                if (current.selectedStreamId == streamId) current.copy(ageRating = rating, isLoadingAgeRating = false) else current
             }
         }
     }

@@ -41,6 +41,8 @@ import com.cstv.app.domain.model.TrailerMedia
 import com.cstv.app.domain.usecase.GetTrailerPreviewUseCase
 import com.cstv.app.presentation.components.TrailerPreviewUiState
 import javax.inject.Inject
+import com.cstv.app.data.repository.ContentClassificationRepository
+import com.cstv.app.data.repository.MediaClassificationKind
 
 import com.cstv.app.data.local.storage.SettingsManager
 import com.cstv.app.data.local.storage.ResizeMode
@@ -83,6 +85,7 @@ class SeriesViewModel @Inject constructor(
     private val profileManager: com.cstv.app.data.local.storage.ProfileManager? = null,
     /** F44 : nullable pour ne pas casser les tests existants qui construisent ce ViewModel positionnellement. */
     private val parentalUnlockUseCase: com.cstv.app.domain.usecase.ParentalUnlockUseCase? = null,
+    private val contentClassificationRepository: ContentClassificationRepository? = null,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(SeriesState())
@@ -585,7 +588,7 @@ class SeriesViewModel @Inject constructor(
 
         cancelTrailerPreview()
         ratingObservation?.cancel()
-        _state.update { it.copy(selectedStreamId = seriesId, selectedSeriesDetails = null, relatedSeries = emptyList(), mediaRating = null, ratingError = null) }
+        _state.update { it.copy(selectedStreamId = seriesId, selectedSeriesDetails = null, relatedSeries = emptyList(), mediaRating = null, ratingError = null, ageRating = null, isLoadingAgeRating = false) }
         if (seriesId != null) {
             ratingObservation = viewModelScope.launch {
                 mediaRatingRepository.observeRating(seriesId, RatedMediaType.SERIES).collect { rating ->
@@ -643,6 +646,7 @@ class SeriesViewModel @Inject constructor(
             try {
                 val details = getSeriesDetailsUseCase(seriesId)
                 _state.update { it.copy(selectedSeriesDetails = details, isLoadingDetails = false) }
+                loadAgeRating(seriesId, details.name, details.releaseDate)
                 loadRelatedSeries(details.seriesId, details.genre)
             } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException) throw e
@@ -655,6 +659,20 @@ class SeriesViewModel @Inject constructor(
                         )
                     )
                 }
+            }
+        }
+    }
+
+    private fun loadAgeRating(seriesId: Int, fallbackTitle: String, fallbackDate: String?) {
+        val repository = contentClassificationRepository ?: return
+        viewModelScope.launch {
+            _state.update { it.copy(isLoadingAgeRating = true, ageRating = null) }
+            val source = seriesRepository.getStreamById(seriesId)
+            val title = source?.cleanTitle?.ifBlank { source.name } ?: fallbackTitle
+            val year = source?.releaseYear ?: fallbackDate?.let { Regex("\\d{4}").find(it)?.value?.toIntOrNull() }
+            val rating = repository.classificationFor(MediaClassificationKind.SERIES, title, year, seriesId)
+            _state.update { current ->
+                if (current.selectedStreamId == seriesId) current.copy(ageRating = rating, isLoadingAgeRating = false) else current
             }
         }
     }

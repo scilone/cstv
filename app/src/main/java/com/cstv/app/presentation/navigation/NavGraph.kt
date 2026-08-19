@@ -768,7 +768,8 @@ fun AppNavGraph(
                         onTrailerEnded = vodViewModel::cancelTrailerPreview,
                         onTrailerFailed = vodViewModel::reportTrailerPlaybackFailure,
                         availableVersions = movieVersions,
-                        onSelectVersion = { streamId -> vodViewModel.selectStreamId(streamId) }
+                        onSelectVersion = { streamId -> vodViewModel.selectStreamId(streamId) },
+                        ageRating = state.ageRating
                     )
                 } ?: MediaDetailsErrorState(
                     message = state.error,
@@ -869,7 +870,8 @@ fun AppNavGraph(
                         onTrailerEnded = seriesViewModel::cancelTrailerPreview,
                         onTrailerFailed = seriesViewModel::reportTrailerPlaybackFailure,
                         availableVersions = seriesVersions,
-                        onSelectVersion = { newSeriesId -> seriesViewModel.selectStreamId(newSeriesId) }
+                        onSelectVersion = { newSeriesId -> seriesViewModel.selectStreamId(newSeriesId) },
+                        ageRating = state.ageRating
                     )
                 } ?: MediaDetailsErrorState(
                     message = state.error,

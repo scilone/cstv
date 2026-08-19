@@ -74,7 +74,8 @@ fun VodDetailsScreen(
     /** F39 §8.6 (évolution PO) : autres versions de ce film partageant le `linkKey` T21, la version
      *  affichée incluse. Bouton « Versions » masqué si moins de deux entrées. */
     availableVersions: List<VodStream> = emptyList(),
-    onSelectVersion: (Int) -> Unit = {}
+    onSelectVersion: (Int) -> Unit = {},
+    ageRating: com.cstv.app.domain.model.AgeRating? = null
 ) {
     val trailerMedia = remember(details.streamId) { TrailerMedia.Movie(details.streamId) }
     // Sur TV le trailer est sonore d'emblée et sans contrôle dédié : la
@@ -130,7 +131,8 @@ fun VodDetailsScreen(
                 onTrailerFailed = onTrailerFailed,
                 trailerMuted = trailerMuted,
                 hasMultipleVersions = availableVersions.size > 1,
-                onOpenVersions = { showVersionDialog = true }
+                onOpenVersions = { showVersionDialog = true },
+                ageRating = ageRating
             )
         } else {
             // Mobile Layout with vertical scroll
@@ -190,7 +192,8 @@ fun VodDetailsScreen(
                             onResumePlayback = onResumePlayback,
                             onSearchQueryTriggered = onSearchQueryTriggered,
                             versionOptions = versionOptions,
-                            onSelectVersion = onSelectVersion
+                            onSelectVersion = onSelectVersion,
+                            ageRating = ageRating
                         )
 
                         Spacer(modifier = Modifier.height(16.dp))
@@ -245,7 +248,8 @@ private fun MobileLayoutDetails(
     onResumePlayback: (Long) -> Unit,
     onSearchQueryTriggered: (String) -> Unit,
     versionOptions: List<com.cstv.app.presentation.player.VersionOption> = emptyList(),
-    onSelectVersion: (Int) -> Unit = {}
+    onSelectVersion: (Int) -> Unit = {},
+    ageRating: com.cstv.app.domain.model.AgeRating? = null
 ) {
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -306,6 +310,10 @@ private fun MobileLayoutDetails(
                 Icon(Icons.Default.Star, contentDescription = null, tint = Color.Yellow, modifier = Modifier.size(14.dp))
                 Spacer(modifier = Modifier.width(3.dp))
                 Text(details.rating, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+            }
+            ageRating?.let {
+                Text("  •  ", color = Color.DarkGray)
+                Text(stringResource(R.string.media_age_rating, it.value), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
             }
         }
 
