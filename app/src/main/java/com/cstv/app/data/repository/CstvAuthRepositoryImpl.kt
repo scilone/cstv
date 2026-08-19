@@ -52,12 +52,24 @@ class CstvAuthRepositoryImpl @Inject constructor(
     @OptIn(FlowPreview::class)
     private fun observeReconnections() {
         repoScope.launch {
-            networkMonitor.isOnline
-                .debounce(RECONNECT_DEBOUNCE_MILLIS)
-                .collect { online ->
-                    if (!online) return@collect
-                    if (stateHolder.state.value is CstvSessionState.Offline) resolveSession()
-                }
+            // Veille best-effort sur toute la durée de vie du singleton : une
+            // exception ici (mock non stubbé en test, erreur transitoire du
+            // flux réseau) ne doit jamais remonter sur ce thread réel — un
+            // watcher d'arrière-plan qui plante silencieusement plutôt que de
+            // propager une exception non captée, cf. §"Gestion des erreurs".
+            try {
+                networkMonitor.isOnline
+                    .debounce(RECONNECT_DEBOUNCE_MILLIS)
+                    .collect { online ->
+                        if (!online) return@collect
+                        if (stateHolder.state.value is CstvSessionState.Offline) resolveSession()
+                    }
+            } catch (error: kotlinx.coroutines.CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                // Repli silencieux : la reconnexion manuelle (écran auth, "retry()")
+                // reste disponible même si cette veille échoue.
+            }
         }
     }
     override suspend fun requestOtp(email: String): Result<Unit> = try {
@@ -124,7 +136,7 @@ class CstvAuthRepositoryImpl @Inject constructor(
 
     override fun signOut() { sessions.clearSession(); stateHolder.publish(CstvSessionState.SignedOut()) }
     override fun storedEmail(): String? = sessions.storedEmail()
-    private fun CstvAccountDto.toDomain() = CstvAccount(id, email, enabled, CstvTimestampParser.parseMillis(activeUntil), profiles.map { CstvProfile(it.id, it.name, it.avatarId, CstvTimestampParser.parseMillis(it.createdAt)) })
+    private fun CstvAccountDto.toDomain() = CstvAccount(id, email, enabled, CstvTimestampParser.parseMillis(activeUntil), profiles.map { CstvProfile(it.id, it.name, it.avatarId, CstvTimestampParser.parseMillis(it.createdAt), it.maxAgeRating) })
 }
 
 class CstvException(val cstvError: CstvError) : Exception(cstvError.toString())

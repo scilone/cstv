@@ -8,6 +8,7 @@ import com.cstv.app.data.remote.api.CstvApiService
 import com.cstv.app.data.remote.api.CstvSessionExpiredException
 import com.cstv.app.data.remote.dto.CstvAccessTokenDto
 import com.cstv.app.data.remote.dto.CstvAccountDto
+import com.cstv.app.data.remote.dto.CstvProfileDto
 import com.cstv.app.data.remote.dto.CstvOtpVerifyDto
 import com.cstv.app.domain.model.CstvBlockedReason
 import com.cstv.app.domain.model.CstvSession
@@ -379,5 +380,32 @@ class CstvAuthRepositoryImplTest {
         whenever(sessions.storedEmail()).thenReturn("mail@example.test")
 
         assertEquals("mail@example.test", repository.storedEmail())
+    }
+
+    /**
+     * Non-régression : `CstvAccountDto.toDomain()` omettait `maxAgeRating` en
+     * construisant `CstvProfile` depuis `/v1/me`, donc toujours `null` quel
+     * que soit le réglage réellement stocké côté backend. `ProfileCloudReconciler`
+     * écrasant le niveau local avec cette valeur (toujours `null`) à chaque
+     * démarrage, la restriction d'âge d'un profil disparaissait à chaque
+     * relance de l'app.
+     */
+    @Test
+    fun resolveSession_carriesProfileMaxAgeRatingFromMe_neverDropsIt() = runTest {
+        val session = CstvSession("token", "acc", "mail@example.test", 5_000L)
+        whenever(sessions.get()).thenReturn(session)
+        doReturn(1_000L).whenever(clock).nowMillis()
+        doReturn(true).whenever(network).isCurrentlyOnline()
+        val dto = CstvAccountDto(
+            "acc", "mail@example.test", true, "2099-12-31T23:59:59Z",
+            listOf(CstvProfileDto("remote-1", "Nico", 0, "2024-01-01T00:00:00Z", maxAgeRating = 16))
+        )
+        whenever(api.getMe()).thenReturn(Response.success(dto))
+        stubEmptyReconciliation()
+
+        val state = repository.resolveSession()
+
+        assertTrue(state is CstvSessionState.Active)
+        assertEquals(16, (state as CstvSessionState.Active).account.profiles.single().maxAgeRating)
     }
 }
