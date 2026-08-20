@@ -4,6 +4,11 @@ declare(strict_types=1);
 
 use Cstv\Backend\Bootstrap;
 
+// Ne dépend pas du php.ini de l'hébergeur : alwaysdata a `display_errors=On` par défaut,
+// contrairement à `docker/php/php.ini` (utilisé seulement en local/CI). Un warning/deprecation
+// non catché s'injectait sinon en texte brut avant le JSON, invalidant la réponse côté client.
+ini_set('display_errors', '0');
+
 require dirname(__DIR__) . '/vendor/autoload.php';
 
 try {

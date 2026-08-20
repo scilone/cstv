@@ -35,7 +35,9 @@ final readonly class TmdbClient
             $body = curl_exec($curl);
             $status = (int) curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
             $error = curl_errno($curl);
-            curl_close($curl);
+            // curl_close() est un no-op depuis PHP 8.0 (déprécié en 8.5) : la référence CurlHandle
+            // est libérée par le GC. L'appel injectait un warning brut dans le corps de la réponse
+            // HTTP en prod (display_errors actif), rendant le JSON invalide côté client Android.
             $lastStatus = $status >= 500 || $status === 429 || $error !== 0 ? 503 : 502;
             if ($error === 0 && $status >= 200 && $status < 300 && is_string($body)) {
                 try {
