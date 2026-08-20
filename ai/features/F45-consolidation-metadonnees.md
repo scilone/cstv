@@ -26,6 +26,12 @@ L'application ne connaît que des identifiants CSTV opaques (`externalId`) et de
 
 Le backend conserve durablement les données externes utiles dans PostgreSQL. L'application conserve une copie locale relationnelle dans Room. L'enrichissement est opportuniste, progressif, silencieux et non bloquant, en particulier sur les box Android TV peu puissantes.
 
+F45 vise désormais une **convergence progressive du catalogue local** : à terme, tous les films et toutes les séries présents dans le catalogue IPTV local doivent disposer de leur matching et de leurs métadonnées de niveau média lorsqu'un match fiable est possible, y compris sur les installations existantes.
+
+Le dimensionnement de référence est un catalogue d'environ **40 000 films et 14 000 séries**. Le remplissage doit donc être persistant, dédupliqué, sérialisé et basse priorité. Le backend doit mutualiser les résultats entre installations afin que plusieurs clients ne répètent pas inutilement les mêmes appels fournisseur.
+
+Les saisons et épisodes constituent une exception volontaire : ils ne participent jamais au backfill global ni à la synchronisation des nouveaux médias. Ils sont hydratés uniquement lorsqu'une fiche série est réellement ouverte.
+
 F45 constitue d'abord une fondation de données : les nouvelles métadonnées ne remplacent pas encore les informations visibles des fiches, de la recherche ou des recommandations existantes. Exception explicitement décidée : F44 migre vers la nouvelle classification d'âge exacte.
 
 ---
@@ -76,7 +82,11 @@ Limites actuelles :
 | Persistance backend | Métadonnées utiles conservées durablement en PostgreSQL. |
 | Persistance locale | Copie locale relationnelle dans Room. |
 | Usage initial | Hydratation principalement ; pas encore de remplacement visuel/recherche/reco. |
-| Déclenchement global | À la demande puis progressif en arrière-plan ; pas de backfill massif après sync IPTV. |
+| Déclenchement global | Trois producteurs alimentent la même file : ouverture de fiche, nouveaux médias après sync IPTV, rattrapage des médias sans métadonnées. |
+| Backfill | Première installation **et installations existantes** : tous les films/séries sans métadonnées de niveau média sont progressivement mis en file. Pas de burst massif/concurrent. |
+| Nouveaux médias | Tout nouveau film/série réellement ajouté lors d'une sync IPTV est mis en file après récupération des hints Xtream disponibles. |
+| Métadonnées expirées | **Aucun worker/script périodique de refresh.** Une donnée stale est rafraîchie uniquement lors de l'ouverture du média. |
+| Saisons/épisodes | Hydratation uniquement à l'ouverture de la fiche série ; jamais lors du sync/backfill. |
 | Performance | Nice-to-have, basse priorité, jamais bloquant. |
 | Donnée expirée | Une bonne donnée existante reste utilisable sans limite si le fournisseur est indisponible. |
 | Source future | Après match fiable, externe prioritaire pour métadonnées communes ; IPTV reste prioritaire pour flux/version/lecture. |
@@ -96,8 +106,9 @@ Limites actuelles :
 
 | Sujet | Décision |
 |---|---|
-| Trigger app | Ouverture de fiche uniquement ; jamais au simple scroll/affichage vignette. |
-| Série | Série d'abord, saisons/épisodes ensuite progressivement. |
+| Trigger interactif | L'ouverture de fiche reste le trigger prioritaire ; jamais au simple scroll/affichage vignette. |
+| Triggers de fond | Nouveaux médias après sync + rattrapage des médias sans données. Aucun refresh périodique des métadonnées stale. |
+| Série | Le niveau série peut être hydraté par sync/backfill ; saisons/épisodes uniquement après ouverture réelle de la fiche série. |
 | Locale | `fr-FR` uniquement ; titres originaux/alternatifs conservés. |
 | Plusieurs certifications FR/US/GB | Valeur exploitable la plus restrictive. |
 | Médiane paire | Arrondi au supérieur. |
@@ -123,6 +134,12 @@ Limites actuelles :
 | Qualité du match | Backend retourne `confidence`, `matchMethod`, `matchVersion` ; Room les persiste. |
 | Revalidation contradictoire | Toujours prendre le nouveau meilleur match **accepté**, même s'il remplace un ancien `STRONG/CERTAIN`. |
 | Garde-fou remplacement | Le nouveau meilleur doit franchir un seuil absolu et une marge minimale sur le deuxième candidat. |
+| PostgreSQL-first | Avant d'appeler le provider, le backend tente de résoudre le média contre son catalogue consolidé déjà connu. |
+| Mutualisation | Un média déjà connu du backend est réutilisé par toutes les installations ; une nouvelle installation ne refait pas inutilement le travail fournisseur des précédentes. |
+| Single-flight | Un même match/hydratation/refresh demandé simultanément par plusieurs clients ne déclenche qu'un seul travail fournisseur. |
+| Rate limit provider | Budget global côté backend, configurable et conservateur ; `429`/`Retry-After` et backoff priment toujours. |
+| Priorité backend | Les appels interactifs issus d'une fiche ouverte doivent pouvoir passer devant le trafic de backfill. |
+| Anti-stampede | `refreshAfter` reçoit un jitter ; il ne provoque cependant aucun refresh tant que le média n'est pas ouvert. |
 
 ---
 
@@ -136,6 +153,9 @@ Limites actuelles :
 - Le volume Room reste acceptable si l'hydratation est progressive et non récursive.
 - Les anciennes APK doivent rester compatibles pendant la transition `/v1`.
 - Les profils F44 restent sur les seuils 0/10/12/16/18.
+- Le dimensionnement de référence est ~40 000 films + ~14 000 séries sur une installation ; saisons/épisodes sont donc exclus du backfill global.
+- Le backend et sa clé fournisseur sont partagés entre installations : rate limiting, mutualisation et déduplication doivent être globaux côté serveur.
+- Une donnée stale reste utile et n'est jamais entretenue en arrière-plan ; son refresh est opportuniste à l'ouverture.
 
 ---
 
@@ -164,6 +184,8 @@ Paramètres internes ajustables sans changement de contrat :
 - CSTV doit chercher sérieusement le bon média externe plutôt que prendre arbitrairement le premier résultat.
 - Un ancien match doit pouvoir être corrigé automatiquement lorsque l'algorithme ou les hints progressent.
 - Le fournisseur doit être remplaçable sans changement conceptuel côté app.
+- Une installation existante doit progressivement enrichir les médias déjà présents avant F45, sans devoir attendre leur ouverture.
+- Après convergence, une synchronisation IPTV normale n'ajoute au backfill que les nouveaux films/séries détectés.
 
 ## 7.2 Film
 
@@ -206,24 +228,65 @@ Saison : seasonNumber, airDate, name, overview, poster, voteAverage.
 
 Épisode : seasonNumber, episodeNumber, airDate, name, overview, still, runtime, voteAverage, voteCount.
 
+Ces données ne sont jamais recherchées pendant le backfill global. Elles sont créées ou rafraîchies uniquement lorsqu'une fiche série est ouverte.
+
 ## 7.5 Déclenchement
 
-### Film
+Tous les producteurs alimentent la **même file persistée, priorisée et dédupliquée**.
 
-1. Ouvrir la fiche.
-2. Afficher immédiatement le comportement IPTV existant.
-3. Vérifier localement lien/fraîcheur.
-4. Si nécessaire, mettre en file une hydratation dédupliquée.
-5. Travail réseau/Room silencieux.
-6. Aucune erreur F45 affichée.
+### Priorités
 
-### Série
+Ordre :
 
-1. Ouvrir la fiche.
-2. Hydrater le média série.
-3. Une fois le match obtenu, traiter les saisons progressivement.
-4. Une saison à la fois ; épisodes récupérés avec le détail de saison.
-5. Navigation saisons/épisodes indépendante de ce processus.
+1. `DETAIL_OPEN`
+   - média réellement ouvert par l'utilisateur ;
+   - si données absentes : matching + hydratation ;
+   - si `refreshAfter` dépassé : refresh opportuniste ;
+   - si revalidation du match due : revalidation opportuniste ;
+   - pour une série : saisons/épisodes manquants ou stale ensuite.
+2. `NEW_IPTV_MEDIA`
+   - nouveau film/série détecté lors d'une sync ;
+   - niveau média uniquement.
+3. `MISSING_METADATA`
+   - média déjà présent mais jamais enrichi ;
+   - couvre première installation et installations existantes ;
+   - niveau média uniquement.
+
+Il n'existe **aucune priorité `STALE_METADATA` de fond** : les données expirées ne sont pas scannées ni mises en file périodiquement.
+
+### Ouverture de fiche
+
+1. Afficher immédiatement les données IPTV/Room disponibles.
+2. Promouvoir ou insérer le média en `DETAIL_OPEN`.
+3. Si la donnée de niveau média est absente ou stale, la rafraîchir en arrière-plan.
+4. Pour une série seulement, l'ouverture autorise l'hydratation des saisons/épisodes manquants ou stale.
+5. Aucun loader/erreur F45 ne bloque l'écran.
+
+### Synchronisation IPTV
+
+Après une synchronisation distante réussie :
+
+1. déterminer les films/séries réellement nouveaux par rapport à Room avant sync ;
+2. laisser l'enrichissement Xtream existant fournir autant que possible année/réalisateur/acteurs/genre/durée/trailer ;
+3. regrouper les variantes compatibles par `linkKey` ;
+4. mettre en file les nouveaux films/séries en `NEW_IPTV_MEDIA` ;
+5. ne jamais mettre saisons/épisodes en file depuis ce chemin.
+
+L'échec de ce post-traitement F45 ne transforme jamais une synchronisation IPTV réussie en échec.
+
+### Backfill / rattrapage
+
+Après migration F45 et au démarrage si nécessaire :
+
+- parcourir Room par pages ;
+- sélectionner films/séries sans lien/métadonnées ou jamais tentés ;
+- dédupliquer par `linkKey` ;
+- `INSERT OR IGNORE` dans la file avec priorité `MISSING_METADATA` ;
+- reprendre naturellement après process death jusqu'à convergence.
+
+Le même mécanisme couvre une installation fraîche et une installation existante. Il ne charge jamais ~54 000 médias en mémoire d'un coup.
+
+Un média `UNRESOLVED` n'est pas considéré comme « jamais tenté » : il conserve son état. Sans nouvel indice ni ouverture du média, il n'est pas retenté en boucle.
 
 ## 7.6 Recommandations
 
@@ -281,19 +344,46 @@ Exemples : 13 vs 12 bloqué ; 13 vs 16 autorisé ; 17 vs 16 bloqué ; 17 vs 18 a
 
 | Âge | Refresh |
 |---|---:|
-| inconnu | 15 j |
-| <1 an | 7 j |
-| 1–4 ans | 30 j |
-| 5–9 ans | 90 j |
-| 10+ ans | 180 j |
+| inconnu | 30 j |
+| <1 an | 14 j |
+| 1–4 ans | 90 j |
+| 5–9 ans | 180 j |
+| 10+ ans | 365 j |
 
 ### Séries
 
-`inProduction=true` → 7 j. Sinon même grille selon `lastAirDate`.
+`inProduction=true` → 7 j.
 
-Saison courante/récente d'une série active : cible ~7 j ; anciennes saisons décroissantes selon dernier épisode.
+Pour une série terminée, selon `lastAirDate` :
+
+| Âge depuis fin | Refresh |
+|---|---:|
+| inconnu | 30 j |
+| <1 an | 30 j |
+| 1–4 ans | 90 j |
+| 5–9 ans | 180 j |
+| 10+ ans | 365 j |
+
+### Saisons / épisodes
+
+TTL évalué **uniquement à l'ouverture d'une fiche série** :
+
+| Saison | Refresh cible |
+|---|---:|
+| série active / saison courante ou récente | 7 j |
+| terminée <1 an | 30 j |
+| terminée 1–4 ans | 180 j |
+| terminée >4 ans | 365 j |
+
+Le détail d'une saison ramène les épisodes attendus par F45 ; aucun appel par épisode n'est planifié.
 
 Une expiration signifie « tenter un refresh », jamais « supprimer ».
+
+**Aucun script/worker périodique ne recherche les lignes expirées.** Le client compare `refreshAfter` à `now` seulement lorsqu'un média est ouvert.
+
+Le backend ajoute un jitter borné autour de `refreshAfter` (cible initiale ±10 %) pour éviter des expirations synchronisées si plusieurs médias sont consultés/hydratés dans la même période.
+
+Le client ne duplique pas les règles de TTL : il respecte uniquement `refreshAfter`.
 
 ## 7.11 Matching multi-passes
 
@@ -344,10 +434,11 @@ Acceptation = seuil absolu + marge suffisante sur le deuxième candidat, sauf pr
 
 ### Revalidation
 
+- la revalidation n'est **pas** déclenchée par un worker quotidien ;
+- à l'ouverture d'un média, si `revalidateAfter`/`matchVersion` l'exige, renvoyer les hints ;
 - même externalId : mettre à jour confiance/méthode/version/date ;
 - autre externalId : s'il devient le meilleur match **accepté**, remplacer automatiquement l'ancien ;
-- score insuffisant : ne pas remplacer un lien valide existant ;
-- unresolved : retenter plus tard.
+- score insuffisant : ne pas remplacer un lien valide existant.
 
 ## 7.12 Versions IPTV
 
@@ -369,6 +460,11 @@ Backend indisponible → Room + IPTV. Fournisseur indisponible → dernière don
 - [ ] Plusieurs versions IPTV peuvent partager un externalId.
 - [ ] Ouverture de fiche indépendante du réseau externe.
 - [ ] Série avant saisons ; saisons séquentielles.
+- [ ] Première installation : tous les films/séries convergent progressivement vers des métadonnées de niveau média.
+- [ ] Installation existante : tous les films/séries déjà présents sont rattrapés progressivement.
+- [ ] Nouveau média IPTV : matching + métadonnées racine mis en file après sync.
+- [ ] Aucune saison/épisode n'est hydraté lors du sync ou du backfill.
+- [ ] Aucune donnée stale n'est rafraîchie en arrière-plan sans ouverture du média.
 - [ ] Aucun trigger au scroll.
 - [ ] Tables externes séparées des tables Xtream.
 - [ ] Bonne donnée stale conservée en cas de refresh KO.
@@ -460,7 +556,13 @@ Stale illimité = métadonnées média durables uniquement ; Trending/Popular re
 
 Si frais → DB immédiate.
 
-Si expiré → tentative provider dans un flux transactionnel ; collections remplacées seulement après réponse valide. Échec → rollback + ancienne donnée conservée + cooldown via `last_refresh_attempt_at`.
+Si expiré **et qu'un client demande le média** → tentative provider dans un flux transactionnel ; collections remplacées seulement après réponse valide. Échec → rollback + ancienne donnée conservée + cooldown via `last_refresh_attempt_at`.
+
+Il n'existe aucun job serveur/client chargé de parcourir périodiquement toutes les lignes stale.
+
+Le refresh est protégé par single-flight par identité : plusieurs installations ouvrant simultanément le même média stale partagent une seule tentative provider.
+
+Le nouveau `refresh_after` reçoit le jitter défini §7.10.
 
 ## 8.6 Matching backend
 
@@ -476,6 +578,18 @@ Nouveaux composants provider-agnostic :
 `MATCH_ALGORITHM_VERSION = 1`, inclus dans la clé de cache match et renvoyé à l'app.
 
 La popularité et le vote count ne sont jamais utilisés comme preuve d'identité.
+
+### Résolution PostgreSQL-first
+
+Avant une recherche fournisseur, le backend tente de résoudre la requête contre les médias déjà consolidés en PostgreSQL à partir des signaux génériques disponibles (titres, titres alternatifs, année, etc.).
+
+- match interne suffisamment fiable → réutiliser l'`externalId`, sans appel provider ;
+- match interne absent/ambigu → passer au provider et au matching multi-passes ;
+- les notions de seuil et de marge restent obligatoires pour éviter de propager un mauvais match déjà stocké.
+
+Les demandes concurrentes équivalentes sont dédupliquées en single-flight côté backend.
+
+Cette résolution PostgreSQL-first est essentielle au backfill des grandes installations : plus le backend connaît d'œuvres, moins une nouvelle installation génère d'appels provider.
 
 ## 8.7 API `/v1/catalog`
 
@@ -559,7 +673,8 @@ Nouvelles tables :
 - `external_recommendations`
 - `external_videos`
 - `external_media_links`
-- file technique d'hydratation si nécessaire
+- `external_hydration_queue`
+- état de résolution des médias non matchés, intégré au lien ou table dédiée
 
 `external_media_links` :
 
@@ -577,6 +692,23 @@ INDEX(externalId)
 
 Les UUID sont des String en SQLite/Kotlin.
 
+`external_hydration_queue` porte au minimum :
+
+```text
+kind
+providerId
+reason            // DETAIL_OPEN, NEW_IPTV_MEDIA, MISSING_METADATA
+priority
+createdAt
+nextAttemptAt
+attemptCount
+PRIMARY KEY(kind, providerId)
+```
+
+L'état `UNRESOLVED` conserve `lastMatchAttemptAt`, `matchVersion` et éventuellement `retryAfter` même sans externalId afin qu'un média impossible à matcher ne soit pas repris en boucle comme « jamais tenté ».
+
+Les requêtes de backfill sont paginées/indexées ; aucun scan ne matérialise ~54 000 lignes en mémoire.
+
 ## 8.10 Propagation `linkKey`
 
 Après match : rechercher les variantes locales de même `linkKey`, vérifier la compatibilité d'année T21 et créer les mêmes liens externalId sans toucher les tables Xtream.
@@ -589,16 +721,45 @@ Une file locale persistée/dédupliquée est drainée par un WorkManager unique 
 - maximum une hydratation externe active
 - reprise après process death
 - déduplication `(kind, providerId)`
-- média principal avant saisons
-- saisons séquentielles
+- priorité `DETAIL_OPEN > NEW_IPTV_MEDIA > MISSING_METADATA`
 - retry/backoff
 - aucun trigger au scroll
+
+Producteurs :
+
+1. ouverture de fiche ;
+2. post-traitement d'une sync IPTV pour les nouveaux films/séries ;
+3. seeder de backfill/rattrapage pour les films/séries sans données.
+
+Il n'existe **aucun `ExternalMetadataFreshnessWorker`** et aucun periodic work F45 chargé de rafraîchir les métadonnées stale.
+
+L'ouverture d'une fiche peut promouvoir une demande déjà présente dans la file en `DETAIL_OPEN` sans créer de doublon. C'est également à cette occasion que `refreshAfter` et la revalidation du match sont évalués.
+
+Le worker ne traite les saisons/épisodes que lorsqu'une demande `DETAIL_OPEN` concerne une série. Les demandes `NEW_IPTV_MEDIA` et `MISSING_METADATA` s'arrêtent au niveau série.
+
+### Intégration à la sync catalogue
+
+`CatalogSyncManagerImpl`/repositories calculent un delta des médias réellement ajoutés.
+
+Le post-traitement F45 s'exécute après la persistance catalogue et après la collecte des hints Xtream disponibles. Comme les autres post-traitements non critiques, un échec d'enqueue F45 ne transforme pas une sync catalogue réussie en retry/échec.
+
+### Backfill installations fraîches et existantes
+
+Un `ExternalMetadataBackfillSeeder` (ou équivalent) parcourt les films/séries sans état de résolution et alimente la file par petits lots.
+
+Le même mécanisme couvre :
+
+- première installation : tous les médias sont initialement manquants ;
+- upgrade d'une installation existante : le catalogue présent avant F45 est rattrapé ;
+- interruption : le prochain démarrage/reprise continue depuis l'état Room réel.
+
+Le seeder ne cherche que les **données absentes**. Il ignore toute ligne déjà hydratée même si `refreshAfter` est dépassé.
 
 ## 8.12 Revalidation
 
 Échéance du lien distincte du refresh des métadonnées. Politique initiale ajustable : CERTAIN ~180j, STRONG ~90j, PROBABLE ~30j, UNRESOLVED ~1–7j.
 
-À échéance, renvoyer les hints. Nouveau meilleur match accepté → remplacement automatique (choix 3B). Anciennes métadonnées deviennent orphelines mais non destructrices ; maintenance différée possible.
+Cette échéance n'est pas scannée périodiquement. À l'ouverture du média, si la revalidation est due, renvoyer les hints. Nouveau meilleur match accepté → remplacement automatique (choix 3B). Anciennes métadonnées deviennent orphelines mais non destructrices ; maintenance différée possible.
 
 ## 8.13 Migration F44
 
@@ -631,9 +792,27 @@ Le backend provider spécifique conserve naturellement les classes `Tmdb*`.
 
 ## 8.16 Performance
 
-Backend : indexes sur `(kind, tmdb_id)`, refresh, FK/relations ; top 2/3 seulement en passe 2 ; `append_to_response` lorsque pertinent.
+Backend :
 
-Android : aucune jointure externe dans les listes chaudes tant que F45 n'affiche pas ces données ; une hydratation active max ; écritures transactionnelles ; pas de duplication des métadonnées dans les recommandations.
+- indexes sur `(kind, tmdb_id)`, refresh, FK/relations ;
+- top 2/3 seulement en passe 2 ;
+- `append_to_response` lorsque pertinent ;
+- PostgreSQL-first avant provider ;
+- single-flight pour match/hydratation/refresh identiques ;
+- rate limiter **global** autour de `TmdbClient`, partagé par toutes les installations ;
+- débit initial conservateur et configurable (cible de départ ~2 req/s soutenues, petit burst borné ~5), sans dépendre contractuellement d'un quota provider fixe ;
+- toute réponse `429` respecte `Retry-After` lorsqu'il est présent puis applique un backoff ;
+- le trafic interactif doit être prioritaire sur le backfill.
+
+Android :
+
+- aucune jointure externe dans les listes chaudes tant que F45 n'affiche pas ces données ;
+- une hydratation active max ;
+- backfill paginé ;
+- aucune saison/épisode pendant le backfill ;
+- aucun scan périodique des metadata stale ;
+- écritures transactionnelles ;
+- pas de duplication des métadonnées dans les recommandations.
 
 ## 8.17 Risques
 
@@ -645,6 +824,9 @@ Android : aucune jointure externe dans les listes chaudes tant que F45 n'affiche
 6. Classification internationale — mapping fortement testé.
 7. Images `original` — trafic potentiellement élevé mais politique serveur ajustable.
 8. Cache T22 ancien — versionner les clés.
+9. Backfill ~54 000 médias — file persistée, pagination, déduplication `linkKey` et rate limit obligatoires.
+10. Plusieurs installations simultanées — PostgreSQL-first + single-flight + priorité interactive nécessaires pour protéger le provider partagé.
+11. Données stale longtemps non consultées — choix assumé : elles ne coûtent rien tant que le média n'est pas ouvert.
 
 ---
 
@@ -662,7 +844,11 @@ Android CSTV
   ExternalMetadataRepository
       +-- external_media_links
       +-- external_* metadata
-      +-- hydration queue
+      +-- external_hydration_queue
+      |      ^
+      |      +-- DETAIL_OPEN
+      |      +-- nouveaux médias après sync IPTV
+      |      +-- backfill médias sans metadata
       |
       v HTTPS /v1/catalog + X-CSTV-Device-Type
 
@@ -673,6 +859,8 @@ Backend CSTV
       +-- CatalogMatchEngine
       +-- ExternalMediaRepository
       +-- MediaMetadataCacheRepository
+      +-- ProviderSingleFlight
+      +-- ProviderRateLimiter
       +-- MediaMetadataProvider
               |
               +-- TmdbMediaMetadataProvider
@@ -686,11 +874,17 @@ Backend CSTV
 ## 9.2 Premier matching
 
 ```text
-Ouverture fiche
-  +--> UI IPTV immédiate
-  +--> enqueue
+trigger
+  |-- ouverture fiche
+  |-- nouveau média IPTV
+  |-- média existant sans metadata
+  |
+  +--> enqueue dédupliqué/priorisé
         -> hints Room
         -> POST /matches
+        -> recherche PostgreSQL consolidée
+        -> si match interne fiable : réutiliser externalId
+        -> sinon provider sous rate limiter global
         -> search top N
         -> score rapide
         -> si ambigu : détails top 2/3
@@ -705,7 +899,15 @@ Ouverture fiche
 ## 9.3 Série
 
 ```text
-match série -> persist série -> saison 1 -> persist -> saison 2 -> ...
+sync/backfill
+  -> match série
+  -> persist métadonnées série
+  -> STOP
+
+ouverture fiche série
+  -> vérifier série + refreshAfter
+  -> saisons/épisodes manquants ou stale
+  -> hydratation séquentielle à la demande
 ```
 
 Jamais de parallélisme massif.
@@ -757,7 +959,7 @@ Connaît routes/IDs/champs/certifications/tailles TMDB et les transforme en mod�
 
 **Travail** : movie/series append, saisons, 20 reco sans N+1, âge exact, paths image, configuration image cachée, matrice device.
 
-**Validation** : mappings sales, 13/15/17, médiane paire, null, aucune URL persistée, aucune hydration récursive reco.
+**Validation** : mappings sales, 13/15/17, médiane paire, null, aucune URL persistée, aucune hydration récursive reco ; rate limiter global, priorité interactive, `429/Retry-After` et single-flight couverts par tests.
 
 ---
 
@@ -767,9 +969,9 @@ Connaît routes/IDs/champs/certifications/tailles TMDB et les transforme en mod�
 
 **Fichiers** : nouveaux `CatalogMatchEngine`, `CatalogMatchHints`, `CatalogMatchCandidate`, `CatalogMatchResult`; `TmdbMediaMetadataProvider.php`; `CatalogService.php`; corpus tests.
 
-**Travail** : top N, passe 1, top 2/3 passe 2, normalisation noms, année ±1/±2, cast/director/runtime/trailer, seuil+marge, confidence/method/version, cache key versionnée.
+**Travail** : résolution PostgreSQL-first, puis top N provider si nécessaire, passe 1, top 2/3 passe 2, normalisation noms, année ±1/±2, cast/director/runtime/trailer, seuil+marge, confidence/method/version, cache key versionnée, single-flight de recherches équivalentes.
 
-**Validation** : homonymes, mauvais premier résultat, année décalée mais indices forts, trailer identique, scores trop proches → unresolved, changement version invalide cache.
+**Validation** : média déjà connu → zéro appel provider ; homonymes, mauvais premier résultat, année décalée mais indices forts, trailer identique, scores trop proches → unresolved, changement version invalide cache, concurrence identique dédupliquée.
 
 ---
 
@@ -811,17 +1013,49 @@ Connaît routes/IDs/champs/certifications/tailles TMDB et les transforme en mod�
 
 ## Tâche 7 — File WorkManager séquentielle
 
-**Objectif** : garantir une hydratation non bloquante sur box faibles.
+**Objectif** : garantir une hydratation priorisée, persistante et non bloquante sur box faibles.
 
-**Fichiers** : nouveau `ExternalMetadataHydrationWorker.kt`, éventuelle entité/DAO de queue, repository, hooks ViewModel/use case à l'ouverture fiche.
+**Fichiers** : nouveau `ExternalMetadataHydrationWorker.kt`, `ExternalHydrationRequestEntity/Dao` ou équivalent, repository, hooks ViewModel/use case à l'ouverture fiche.
 
-**Travail** : queue persistée/dédupliquée, work global unique, CONNECTED, une hydration active, série puis saisons, retry/backoff, reprise process death, aucun scroll trigger.
+**Travail** : queue persistée/dédupliquée, raisons/priorités, promotion DETAIL_OPEN, work global unique, CONNECTED, une hydratation active, retry/backoff, reprise process death, aucun scroll trigger ; saisons/épisodes autorisés uniquement pour DETAIL_OPEN ; refresh/revalidation stale évalués uniquement à l'ouverture.
 
-**Validation** : 10 demandes rapides séquentielles, doublon = une entrée, interruption/reprise, erreur item ne bloque pas suivants, longue série non parallélisée, tests JVM.
+**Validation** : 10 demandes rapides séquentielles, doublon = une entrée, promotion de priorité, interruption/reprise, erreur item ne bloque pas suivants, longue série non parallélisée, aucun détail saison depuis les priorités de fond, aucune metadata stale mise en file sans ouverture, tests JVM.
 
 ---
 
-## Tâche 8 — Migrer les consommateurs canonicalId et nettoyer TMDB côté app
+## Tâche 8 — Sync des nouveaux médias et backfill des installations
+
+**Objectif** : faire converger installations fraîches et existantes sans conditionner le niveau média à l'ouverture d'une fiche.
+
+**Fichiers** :
+- `CatalogSyncManagerImpl.kt`
+- `DatabaseSyncWorker.kt`
+- repositories/DAO VOD + séries pour delta/pagination
+- nouveau `ExternalMetadataBackfillSeeder.kt` ou équivalent
+- hooks de démarrage/reprise
+- tests JVM sync/backfill
+
+**Travail** :
+- calculer les films/séries réellement nouveaux après sync ;
+- enqueue `NEW_IPTV_MEDIA` après hints Xtream disponibles ;
+- parcourir par pages les films/séries sans état F45 et enqueue `MISSING_METADATA` ;
+- dédupliquer par `linkKey` ;
+- préserver `UNRESOLVED` pour éviter les boucles ;
+- aucune saison/épisode dans ces chemins ;
+- aucun scan de `refreshAfter`.
+
+**Validation** :
+- fresh install : backlog racine créé progressivement ;
+- upgrade installation existante : catalogue précédent rattrapé ;
+- sync sans nouveau média : aucun enqueue inutile ;
+- sync avec variantes même `linkKey` : un matching réseau représentatif ;
+- process death : reprise ;
+- metadata stale existante : ignorée par le seeder ;
+- échec F45 post-sync : sync IPTV reste réussie.
+
+---
+
+## Tâche 9 — Migrer les consommateurs canonicalId et nettoyer TMDB côté app
 
 **Objectif** : externalId devient la seule identité externe du nouveau code Android.
 
@@ -833,7 +1067,7 @@ Connaît routes/IDs/champs/certifications/tailles TMDB et les transforme en mod�
 
 ---
 
-## Tâche 9 — Migrer F44 vers l'âge exact
+## Tâche 10 — Migrer F44 vers l'âge exact
 
 **Objectif** : consommer `ageRating: Int?` sans changer les seuils/parcours parental.
 
@@ -845,7 +1079,7 @@ Connaît routes/IDs/champs/certifications/tailles TMDB et les transforme en mod�
 
 ---
 
-## Tâche 10 — Validation transversale et mesures
+## Tâche 11 — Validation transversale et mesures
 
 **Objectif** : préparer l'étape 6 de review.
 
@@ -853,13 +1087,15 @@ Connaît routes/IDs/champs/certifications/tailles TMDB et les transforme en mod�
 
 **Validation** : tout vert ; aucun test manuel/device requis conformément à AGENTS.md.
 
+Ajouter au bilan : volume de backlog initial, débit de convergence, taux PostgreSQL-first, appels provider évités, `429`, temps estimé de convergence, et vérification qu'aucun refresh stale ne part sans ouverture de fiche.
+
 ---
 
 # 11. Notes de développement
 
 À compléter à l'étape 5.
 
-Mesures à collecter : distribution des scores/marges, taux CERTAIN/STRONG/PROBABLE/UNRESOLVED, taux de passe 2, appels provider/match, durée hydratation, taille Room, volume image par device, taux de remplacement lors des revalidations.
+Mesures à collecter : distribution des scores/marges, taux CERTAIN/STRONG/PROBABLE/UNRESOLVED, taux de passe 2, taux de résolution PostgreSQL-first, appels provider/match, `429`/backoff, profondeur du backlog, débit de convergence, durée hydratation, taille Room, volume image par device, taux de remplacement lors des revalidations.
 
 ---
 
