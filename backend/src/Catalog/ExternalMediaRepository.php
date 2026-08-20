@@ -50,11 +50,16 @@ final readonly class ExternalMediaRepository
     {
         $table = $kind === 'movie' ? 'tmdb_movies' : 'tmdb_series';
         $dateColumn = $kind === 'movie' ? 'release_date' : 'first_air_date';
+        // `tmdb_series` porte `name`/`original_name`, jamais `title`/`original_title` (colonnes
+        // propres à `tmdb_movies`) — un SELECT non aliasé y échouait avec `column "title" does not
+        // exist` sur *tout* match série (§8.6 PostgreSQL-first), avant même d'atteindre TMDB.
+        $titleColumn = $kind === 'movie' ? 'title' : 'name';
+        $originalTitleColumn = $kind === 'movie' ? 'original_title' : 'original_name';
         $normalized = TitleNormalizer::normalize($title);
         if ($normalized === '' && trim($title) === '') return [];
         $statement = $this->pdo->prepare(
-            "SELECT external_id::text AS external_id, title, original_title, alternative_titles, genres, {$dateColumn} AS media_date " .
-            "FROM {$table} WHERE normalized_title = :normalized OR LOWER(original_title) = LOWER(:raw_title) " .
+            "SELECT external_id::text AS external_id, {$titleColumn} AS title, {$originalTitleColumn} AS original_title, alternative_titles, genres, {$dateColumn} AS media_date " .
+            "FROM {$table} WHERE normalized_title = :normalized OR LOWER({$originalTitleColumn}) = LOWER(:raw_title) " .
             'OR EXISTS (SELECT 1 FROM unnest(alternative_titles) AS alt WHERE LOWER(alt) = LOWER(:raw_title)) ' .
             'LIMIT 20',
         );
