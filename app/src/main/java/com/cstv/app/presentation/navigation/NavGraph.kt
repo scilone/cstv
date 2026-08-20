@@ -797,7 +797,7 @@ fun AppNavGraph(
                 com.cstv.app.presentation.components.ParentalPinEntryDialog(
                     reason = request.reason,
                     feedback = state.parentalPinFeedback,
-                    onSubmit = { pin -> vodViewModel.submitParentalPin(pin) },
+                    onSubmit = { pin, remember -> vodViewModel.submitParentalPin(pin, remember) },
                     onDismiss = { vodViewModel.consumeParentalPinRequest() }
                 )
             }
@@ -908,7 +908,7 @@ fun AppNavGraph(
                 com.cstv.app.presentation.components.ParentalPinEntryDialog(
                     reason = request.reason,
                     feedback = state.parentalPinFeedback,
-                    onSubmit = { pin -> seriesViewModel.submitParentalPin(pin) },
+                    onSubmit = { pin, remember -> seriesViewModel.submitParentalPin(pin, remember) },
                     onDismiss = { seriesViewModel.consumeParentalPinRequest() }
                 )
             }

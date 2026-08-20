@@ -558,11 +558,11 @@ class SeriesViewModel @Inject constructor(
     }
 
     /** F44 : PIN saisi depuis l'écran de refus. */
-    fun submitParentalPin(pin: String) {
+    fun submitParentalPin(pin: String, remember: Boolean = false) {
         val request = _state.value.parentalPinRequest ?: return
         val unlockUseCase = parentalUnlockUseCase ?: return
         viewModelScope.launch {
-            when (val unlock = unlockUseCase.unlock(pin, request.mediaUid)) {
+            when (val unlock = unlockUseCase.unlock(pin, request.mediaUid, if (remember) request.authorizationTarget else null)) {
                 is com.cstv.app.domain.usecase.ParentalUnlockResult.Unlocked -> {
                     val callback = pendingParentalOnAllowed
                     val suspendCallback = pendingParentalSuspendOnAllowed

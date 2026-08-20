@@ -59,6 +59,7 @@ class VodParentalPinTest {
     @Mock private lateinit var invalidateTrailerPreviewUseCase: InvalidateTrailerPreviewUseCase
     @Mock private lateinit var getRecommendationsUseCase: GetRecommendationsUseCase
     @Mock private lateinit var profileRepository: ProfileRepository
+    @Mock private lateinit var parentalAuthorizationRepository: com.cstv.app.domain.repository.ParentalAuthorizationRepository
 
     private val testDispatcher = StandardTestDispatcher()
     private val timeProvider = object : TimeProvider { override fun nowMillis() = 0L }
@@ -84,7 +85,7 @@ class VodParentalPinTest {
         whenever(profileRepository.currentProfileId()).thenReturn(1)
 
         pinStore = ParentalPinStore(FakeSharedPreferences(), timeProvider, monotonicClock)
-        parentalUnlockUseCase = ParentalUnlockUseCase(pinStore, OneShotPlaybackGrantStore(), profileRepository)
+        parentalUnlockUseCase = ParentalUnlockUseCase(pinStore, OneShotPlaybackGrantStore(), profileRepository, parentalAuthorizationRepository)
 
         viewModel = VodViewModel(
             getVodCategoriesUseCase, getVodCategoryCountsUseCase, getVodStreamsUseCase, getVodDetailsUseCase,
@@ -169,5 +170,39 @@ class VodParentalPinTest {
         val feedback = viewModel.state.value.parentalPinFeedback
         assertTrue(feedback is ParentalPinFeedback.Locked)
         assertEquals(ParentalPinStore.INITIAL_LOCK_MS, (feedback as ParentalPinFeedback.Locked).remainingMillis)
+    }
+
+    @Test
+    fun `F45 - a correct pin with remember checked persists a permanent authorization`() = runTest(testDispatcher) {
+        pinStore.createPin("1234")
+        val target = ParentalAuthorizationTarget(com.cstv.app.data.repository.MediaClassificationKind.MOVIE, 1)
+        whenever(canPlayContentUseCase("movie_1"))
+            .thenReturn(PlaybackAvailability.RequiresParentalPin(BlockReason.TOO_MATURE, "movie_1", authorizationTarget = target))
+        whenever(canPlayContentUseCase(eq("movie_1"), any()))
+            .thenReturn(PlaybackAvailability.Allowed)
+
+        viewModel.requestPlayback(1) {}
+        runCurrent()
+        viewModel.submitParentalPin("1234", remember = true)
+        runCurrent()
+
+        verify(parentalAuthorizationRepository).authorize(1, com.cstv.app.data.repository.MediaClassificationKind.MOVIE, 1)
+    }
+
+    @Test
+    fun `F45 - a correct pin without remember checked persists nothing`() = runTest(testDispatcher) {
+        pinStore.createPin("1234")
+        val target = ParentalAuthorizationTarget(com.cstv.app.data.repository.MediaClassificationKind.MOVIE, 1)
+        whenever(canPlayContentUseCase("movie_1"))
+            .thenReturn(PlaybackAvailability.RequiresParentalPin(BlockReason.TOO_MATURE, "movie_1", authorizationTarget = target))
+        whenever(canPlayContentUseCase(eq("movie_1"), any()))
+            .thenReturn(PlaybackAvailability.Allowed)
+
+        viewModel.requestPlayback(1) {}
+        runCurrent()
+        viewModel.submitParentalPin("1234")
+        runCurrent()
+
+        verifyNoInteractions(parentalAuthorizationRepository)
     }
 }

@@ -123,7 +123,7 @@ fun HomeScreen(
         com.cstv.app.presentation.components.ParentalPinEntryDialog(
             reason = request.reason,
             feedback = state.parentalPinFeedback,
-            onSubmit = { pin -> viewModel.submitParentalPin(pin) },
+            onSubmit = { pin, remember -> viewModel.submitParentalPin(pin, remember) },
             onDismiss = { viewModel.consumeParentalPinRequest() }
         )
     }

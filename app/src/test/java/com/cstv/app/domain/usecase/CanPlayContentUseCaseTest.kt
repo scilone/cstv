@@ -11,6 +11,7 @@ import com.cstv.app.domain.model.OneShotPlaybackGrantStore
 import com.cstv.app.domain.model.ParentalAccessPolicy
 import com.cstv.app.domain.model.Profile
 import com.cstv.app.domain.network.NetworkMonitor
+import com.cstv.app.domain.repository.ParentalAuthorizationRepository
 import com.cstv.app.domain.repository.ProfileRepository
 import com.cstv.app.domain.repository.SeriesRepository
 import com.cstv.app.domain.repository.VodRepository
@@ -46,6 +47,7 @@ class CanPlayContentUseCaseTest {
     private val vodRepository: VodRepository = mock()
     private val seriesRepository: SeriesRepository = mock()
     private val classificationRepository: ContentClassificationRepository = mock()
+    private val parentalAuthorizationRepository: ParentalAuthorizationRepository = mock()
     private val parentalAccessPolicy = ParentalAccessPolicy()
 
     private lateinit var useCase: CanPlayContentUseCase
@@ -74,6 +76,7 @@ class CanPlayContentUseCaseTest {
             classificationRepository,
             parentalAccessPolicy,
             OneShotPlaybackGrantStore(),
+            parentalAuthorizationRepository,
         )
     }
 

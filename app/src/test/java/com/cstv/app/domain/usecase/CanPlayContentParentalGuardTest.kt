@@ -13,6 +13,7 @@ import com.cstv.app.domain.model.ParentalAccessPolicy
 import com.cstv.app.domain.model.Profile
 import com.cstv.app.domain.model.VodStream
 import com.cstv.app.domain.network.NetworkMonitor
+import com.cstv.app.domain.repository.ParentalAuthorizationRepository
 import com.cstv.app.domain.repository.ProfileRepository
 import com.cstv.app.domain.repository.SeriesRepository
 import com.cstv.app.domain.repository.VodRepository
@@ -23,9 +24,7 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.Timeout
-import org.mockito.kotlin.mock
-import org.mockito.kotlin.verifyNoInteractions
-import org.mockito.kotlin.whenever
+import org.mockito.kotlin.*
 
 /**
  * F44, tâche 5 : vérifie que `CanPlayContentUseCase` — l'unique point d'entrée
@@ -46,6 +45,7 @@ class CanPlayContentParentalGuardTest {
     private val vodRepository: VodRepository = mock()
     private val seriesRepository: SeriesRepository = mock()
     private val classificationRepository: ContentClassificationRepository = mock()
+    private val parentalAuthorizationRepository: ParentalAuthorizationRepository = mock()
     private val grantStore = OneShotPlaybackGrantStore()
 
     private lateinit var useCase: CanPlayContentUseCase
@@ -59,6 +59,12 @@ class CanPlayContentParentalGuardTest {
         whenever(networkMonitor.isCurrentlyOnline()).thenReturn(true)
         whenever(profileRepository.currentProfileId()).thenReturn(1)
         whenever(accountKeyProvider.current()).thenReturn("account-key")
+        // Mockito (sans mockito-inline) renvoie `null` par défaut pour une méthode
+        // suspend d'interface, quel que soit son type de retour déclaré (le bytecode
+        // CPS renvoie `Any`) : sans ce stub explicite, l'unboxing en `Boolean`
+        // provoque un NPE (même piège que documenté dans AGENTS.md, étendu ici aux
+        // fonctions suspend). Chaque test F45 réécrit ce stub pour son cas précis.
+        parentalAuthorizationRepository.stub { onBlocking { isAuthorized(any(), any(), any()) }.doReturn(false) }
         useCase = CanPlayContentUseCase(
             IsContentDownloadedUseCase(downloadDao, accountKeyProvider),
             networkMonitor,
@@ -69,6 +75,7 @@ class CanPlayContentParentalGuardTest {
             classificationRepository,
             ParentalAccessPolicy(),
             grantStore,
+            parentalAuthorizationRepository,
         )
     }
 
@@ -92,7 +99,10 @@ class CanPlayContentParentalGuardTest {
         val result = useCase("movie_42")
 
         assertEquals(
-            PlaybackAvailability.RequiresParentalPin(BlockReason.TOO_MATURE, "movie_42", AgeRating.SIXTEEN),
+            PlaybackAvailability.RequiresParentalPin(
+                BlockReason.TOO_MATURE, "movie_42", AgeRating.SIXTEEN,
+                authorizationTarget = ParentalAuthorizationTarget(MediaClassificationKind.MOVIE, 42),
+            ),
             result
         )
     }
@@ -105,7 +115,13 @@ class CanPlayContentParentalGuardTest {
 
         val result = useCase("movie_42")
 
-        assertEquals(PlaybackAvailability.RequiresParentalPin(BlockReason.UNCLASSIFIED, "movie_42"), result)
+        assertEquals(
+            PlaybackAvailability.RequiresParentalPin(
+                BlockReason.UNCLASSIFIED, "movie_42",
+                authorizationTarget = ParentalAuthorizationTarget(MediaClassificationKind.MOVIE, 42),
+            ),
+            result,
+        )
     }
 
     @Test
@@ -141,7 +157,10 @@ class CanPlayContentParentalGuardTest {
         val result = useCase("episode_99")
 
         assertEquals(
-            PlaybackAvailability.RequiresParentalPin(BlockReason.TOO_MATURE, "episode_99", AgeRating.SIXTEEN),
+            PlaybackAvailability.RequiresParentalPin(
+                BlockReason.TOO_MATURE, "episode_99", AgeRating.SIXTEEN,
+                authorizationTarget = ParentalAuthorizationTarget(MediaClassificationKind.SERIES, 7),
+            ),
             result
         )
     }
@@ -168,7 +187,10 @@ class CanPlayContentParentalGuardTest {
 
         val secondAttempt = useCase("movie_42", oneShotGrantNonce = nonce)
         assertEquals(
-            PlaybackAvailability.RequiresParentalPin(BlockReason.TOO_MATURE, "movie_42", AgeRating.SIXTEEN),
+            PlaybackAvailability.RequiresParentalPin(
+                BlockReason.TOO_MATURE, "movie_42", AgeRating.SIXTEEN,
+                authorizationTarget = ParentalAuthorizationTarget(MediaClassificationKind.MOVIE, 42),
+            ),
             secondAttempt
         )
     }
@@ -184,6 +206,33 @@ class CanPlayContentParentalGuardTest {
             )
 
         assertEquals(PlaybackAvailability.Allowed, useCase("movie_42"))
+        verifyNoInteractions(classificationRepository)
+    }
+
+    @Test
+    fun `F45 - a permanent authorization bypasses the classification check entirely`() = runTest {
+        whenever(profileRepository.getProfiles()).thenReturn(listOf(profile(12)))
+        whenever(vodRepository.getStreamById(42)).thenReturn(movie)
+        whenever(parentalAuthorizationRepository.isAuthorized(1, MediaClassificationKind.MOVIE, 42)).thenReturn(true)
+
+        val result = useCase("movie_42")
+
+        assertEquals(PlaybackAvailability.Allowed, result)
+        verifyNoInteractions(classificationRepository)
+    }
+
+    @Test
+    fun `F45 - a permanent authorization on a series covers every episode`() = runTest {
+        whenever(profileRepository.getProfiles()).thenReturn(listOf(profile(10)))
+        whenever(seriesRepository.getSeriesIdForEpisode(99)).thenReturn(7)
+        whenever(seriesRepository.getStreamById(7)).thenReturn(
+            com.cstv.app.domain.model.SeriesStream(seriesId = 7, name = "Supergirl", cover = null, rating = null, added = null, categoryId = "cat", releaseYear = 2015)
+        )
+        whenever(parentalAuthorizationRepository.isAuthorized(1, MediaClassificationKind.SERIES, 7)).thenReturn(true)
+
+        val result = useCase("episode_99")
+
+        assertEquals(PlaybackAvailability.Allowed, result)
         verifyNoInteractions(classificationRepository)
     }
 }

@@ -11,7 +11,9 @@ import kotlinx.coroutines.flow.StateFlow
  */
 enum class SyncNamespace(val wireName: String, val schemaVersion: Int) {
     FAVORITES("favorites", 2), PLAYBACK("playback", 2), RATINGS("ratings", 1), TRACK_PREFERENCES("track-preferences", 1),
-    SERIES_WATCH_STATE("series-watch-state", 1), CATEGORY_PREFERENCES("category-preferences", 1), RECENTLY_WATCHED_LIVE("recently-watched-live", 2), PROFILE_PREFERENCES("profile-preferences", 1);
+    SERIES_WATCH_STATE("series-watch-state", 1), CATEGORY_PREFERENCES("category-preferences", 1), RECENTLY_WATCHED_LIVE("recently-watched-live", 2), PROFILE_PREFERENCES("profile-preferences", 1),
+    // F45 (évolution F44) : autorisations permanentes accordées par PIN à un profil bridé.
+    PARENTAL_AUTHORIZATIONS("parental-authorizations", 1);
     companion object { fun fromWireName(value: String): SyncNamespace? = entries.firstOrNull { it.wireName == value } }
 }
 

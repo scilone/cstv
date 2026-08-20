@@ -36,7 +36,8 @@ interface MediaRefDao {
             "UNION SELECT mediaUid FROM track_preferences " +
             "UNION SELECT mediaUid FROM series_watch_state " +
             "UNION SELECT mediaUid FROM downloaded_media " +
-            "UNION SELECT mediaUid FROM playback_repair_profiles)"
+            "UNION SELECT mediaUid FROM playback_repair_profiles " +
+            "UNION SELECT mediaUid FROM parental_media_authorizations)"
     )
     suspend fun purgeUnreferenced()
 }

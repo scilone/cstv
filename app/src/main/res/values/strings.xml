@@ -170,6 +170,7 @@
     <string name="parental_pin_label">Code PIN</string>
     <string name="parental_pin_confirm_label">Confirmer le code PIN</string>
     <string name="parental_pin_validate">Valider</string>
+    <string name="parental_pin_remember_choice">Toujours autoriser ce contenu sur ce profil</string>
     <string name="parental_pin_incorrect">Code PIN incorrect.</string>
     <string name="parental_pin_locked">Trop de tentatives. Réessayez dans %1$d s.</string>
     <string name="parental_pin_mismatch">Les deux codes ne correspondent pas.</string>

@@ -37,3 +37,6 @@ data class SeriesWatchStateWire(
 data class CategoryPreferenceWire(val categoryId: String, val type: String, val hidden: Boolean, val sortOrder: Int?)
 
 data class ProfilePreferencesWire(val autoPlayNextEpisode: Boolean)
+
+/** F45 (évolution F44) : autorisation permanente accordée par PIN à un profil bridé. */
+data class ParentalAuthorizationWire(val grantedAt: Long)

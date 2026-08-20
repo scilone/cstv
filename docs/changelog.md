@@ -2,6 +2,13 @@
 
 ## À venir — non publiée
 
+## [v1.90.0] - 2026-08-20
+### ✨ Autorisation permanente d'un contenu pour un profil bridé (évolution F44)
+* **Case « toujours autoriser ce contenu sur ce profil »** : proposée sur l'écran de saisie du code PIN lors du déverrouillage d'une lecture. Cochée, elle transforme le déverrouillage ponctuel (valable pour la lecture en cours uniquement) en autorisation permanente : les prochains visionnages de ce film, ou de n'importe quel épisode de cette série, ne redemandent plus le PIN à ce profil.
+* **Portée par œuvre entière** : comme pour la classification (F44), l'autorisation porte sur la série entière, jamais sur un épisode isolé.
+* **Synchronisée dans le cloud** : contrairement au code PIN (toujours local à l'appareil), la liste des autorisations permanentes d'un profil se synchronise via le compte CSTV, comme le niveau d'âge du profil.
+* **Écart V1 assumé** : aucun écran ne permet encore de lister ou révoquer les autorisations déjà accordées à un profil, y compris après un abaissement ultérieur de son niveau autorisé — une autorisation permanente reste valable indéfiniment jusqu'à une évolution future qui l'exposerait dans les Paramètres.
+
 ## [v1.89.0] - 2026-08-19
 ### ✨ Restriction d'âge par profil (Contrôle parental) (F44)
 * **Échelle de restriction d'âge (certifications françaises TMDB via T22)** : Restriction complète par profil fondée sur les classifications françaises standard : *Tous publics, 10, 12, 16, 18*.

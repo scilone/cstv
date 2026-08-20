@@ -1106,4 +1106,22 @@ val MIGRATION_36_37 = object : Migration(36, 37) {
     }
 }
 
-val ALL_MIGRATIONS = arrayOf(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33, MIGRATION_33_34, MIGRATION_34_35, MIGRATION_35_36, MIGRATION_36_37)
+/**
+ * F45 (évolution F44) : autorisation permanente d'un média pour un profil
+ * bridé, accordée lors d'un déverrouillage PIN. Table neuve, aucun backfill —
+ * aucune autorisation permanente n'existait avant cette version.
+ */
+val MIGRATION_37_38 = object : Migration(37, 38) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS parental_media_authorizations (" +
+                "profileId INTEGER NOT NULL, mediaUid INTEGER NOT NULL, grantedAt INTEGER NOT NULL, " +
+                "PRIMARY KEY(profileId, mediaUid), " +
+                "FOREIGN KEY(profileId) REFERENCES profiles(id) ON DELETE CASCADE, " +
+                "FOREIGN KEY(mediaUid) REFERENCES media_refs(mediaUid) ON DELETE CASCADE)"
+        )
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_parental_media_authorizations_mediaUid ON parental_media_authorizations(mediaUid)")
+    }
+}
+
+val ALL_MIGRATIONS = arrayOf(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33, MIGRATION_33_34, MIGRATION_34_35, MIGRATION_35_36, MIGRATION_36_37, MIGRATION_37_38)

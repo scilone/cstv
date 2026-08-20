@@ -467,6 +467,13 @@ Si vous souhaitez autoriser exceptionnellement votre enfant à regarder un film 
 3. Si le code est correct, **la lecture en cours est débloquée uniquement pour cette fois**. 
 4. Si vous quittez la lecture ou revenez ultérieurement sur cette même fiche, l'accès se reverrouille immédiatement et le code PIN sera à nouveau demandé. Cela évite qu'un enfant ne puisse rouvrir le film en douce plus tard.
 
+### ♾️ Autoriser un contenu de façon permanente (nouveauté v1.90.0)
+Si votre enfant veut pouvoir revoir un film autorisé, ou suivre une série entière, sans vous redemander le PIN à chaque fois :
+1. Sur l'écran de saisie du PIN, cochez la case **« Toujours autoriser ce contenu sur ce profil »** avant de valider.
+2. Le PIN validé, l'autorisation est mémorisée pour ce profil : les prochaines lectures de ce film, ou de n'importe quel épisode de cette série, ne redemandent plus le PIN.
+3. Cette autorisation est **synchronisée dans le cloud** avec le profil (comme le niveau de restriction) : elle s'applique donc aussi sur les autres appareils du foyer connectés au même compte CSTV.
+*Note : il n'existe pas encore d'écran pour consulter ou retirer une autorisation déjà accordée à un profil.*
+
 ### 🛡️ Sécurité anti-bruteforce et protection du PIN
 * **Temporisation progressive** : Pour empêcher un enfant de deviner le PIN par essais successifs, l'application intègre un verrouillage après **5 tentatives infructueuses de PIN**. La saisie est alors bloquée pendant 30 secondes. Chaque nouvel échec consécutif double ce délai (`30s, 60s, 120s...` jusqu'à un maximum de 15 minutes).
 * **PIN strictement local** : Le code PIN reste local à l'appareil et chiffré de manière forte. Il n'est jamais envoyé sur internet ni sauvegardé dans le cloud. En revanche, le niveau de bridage choisi pour un profil (ex: "Limité à 12 ans") est synchronisé dans le cloud CSTV : votre enfant reste ainsi bridé de la même manière sur tous les téléviseurs et smartphones du foyer.

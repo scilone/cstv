@@ -10,6 +10,7 @@ import com.cstv.app.domain.model.ParentalAccessPolicy
 import com.cstv.app.domain.model.ParentalActionType
 import com.cstv.app.domain.model.AccessDecision
 import com.cstv.app.domain.network.NetworkMonitor
+import com.cstv.app.domain.repository.ParentalAuthorizationRepository
 import com.cstv.app.domain.repository.ProfileRepository
 import com.cstv.app.domain.repository.SeriesRepository
 import com.cstv.app.domain.repository.VodRepository
@@ -38,9 +39,19 @@ sealed interface PlaybackAvailability {
         val reason: BlockReason,
         val mediaUid: String,
         /** Classification effectivement résolue par le contrôle parental. */
-        val classification: AgeRating? = null
+        val classification: AgeRating? = null,
+        /**
+         * F45 : identité (film/série entière) permettant à l'écran de refus de
+         * proposer une autorisation permanente. `null` si non résolue (œuvre
+         * introuvable), auquel cas la case « toujours autoriser » n'est pas
+         * proposée.
+         */
+        val authorizationTarget: ParentalAuthorizationTarget? = null,
     ) : PlaybackAvailability
 }
+
+/** F45 : identité stable d'une œuvre pour une autorisation permanente (série entière, jamais un épisode). */
+data class ParentalAuthorizationTarget(val kind: MediaClassificationKind, val providerId: Int)
 
 /**
  * Autorisation de lecture. Ne construit aucune URL : il dit seulement si la
@@ -61,6 +72,7 @@ class CanPlayContentUseCase @Inject constructor(
     private val classificationRepository: ContentClassificationRepository,
     private val parentalAccessPolicy: ParentalAccessPolicy,
     private val oneShotPlaybackGrantStore: OneShotPlaybackGrantStore,
+    private val parentalAuthorizationRepository: ParentalAuthorizationRepository,
 ) {
     /**
      * [contentId] suit la convention des téléchargements (`movie_123`,
@@ -107,6 +119,12 @@ class CanPlayContentUseCase @Inject constructor(
 
         val target = resolveClassificationTarget(contentId)
             ?: return PlaybackAvailability.RequiresParentalPin(BlockReason.UNCLASSIFIED, contentId)
+
+        // F45 : une autorisation permanente déjà accordée à ce profil pour cette
+        // œuvre (série entière, jamais un épisode) prime sur la classification —
+        // aucun PIN à ressaisir, quel que soit le niveau du profil.
+        if (parentalAuthorizationRepository.isAuthorized(profileId, target.kind, target.providerId)) return null
+
         val classification = classificationRepository.classificationFor(target.kind, target.title, target.year, target.providerId)
             // Compatibilité des tests/fournisseurs legacy qui implémentent
             // encore la résolution par titre uniquement.
@@ -114,7 +132,10 @@ class CanPlayContentUseCase @Inject constructor(
 
         val decision = parentalAccessPolicy.evaluate(maxAgeRating, classification, ParentalActionType.PLAY)
         return (decision as? AccessDecision.PinRequired)?.let {
-            PlaybackAvailability.RequiresParentalPin(it.reason, contentId, classification)
+            PlaybackAvailability.RequiresParentalPin(
+                it.reason, contentId, classification,
+                authorizationTarget = ParentalAuthorizationTarget(target.kind, target.providerId),
+            )
         }
     }
 

@@ -9,6 +9,8 @@ import com.cstv.app.data.local.dao.LiveTvDao
 import com.cstv.app.data.local.dao.MediaRatingDao
 import com.cstv.app.data.local.dao.MediaRatingRow
 import com.cstv.app.data.local.dao.MediaRefDao
+import com.cstv.app.data.local.dao.ParentalAuthorizationDao
+import com.cstv.app.data.local.dao.ParentalAuthorizationRow
 import com.cstv.app.data.local.dao.PlaybackWireRow
 import com.cstv.app.data.local.dao.RecentlyWatchedWireRow
 import com.cstv.app.data.local.dao.SeriesWatchStateDao
@@ -56,6 +58,7 @@ class RoomSnapshotSerializerTest {
     @Mock private lateinit var categoryRefDao: CategoryRefDao
     @Mock private lateinit var accountKeyProvider: CurrentAccountKeyProvider
     @Mock private lateinit var settingsManager: SettingsManager
+    @Mock private lateinit var parentalAuthorizations: ParentalAuthorizationDao
 
     private lateinit var serializer: RoomSnapshotSerializer
 
@@ -65,8 +68,27 @@ class RoomSnapshotSerializerTest {
         whenever(accountKeyProvider.current()).thenReturn(accountKey)
         serializer = RoomSnapshotSerializer(
             favorites, vod, ratings, tracks, series, categories, live, Gson(), database,
-            mediaRefDao, categoryRefDao, accountKeyProvider, settingsManager,
+            mediaRefDao, categoryRefDao, accountKeyProvider, settingsManager, parentalAuthorizations,
         )
+    }
+
+    @Test
+    fun `F45 - parental authorizations snapshot keeps the exact v1 object shape`() = runTest {
+        whenever(parentalAuthorizations.wireRows(profileId, accountKey)).thenReturn(
+            listOf(ParentalAuthorizationRow(providerId = 7, kind = "series", grantedAt = 42L)),
+        )
+
+        val snapshot = serializer.snapshot(profileId, SyncNamespace.PARENTAL_AUTHORIZATIONS)
+
+        assertEquals(1, snapshot.schemaVersion)
+        val item = snapshot.objects.getValue("series:7")
+        assertEquals("""{"grantedAt":42}""", Gson().toJson(item))
+    }
+
+    @Test
+    fun `F45 - parental authorizations reject a kind outside movie series`() {
+        assertEquals("movie" to 815, serializer.parseKindProviderId("movie:815", RoomSnapshotSerializer.PARENTAL_AUTHORIZATION_KINDS))
+        assertEquals(null, serializer.parseKindProviderId("live:9", RoomSnapshotSerializer.PARENTAL_AUTHORIZATION_KINDS))
     }
 
     @Test

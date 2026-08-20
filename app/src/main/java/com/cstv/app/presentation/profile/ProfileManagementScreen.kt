@@ -190,9 +190,10 @@ fun ProfileManagementScreen(
             com.cstv.app.presentation.components.ParentalPinEntryDialog(
                 reason = null,
                 feedback = state.ageRatingChangeFeedback,
-                onSubmit = { pin -> viewModel.confirmAgeRatingChange(pin) },
+                onSubmit = { pin, _ -> viewModel.confirmAgeRatingChange(pin) },
                 onDismiss = { viewModel.cancelAgeRatingChange() },
-                onForgotPin = { showingPinReset = true }
+                onForgotPin = { showingPinReset = true },
+                offerRememberChoice = false,
             )
         }
     }

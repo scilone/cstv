@@ -2,8 +2,12 @@ package com.cstv.app.presentation.components
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -13,6 +17,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -50,12 +55,20 @@ private fun String.isFourDigitPin() = length == 4 && all { it.isDigit() }
 fun ParentalPinEntryDialog(
     reason: BlockReason?,
     feedback: ParentalPinFeedback?,
-    onSubmit: (String) -> Unit,
+    onSubmit: (String, Boolean) -> Unit,
     onDismiss: () -> Unit,
     /** F44 §8.5 : absent depuis l'écran de refus lecture, proposé côté Paramètres/profil. */
     onForgotPin: (() -> Unit)? = null,
+    /**
+     * F45 (évolution F44) : propose la case « toujours autoriser ce contenu
+     * sur ce profil » — uniquement pertinent pour un déblocage de lecture
+     * ([reason] non nul), jamais pour une confirmation de changement de
+     * niveau autorisé.
+     */
+    offerRememberChoice: Boolean = reason != null,
 ) {
     var pin by remember { mutableStateOf("") }
+    var remember by remember { mutableStateOf(false) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.parental_pin_dialog_title)) },
@@ -71,6 +84,13 @@ fun ParentalPinEntryDialog(
                     visualTransformation = PasswordVisualTransformation(),
                     label = { Text(stringResource(R.string.parental_pin_label)) }
                 )
+                if (offerRememberChoice) {
+                    Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                        Checkbox(checked = remember, onCheckedChange = { remember = it })
+                        Spacer(Modifier.width(4.dp))
+                        Text(stringResource(R.string.parental_pin_remember_choice))
+                    }
+                }
                 feedback?.let {
                     Text(parentalPinFeedbackMessage(it), color = MaterialTheme.colorScheme.error)
                 }
@@ -80,7 +100,7 @@ fun ParentalPinEntryDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = { onSubmit(pin); pin = "" }, enabled = pin.isFourDigitPin()) {
+            TextButton(onClick = { onSubmit(pin, remember); pin = ""; remember = false }, enabled = pin.isFourDigitPin()) {
                 Text(stringResource(R.string.parental_pin_validate))
             }
         },

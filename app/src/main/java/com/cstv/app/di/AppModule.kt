@@ -251,6 +251,10 @@ object AppModule {
 
     @Provides
     @Singleton
+    fun provideParentalAuthorizationDao(database: AppDatabase): com.cstv.app.data.local.dao.ParentalAuthorizationDao = database.parentalAuthorizationDao()
+
+    @Provides
+    @Singleton
     fun provideCatalogSyncStateDao(database: AppDatabase): com.cstv.app.data.local.dao.CatalogSyncStateDao =
         database.catalogSyncStateDao()
 
@@ -405,6 +409,16 @@ object AppModule {
         sync: com.cstv.app.domain.sync.CloudSyncManager
     ): com.cstv.app.domain.repository.MediaRatingRepository =
         com.cstv.app.data.repository.MediaRatingRepositoryImpl(database, mediaRatingDao, favoritesDao, vodDao, profileManager, mediaRefDao, accountKeyProvider, sync)
+
+    @Provides
+    @Singleton
+    fun provideParentalAuthorizationRepository(
+        dao: com.cstv.app.data.local.dao.ParentalAuthorizationDao,
+        mediaRefDao: com.cstv.app.data.local.dao.MediaRefDao,
+        accountKeyProvider: com.cstv.app.data.local.storage.CurrentAccountKeyProvider,
+        sync: com.cstv.app.domain.sync.CloudSyncManager
+    ): com.cstv.app.domain.repository.ParentalAuthorizationRepository =
+        com.cstv.app.data.repository.ParentalAuthorizationRepositoryImpl(dao, mediaRefDao, accountKeyProvider, sync)
 
     @Provides
     @Singleton

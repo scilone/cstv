@@ -2,6 +2,7 @@ package com.cstv.app.data.cloudsync
 
 import com.cstv.app.data.cloudsync.wire.CategoryPreferenceWire
 import com.cstv.app.data.cloudsync.wire.FavoriteWire
+import com.cstv.app.data.cloudsync.wire.ParentalAuthorizationWire
 import com.cstv.app.data.cloudsync.wire.PlaybackWire
 import com.cstv.app.data.cloudsync.wire.RatingWire
 import com.cstv.app.data.cloudsync.wire.RecentlyWatchedWire
@@ -41,6 +42,7 @@ class RoomSnapshotSerializer @Inject constructor(
     private val categories: CategoryPreferenceDao, private val live: LiveTvDao, private val gson: Gson,
     private val database: AppDatabase, private val mediaRefDao: MediaRefDao, private val categoryRefDao: CategoryRefDao,
     private val accountKeyProvider: CurrentAccountKeyProvider, private val settingsManager: SettingsManager,
+    private val parentalAuthorizations: ParentalAuthorizationDao,
 ) : SnapshotSerializer {
     override suspend fun snapshot(profileId: Int, namespace: SyncNamespace): NamespaceSnapshot {
         // T19-R2: prune Room itself before reading -- see RoomSnapshotSerializer's prior revision
@@ -73,6 +75,8 @@ class RoomSnapshotSerializer @Inject constructor(
                 live.pruneRecentlyWatchedToMostRecent(profileId, SnapshotLimits.RECENTLY_WATCHED_LIVE)
                 live.wireRows(profileId, accountKey).associate { "live:${it.providerId}" to gson.toJsonTree(RecentlyWatchedWire(it.watchedAt)) }
             }
+            SyncNamespace.PARENTAL_AUTHORIZATIONS -> parentalAuthorizations.wireRows(profileId, accountKey)
+                .associate { "${it.kind}:${it.providerId}" to gson.toJsonTree(ParentalAuthorizationWire(it.grantedAt)) }
         }
         return NamespaceSnapshot(namespace.schemaVersion, namespace.wireName, objects)
     }
@@ -166,6 +170,17 @@ class RoomSnapshotSerializer @Inject constructor(
                     live.insertRecentlyWatched(RecentlyWatchedLiveEntity(profileId = profileId, mediaUid = mediaUid, watchedAt = wire.watchedAt))
                 }
             }
+            SyncNamespace.PARENTAL_AUTHORIZATIONS -> {
+                parentalAuthorizations.deleteAllForProfile(profileId)
+                snapshot.objects.forEach { (key, value) ->
+                    val (kind, providerId) = parseKindProviderId(key, PARENTAL_AUTHORIZATION_KINDS) ?: return@forEach
+                    val wire = gson.fromJson(value, ParentalAuthorizationWire::class.java)
+                    val mediaUid = mediaRefDao.resolve(accountKey, kind, providerId)
+                    parentalAuthorizations.upsert(
+                        com.cstv.app.data.local.entity.ParentalMediaAuthorizationEntity(profileId = profileId, mediaUid = mediaUid, grantedAt = wire.grantedAt)
+                    )
+                }
+            }
         }
         database.withTransaction { applySnapshot() }
     }
@@ -210,5 +225,6 @@ class RoomSnapshotSerializer @Inject constructor(
         val TRACK_PREFERENCE_KINDS = setOf("movie", "series")
         val RECENTLY_WATCHED_LIVE_KINDS = setOf("live")
         val CATEGORY_KINDS = setOf("live", "vod", "series")
+        val PARENTAL_AUTHORIZATION_KINDS = setOf("movie", "series")
     }
 }
