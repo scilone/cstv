@@ -18,6 +18,7 @@ import com.cstv.app.data.remote.api.RequestPriority
 import com.cstv.app.data.remote.api.XtreamApiService
 import com.cstv.app.data.remote.api.XtreamRequestGate
 import com.cstv.app.data.sync.CacheTtl
+import com.cstv.app.di.IptvLog
 import com.cstv.app.domain.network.NetworkMonitor
 import com.cstv.app.domain.model.*
 import com.cstv.app.domain.repository.SeriesRepository
@@ -48,7 +49,9 @@ class SeriesRepositoryImpl @Inject constructor(
     private val profileManager: com.cstv.app.data.local.storage.ProfileManager,
     private val requestGate: XtreamRequestGate,
     private val networkMonitor: NetworkMonitor,
-    private val accountKeyProvider: com.cstv.app.data.local.storage.CurrentAccountKeyProvider
+    private val accountKeyProvider: com.cstv.app.data.local.storage.CurrentAccountKeyProvider,
+    /** F45 §7.5 : nullable pour ne pas casser les tests existants qui construisent ce repository positionnellement. */
+    private val hydrationScheduler: com.cstv.app.data.worker.ExternalMetadataHydrationScheduler? = null,
 ) : SeriesRepository {
 
     private var enrichmentDispatcher: CoroutineDispatcher = Dispatchers.IO
@@ -70,8 +73,9 @@ class SeriesRepositoryImpl @Inject constructor(
         requestGate: XtreamRequestGate,
         networkMonitor: NetworkMonitor,
         accountKeyProvider: com.cstv.app.data.local.storage.CurrentAccountKeyProvider,
-        dispatcher: CoroutineDispatcher
-    ) : this(apiService, seriesDao, vodDao, credentialsManager, profileManager, requestGate, networkMonitor, accountKeyProvider) {
+        dispatcher: CoroutineDispatcher,
+        hydrationScheduler: com.cstv.app.data.worker.ExternalMetadataHydrationScheduler? = null,
+    ) : this(apiService, seriesDao, vodDao, credentialsManager, profileManager, requestGate, networkMonitor, accountKeyProvider, hydrationScheduler) {
         this.enrichmentDispatcher = dispatcher
     }
 
@@ -157,6 +161,7 @@ class SeriesRepositoryImpl @Inject constructor(
         // constante locale d'origine était déclarée ici mais jamais lue.
         private const val ENRICHMENT_BATCH_SIZE = 50
         private const val ENRICHMENT_REQUEST_SPACING_MS = 500L
+        private const val MAX_NEW_MEDIA_HYDRATION_PER_SYNC = 100
     }
 
 
@@ -367,8 +372,49 @@ class SeriesRepositoryImpl @Inject constructor(
 
 
         startBackgroundEnrichment()
+        if (categoryId == ALL_CATEGORIES) seedNewMediaHydration(entities, existingById.keys)
 
         return entities.map { it.toDomain() }
+    }
+
+    /** F45 §7.5/§8.10/§8.11 — voir `VodRepositoryImpl.seedNewMediaHydration` pour le détail des décisions. */
+    private fun seedNewMediaHydration(entities: List<SeriesStreamEntity>, previousSeriesIds: Set<Int>) {
+        val scheduler = hydrationScheduler ?: return
+        val representatives = entities
+            .filter { it.seriesId !in previousSeriesIds }
+            .groupBy { it.linkKey.ifBlank { "no-link:${it.seriesId}" } }
+            .map { (_, group) -> group.first() }
+            .take(MAX_NEW_MEDIA_HYDRATION_PER_SYNC)
+        if (representatives.isEmpty()) return
+        repositoryScope.launch {
+            credentialsManager.getCredentials()?.let { credentials ->
+                representatives.forEach { stream ->
+                    runCatching { enrichOneForExternalHydration(credentials, stream.seriesId) }
+                        .onFailure { IptvLog.e("F45", "Hints Xtream indisponibles pour seriesId=${stream.seriesId}", it) }
+                }
+            }
+            runCatching {
+                scheduler.requestBatch("series", representatives.map { it.seriesId }, com.cstv.app.domain.model.HydrationReason.NEW_IPTV_MEDIA)
+            }.onFailure { IptvLog.e("F45", "Mise en file NEW_IPTV_MEDIA impossible", it) }
+        }
+    }
+
+    /** F45-R9 : le premier matching d'une nouvelle série voit les détails Xtream quand ils existent. */
+    private suspend fun enrichOneForExternalHydration(credentials: Credentials, seriesId: Int) {
+        val response = requestGate.acquire { apiService.getSeriesInfo(credentials.username, credentials.password, seriesId) }
+        val info = response.info
+        val current = seriesDao.getStreamById(seriesId) ?: return
+        seriesDao.insertStreams(
+            listOf(
+                current.copy(
+                    actors = extractActors(info?.actors, info?.cast),
+                    director = info?.director ?: "Inconnu",
+                    genre = info?.genre ?: "Inconnu",
+                    releaseYear = ReleaseYearParser.parseYear(info?.releaseDate ?: info?.releaseDate2) ?: 0,
+                ),
+            ),
+        )
+        delay(ENRICHMENT_REQUEST_SPACING_MS)
     }
 
     override fun getSeriesStreamsPaged(categoryId: String): Flow<PagingData<SeriesStream>> {

@@ -49,9 +49,9 @@ class PopularRepositoryImplTest {
     @Test
     fun getPopularMovies_readsProductPages() = runTest {
         val api = mock<CstvCatalogApiService>()
-        (1..3).forEach { page -> whenever(api.popular("movie", page)).thenReturn(CatalogItemsResponseDto(listOf(CatalogItemDto(id = "movie:$page", kind = "movie", title = "Film $page", releaseYear = 2024)))) }
+        (1..3).forEach { page -> whenever(api.popular("movie", page)).thenReturn(CatalogItemsResponseDto(listOf(CatalogItemDto(externalId = "00000000-0000-4000-8000-00000000000$page", id = "movie:$page", kind = "movie", title = "Film $page", releaseYear = 2024)))) }
         val result = PopularRepositoryImpl(contextWithPrefs(), api, Gson()).getPopularMovies()
-        assertEquals(listOf("movie:1", "movie:2", "movie:3"), result.map { it.canonicalId })
+        assertEquals(listOf("00000000-0000-4000-8000-000000000001", "00000000-0000-4000-8000-000000000002", "00000000-0000-4000-8000-000000000003"), result.map { it.externalId })
     }
 
     @Test
@@ -61,7 +61,7 @@ class PopularRepositoryImplTest {
             whenever(api.popular("movie", page)).thenReturn(
                 CatalogItemsResponseDto(
                     listOf(
-                        CatalogItemDto(id = "movie:$page", kind = "movie", title = "Film $page", releaseYear = 2024),
+                        CatalogItemDto(externalId = "00000000-0000-4000-8000-00000000000$page", id = "movie:$page", kind = "movie", title = "Film $page", releaseYear = 2024),
                         CatalogItemDto(id = null, kind = "movie", title = "Sans id", releaseYear = 2024),
                         CatalogItemDto(id = "movie:x$page", kind = "movie", title = null, releaseYear = 2024)
                     )
@@ -71,7 +71,7 @@ class PopularRepositoryImplTest {
 
         val result = PopularRepositoryImpl(contextWithPrefs(), api, Gson()).getPopularMovies()
 
-        assertEquals(listOf("movie:1", "movie:2", "movie:3"), result.map { it.canonicalId })
+        assertEquals(listOf("00000000-0000-4000-8000-000000000001", "00000000-0000-4000-8000-000000000002", "00000000-0000-4000-8000-000000000003"), result.map { it.externalId })
     }
 
     @Test

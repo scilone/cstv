@@ -183,18 +183,29 @@ object AppModule {
     @Singleton
     fun provideCategoryRefDao(database: AppDatabase): com.cstv.app.data.local.dao.CategoryRefDao = database.categoryRefDao()
 
-    // --- T24 : association canonicalId <-> média local (Trending/Popular) ---
+    // --- T24 : association externalId <-> média local (Trending/Popular) ---
 
     @Provides
     @Singleton
-    fun provideCanonicalMediaLinkDao(database: AppDatabase): com.cstv.app.data.local.dao.CanonicalMediaLinkDao = database.canonicalMediaLinkDao()
+    fun provideExternalCatalogLinkDao(database: AppDatabase): com.cstv.app.data.local.dao.ExternalCatalogLinkDao = database.externalCatalogLinkDao()
 
     @Provides
     @Singleton
-    fun provideCanonicalMediaLinkRepository(
-        dao: com.cstv.app.data.local.dao.CanonicalMediaLinkDao
-    ): com.cstv.app.domain.repository.CanonicalMediaLinkRepository =
-        com.cstv.app.data.repository.CanonicalMediaLinkRepositoryImpl(dao)
+    fun provideExternalMetadataDao(database: AppDatabase): com.cstv.app.data.local.dao.ExternalMetadataDao =
+        database.externalMetadataDao()
+
+    @Provides
+    @Singleton
+    fun provideExternalMetadataRepository(
+        impl: com.cstv.app.data.repository.ExternalMetadataRepositoryImpl
+    ): com.cstv.app.domain.repository.ExternalMetadataRepository = impl
+
+    @Provides
+    @Singleton
+    fun provideExternalCatalogLinkRepository(
+        dao: com.cstv.app.data.local.dao.ExternalCatalogLinkDao
+    ): com.cstv.app.domain.repository.ExternalCatalogLinkRepository =
+        com.cstv.app.data.repository.ExternalCatalogLinkRepositoryImpl(dao)
 
     @Provides
     @Singleton

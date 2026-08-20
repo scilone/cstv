@@ -76,7 +76,7 @@ fun VodDetailsScreen(
      *  affichée incluse. Bouton « Versions » masqué si moins de deux entrées. */
     availableVersions: List<VodStream> = emptyList(),
     onSelectVersion: (Int) -> Unit = {},
-    ageRating: com.cstv.app.domain.model.AgeRating? = null
+    ageRating: Int? = null
 ) {
     val trailerMedia = remember(details.streamId) { TrailerMedia.Movie(details.streamId) }
     // Sur TV le trailer est sonore d'emblée et sans contrôle dédié : la
@@ -250,7 +250,7 @@ private fun MobileLayoutDetails(
     onSearchQueryTriggered: (String) -> Unit,
     versionOptions: List<com.cstv.app.presentation.player.VersionOption> = emptyList(),
     onSelectVersion: (Int) -> Unit = {},
-    ageRating: com.cstv.app.domain.model.AgeRating? = null
+    ageRating: Int? = null
 ) {
     Column(
         modifier = Modifier.fillMaxWidth(),

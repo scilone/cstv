@@ -86,6 +86,8 @@ class SeriesViewModel @Inject constructor(
     /** F44 : nullable pour ne pas casser les tests existants qui construisent ce ViewModel positionnellement. */
     private val parentalUnlockUseCase: com.cstv.app.domain.usecase.ParentalUnlockUseCase? = null,
     private val contentClassificationRepository: ContentClassificationRepository? = null,
+    /** F45 : nullable pour ne pas casser les tests existants qui construisent ce ViewModel positionnellement. */
+    private val hydrationScheduler: com.cstv.app.data.worker.ExternalMetadataHydrationScheduler? = null,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(SeriesState())
@@ -670,6 +672,7 @@ class SeriesViewModel @Inject constructor(
                 }
                 resolveAndPublishAgeRating(seriesId, details.name, details.releaseDate)
                 loadRelatedSeries(details.seriesId, details.genre)
+                requestExternalMetadataHydration(seriesId)
             } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException) throw e
                 _state.update {
@@ -682,6 +685,17 @@ class SeriesViewModel @Inject constructor(
                     )
                 }
             }
+        }
+    }
+
+    /**
+     * F45 §7.5 : l'ouverture de fiche promeut/insère la demande en `DETAIL_OPEN`. Fire-and-forget,
+     * hors du chemin critique d'affichage.
+     */
+    private fun requestExternalMetadataHydration(seriesId: Int) {
+        val scheduler = hydrationScheduler ?: return
+        viewModelScope.launch {
+            runCatching { scheduler.request("series", seriesId, com.cstv.app.domain.model.HydrationReason.DETAIL_OPEN) }
         }
     }
 

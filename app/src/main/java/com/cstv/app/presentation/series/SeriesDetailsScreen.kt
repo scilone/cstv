@@ -95,7 +95,7 @@ fun SeriesDetailsScreen(
      *  version affichée incluse. Bouton « Versions » masqué si moins de deux entrées. */
     availableVersions: List<SeriesStream> = emptyList(),
     onSelectVersion: (Int) -> Unit = {},
-    ageRating: com.cstv.app.domain.model.AgeRating? = null
+    ageRating: Int? = null
 ) {
     val trailerMedia = remember(details.seriesId) { TrailerMedia.Series(details.seriesId) }
     // Sur TV le trailer est sonore d'emblée et sans contrôle dédié : la
@@ -560,7 +560,7 @@ private fun MobileLayout(
     episodeDownloads: Map<Int, com.cstv.app.domain.model.DownloadedItem> = emptyMap(),
     versionOptions: List<com.cstv.app.presentation.player.VersionOption> = emptyList(),
     onSelectVersion: (Int) -> Unit = {},
-    ageRating: com.cstv.app.domain.model.AgeRating? = null,
+    ageRating: Int? = null,
     onDownloadEpisode: (SeriesEpisode) -> Unit = {},
     onRemoveEpisodeDownload: (Int) -> Unit = {},
     mediaRating: MediaRatingValue?,

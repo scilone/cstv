@@ -458,6 +458,33 @@ class SeriesRepositoryImplTest {
         verifyNoInteractions(apiService)
     }
 
+    // --- F45 §7.5 : mise en file NEW_IPTV_MEDIA après une synchronisation complète ---
+    @Test
+    fun test_syncSeriesStreams_seedsOnlyGenuinelyNewSeriesDeduplicatedByLinkKey() = runTest {
+        val testDispatcher = kotlinx.coroutines.test.UnconfinedTestDispatcher(testScheduler)
+        val scheduler: com.cstv.app.data.worker.ExternalMetadataHydrationScheduler = mock()
+        val localRepository = SeriesRepositoryImpl(
+            apiService, seriesDao, vodDao, credentialsManager, profileManager,
+            com.cstv.app.data.remote.api.XtreamRequestGate(), networkMonitor, accountKeyProvider,
+            testDispatcher, scheduler,
+        )
+        whenever(seriesDao.getAllStreams()).thenReturn(listOf(
+            SeriesStreamEntity(10, "Existing", null, null, null, "1", 0L),
+        ))
+        whenever(apiService.getSeriesStreams("username", "password", null)).thenReturn(listOf(
+            SeriesStreamDto(10, "Existing", null, null, null, "1"),
+            SeriesStreamDto(30, "New Solo", null, null, null, "1"),
+        ))
+
+        localRepository.syncSeriesStreams("all")
+
+        verify(scheduler).requestBatch(
+            eq("series"),
+            eq(listOf(30)),
+            eq(com.cstv.app.domain.model.HydrationReason.NEW_IPTV_MEDIA),
+        )
+    }
+
     /**
      * Une série jamais ouverte en ligne n'a ni saison ni épisode en base : la
      * fiche reste affichable, mais explicitement marquée incomplète.

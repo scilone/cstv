@@ -1,97 +1,85 @@
 package com.cstv.app.data.repository
 
-import com.cstv.app.data.remote.api.CstvCatalogApiService
-import com.cstv.app.data.remote.dto.CatalogItemDto
-import com.cstv.app.data.remote.dto.CatalogMatchRequestDto
-import com.cstv.app.data.remote.dto.CatalogMatchResponseDto
-import com.cstv.app.domain.model.AgeRating
+import com.cstv.app.domain.model.ExternalMatchHints
+import com.cstv.app.domain.model.ExternalMetadataMatch
+import com.cstv.app.domain.repository.ExternalMetadataRepository
 import com.cstv.app.domain.util.TimeProvider
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
+import org.mockito.kotlin.any
 import org.mockito.kotlin.mock
+import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 
 class ContentClassificationRepositoryTest {
 
-    private val catalogApiService: CstvCatalogApiService = mock()
+    private val externalMetadataRepository: ExternalMetadataRepository = mock()
     private var now = 0L
     private val timeProvider = object : TimeProvider { override fun nowMillis() = now }
-    private val repository = ContentClassificationRepository(catalogApiService, timeProvider)
+    private val repository = ContentClassificationRepository(externalMetadataRepository, timeProvider)
+
+    private fun match(ageRating: Int?) = ExternalMetadataMatch("5e37ba2a-1cda-4faf-9f10-335b2f6556a7", "movie", 90, "title+year", 1, ageRating)
 
     @Test
-    fun `known classification is mapped to AgeRating`() = runBlocking {
-        whenever(catalogApiService.match(CatalogMatchRequestDto("movie", "Dune", 2021))).thenReturn(
-            CatalogMatchResponseDto(item = CatalogItemDto(ageRatingFr = 12))
-        )
+    fun `a resolved match exposes its exact ageRating, no bucketing`() = runBlocking {
+        whenever(externalMetadataRepository.match("movie", 42, "Dune", 2021, null, ExternalMatchHints(), allowRefresh = true)).thenReturn(match(13))
 
-        assertEquals(AgeRating.TWELVE, repository.classificationFor(MediaClassificationKind.MOVIE, "Dune", 2021))
+        assertEquals(13, repository.classificationFor(MediaClassificationKind.MOVIE, "Dune", 2021, 42))
     }
 
     @Test
-    fun `unknown classification from backend is never converted to ALL`() = runBlocking {
-        whenever(catalogApiService.match(CatalogMatchRequestDto("movie", "Unknown", null))).thenReturn(
-            CatalogMatchResponseDto(item = CatalogItemDto(ageRatingFr = null))
-        )
-
-        assertNull(repository.classificationFor(MediaClassificationKind.MOVIE, "Unknown", null))
+    fun `no providerId never calls the repository and returns unknown`(): Unit = runBlocking {
+        assertNull(repository.classificationFor(MediaClassificationKind.MOVIE, "Dune", 2021, providerId = null))
+        verify(externalMetadataRepository, org.mockito.kotlin.never()).match(any(), any(), any(), any(), any(), any(), any())
     }
 
     @Test
-    fun `no matched item is treated as unknown, not ALL`() = runBlocking {
-        whenever(catalogApiService.match(CatalogMatchRequestDto("series", "Missing", null))).thenReturn(
-            CatalogMatchResponseDto(item = null)
-        )
+    fun `an unmatched work is treated as unknown, not ALL`() = runBlocking {
+        whenever(externalMetadataRepository.match("series", 7, "Missing", null, null, ExternalMatchHints(), allowRefresh = true)).thenReturn(null)
 
-        assertNull(repository.classificationFor(MediaClassificationKind.SERIES, "Missing", null))
+        assertNull(repository.classificationFor(MediaClassificationKind.SERIES, "Missing", null, 7))
     }
 
     @Test
     fun `a service failure is defensively treated as unknown`() = runBlocking {
-        whenever(catalogApiService.match(CatalogMatchRequestDto("movie", "Boom", null))).thenThrow(RuntimeException("network down"))
+        whenever(externalMetadataRepository.match("movie", 1, "Boom", null, null, ExternalMatchHints(), allowRefresh = true)).thenThrow(RuntimeException("network down"))
 
-        assertNull(repository.classificationFor(MediaClassificationKind.MOVIE, "Boom", null))
+        assertNull(repository.classificationFor(MediaClassificationKind.MOVIE, "Boom", null, 1))
     }
 
     @Test
-    fun `a service failure is not cached and the next attempt retries`() {
-        runBlocking {
-        whenever(catalogApiService.match(CatalogMatchRequestDto("movie", "Retry", null)))
+    fun `a service failure is not cached and the next attempt retries`(): Unit = runBlocking {
+        whenever(externalMetadataRepository.match("movie", 2, "Retry", null, null, ExternalMatchHints(), allowRefresh = true))
             .thenThrow(RuntimeException("network down"))
-            .thenReturn(CatalogMatchResponseDto(item = CatalogItemDto(ageRatingFr = 12)))
+            .thenReturn(match(12))
 
-        assertNull(repository.classificationFor(MediaClassificationKind.MOVIE, "Retry", null))
-        assertEquals(AgeRating.TWELVE, repository.classificationFor(MediaClassificationKind.MOVIE, "Retry", null))
+        assertNull(repository.classificationFor(MediaClassificationKind.MOVIE, "Retry", null, 2))
+        assertEquals(12, repository.classificationFor(MediaClassificationKind.MOVIE, "Retry", null, 2))
 
-            verify(catalogApiService, org.mockito.kotlin.times(2))
-                .match(CatalogMatchRequestDto("movie", "Retry", null))
-        }
+        verify(externalMetadataRepository, times(2)).match("movie", 2, "Retry", null, null, ExternalMatchHints(), allowRefresh = true)
     }
 
     @Test
-    fun `a fresh cached result skips the network on the second call`(): Unit = runBlocking {
-        whenever(catalogApiService.match(CatalogMatchRequestDto("movie", "Dune", 2021))).thenReturn(
-            CatalogMatchResponseDto(item = CatalogItemDto(ageRatingFr = 12))
-        )
+    fun `a fresh cached result skips the repository call on the second lookup`(): Unit = runBlocking {
+        whenever(externalMetadataRepository.match("movie", 42, "Dune", 2021, null, ExternalMatchHints(), allowRefresh = true)).thenReturn(match(12))
 
-        repository.classificationFor(MediaClassificationKind.MOVIE, "Dune", 2021)
-        repository.classificationFor(MediaClassificationKind.MOVIE, "Dune", 2021)
+        repository.classificationFor(MediaClassificationKind.MOVIE, "Dune", 2021, 42)
+        repository.classificationFor(MediaClassificationKind.MOVIE, "Dune", 2021, 42)
 
-        verify(catalogApiService, org.mockito.kotlin.times(1)).match(CatalogMatchRequestDto("movie", "Dune", 2021))
+        verify(externalMetadataRepository, times(1)).match("movie", 42, "Dune", 2021, null, ExternalMatchHints(), allowRefresh = true)
     }
 
     @Test
-    fun `an expired cache entry triggers a fresh network call`(): Unit = runBlocking {
-        whenever(catalogApiService.match(CatalogMatchRequestDto("movie", "Dune", 2021))).thenReturn(
-            CatalogMatchResponseDto(item = CatalogItemDto(ageRatingFr = 12))
-        )
+    fun `an expired cache entry triggers a fresh lookup`(): Unit = runBlocking {
+        whenever(externalMetadataRepository.match("movie", 42, "Dune", 2021, null, ExternalMatchHints(), allowRefresh = true)).thenReturn(match(12))
 
-        repository.classificationFor(MediaClassificationKind.MOVIE, "Dune", 2021)
+        repository.classificationFor(MediaClassificationKind.MOVIE, "Dune", 2021, 42)
         now += 31L * 60 * 1000
-        repository.classificationFor(MediaClassificationKind.MOVIE, "Dune", 2021)
+        repository.classificationFor(MediaClassificationKind.MOVIE, "Dune", 2021, 42)
 
-        verify(catalogApiService, org.mockito.kotlin.times(2)).match(CatalogMatchRequestDto("movie", "Dune", 2021))
+        verify(externalMetadataRepository, times(2)).match("movie", 42, "Dune", 2021, null, ExternalMatchHints(), allowRefresh = true)
     }
 }

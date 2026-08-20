@@ -3,11 +3,11 @@ package com.cstv.app.domain.model
 import kotlin.math.abs
 
 /**
- * Rapproche les titres TMDB et le catalogue local. Les titres IPTV sont
+ * Rapproche les titres d'une source externe (F45) et le catalogue local. Les titres IPTV sont
  * normalisés lors de la préparation du catalogue afin d'éviter de répéter ce
  * travail pour chaque tendance.
  */
-object TmdbCatalogMatcher {
+object ExternalCatalogMatcher {
 
     private const val MIN_SIMILARITY = 0.8
     private const val SCORE_EQUALITY_EPSILON = 1e-9
@@ -73,24 +73,24 @@ object TmdbCatalogMatcher {
     }
 
     fun <T> findBestMatches(
-        tmdbTitle: String,
-        tmdbYear: Int?,
+        externalTitle: String,
+        externalYear: Int?,
         catalog: List<CatalogCandidate<T>>,
         excludedIds: Set<Int>
     ): Match<T>? {
-        val normalizedTmdbTitle = TitleNormalizer.normalize(tmdbTitle)
+        val normalizedExternalTitle = TitleNormalizer.normalize(externalTitle)
         var bestScore = 0.0
-        // Tous les candidats retenus partagent l'année TMDB (bug B15) : à score
+        // Tous les candidats retenus partagent l'année externe (bug B15) : à score
         // textuel égal, seul l'ordre du catalogue les départage — les versions
         // suivantes servent de repli aux use cases quand la première est
         // masquée par le profil ou supprimée de la base.
         val matches = mutableListOf<T>()
 
         for (candidate in catalog) {
-            if (candidate.id in excludedIds || !isYearCompatible(tmdbYear, candidate.releaseYear)) continue
+            if (candidate.id in excludedIds || !isYearCompatible(externalYear, candidate.releaseYear)) continue
 
             val score = ApproximateTitleMatcher.computeSimilarityNormalized(
-                normalizedTmdbTitle,
+                normalizedExternalTitle,
                 candidate.normalizedTitle
             )
             if (score < MIN_SIMILARITY) continue
@@ -109,27 +109,27 @@ object TmdbCatalogMatcher {
             Match(
                 candidates = candidates.toList(),
                 score = bestScore,
-                yearRank = yearRankOf(tmdbYear)
+                yearRank = yearRankOf(externalYear)
             )
         }
     }
 
-    // Année exacte obligatoire dès que TMDB en connaît une (bug B15) : la
+    // Année exacte obligatoire dès que la source externe en connaît une (bug B15) : la
     // tolérance ±1 et le repli « année locale inconnue » faisaient afficher un
     // homonyme d'une autre décennie (« Odyssée 2026 » côté tendance ouvrant la
     // fiche « Odyssée 2016 »). Un titre non daté vaut mieux qu'un faux titre.
-    private fun isYearCompatible(tmdbYear: Int?, iptvYear: Int?): Boolean = when {
-        !tmdbYear.isKnownYear() -> true
+    private fun isYearCompatible(externalYear: Int?, iptvYear: Int?): Boolean = when {
+        !externalYear.isKnownYear() -> true
         !iptvYear.isKnownYear() -> false
-        else -> tmdbYear == iptvYear
+        else -> externalYear == iptvYear
     }
 
     /**
-     * Un match n'existe que si l'année TMDB est inconnue (aucun filtre possible)
+     * Un match n'existe que si l'année externe est inconnue (aucun filtre possible)
      * ou si le candidat porte exactement la même année.
      */
-    private fun yearRankOf(tmdbYear: Int?): YearRank =
-        if (tmdbYear.isKnownYear()) YearRank.EXACT else YearRank.UNKNOWN
+    private fun yearRankOf(externalYear: Int?): YearRank =
+        if (externalYear.isKnownYear()) YearRank.EXACT else YearRank.UNKNOWN
 
     private fun Int?.isKnownYear(): Boolean = this != null && this > 0
 

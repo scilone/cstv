@@ -26,10 +26,12 @@ final readonly class ApiErrorHandler
         bool $logErrors,
         bool $logErrorDetails,
     ): ResponseInterface {
+        $retryAfterSeconds = null;
         if ($exception instanceof ApiException) {
             $status = $exception->status;
             $code = $exception->errorCode;
             $message = $exception->getMessage();
+            $retryAfterSeconds = $exception->retryAfterSeconds;
         } elseif ($exception instanceof HttpNotFoundException) {
             [$status, $code, $message] = [404, 'NOT_FOUND', 'The requested resource was not found.'];
         } elseif ($exception instanceof HttpMethodNotAllowedException) {
@@ -41,11 +43,13 @@ final readonly class ApiErrorHandler
             error_log(sprintf('[CSTV] %s: %s', $exception::class, $exception->getMessage()));
         }
 
-        return Json::response($this->responseFactory->createResponse(), [
+        $response = Json::response($this->responseFactory->createResponse(), [
             'error' => [
                 'code' => $code,
                 'message' => $message,
             ],
         ], $status);
+
+        return $retryAfterSeconds !== null ? $response->withHeader('Retry-After', (string) $retryAfterSeconds) : $response;
     }
 }

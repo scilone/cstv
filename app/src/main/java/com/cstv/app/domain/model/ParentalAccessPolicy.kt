@@ -31,17 +31,17 @@ sealed interface AccessDecision {
 @Singleton
 class ParentalAccessPolicy @Inject constructor() {
     /**
-     * @param maxAgeRating niveau autorisé du profil ; `null` = profil non bridé.
-     * @param classification classification de l'œuvre ; `null` = inconnue.
+     * @param maxAgeRating niveau autorisé du profil (seuil fermé 0/10/12/16/18) ; `null` = profil non bridé.
+     * @param classification classification exacte de l'œuvre (F45 §8.13, ex. 13/15/17) ; `null` = inconnue.
      */
     fun evaluate(
         maxAgeRating: AgeRating?,
-        classification: AgeRating?,
+        classification: Int?,
         action: ParentalActionType,
     ): AccessDecision {
         if (maxAgeRating == null) return AccessDecision.Allowed
         if (classification == null) return AccessDecision.PinRequired(BlockReason.UNCLASSIFIED)
-        return if (classification.value <= maxAgeRating.value) {
+        return if (classification <= maxAgeRating.value) {
             AccessDecision.Allowed
         } else {
             AccessDecision.PinRequired(BlockReason.TOO_MATURE)

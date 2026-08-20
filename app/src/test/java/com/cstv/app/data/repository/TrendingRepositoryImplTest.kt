@@ -49,9 +49,9 @@ class TrendingRepositoryImplTest {
     @Test
     fun getTrending_mapsProductContract() = runTest {
         val api = mock<CstvCatalogApiService>()
-        whenever(api.trending()).thenReturn(CatalogItemsResponseDto(listOf(CatalogItemDto(id = "movie:101", kind = "movie", title = "Inception", releaseYear = 2010, posterUrl = "https://cdn.example/p.jpg", backdropUrl = "https://cdn.example/b.jpg"))))
+        whenever(api.trending()).thenReturn(CatalogItemsResponseDto(listOf(CatalogItemDto(externalId = "00000000-0000-4000-8000-000000000101", id = "movie:101", kind = "movie", title = "Inception", releaseYear = 2010, posterUrl = "https://cdn.example/p.jpg", backdropUrl = "https://cdn.example/b.jpg"))))
         val result = TrendingRepositoryImpl(contextWithPrefs(), api, Gson()).getTrending()
-        assertEquals("movie:101", result.single().canonicalId); assertEquals("Inception", result.single().title); assertEquals("https://cdn.example/b.jpg", result.single().backdropUrl)
+        assertEquals("00000000-0000-4000-8000-000000000101", result.single().externalId); assertEquals("Inception", result.single().title); assertEquals("https://cdn.example/b.jpg", result.single().backdropUrl)
     }
 
     @Test
@@ -63,7 +63,7 @@ class TrendingRepositoryImplTest {
     @Test
     fun getCachedMatchedTrendsGlobal_skipsCacheOnFirstAccessThenServesIt() = runTest {
         val prefs = fakePrefs()
-        val json = """[{"trendingTitle":{"canonicalId":"movie:1","title":"Dune","isMovie":true,"year":2021}}]"""
+        val json = """[{"trendingTitle":{"externalId":"movie:1","title":"Dune","isMovie":true,"year":2021}}]"""
         whenever(prefs.getLong("trends_time_global_v3", 0L)).thenReturn(System.currentTimeMillis())
         whenever(prefs.getString("trends_data_global_v3", null)).thenReturn(json)
         val repository = TrendingRepositoryImpl(contextWithPrefs(prefs), mock(), Gson())
@@ -80,7 +80,7 @@ class TrendingRepositoryImplTest {
     @Test
     fun getCachedMatchedTrendsGlobal_readsCacheOnFirstAccess_whenSessionRefreshIgnored() = runTest {
         val prefs = fakePrefs()
-        val json = """[{"trendingTitle":{"canonicalId":"movie:1","title":"Dune","isMovie":true,"year":2021}}]"""
+        val json = """[{"trendingTitle":{"externalId":"movie:1","title":"Dune","isMovie":true,"year":2021}}]"""
         whenever(prefs.getLong("trends_time_global_v3", 0L)).thenReturn(System.currentTimeMillis())
         whenever(prefs.getString("trends_data_global_v3", null)).thenReturn(json)
         val repository = TrendingRepositoryImpl(contextWithPrefs(prefs), mock(), Gson())
@@ -97,7 +97,7 @@ class TrendingRepositoryImplTest {
     @Test
     fun getCachedMatchedTrendsGlobal_servesExpiredCache_whenIgnoreExpirationIsTrue() = runTest {
         val prefs = fakePrefs()
-        val json = """[{"trendingTitle":{"canonicalId":"movie:1","title":"Dune","isMovie":true,"year":2021}}]"""
+        val json = """[{"trendingTitle":{"externalId":"movie:1","title":"Dune","isMovie":true,"year":2021}}]"""
         // 10h dans le passé : périmé pour le TTL frais local (4h), mais dans la
         // fenêtre de repli hors ligne (24h, MAX_STALE_CACHE_MS).
         val expiredTime = System.currentTimeMillis() - (10 * 60 * 60 * 1000L)
@@ -125,7 +125,7 @@ class TrendingRepositoryImplTest {
     @Test
     fun getCachedMatchedTrendsGlobal_invalidatedByCatalogResync() = runTest {
         val prefs = fakePrefs()
-        val json = """[{"trendingTitle":{"canonicalId":"movie:1","title":"Dune","isMovie":true,"year":2021}}]"""
+        val json = """[{"trendingTitle":{"externalId":"movie:1","title":"Dune","isMovie":true,"year":2021}}]"""
         val savedAt = System.currentTimeMillis()
         whenever(prefs.getLong("trends_time_global_v3", 0L)).thenReturn(savedAt)
         whenever(prefs.getString("trends_data_global_v3", null)).thenReturn(json)

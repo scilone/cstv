@@ -16,9 +16,22 @@ final readonly class TmdbClient
         $url = 'https://api.themoviedb.org/3/' . ltrim($path, '/');
         if ($query !== []) $url .= '?' . http_build_query($query, '', '&', PHP_QUERY_RFC3986);
         $lastStatus = 503;
+        $lastRetryAfter = null;
         for ($attempt = 0; $attempt < 2; $attempt++) {
             $curl = curl_init($url);
-            curl_setopt_array($curl, [CURLOPT_RETURNTRANSFER => true, CURLOPT_CONNECTTIMEOUT => 3, CURLOPT_TIMEOUT => 8, CURLOPT_HTTPHEADER => ['Accept: application/json', 'Authorization: Bearer ' . $this->token], CURLOPT_FAILONERROR => false]);
+            // F45-R8 : capture les en-têtes pour lire un éventuel `Retry-After` sur 429 — avant ce
+            // correctif, le client retentait après un délai fixe de 100-250ms sans jamais consulter
+            // ce que TMDB demandait réellement.
+            $headerLines = [];
+            curl_setopt_array($curl, [
+                CURLOPT_RETURNTRANSFER => true, CURLOPT_CONNECTTIMEOUT => 3, CURLOPT_TIMEOUT => 8,
+                CURLOPT_HTTPHEADER => ['Accept: application/json', 'Authorization: Bearer ' . $this->token],
+                CURLOPT_FAILONERROR => false,
+                CURLOPT_HEADERFUNCTION => static function ($ch, string $header) use (&$headerLines): int {
+                    $headerLines[] = $header;
+                    return strlen($header);
+                },
+            ]);
             $body = curl_exec($curl);
             $status = (int) curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
             $error = curl_errno($curl);
@@ -33,9 +46,27 @@ final readonly class TmdbClient
                 }
                 throw new CatalogProviderException(502, 'Catalog provider returned an invalid response.');
             }
+            if ($status === 429) $lastRetryAfter = self::parseRetryAfter($headerLines);
             if (!($error !== 0 || $status === 429 || $status >= 500) || $attempt === 1) break;
-            usleep(random_int(100_000, 250_000));
+            // `Retry-After` prime toujours (§8.16) ; borné à 5s pour ne jamais geler un worker
+            // PHP-FPM sur une valeur agressive — au-delà, on abandonne cette tentative et laisse le
+            // délai réel remonter via `CatalogProviderException::$retryAfterSeconds` au lieu d'attendre.
+            if ($lastRetryAfter !== null && $lastRetryAfter > 5) break;
+            usleep($lastRetryAfter !== null ? $lastRetryAfter * 1_000_000 : random_int(100_000, 250_000));
         }
-        throw new CatalogProviderException($lastStatus);
+        throw new CatalogProviderException($lastStatus, retryAfterSeconds: $lastRetryAfter);
+    }
+
+    /** Pure header-parsing, no I/O — kept `public static` so it stays directly unit-testable without curl/a live server. @param list<string> $headerLines raw CURLOPT_HEADERFUNCTION lines, one per header */
+    public static function parseRetryAfter(array $headerLines): ?int
+    {
+        foreach ($headerLines as $line) {
+            if (preg_match('/^retry-after:\s*(.+?)\s*$/i', $line, $match) !== 1) continue;
+            $value = $match[1];
+            if (ctype_digit($value)) return max(1, (int) $value);
+            $timestamp = strtotime($value);
+            if ($timestamp !== false) return max(1, $timestamp - time());
+        }
+        return null;
     }
 }

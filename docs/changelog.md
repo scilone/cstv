@@ -2,6 +2,12 @@
 
 ## À venir — non publiée
 
+### ✨ Consolidation progressive des métadonnées externes (F45)
+* **Identité CSTV indépendante du fournisseur** : films et séries enrichis portent désormais un `externalId` UUID opaque. L'application ne reçoit ni ne stocke d'identifiant TMDB ; les anciennes associations locales sont purgées à la migration puis reconstruites avec les UUID CSTV.
+* **Enrichissement silencieux et durable** : le backend mutualise matching, cache et limitation fournisseur. L'application conserve une copie Room relationnelle, hydrate une seule œuvre à la fois et ne bloque jamais l'ouverture d'une fiche ou la lecture IPTV.
+* **Convergence des installations nouvelles et existantes** : l'ouverture d'une fiche, les nouveaux médias synchronisés et le rattrapage progressif du catalogue alimentent une même file persistante, dédupliquée et priorisée. Les saisons et épisodes ne sont chargés qu'après l'ouverture effective d'une série.
+* **Contrôle parental plus précis** : F44 utilise maintenant la classification numérique exacte disponible (notamment 13, 15 ou 17 ans), tout en conservant les seuils de profil Tous publics/10/12/16/18 et le fonctionnement des autorisations PIN.
+
 ## [v1.90.0] - 2026-08-20
 ### ✨ Autorisation permanente d'un contenu pour un profil bridé (évolution F44)
 * **Case « toujours autoriser ce contenu sur ce profil »** : proposée sur l'écran de saisie du code PIN lors du déverrouillage d'une lecture. Cochée, elle transforme le déverrouillage ponctuel (valable pour la lecture en cours uniquement) en autorisation permanente : les prochains visionnages de ce film, ou de n'importe quel épisode de cette série, ne redemandent plus le PIN à ce profil.

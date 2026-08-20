@@ -217,6 +217,58 @@ class VodRepositoryImplTest {
         assertEquals(listOf(0, 0, 1, 1, 2), inserted.map { it.categoryRank })
     }
 
+    // --- F45 §7.5 : mise en file NEW_IPTV_MEDIA après une synchronisation complète ---
+    @Test
+    fun test_syncVodStreams_seedsOnlyGenuinelyNewStreamsDeduplicatedByLinkKey() = runTest {
+        val testDispatcher = kotlinx.coroutines.test.UnconfinedTestDispatcher(testScheduler)
+        val scheduler: com.cstv.app.data.worker.ExternalMetadataHydrationScheduler = mock()
+        val localRepository = VodRepositoryImpl(
+            apiService, vodDao, seriesDao, credentialsManager, profileManager,
+            com.cstv.app.data.remote.api.XtreamRequestGate(), networkMonitor, mediaRefDao, accountKeyProvider,
+            testDispatcher, scheduler,
+        )
+        // streamId 10 existait déjà avant cette synchronisation ; 20 et 21 partagent linkKey (une
+        // seule mise en file attendue) ; 30 est nouveau et déjà normalisé isolément.
+        whenever(vodDao.getAllStreams()).thenReturn(listOf(
+            VodStreamEntity(10, "Existing", null, null, null, "1", 0L),
+        ))
+        whenever(apiService.getVodStreams("username", "password", null)).thenReturn(listOf(
+            VodStreamDto(10, "Existing", null, null, null, "1"),
+            VodStreamDto(20, "Dune", null, null, null, "1"),
+            VodStreamDto(21, "Dune 4K", null, null, null, "1"),
+            VodStreamDto(30, "New Solo", null, null, null, "1"),
+        ))
+
+        localRepository.syncVodStreams("all")
+
+        verify(scheduler).requestBatch(
+            eq("movie"),
+            eq(listOf(20, 30)),
+            eq(com.cstv.app.domain.model.HydrationReason.NEW_IPTV_MEDIA),
+        )
+        // T21 reconnaît "Dune" et "Dune 4K" comme la même œuvre (même linkKey réel, calculé par
+        // MediaTitleParser) : le lot ne contient qu'un représentant du groupe, jamais les deux.
+    }
+
+    @Test
+    fun test_syncVodStreams_categoryOnlyRefreshNeverSeedsNewMedia() = runTest {
+        val testDispatcher = kotlinx.coroutines.test.UnconfinedTestDispatcher(testScheduler)
+        val scheduler: com.cstv.app.data.worker.ExternalMetadataHydrationScheduler = mock()
+        val localRepository = VodRepositoryImpl(
+            apiService, vodDao, seriesDao, credentialsManager, profileManager,
+            com.cstv.app.data.remote.api.XtreamRequestGate(), networkMonitor, mediaRefDao, accountKeyProvider,
+            testDispatcher, scheduler,
+        )
+        whenever(vodDao.getStreamsByCategory("5")).thenReturn(emptyList())
+        whenever(apiService.getVodStreams("username", "password", "5")).thenReturn(listOf(
+            VodStreamDto(40, "Category Only", null, null, null, "5"),
+        ))
+
+        localRepository.syncVodStreams("5")
+
+        verifyNoInteractions(scheduler)
+    }
+
     // --- 4. DETAILED VOD INFO & RESUME PERSISTENCE TESTS ---
     @Test
     fun test_getVodDetails_fallsBackOnCachedRow_whenPanelRefusesMetadata() = runTest {
@@ -720,7 +772,7 @@ class VodRepositoryImplTest {
      *
      * Le motif de titre reste `%année%`, sans délimiteur : un motif plus étroit
      * (« (2026) », « 2026 » entouré d'espaces) exclurait ici des titres que
-     * TmdbCatalogMatcher.yearFromTitle accepte — année en fin de nom, séparée
+     * ExternalCatalogMatcher.yearFromTitle accepte — année en fin de nom, séparée
      * par des points, entre crochets.
      */
     @Test

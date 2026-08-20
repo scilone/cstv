@@ -14,7 +14,7 @@ import javax.inject.Singleton
  * avant.
  */
 @Singleton
-class TmdbSessionRefreshGate @Inject constructor() {
+class CatalogSessionRefreshGate @Inject constructor() {
 
     private val consumed = ConcurrentHashMap<String, Boolean>()
 

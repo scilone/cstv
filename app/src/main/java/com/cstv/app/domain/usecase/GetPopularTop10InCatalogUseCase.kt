@@ -1,14 +1,14 @@
 package com.cstv.app.domain.usecase
 
 import com.cstv.app.di.IptvLog
-import com.cstv.app.domain.model.CanonicalMediaLink
+import com.cstv.app.domain.model.ExternalCatalogLink
 import com.cstv.app.domain.model.CategoryType
 import com.cstv.app.domain.model.PopularCatalogItem
 import com.cstv.app.domain.model.SeriesStream
-import com.cstv.app.domain.model.TmdbCatalogMatcher
+import com.cstv.app.domain.model.ExternalCatalogMatcher
 import com.cstv.app.domain.model.TrendingTitle
 import com.cstv.app.domain.model.VodStream
-import com.cstv.app.domain.repository.CanonicalMediaLinkRepository
+import com.cstv.app.domain.repository.ExternalCatalogLinkRepository
 import com.cstv.app.domain.repository.CategoryPreferenceRepository
 import com.cstv.app.domain.repository.PopularRepository
 import com.cstv.app.domain.repository.SeriesRepository
@@ -27,7 +27,7 @@ class GetPopularTop10InCatalogUseCase @Inject constructor(
     private val seriesRepository: SeriesRepository,
     private val categoryPreferenceRepository: CategoryPreferenceRepository,
     private val catalogFreshness: com.cstv.app.data.sync.CatalogFreshness,
-    private val canonicalMediaLinkRepository: CanonicalMediaLinkRepository
+    private val externalCatalogLinkRepository: ExternalCatalogLinkRepository
 ) {
 
     /**
@@ -43,7 +43,7 @@ class GetPopularTop10InCatalogUseCase @Inject constructor(
             resolveMovies(matches, hiddenCategories(CategoryType.VOD)).take(10).takeIf { it.isNotEmpty() }
         } catch (e: Exception) {
             if (e is CancellationException) throw e
-            IptvLog.e("TMDB", "Impossible de lire le cache Popular Films", e)
+            IptvLog.e("CATALOG", "Impossible de lire le cache Popular Films", e)
             null
         }
     }
@@ -55,7 +55,7 @@ class GetPopularTop10InCatalogUseCase @Inject constructor(
             resolveSeries(matches, hiddenCategories(CategoryType.SERIES)).take(10).takeIf { it.isNotEmpty() }
         } catch (e: Exception) {
             if (e is CancellationException) throw e
-            IptvLog.e("TMDB", "Impossible de lire le cache Popular Séries", e)
+            IptvLog.e("CATALOG", "Impossible de lire le cache Popular Séries", e)
             null
         }
     }
@@ -71,7 +71,7 @@ class GetPopularTop10InCatalogUseCase @Inject constructor(
     /**
      * T8-R1 : décide si un cache déjà affiché mérite une actualisation
      * silencieuse. Un cache frais (< 24h et cohérent avec le catalogue actuel)
-     * ne doit déclencher ni appel TMDB ni écriture persistante.
+     * ne doit déclencher ni appel CATALOG ni écriture persistante.
      */
     suspend fun isMoviesCacheExpired(): Boolean =
         popularRepository.isMoviesCacheExpired(catalogFreshness.vodSyncedAt())
@@ -92,7 +92,7 @@ class GetPopularTop10InCatalogUseCase @Inject constructor(
             if (fresh.isNotEmpty()) popularRepository.saveMatchedMovies(fresh)
         } catch (e: Exception) {
             if (e is CancellationException) throw e
-            IptvLog.e("TMDB", "Actualisation silencieuse Popular Films impossible", e)
+            IptvLog.e("CATALOG", "Actualisation silencieuse Popular Films impossible", e)
         }
     }
 
@@ -102,7 +102,7 @@ class GetPopularTop10InCatalogUseCase @Inject constructor(
             if (fresh.isNotEmpty()) popularRepository.saveMatchedSeries(fresh)
         } catch (e: Exception) {
             if (e is CancellationException) throw e
-            IptvLog.e("TMDB", "Actualisation silencieuse Popular Séries impossible", e)
+            IptvLog.e("CATALOG", "Actualisation silencieuse Popular Séries impossible", e)
         }
     }
 
@@ -113,7 +113,7 @@ class GetPopularTop10InCatalogUseCase @Inject constructor(
             ?: buildMovieMatches()
                 .also { fresh -> if (fresh.isNotEmpty()) popularRepository.saveMatchedMovies(fresh) }
                 .takeIf { it.isNotEmpty() }
-            // Rafraîchissement de lancement impossible (TMDB injoignable, catalogue
+            // Rafraîchissement de lancement impossible (CATALOG injoignable, catalogue
             // vide) : on repart sur le cache existant plutôt que de vider la ligne.
             ?: popularRepository.getCachedMatchedMovies(syncedAt, ignoreSessionRefresh = true)
             ?: return null
@@ -121,7 +121,7 @@ class GetPopularTop10InCatalogUseCase @Inject constructor(
         resolveMovies(matches, hidden).take(10).takeIf { it.isNotEmpty() }
     } catch (e: Exception) {
         if (e is CancellationException) throw e
-        IptvLog.e("TMDB", "Impossible de résoudre les films populaires", e)
+        IptvLog.e("CATALOG", "Impossible de résoudre les films populaires", e)
         null
         }
     }
@@ -139,7 +139,7 @@ class GetPopularTop10InCatalogUseCase @Inject constructor(
         resolveSeries(matches, hidden).take(10).takeIf { it.isNotEmpty() }
     } catch (e: Exception) {
         if (e is CancellationException) throw e
-        IptvLog.e("TMDB", "Impossible de résoudre les séries populaires", e)
+        IptvLog.e("CATALOG", "Impossible de résoudre les séries populaires", e)
         null
         }
     }
@@ -147,52 +147,52 @@ class GetPopularTop10InCatalogUseCase @Inject constructor(
     private suspend fun buildMovieMatches(): List<PopularCatalogItem> {
         val popular = popularRepository.getPopularMovies()
         if (popular.isEmpty()) return emptyList()
-        // Seules les années des titres TMDB peuvent produire un match (année
+        // Seules les années des titres CATALOG peuvent produire un match (année
         // exacte obligatoire), les autres lignes seraient normalisées pour rien.
         val streams = vodRepository.getCachedVodStreamsByYears(popular.mapNotNull { it.year }.toSet())
-        return match(KIND_MOVIE, "movies", popular, withContext(Dispatchers.Default) { TmdbCatalogMatcher.prepareMovies(streams) }) { it.streamId }
+        return match(KIND_MOVIE, "movies", popular, withContext(Dispatchers.Default) { ExternalCatalogMatcher.prepareMovies(streams) }) { it.streamId }
     }
 
     private suspend fun buildSeriesMatches(): List<PopularCatalogItem> {
         val popular = popularRepository.getPopularSeries()
         if (popular.isEmpty()) return emptyList()
         val streams = seriesRepository.getCachedSeriesStreamsByYears(popular.mapNotNull { it.year }.toSet())
-        return match(KIND_SERIES, "series", popular, withContext(Dispatchers.Default) { TmdbCatalogMatcher.prepareSeries(streams) }) { it.seriesId }
+        return match(KIND_SERIES, "series", popular, withContext(Dispatchers.Default) { ExternalCatalogMatcher.prepareSeries(streams) }) { it.seriesId }
     }
 
     /**
-     * T24 : résolution batch des `canonicalId` déjà associés avant tout
+     * T24 : résolution batch des `externalId` déjà associés avant tout
      * matching — un item connu saute entièrement le scan du catalogue
-     * (`TmdbCatalogMatcher`) et est résolu par une simple requête indexée.
+     * (`ExternalCatalogMatcher`) et est résolu par une simple requête indexée.
      */
     private suspend fun <T> match(
         kind: String,
         label: String,
         popular: List<TrendingTitle>,
-        catalog: List<TmdbCatalogMatcher.CatalogCandidate<T>>,
+        catalog: List<ExternalCatalogMatcher.CatalogCandidate<T>>,
         idOf: (T) -> Int
     ): List<PopularCatalogItem> {
-        val canonicalIds = popular.mapNotNull { it.canonicalId }.distinct()
+        val externalIds = popular.mapNotNull { it.externalId }.distinct()
         val lookupStartNanos = System.nanoTime()
-        val linksByCanonicalId = if (canonicalIds.isNotEmpty()) {
-            canonicalMediaLinkRepository.findByCanonicalIds(canonicalIds)
+        val linksByExternalId = if (externalIds.isNotEmpty()) {
+            externalCatalogLinkRepository.findByExternalIds(externalIds)
                 .filter { it.kind == kind }
-                .groupBy { it.canonicalId }
+                .groupBy { it.externalId }
         } else emptyMap()
         val lookupMs = (System.nanoTime() - lookupStartNanos) / 1_000_000
 
         val usedIds = mutableSetOf<Int>()
-        val newlyMatchedLinks = mutableListOf<CanonicalMediaLink>()
+        val newlyMatchedLinks = mutableListOf<ExternalCatalogLink>()
         var roomHits = 0
         var matcherFallbacks = 0
         val matcherStartNanos = System.nanoTime()
 
         // Scan du catalogue (CPU-bound) isolé sur Default, comme avant T24 ;
-        // seule la résolution/persistance canonicalId ci-dessus/dessous fait
+        // seule la résolution/persistance externalId ci-dessus/dessous fait
         // de l'I/O Room (dispatché en interne par Room lui-même).
         val result = withContext(Dispatchers.Default) {
             popular.mapNotNull { title ->
-                val known = title.canonicalId?.let { linksByCanonicalId[it] }
+                val known = title.externalId?.let { linksByExternalId[it] }
                 if (!known.isNullOrEmpty()) {
                     // Existence/catégories masquées revalidées plus tard par `resolveMovies`/`resolveSeries`.
                     roomHits++
@@ -201,11 +201,11 @@ class GetPopularTop10InCatalogUseCase @Inject constructor(
                     return@mapNotNull PopularCatalogItem(ids)
                 }
                 matcherFallbacks++
-                TmdbCatalogMatcher.findBestMatches(title.title, title.year, catalog, usedIds)?.let { match ->
+                ExternalCatalogMatcher.findBestMatches(title.title, title.year, catalog, usedIds)?.let { match ->
                     val ids = match.candidates.map(idOf)
                     usedIds += ids
-                    IptvLog.d("TMDB", "🎯 Match popular: '${title.title}' (TMDB ${title.year}) ↔ ${ids.size} version(s) found (best score: ${match.score}, yearRank: ${match.yearRank.name})")
-                    title.canonicalId?.let { cid -> ids.forEach { newlyMatchedLinks.add(CanonicalMediaLink(kind, it, cid)) } }
+                    IptvLog.d("CATALOG", "🎯 Match popular: '${title.title}' (CATALOG ${title.year}) ↔ ${ids.size} version(s) found (best score: ${match.score}, yearRank: ${match.yearRank.name})")
+                    title.externalId?.let { cid -> ids.forEach { newlyMatchedLinks.add(ExternalCatalogLink(kind, it, cid)) } }
                     PopularCatalogItem(ids)
                 }
             }
@@ -213,12 +213,12 @@ class GetPopularTop10InCatalogUseCase @Inject constructor(
         val matcherMs = (System.nanoTime() - matcherStartNanos) / 1_000_000
         IptvLog.d(
             "PERF",
-            "Popular $label canonical lookup: $roomHits/${popular.size} hits Room en ${lookupMs}ms, $matcherFallbacks fallback match en ${matcherMs}ms"
+            "Popular $label external-id lookup: $roomHits/${popular.size} hits Room en ${lookupMs}ms, $matcherFallbacks fallback match en ${matcherMs}ms"
         )
 
         if (newlyMatchedLinks.isNotEmpty()) {
-            runCatching { canonicalMediaLinkRepository.persistAll(newlyMatchedLinks) }
-                .onFailure { IptvLog.e("TMDB", "Persistance canonicalId impossible (T24)", it) }
+            runCatching { externalCatalogLinkRepository.persistAll(newlyMatchedLinks) }
+                .onFailure { IptvLog.e("CATALOG", "Persistance externalId impossible (T24)", it) }
         }
 
         return result

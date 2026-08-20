@@ -1,5 +1,13 @@
 # Architecture de CSTV IPTV
 
+## Métadonnées externes consolidées (F45)
+
+Les flux IPTV restent la source de vérité pour la lecture, les versions et le catalogue brut. Les métadonnées externes sont une couche enrichissante, facultative et provider-neutral : le backend CSTV conserve les identifiants fournisseur et expose à Android uniquement un `externalId` UUID opaque et des champs métier.
+
+Le backend résout d'abord son catalogue consolidé, puis interroge le fournisseur si nécessaire sous single-flight, budget global et respect de `Retry-After`. Android persiste les fiches et sous-ressources dans des tables Room `external_*`, séparées des tables Xtream. Les associations Trending/Popular utilisent le cache `external_catalog_links`, lui aussi indexé par `externalId` opaque.
+
+Une file WorkManager persistante et séquentielle reçoit trois motifs : ouverture réelle de fiche, nouveau média IPTV, média existant sans métadonnées. Le rattrapage est paginé et borné ; aucune donnée stale n'est rafraîchie en arrière-plan. Une série hydrate ses saisons et épisodes seulement depuis une ouverture de fiche. Toute panne de la couche externe laisse l'interface et la lecture s'appuyer sur Room/Xtream.
+
 Ce document présente l'architecture globale, les choix techniques majeurs, la structure des répertoires et les flux de données au sein de l'application.
 
 ---

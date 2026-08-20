@@ -54,6 +54,9 @@ class IptvApplication : Application(), ImageLoaderFactory {
     @Inject
     lateinit var databaseMaintenanceRunner: com.cstv.app.data.local.db.DatabaseMaintenanceRunner
 
+    @Inject
+    lateinit var externalMetadataBackfillSeeder: com.cstv.app.data.worker.ExternalMetadataBackfillSeeder
+
     override fun onCreate() {
         super.onCreate()
         diagnosticManager.initialize()
@@ -68,6 +71,8 @@ class IptvApplication : Application(), ImageLoaderFactory {
         scheduleDefaultBackgroundSync()
         warmUpDatabase()
         scheduleCatalogNormalization()
+        resumeExternalMetadataHydration()
+        runExternalMetadataBackfill()
         purgeObsoleteAppUpdateApks()
         runDatabaseMaintenance()
     }
@@ -134,6 +139,32 @@ class IptvApplication : Application(), ImageLoaderFactory {
         } catch (exception: Exception) {
             // WorkManager is intentionally absent from regular JVM tests.
             IptvLog.e("T21", "Planification du rattrapage des titres impossible", exception)
+        }
+    }
+
+    /**
+     * F45 §8.11 : reprise après process death. La file `external_hydration_queue` est durable, mais
+     * rien ne la redrainerait automatiquement si l'appli redémarre sans qu'aucune fiche ne soit
+     * ouverte entre-temps (ex. relance directe sur l'Accueil) — `KEEP` rend cet appel un no-op si une
+     * hydratation est déjà en file/active.
+     */
+    private fun resumeExternalMetadataHydration() {
+        try {
+            com.cstv.app.data.worker.ExternalMetadataHydrationWorker.enqueue(this)
+        } catch (exception: Exception) {
+            IptvLog.e("F45", "Reprise de l'hydratation externe impossible", exception)
+        }
+    }
+
+    /**
+     * F45 §8.11 : couvre première installation et installation existante par le même mécanisme.
+     * Hors thread principal, jamais sur le chemin critique du démarrage ; ré-exécutable sans coût
+     * une fois le catalogue convergé (voir `ExternalMetadataBackfillSeeder`).
+     */
+    private fun runExternalMetadataBackfill() {
+        CoroutineScope(Dispatchers.IO).launch {
+            runCatching { externalMetadataBackfillSeeder.seed() }
+                .onFailure { IptvLog.e("F45", "Backfill des métadonnées externes impossible", it) }
         }
     }
 

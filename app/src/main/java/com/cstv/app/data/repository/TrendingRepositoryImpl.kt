@@ -17,7 +17,7 @@ class TrendingRepositoryImpl @Inject constructor(
     private val context: Context,
     private val catalogApiService: CstvCatalogApiService,
     private val gson: Gson,
-    private val sessionRefreshGate: TmdbSessionRefreshGate = TmdbSessionRefreshGate()
+    private val sessionRefreshGate: CatalogSessionRefreshGate = CatalogSessionRefreshGate()
 ) : TrendingRepository {
 
     private val prefsName = "catalog_trends_cache"
@@ -46,12 +46,12 @@ class TrendingRepositoryImpl @Inject constructor(
             }
 
             results?.mapNotNull { item ->
-                val canonicalId = item.id?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+                val externalId = item.externalId?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
                 val title = item.title ?: return@mapNotNull null
                 val isMovie = item.kind == "movie"
 
                 TrendingTitle(
-                    canonicalId = canonicalId,
+                    externalId = externalId,
                     title = title,
                     isMovie = isMovie,
                     year = item.releaseYear,

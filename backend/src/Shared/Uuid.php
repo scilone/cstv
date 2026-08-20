@@ -6,6 +6,19 @@ namespace Cstv\Backend\Shared;
 
 final class Uuid
 {
+    /**
+     * F45-R11 : validateur canonique unique pour toutes les routes catalogue — remplace le
+     * `preg_match('/^[0-9a-f-]{36}$/i')` de `CatalogAction`, qui acceptait n'importe quelle chaîne
+     * de 36 caractères hexadécimaux/tirets (y compris 36 tirets) jusqu'à ce que PostgreSQL la
+     * rejette avec un 500 au lieu du 422 contractuel, et le regroupement `8-4-4-4-12` moins strict
+     * de `CatalogService::isUuid()`. Vérifie aussi le nibble de version (`4`) et de variant
+     * (`8`/`9`/`a`/`b`) — `externalId` n'est jamais qu'un UUID v4 généré par [v4] (§8.2/§7.3).
+     */
+    public static function isValid(string $value): bool
+    {
+        return preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iD', $value) === 1;
+    }
+
     public static function v4(): string
     {
         $bytes = random_bytes(16);

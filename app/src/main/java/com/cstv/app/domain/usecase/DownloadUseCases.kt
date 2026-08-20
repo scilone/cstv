@@ -66,7 +66,6 @@ class StartDownloadUseCase @Inject constructor(
         val target = resolveClassificationTarget(data)
             ?: return DownloadStartResult.RequiresParentalPin(BlockReason.UNCLASSIFIED, data.contentId)
         val classification = classificationRepository.classificationFor(target.kind, target.title, target.year, target.providerId)
-            ?: classificationRepository.classificationFor(target.kind, target.title, target.year)
 
         val decision = parentalAccessPolicy.evaluate(maxAgeRating, classification, ParentalActionType.DOWNLOAD)
         return (decision as? AccessDecision.PinRequired)?.let {

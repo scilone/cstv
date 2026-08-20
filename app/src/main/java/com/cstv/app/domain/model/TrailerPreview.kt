@@ -3,15 +3,15 @@ package com.cstv.app.domain.model
 /** Identité du titre dont l'aperçu est demandé : jamais l'index volatile du pager. */
 sealed interface TrailerMedia {
     val catalogId: Int
-    val canonicalId: String?
+    val externalId: String?
 
-    data class Movie(override val catalogId: Int, override val canonicalId: String? = null) : TrailerMedia {
-        @Deprecated("Tests and legacy cache only; production receives canonicalId from CSTV")
-        constructor(catalogId: Int, tmdbId: Int?) : this(catalogId, tmdbId?.let { "movie:$it" })
+    data class Movie(override val catalogId: Int, override val externalId: String? = null) : TrailerMedia {
+        @Deprecated("Tests and legacy cache only; production receives externalId from CSTV")
+        constructor(catalogId: Int, legacyId: Int?) : this(catalogId, legacyId?.let { "movie:$it" })
     }
-    data class Series(override val catalogId: Int, override val canonicalId: String? = null) : TrailerMedia {
-        @Deprecated("Tests and legacy cache only; production receives canonicalId from CSTV")
-        constructor(catalogId: Int, tmdbId: Int?) : this(catalogId, tmdbId?.let { "series:$it" })
+    data class Series(override val catalogId: Int, override val externalId: String? = null) : TrailerMedia {
+        @Deprecated("Tests and legacy cache only; production receives externalId from CSTV")
+        constructor(catalogId: Int, legacyId: Int?) : this(catalogId, legacyId?.let { "series:$it" })
     }
 }
 

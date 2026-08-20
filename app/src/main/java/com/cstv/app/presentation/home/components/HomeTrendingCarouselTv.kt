@@ -135,7 +135,7 @@ fun HomeTrendingCarouselTv(
     // Unlike mobile, it does not immediately request metadata and does not have a second layout gate.
     // La clé inclut la slide courante : changer de tendance annule l'aperçu en
     // cours et repart d'une temporisation complète.
-    LaunchedEffect(previewEligible, currentItem?.trendingTitle?.canonicalId) {
+    LaunchedEffect(previewEligible, currentItem?.trendingTitle?.externalId) {
         if (!previewEligible || currentItem == null) {
             onPreviewContextEnded()
             return@LaunchedEffect
@@ -269,8 +269,8 @@ private fun HomeTrendingSlideTv(
     val movieId = item.matchedMovie?.streamId
     val seriesId = item.matchedSeries?.seriesId
     val media = when {
-        movieId != null -> TrailerMedia.Movie(movieId, item.trendingTitle.canonicalId)
-        seriesId != null -> TrailerMedia.Series(seriesId, item.trendingTitle.canonicalId)
+        movieId != null -> TrailerMedia.Movie(movieId, item.trendingTitle.externalId)
+        seriesId != null -> TrailerMedia.Series(seriesId, item.trendingTitle.externalId)
         else -> null
     }
     val preview = (trailerPreview as? TrailerPreviewUiState.Playing)?.preview

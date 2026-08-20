@@ -5,7 +5,6 @@ import com.cstv.app.data.local.storage.CredentialsManager
 import com.cstv.app.data.local.storage.CurrentAccountKeyProvider
 import com.cstv.app.data.repository.ContentClassificationRepository
 import com.cstv.app.data.repository.MediaClassificationKind
-import com.cstv.app.domain.model.AgeRating
 import com.cstv.app.domain.model.BlockReason
 import com.cstv.app.domain.model.Credentials
 import com.cstv.app.domain.model.OneShotPlaybackGrantStore
@@ -94,13 +93,13 @@ class CanPlayContentParentalGuardTest {
     fun `a bridged profile is refused with TOO_MATURE for an over-the-limit movie`() = runTest {
         whenever(profileRepository.getProfiles()).thenReturn(listOf(profile(12)))
         whenever(vodRepository.getStreamById(42)).thenReturn(movie)
-        whenever(classificationRepository.classificationFor(MediaClassificationKind.MOVIE, "Dune", 2021)).thenReturn(AgeRating.SIXTEEN)
+        whenever(classificationRepository.classificationFor(MediaClassificationKind.MOVIE, "Dune", 2021, 42)).thenReturn(16)
 
         val result = useCase("movie_42")
 
         assertEquals(
             PlaybackAvailability.RequiresParentalPin(
-                BlockReason.TOO_MATURE, "movie_42", AgeRating.SIXTEEN,
+                BlockReason.TOO_MATURE, "movie_42", 16,
                 authorizationTarget = ParentalAuthorizationTarget(MediaClassificationKind.MOVIE, 42),
             ),
             result
@@ -111,7 +110,7 @@ class CanPlayContentParentalGuardTest {
     fun `a bridged profile is refused with UNCLASSIFIED when T22 has no answer`() = runTest {
         whenever(profileRepository.getProfiles()).thenReturn(listOf(profile(12)))
         whenever(vodRepository.getStreamById(42)).thenReturn(movie)
-        whenever(classificationRepository.classificationFor(MediaClassificationKind.MOVIE, "Dune", 2021)).thenReturn(null)
+        whenever(classificationRepository.classificationFor(MediaClassificationKind.MOVIE, "Dune", 2021, 42)).thenReturn(null)
 
         val result = useCase("movie_42")
 
@@ -140,7 +139,7 @@ class CanPlayContentParentalGuardTest {
     fun `a bridged profile is allowed for a compatible classification`() = runTest {
         whenever(profileRepository.getProfiles()).thenReturn(listOf(profile(16)))
         whenever(vodRepository.getStreamById(42)).thenReturn(movie)
-        whenever(classificationRepository.classificationFor(MediaClassificationKind.MOVIE, "Dune", 2021)).thenReturn(AgeRating.TWELVE)
+        whenever(classificationRepository.classificationFor(MediaClassificationKind.MOVIE, "Dune", 2021, 42)).thenReturn(12)
 
         assertEquals(PlaybackAvailability.Allowed, useCase("movie_42"))
     }
@@ -152,13 +151,13 @@ class CanPlayContentParentalGuardTest {
         whenever(seriesRepository.getStreamById(7)).thenReturn(
             com.cstv.app.domain.model.SeriesStream(seriesId = 7, name = "Supergirl", cover = null, rating = null, added = null, categoryId = "cat", releaseYear = 2015)
         )
-        whenever(classificationRepository.classificationFor(MediaClassificationKind.SERIES, "Supergirl", 2015)).thenReturn(AgeRating.SIXTEEN)
+        whenever(classificationRepository.classificationFor(MediaClassificationKind.SERIES, "Supergirl", 2015, 7)).thenReturn(16)
 
         val result = useCase("episode_99")
 
         assertEquals(
             PlaybackAvailability.RequiresParentalPin(
-                BlockReason.TOO_MATURE, "episode_99", AgeRating.SIXTEEN,
+                BlockReason.TOO_MATURE, "episode_99", 16,
                 authorizationTarget = ParentalAuthorizationTarget(MediaClassificationKind.SERIES, 7),
             ),
             result
@@ -180,7 +179,7 @@ class CanPlayContentParentalGuardTest {
     fun `a consumed grant does not authorize a second playback of the same media`() = runTest {
         whenever(profileRepository.getProfiles()).thenReturn(listOf(profile(12)))
         whenever(vodRepository.getStreamById(42)).thenReturn(movie)
-        whenever(classificationRepository.classificationFor(MediaClassificationKind.MOVIE, "Dune", 2021)).thenReturn(AgeRating.SIXTEEN)
+        whenever(classificationRepository.classificationFor(MediaClassificationKind.MOVIE, "Dune", 2021, 42)).thenReturn(16)
         val nonce = grantStore.issue(profileId = 1, mediaUid = "movie_42")
 
         useCase("movie_42", oneShotGrantNonce = nonce) // consomme le grant
@@ -188,7 +187,7 @@ class CanPlayContentParentalGuardTest {
         val secondAttempt = useCase("movie_42", oneShotGrantNonce = nonce)
         assertEquals(
             PlaybackAvailability.RequiresParentalPin(
-                BlockReason.TOO_MATURE, "movie_42", AgeRating.SIXTEEN,
+                BlockReason.TOO_MATURE, "movie_42", 16,
                 authorizationTarget = ParentalAuthorizationTarget(MediaClassificationKind.MOVIE, 42),
             ),
             secondAttempt

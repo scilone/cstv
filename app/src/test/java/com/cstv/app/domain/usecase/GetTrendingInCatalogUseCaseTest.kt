@@ -40,8 +40,8 @@ class GetTrendingInCatalogUseCaseTest {
         val seriesRepository = mock<SeriesRepository>()
         val categoryPreferenceRepository = mock<CategoryPreferenceRepository>()
         val catalogFreshness = mock<com.cstv.app.data.sync.CatalogFreshness>()
-        val canonicalMediaLinkRepository = mock<com.cstv.app.domain.repository.CanonicalMediaLinkRepository>()
-        whenever(canonicalMediaLinkRepository.findByCanonicalIds(any())).thenReturn(emptyList())
+        val externalCatalogLinkRepository = mock<com.cstv.app.domain.repository.ExternalCatalogLinkRepository>()
+        whenever(externalCatalogLinkRepository.findByExternalIds(any())).thenReturn(emptyList())
 
         whenever(catalogFreshness.vodSyncedAt()).thenReturn(0L)
         whenever(catalogFreshness.seriesSyncedAt()).thenReturn(0L)
@@ -79,7 +79,7 @@ class GetTrendingInCatalogUseCaseTest {
             seriesRepository,
             categoryPreferenceRepository,
             catalogFreshness,
-            canonicalMediaLinkRepository
+            externalCatalogLinkRepository
         )
 
         val result = useCase()
@@ -105,8 +105,8 @@ class GetTrendingInCatalogUseCaseTest {
         val seriesRepository = mock<SeriesRepository>()
         val categoryPreferenceRepository = mock<CategoryPreferenceRepository>()
         val catalogFreshness = mock<com.cstv.app.data.sync.CatalogFreshness>()
-        val canonicalMediaLinkRepository = mock<com.cstv.app.domain.repository.CanonicalMediaLinkRepository>()
-        whenever(canonicalMediaLinkRepository.findByCanonicalIds(any())).thenReturn(emptyList())
+        val externalCatalogLinkRepository = mock<com.cstv.app.domain.repository.ExternalCatalogLinkRepository>()
+        whenever(externalCatalogLinkRepository.findByExternalIds(any())).thenReturn(emptyList())
 
         whenever(catalogFreshness.vodSyncedAt()).thenReturn(0L)
         whenever(catalogFreshness.seriesSyncedAt()).thenReturn(0L)
@@ -137,7 +137,7 @@ class GetTrendingInCatalogUseCaseTest {
             seriesRepository,
             categoryPreferenceRepository,
             catalogFreshness,
-            canonicalMediaLinkRepository
+            externalCatalogLinkRepository
         )
 
         val result = useCase()
@@ -153,8 +153,8 @@ class GetTrendingInCatalogUseCaseTest {
         val seriesRepository = mock<SeriesRepository>()
         val categoryPreferenceRepository = mock<CategoryPreferenceRepository>()
         val catalogFreshness = mock<com.cstv.app.data.sync.CatalogFreshness>()
-        val canonicalMediaLinkRepository = mock<com.cstv.app.domain.repository.CanonicalMediaLinkRepository>()
-        whenever(canonicalMediaLinkRepository.findByCanonicalIds(any())).thenReturn(emptyList())
+        val externalCatalogLinkRepository = mock<com.cstv.app.domain.repository.ExternalCatalogLinkRepository>()
+        whenever(externalCatalogLinkRepository.findByExternalIds(any())).thenReturn(emptyList())
 
         whenever(catalogFreshness.vodSyncedAt()).thenReturn(0L)
         whenever(catalogFreshness.seriesSyncedAt()).thenReturn(0L)
@@ -179,7 +179,7 @@ class GetTrendingInCatalogUseCaseTest {
             seriesRepository,
             categoryPreferenceRepository,
             catalogFreshness,
-            canonicalMediaLinkRepository
+            externalCatalogLinkRepository
         )
 
         val result = useCase()
@@ -196,8 +196,8 @@ class GetTrendingInCatalogUseCaseTest {
         val seriesRepository = mock<SeriesRepository>()
         val categoryPreferenceRepository = mock<CategoryPreferenceRepository>()
         val catalogFreshness = mock<com.cstv.app.data.sync.CatalogFreshness>()
-        val canonicalMediaLinkRepository = mock<com.cstv.app.domain.repository.CanonicalMediaLinkRepository>()
-        whenever(canonicalMediaLinkRepository.findByCanonicalIds(any())).thenReturn(emptyList())
+        val externalCatalogLinkRepository = mock<com.cstv.app.domain.repository.ExternalCatalogLinkRepository>()
+        whenever(externalCatalogLinkRepository.findByExternalIds(any())).thenReturn(emptyList())
 
         whenever(catalogFreshness.vodSyncedAt()).thenReturn(0L)
         whenever(catalogFreshness.seriesSyncedAt()).thenReturn(0L)
@@ -232,7 +232,7 @@ class GetTrendingInCatalogUseCaseTest {
             seriesRepository,
             categoryPreferenceRepository,
             catalogFreshness,
-            canonicalMediaLinkRepository
+            externalCatalogLinkRepository
         )
 
         val result = useCase()
@@ -253,8 +253,8 @@ class GetTrendingInCatalogUseCaseTest {
         val seriesRepository = mock<SeriesRepository>()
         val categoryPreferenceRepository = mock<CategoryPreferenceRepository>()
         val catalogFreshness = mock<com.cstv.app.data.sync.CatalogFreshness>()
-        val canonicalMediaLinkRepository = mock<com.cstv.app.domain.repository.CanonicalMediaLinkRepository>()
-        whenever(canonicalMediaLinkRepository.findByCanonicalIds(any())).thenReturn(emptyList())
+        val externalCatalogLinkRepository = mock<com.cstv.app.domain.repository.ExternalCatalogLinkRepository>()
+        whenever(externalCatalogLinkRepository.findByExternalIds(any())).thenReturn(emptyList())
 
         // Mock resynchronized timestamps (resynced at 1000L)
         whenever(catalogFreshness.vodSyncedAt()).thenReturn(1000L)
@@ -282,7 +282,7 @@ class GetTrendingInCatalogUseCaseTest {
             seriesRepository,
             categoryPreferenceRepository,
             catalogFreshness,
-            canonicalMediaLinkRepository
+            externalCatalogLinkRepository
         )
 
         val result = useCase()
@@ -300,8 +300,8 @@ class GetTrendingInCatalogUseCaseTest {
         val seriesRepository = mock<SeriesRepository>()
         val categoryPreferenceRepository = mock<CategoryPreferenceRepository>()
         val catalogFreshness = mock<com.cstv.app.data.sync.CatalogFreshness>()
-        val canonicalMediaLinkRepository = mock<com.cstv.app.domain.repository.CanonicalMediaLinkRepository>()
-        whenever(canonicalMediaLinkRepository.findByCanonicalIds(any())).thenReturn(emptyList())
+        val externalCatalogLinkRepository = mock<com.cstv.app.domain.repository.ExternalCatalogLinkRepository>()
+        whenever(externalCatalogLinkRepository.findByExternalIds(any())).thenReturn(emptyList())
         whenever(catalogFreshness.vodSyncedAt()).thenReturn(0L)
         whenever(catalogFreshness.seriesSyncedAt()).thenReturn(0L)
         whenever(trendingRepository.getCachedMatchedTrendsGlobal(0L)).thenReturn(null)
@@ -322,7 +322,7 @@ class GetTrendingInCatalogUseCaseTest {
             seriesRepository,
             categoryPreferenceRepository,
             catalogFreshness,
-            canonicalMediaLinkRepository
+            externalCatalogLinkRepository
         )()
 
         assertEquals(1, result.size)
@@ -336,8 +336,8 @@ class GetTrendingInCatalogUseCaseTest {
         val seriesRepository = mock<SeriesRepository>()
         val categoryPreferenceRepository = mock<CategoryPreferenceRepository>()
         val catalogFreshness = mock<com.cstv.app.data.sync.CatalogFreshness>()
-        val canonicalMediaLinkRepository = mock<com.cstv.app.domain.repository.CanonicalMediaLinkRepository>()
-        whenever(canonicalMediaLinkRepository.findByCanonicalIds(any())).thenReturn(emptyList())
+        val externalCatalogLinkRepository = mock<com.cstv.app.domain.repository.ExternalCatalogLinkRepository>()
+        whenever(externalCatalogLinkRepository.findByExternalIds(any())).thenReturn(emptyList())
         whenever(catalogFreshness.vodSyncedAt()).thenReturn(0L)
         whenever(catalogFreshness.seriesSyncedAt()).thenReturn(0L)
         whenever(trendingRepository.getCachedMatchedTrendsGlobal(0L)).thenReturn(null)
@@ -368,7 +368,7 @@ class GetTrendingInCatalogUseCaseTest {
             seriesRepository,
             categoryPreferenceRepository,
             catalogFreshness,
-            canonicalMediaLinkRepository
+            externalCatalogLinkRepository
         )()
 
         assertEquals(2, result.size)
@@ -383,8 +383,8 @@ class GetTrendingInCatalogUseCaseTest {
         val seriesRepository = mock<SeriesRepository>()
         val preferences = mock<CategoryPreferenceRepository>()
         val catalogFreshness = mock<com.cstv.app.data.sync.CatalogFreshness>()
-        val canonicalMediaLinkRepository = mock<com.cstv.app.domain.repository.CanonicalMediaLinkRepository>()
-        whenever(canonicalMediaLinkRepository.findByCanonicalIds(any())).thenReturn(emptyList())
+        val externalCatalogLinkRepository = mock<com.cstv.app.domain.repository.ExternalCatalogLinkRepository>()
+        whenever(externalCatalogLinkRepository.findByExternalIds(any())).thenReturn(emptyList())
         val datedHidden = VodStream(1, "Dune", null, null, null, "hidden", releaseYear = 2021)
         val datedVisible = VodStream(2, "Dune", null, null, null, "visible", releaseYear = 2021)
 
@@ -404,7 +404,7 @@ class GetTrendingInCatalogUseCaseTest {
         whenever(preferences.getPreferences(CategoryType.SERIES)).thenReturn(emptyMap())
 
         val result = GetTrendingInCatalogUseCase(
-            trendingRepository, vodRepository, seriesRepository, preferences, catalogFreshness, canonicalMediaLinkRepository
+            trendingRepository, vodRepository, seriesRepository, preferences, catalogFreshness, externalCatalogLinkRepository
         )()
 
         assertEquals(1, result.size)
@@ -418,8 +418,8 @@ class GetTrendingInCatalogUseCaseTest {
         val seriesRepository = mock<SeriesRepository>()
         val categoryPreferenceRepository = mock<CategoryPreferenceRepository>()
         val catalogFreshness = mock<com.cstv.app.data.sync.CatalogFreshness>()
-        val canonicalMediaLinkRepository = mock<com.cstv.app.domain.repository.CanonicalMediaLinkRepository>()
-        whenever(canonicalMediaLinkRepository.findByCanonicalIds(any())).thenReturn(emptyList())
+        val externalCatalogLinkRepository = mock<com.cstv.app.domain.repository.ExternalCatalogLinkRepository>()
+        whenever(externalCatalogLinkRepository.findByExternalIds(any())).thenReturn(emptyList())
         whenever(catalogFreshness.vodSyncedAt()).thenReturn(0L)
         whenever(catalogFreshness.seriesSyncedAt()).thenReturn(0L)
         whenever(trendingRepository.getCachedMatchedTrendsGlobal(0L)).thenReturn(null)
@@ -444,7 +444,7 @@ class GetTrendingInCatalogUseCaseTest {
             seriesRepository,
             categoryPreferenceRepository,
             catalogFreshness,
-            canonicalMediaLinkRepository
+            externalCatalogLinkRepository
         )()
 
         assertEquals(2, result.size)
@@ -459,8 +459,8 @@ class GetTrendingInCatalogUseCaseTest {
         val seriesRepository = mock<SeriesRepository>()
         val categoryPreferenceRepository = mock<CategoryPreferenceRepository>()
         val catalogFreshness = mock<com.cstv.app.data.sync.CatalogFreshness>()
-        val canonicalMediaLinkRepository = mock<com.cstv.app.domain.repository.CanonicalMediaLinkRepository>()
-        whenever(canonicalMediaLinkRepository.findByCanonicalIds(any())).thenReturn(emptyList())
+        val externalCatalogLinkRepository = mock<com.cstv.app.domain.repository.ExternalCatalogLinkRepository>()
+        whenever(externalCatalogLinkRepository.findByExternalIds(any())).thenReturn(emptyList())
         whenever(catalogFreshness.vodSyncedAt()).thenReturn(0L)
         whenever(catalogFreshness.seriesSyncedAt()).thenReturn(0L)
         whenever(trendingRepository.getCachedMatchedTrendsGlobal(0L)).thenReturn(null)
@@ -483,7 +483,7 @@ class GetTrendingInCatalogUseCaseTest {
             seriesRepository,
             categoryPreferenceRepository,
             catalogFreshness,
-            canonicalMediaLinkRepository
+            externalCatalogLinkRepository
         )()
 
         verify(vodRepository).getCachedVodStreamsByYears(setOf(2021, 2010))
@@ -497,8 +497,8 @@ class GetTrendingInCatalogUseCaseTest {
         val seriesRepository = mock<SeriesRepository>()
         val categoryPreferenceRepository = mock<CategoryPreferenceRepository>()
         val catalogFreshness = mock<com.cstv.app.data.sync.CatalogFreshness>()
-        val canonicalMediaLinkRepository = mock<com.cstv.app.domain.repository.CanonicalMediaLinkRepository>()
-        whenever(canonicalMediaLinkRepository.findByCanonicalIds(any())).thenReturn(emptyList())
+        val externalCatalogLinkRepository = mock<com.cstv.app.domain.repository.ExternalCatalogLinkRepository>()
+        whenever(externalCatalogLinkRepository.findByExternalIds(any())).thenReturn(emptyList())
         whenever(catalogFreshness.vodSyncedAt()).thenReturn(0L)
         whenever(catalogFreshness.seriesSyncedAt()).thenReturn(0L)
 
@@ -528,7 +528,7 @@ class GetTrendingInCatalogUseCaseTest {
             seriesRepository,
             categoryPreferenceRepository,
             catalogFreshness,
-            canonicalMediaLinkRepository
+            externalCatalogLinkRepository
         )()
 
         assertEquals(1, result.size)
@@ -542,8 +542,8 @@ class GetTrendingInCatalogUseCaseTest {
         val seriesRepository = mock<SeriesRepository>()
         val categoryPreferenceRepository = mock<CategoryPreferenceRepository>()
         val catalogFreshness = mock<com.cstv.app.data.sync.CatalogFreshness>()
-        val canonicalMediaLinkRepository = mock<com.cstv.app.domain.repository.CanonicalMediaLinkRepository>()
-        whenever(canonicalMediaLinkRepository.findByCanonicalIds(any())).thenReturn(emptyList())
+        val externalCatalogLinkRepository = mock<com.cstv.app.domain.repository.ExternalCatalogLinkRepository>()
+        whenever(externalCatalogLinkRepository.findByExternalIds(any())).thenReturn(emptyList())
         whenever(catalogFreshness.vodSyncedAt()).thenReturn(100L)
         whenever(catalogFreshness.seriesSyncedAt()).thenReturn(200L)
 
@@ -573,7 +573,7 @@ class GetTrendingInCatalogUseCaseTest {
             seriesRepository,
             categoryPreferenceRepository,
             catalogFreshness,
-            canonicalMediaLinkRepository
+            externalCatalogLinkRepository
         )
 
         val result = useCase.cached()
@@ -585,8 +585,8 @@ class GetTrendingInCatalogUseCaseTest {
     fun test_isCacheExpired_delegatesToRepository() = runTest {
         val trendingRepository = mock<TrendingRepository>()
         val catalogFreshness = mock<com.cstv.app.data.sync.CatalogFreshness>()
-        val canonicalMediaLinkRepository = mock<com.cstv.app.domain.repository.CanonicalMediaLinkRepository>()
-        whenever(canonicalMediaLinkRepository.findByCanonicalIds(any())).thenReturn(emptyList())
+        val externalCatalogLinkRepository = mock<com.cstv.app.domain.repository.ExternalCatalogLinkRepository>()
+        whenever(externalCatalogLinkRepository.findByExternalIds(any())).thenReturn(emptyList())
         whenever(catalogFreshness.vodSyncedAt()).thenReturn(100L)
         whenever(catalogFreshness.seriesSyncedAt()).thenReturn(200L)
 
@@ -598,7 +598,7 @@ class GetTrendingInCatalogUseCaseTest {
             mock(),
             mock(),
             catalogFreshness,
-            canonicalMediaLinkRepository
+            externalCatalogLinkRepository
         )
 
         assertTrue(useCase.isCacheExpired())

@@ -47,8 +47,10 @@ paths:
   /v1/catalog/matches:
     post:
       tags: [Catalog]
-      summary: Resolve a product catalog item
+      summary: Resolve a product catalog item (F45 multi-pass matching, §7.11)
       security: [{ bearerAuth: [] }]
+      parameters:
+        - {name: X-CSTV-Device-Type, in: header, schema: {type: string, enum: [mobile, tablet, tv], default: mobile}, description: 'Invalid/absent falls back to mobile (§7.7).'}
       requestBody:
         required: true
         content:
@@ -61,25 +63,78 @@ paths:
                 title: {type: string, minLength: 1, maxLength: 200}
                 year: {type: integer, minimum: 1888}
                 locale: {type: string, enum: [fr-FR, en-US]}
+                hints:
+                  type: object
+                  description: All optional (§7.11) — IPTV metadata is often incomplete or wrong.
+                  properties:
+                    director: {type: string}
+                    actors: {type: array, items: {type: string}, maxItems: 20}
+                    genres: {type: array, items: {type: string}, maxItems: 20}
+                    runtimeMinutes: {type: integer, minimum: 1}
+                    youtubeTrailerKey: {type: string}
       responses:
-        '200': {description: Matched or not-found item}
+        '200':
+          description: 'status: matched | not_found | unresolved (§8.7). `match` carries confidence/method/version when matched.'
         '401': {$ref: '#/components/responses/Error'}
         '415': {$ref: '#/components/responses/Error'}
         '422': {$ref: '#/components/responses/Error'}
         '429': {$ref: '#/components/responses/Error'}
         '502': {$ref: '#/components/responses/Error'}
         '503': {$ref: '#/components/responses/Error'}
-  /v1/catalog/items/{canonicalId}/videos:
+  /v1/catalog/items/{externalId}:
+    get:
+      tags: [Catalog]
+      summary: Consolidated item detail (§8.7)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - {name: externalId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {name: X-CSTV-Device-Type, in: header, schema: {type: string, enum: [mobile, tablet, tv], default: mobile}}
+      responses:
+        '200': {description: Consolidated movie/series item}
+        '401': {$ref: '#/components/responses/Error'}
+        '404': {$ref: '#/components/responses/Error'}
+        '422': {$ref: '#/components/responses/Error'}
+  /v1/catalog/items/{externalId}/recommendations:
+    get:
+      tags: [Catalog]
+      summary: Up to 20 recommendations, order preserved, externalIds only (§7.6)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - {name: externalId, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200': {description: 'List of { externalId }'}
+        '401': {$ref: '#/components/responses/Error'}
+        '404': {$ref: '#/components/responses/Error'}
+        '422': {$ref: '#/components/responses/Error'}
+  /v1/catalog/items/{externalId}/videos:
     get:
       tags: [Catalog]
       summary: Catalog videos
+      description: 'Accepts the opaque externalId UUID (new app) or the legacy `movie:<id>`/`series:<id>` form while old APKs transition (§8.7).'
       security: [{ bearerAuth: [] }]
       parameters:
-        - {name: canonicalId, in: path, required: true, schema: {type: string}}
+        - {name: externalId, in: path, required: true, schema: {type: string}}
         - {name: locale, in: query, schema: {type: string, enum: [fr-FR, en-US], default: fr-FR}}
       responses:
         '200': {description: Video candidates}
         '401': {$ref: '#/components/responses/Error'}
+        '404': {$ref: '#/components/responses/Error'}
+        '422': {$ref: '#/components/responses/Error'}
+        '502': {$ref: '#/components/responses/Error'}
+        '503': {$ref: '#/components/responses/Error'}
+  /v1/catalog/items/{externalId}/seasons/{seasonNumber}:
+    get:
+      tags: [Catalog]
+      summary: Season + episodes (§7.4) — only ever fetched when a series sheet is actually opened, never during sync/backfill
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - {name: externalId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {name: seasonNumber, in: path, required: true, schema: {type: integer, minimum: 0}}
+        - {name: X-CSTV-Device-Type, in: header, schema: {type: string, enum: [mobile, tablet, tv], default: mobile}}
+      responses:
+        '200': {description: Season detail with its episodes}
+        '401': {$ref: '#/components/responses/Error'}
+        '404': {$ref: '#/components/responses/Error'}
         '422': {$ref: '#/components/responses/Error'}
         '502': {$ref: '#/components/responses/Error'}
         '503': {$ref: '#/components/responses/Error'}

@@ -7,7 +7,6 @@ import com.cstv.app.domain.model.SeriesStream
 import com.cstv.app.domain.model.MediaRatingValue
 import com.cstv.app.presentation.components.TrailerPreviewUiState
 import com.cstv.app.domain.model.AdvancedSearchFilter
-import com.cstv.app.domain.model.AgeRating
 
 data class SeriesState(
     val categories: List<SeriesCategory> = emptyList(),
@@ -15,8 +14,8 @@ data class SeriesState(
     val streams: List<SeriesStream> = emptyList(),
     val selectedStreamId: Int? = null,
     val selectedSeriesDetails: SeriesDetails? = null,
-    /** Classification française T22 affichée sur la fiche, quel que soit le profil. */
-    val ageRating: AgeRating? = null,
+    /** Classification exacte (F45 §8.13) affichée sur la fiche, quel que soit le profil. */
+    val ageRating: Int? = null,
     val isLoadingAgeRating: Boolean = false,
     // Séries associées (mêmes genres) affichées en bas des détails.
     val relatedSeries: List<SeriesStream> = emptyList(),

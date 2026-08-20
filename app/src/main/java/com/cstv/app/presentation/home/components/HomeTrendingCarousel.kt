@@ -101,7 +101,7 @@ fun HomeTrendingCarousel(
     var lifecycleStarted by remember(lifecycleOwner) {
         mutableStateOf(lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED))
     }
-    var pageStableForPreview by remember(activeItem?.trendingTitle?.canonicalId) { mutableStateOf(false) }
+    var pageStableForPreview by remember(activeItem?.trendingTitle?.externalId) { mutableStateOf(false) }
 
     // [Asymmetry Note (m2)]
     // Mobile carousel uses a double-gated system:
@@ -110,7 +110,7 @@ fun HomeTrendingCarousel(
     // 2. Gate the actual WebView composition with pageStableForPreview, which only becomes true after
     //    1.5 seconds of continuous stability.
     // This is different from TV where the request itself is delayed and the WebView is not double-gated.
-    LaunchedEffect(activeItem?.trendingTitle?.canonicalId, pagerState.isScrollInProgress, lifecycleStarted) {
+    LaunchedEffect(activeItem?.trendingTitle?.externalId, pagerState.isScrollInProgress, lifecycleStarted) {
         pageStableForPreview = false
         // [m3] End the previous context immediately upon any card/scroll/lifecycle change
         // to prevent obsolete state (e.g. state.Playing) from carrying over.

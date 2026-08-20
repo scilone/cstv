@@ -1124,4 +1124,68 @@ val MIGRATION_37_38 = object : Migration(37, 38) {
     }
 }
 
-val ALL_MIGRATIONS = arrayOf(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33, MIGRATION_33_34, MIGRATION_34_35, MIGRATION_35_36, MIGRATION_36_37, MIGRATION_37_38)
+/**
+ * F45: provider-neutral external metadata. Existing user data and the T24/F44
+ * caches remain readable while their consumers move to these tables; no
+ * provider identifier is converted into an external CSTV identity.
+ */
+val MIGRATION_38_39 = object : Migration(38, 39) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        migration38To39Statements().forEach(db::execSQL)
+    }
+}
+
+/**
+ * Instructions de la migration 38→39, renvoyées plutôt qu'exécutées ici pour que
+ * `Migration38To39SqlTest` puisse les rejouer sur un SQLite en mémoire via sqlite-jdbc — motif déjà
+ * utilisé par [migration27To28Statements] (le projet n'a pas d'infrastructure de test instrumenté,
+ * voir AGENTS.md). Purement additif : uniquement des `CREATE TABLE IF NOT EXISTS`/
+ * `CREATE INDEX IF NOT EXISTS`, aucune table existante n'est touchée (`canonical_media_links`,
+ * `content_classifications` et `trailer_cache` restent en place le temps que les tâches
+ * Repository/consommateurs/migration parentale basculent dessus, voir § 11 de F45).
+ */
+internal fun migration38To39Statements(): List<String> = listOf(
+    "CREATE TABLE IF NOT EXISTS external_media (externalId TEXT NOT NULL, kind TEXT NOT NULL, createdAt INTEGER NOT NULL, refreshedAt INTEGER, refreshAfter INTEGER, PRIMARY KEY(externalId))",
+    "CREATE INDEX IF NOT EXISTS index_external_media_kind ON external_media(kind)",
+    "CREATE TABLE IF NOT EXISTS external_movies (externalId TEXT NOT NULL, title TEXT NOT NULL, originalTitle TEXT, overview TEXT, posterPath TEXT, backdropPath TEXT, releaseDate TEXT, runtimeMinutes INTEGER, ageRating INTEGER, PRIMARY KEY(externalId))",
+    "CREATE TABLE IF NOT EXISTS external_series (externalId TEXT NOT NULL, name TEXT NOT NULL, originalName TEXT, overview TEXT, posterPath TEXT, backdropPath TEXT, firstAirDate TEXT, lastAirDate TEXT, inProduction INTEGER, ageRating INTEGER, PRIMARY KEY(externalId))",
+    "CREATE TABLE IF NOT EXISTS external_media_links (kind TEXT NOT NULL, providerId INTEGER NOT NULL, externalId TEXT, linkKey TEXT, confidence INTEGER, matchMethod TEXT, matchVersion INTEGER, matchedAt INTEGER, lastMatchAttemptAt INTEGER, retryAfter INTEGER, PRIMARY KEY(kind, providerId))",
+    "CREATE INDEX IF NOT EXISTS index_external_media_links_externalId ON external_media_links(externalId)",
+    "CREATE INDEX IF NOT EXISTS index_external_media_links_linkKey ON external_media_links(linkKey)",
+    "CREATE TABLE IF NOT EXISTS external_hydration_queue (kind TEXT NOT NULL, providerId INTEGER NOT NULL, reason TEXT NOT NULL, priority INTEGER NOT NULL, createdAt INTEGER NOT NULL, nextAttemptAt INTEGER NOT NULL, attemptCount INTEGER NOT NULL, PRIMARY KEY(kind, providerId))",
+    "CREATE INDEX IF NOT EXISTS index_external_hydration_queue_priority_nextAttemptAt ON external_hydration_queue(priority, nextAttemptAt)"
+)
+
+/** F45-R7 : sous-ressources relationnelles, ajoutées sans toucher aux données utilisateur existantes. */
+val MIGRATION_39_40 = object : Migration(39, 40) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        migration39To40Statements().forEach(db::execSQL)
+    }
+}
+
+internal fun migration39To40Statements(): List<String> = listOf(
+    // Cache technique : l'ancien identifiant fournisseur n'est pas convertible en UUID CSTV. Les
+    // trailers trouvés restent valides ; seule l'identité de fallback repart à null et se reconstruit
+    // depuis les réponses catalogues externalId.
+    "CREATE TABLE IF NOT EXISTS trailer_cache_new (mediaType TEXT NOT NULL, catalogId INTEGER NOT NULL, videoId TEXT, source TEXT, externalId TEXT, resolvedAt INTEGER NOT NULL, PRIMARY KEY(mediaType, catalogId))",
+    "INSERT OR REPLACE INTO trailer_cache_new(mediaType, catalogId, videoId, source, externalId, resolvedAt) SELECT mediaType, catalogId, videoId, source, NULL, resolvedAt FROM trailer_cache",
+    "DROP TABLE trailer_cache",
+    "ALTER TABLE trailer_cache_new RENAME TO trailer_cache",
+    // T24 était un cache d'appariement provider-couplé. Aucun identifiant historique ne doit être
+    // converti en UUID CSTV : le cache est donc reconstruit progressivement sous son contrat F45.
+    "DROP TABLE canonical_media_links",
+    "CREATE TABLE IF NOT EXISTS external_catalog_links (kind TEXT NOT NULL, providerId INTEGER NOT NULL, externalId TEXT NOT NULL, updatedAt INTEGER NOT NULL, PRIMARY KEY(kind, providerId))",
+    "CREATE INDEX IF NOT EXISTS index_external_catalog_links_externalId ON external_catalog_links(externalId)",
+    "CREATE TABLE IF NOT EXISTS external_seasons (externalId TEXT NOT NULL, seasonNumber INTEGER NOT NULL, name TEXT NOT NULL, overview TEXT, posterPath TEXT, airDate TEXT, voteAverage REAL, refreshedAt INTEGER NOT NULL, refreshAfter INTEGER, PRIMARY KEY(externalId, seasonNumber))",
+    "CREATE TABLE IF NOT EXISTS external_episodes (externalId TEXT NOT NULL, seasonNumber INTEGER NOT NULL, episodeNumber INTEGER NOT NULL, name TEXT NOT NULL, overview TEXT, stillPath TEXT, airDate TEXT, runtimeMinutes INTEGER, voteAverage REAL, voteCount INTEGER, PRIMARY KEY(externalId, seasonNumber, episodeNumber))",
+    "CREATE INDEX IF NOT EXISTS index_external_episodes_externalId_seasonNumber ON external_episodes(externalId, seasonNumber)",
+    "CREATE TABLE IF NOT EXISTS external_media_genres (externalId TEXT NOT NULL, name TEXT NOT NULL, PRIMARY KEY(externalId, name))",
+    "CREATE TABLE IF NOT EXISTS external_media_keywords (externalId TEXT NOT NULL, name TEXT NOT NULL, PRIMARY KEY(externalId, name))",
+    "CREATE TABLE IF NOT EXISTS external_media_origin_countries (externalId TEXT NOT NULL, countryCode TEXT NOT NULL, PRIMARY KEY(externalId, countryCode))",
+    "CREATE TABLE IF NOT EXISTS external_series_episode_runtimes (externalId TEXT NOT NULL, minutes INTEGER NOT NULL, PRIMARY KEY(externalId, minutes))",
+    "CREATE TABLE IF NOT EXISTS external_alternative_titles (externalId TEXT NOT NULL, title TEXT NOT NULL, PRIMARY KEY(externalId, title))",
+    "CREATE TABLE IF NOT EXISTS external_recommendations (externalId TEXT NOT NULL, position INTEGER NOT NULL, recommendedExternalId TEXT NOT NULL, PRIMARY KEY(externalId, position))",
+    "CREATE TABLE IF NOT EXISTS external_videos (externalId TEXT NOT NULL, key TEXT NOT NULL, site TEXT NOT NULL, type TEXT, name TEXT, official INTEGER NOT NULL, PRIMARY KEY(externalId, key))"
+)
+
+val ALL_MIGRATIONS = arrayOf(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33, MIGRATION_33_34, MIGRATION_34_35, MIGRATION_35_36, MIGRATION_36_37, MIGRATION_37_38, MIGRATION_38_39, MIGRATION_39_40)

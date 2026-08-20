@@ -39,19 +39,34 @@ import com.cstv.app.data.local.entity.SeriesWatchStateEntity
 import com.cstv.app.data.local.entity.MediaRefEntity
 import com.cstv.app.data.local.entity.CategoryRefEntity
 import com.cstv.app.data.local.entity.DbMaintenanceEntity
-import com.cstv.app.data.local.entity.CanonicalMediaLinkEntity
+import com.cstv.app.data.local.entity.ExternalCatalogLinkEntity
 import com.cstv.app.data.local.entity.PlaybackRepairProfileEntity
 import com.cstv.app.data.local.entity.SeriesVersionPreferenceEntity
 import com.cstv.app.data.local.dao.MediaRefDao
 import com.cstv.app.data.local.dao.CategoryRefDao
 import com.cstv.app.data.local.dao.DbMaintenanceDao
-import com.cstv.app.data.local.dao.CanonicalMediaLinkDao
+import com.cstv.app.data.local.dao.ExternalCatalogLinkDao
 import com.cstv.app.data.local.dao.PlaybackRepairProfileDao
 import com.cstv.app.data.local.dao.SeriesVersionPreferenceDao
 import com.cstv.app.data.local.dao.ContentClassificationDao
 import com.cstv.app.data.local.entity.ContentClassificationEntity
 import com.cstv.app.data.local.dao.ParentalAuthorizationDao
 import com.cstv.app.data.local.entity.ParentalMediaAuthorizationEntity
+import com.cstv.app.data.local.entity.ExternalMediaEntity
+import com.cstv.app.data.local.entity.ExternalMovieEntity
+import com.cstv.app.data.local.entity.ExternalSeriesEntity
+import com.cstv.app.data.local.entity.ExternalMediaLinkEntity
+import com.cstv.app.data.local.entity.ExternalHydrationRequestEntity
+import com.cstv.app.data.local.entity.ExternalSeasonEntity
+import com.cstv.app.data.local.entity.ExternalEpisodeEntity
+import com.cstv.app.data.local.entity.ExternalGenreEntity
+import com.cstv.app.data.local.entity.ExternalKeywordEntity
+import com.cstv.app.data.local.entity.ExternalOriginCountryEntity
+import com.cstv.app.data.local.entity.ExternalEpisodeRuntimeEntity
+import com.cstv.app.data.local.entity.ExternalAlternativeTitleEntity
+import com.cstv.app.data.local.entity.ExternalRecommendationEntity
+import com.cstv.app.data.local.entity.ExternalVideoEntity
+import com.cstv.app.data.local.dao.ExternalMetadataDao
 
 @Database(
     entities = [
@@ -79,13 +94,27 @@ import com.cstv.app.data.local.entity.ParentalMediaAuthorizationEntity
         MediaRefEntity::class,
         CategoryRefEntity::class,
         DbMaintenanceEntity::class,
-        CanonicalMediaLinkEntity::class,
+        ExternalCatalogLinkEntity::class,
         PlaybackRepairProfileEntity::class,
         SeriesVersionPreferenceEntity::class,
         ContentClassificationEntity::class,
-        ParentalMediaAuthorizationEntity::class
+        ParentalMediaAuthorizationEntity::class,
+        ExternalMediaEntity::class,
+        ExternalMovieEntity::class,
+        ExternalSeriesEntity::class,
+        ExternalSeasonEntity::class,
+        ExternalEpisodeEntity::class,
+        ExternalGenreEntity::class,
+        ExternalKeywordEntity::class,
+        ExternalOriginCountryEntity::class,
+        ExternalEpisodeRuntimeEntity::class,
+        ExternalAlternativeTitleEntity::class,
+        ExternalRecommendationEntity::class,
+        ExternalVideoEntity::class,
+        ExternalMediaLinkEntity::class,
+        ExternalHydrationRequestEntity::class
     ],
-    version = 38,
+    version = 40,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -105,11 +134,12 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun mediaRefDao(): MediaRefDao
     abstract fun categoryRefDao(): CategoryRefDao
     abstract fun dbMaintenanceDao(): DbMaintenanceDao
-    abstract fun canonicalMediaLinkDao(): CanonicalMediaLinkDao
+    abstract fun externalCatalogLinkDao(): ExternalCatalogLinkDao
     abstract fun playbackRepairProfileDao(): PlaybackRepairProfileDao
     abstract fun seriesVersionPreferenceDao(): SeriesVersionPreferenceDao
     abstract fun contentClassificationDao(): ContentClassificationDao
     abstract fun parentalAuthorizationDao(): ParentalAuthorizationDao
+    abstract fun externalMetadataDao(): ExternalMetadataDao
 
     companion object {
         /** Nom de fichier `.db` — partagé entre `AppModule` (ouverture) et [com.cstv.app.data.local.db.DatabaseMaintenanceRunner] (`StatFs`). */

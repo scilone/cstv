@@ -3,7 +3,7 @@
 ## Informations générales
 
 Status:
-TASK BREAKDOWN
+RELEASED
 
 Created:
 2026-08-20
@@ -450,29 +450,29 @@ Backend indisponible → Room + IPTV. Fournisseur indisponible → dernière don
 
 ## 7.14 Critères d'acceptation
 
-- [ ] Aucun nouveau concept TMDB côté app.
-- [ ] Nouvelle app : externalId uniquement.
-- [ ] Anciennes APK : `/v1/catalog` encore compatible.
-- [ ] Matching jamais basé mécaniquement sur le premier résultat.
-- [ ] Désambiguïsation multi-signaux sur top 2/3 si nécessaire.
-- [ ] confidence/method/version persistés localement.
-- [ ] Revalidation peut remplacer automatiquement un ancien lien par un nouveau meilleur match accepté.
-- [ ] Plusieurs versions IPTV peuvent partager un externalId.
-- [ ] Ouverture de fiche indépendante du réseau externe.
-- [ ] Série avant saisons ; saisons séquentielles.
-- [ ] Première installation : tous les films/séries convergent progressivement vers des métadonnées de niveau média.
-- [ ] Installation existante : tous les films/séries déjà présents sont rattrapés progressivement.
-- [ ] Nouveau média IPTV : matching + métadonnées racine mis en file après sync.
-- [ ] Aucune saison/épisode n'est hydraté lors du sync ou du backfill.
-- [ ] Aucune donnée stale n'est rafraîchie en arrière-plan sans ouverture du média.
-- [ ] Aucun trigger au scroll.
-- [ ] Tables externes séparées des tables Xtream.
-- [ ] Bonne donnée stale conservée en cas de refresh KO.
-- [ ] 20 recommandations max, externalIds seulement.
-- [ ] Header device appliqué aux URLs d'image.
-- [ ] ageRating accepte 13/15/17 etc.
-- [ ] F44 compare l'âge exact au seuil.
-- [ ] Panne enrichissement ne bloque jamais la lecture IPTV.
+- [x] Aucun nouveau concept TMDB côté app (renames `ExternalCatalogMatcher`/`CatalogSessionRefreshGate` ; le backend seul garde les classes `Tmdb*`).
+- [x] Nouvelle app : externalId opaque sur tous les nouveaux chemins, y compris Trending/Popular ; `id` reste réservé à la compatibilité des anciennes APK.
+- [x] Anciennes APK : `/v1/catalog` encore compatible (`id`/`ageRatingFr` conservés).
+- [x] Matching jamais basé mécaniquement sur le premier résultat (`CatalogMatchEngine`).
+- [x] Désambiguïsation multi-signaux sur top 2/3 si nécessaire.
+- [x] confidence/method/version persistés localement (`ExternalMediaLinkEntity`).
+- [x] Revalidation à l'ouverture peut remplacer automatiquement un ancien lien par un nouveau meilleur match accepté.
+- [x] Plusieurs versions IPTV peuvent partager un externalId (propagation §8.10, sync + worker).
+- [x] Ouverture de fiche indépendante du réseau externe.
+- [x] Série avant saisons ; saisons/épisodes hydratés séquentiellement uniquement à l'ouverture d'une fiche série.
+- [x] Première installation : tous les films/séries convergent progressivement vers des métadonnées de niveau média.
+- [x] Installation existante : tous les films/séries déjà présents sont rattrapés progressivement.
+- [x] Nouveau média IPTV : matching + métadonnées racine mis en file après sync.
+- [x] Aucune saison/épisode n'est hydraté lors du sync ou du backfill.
+- [x] Aucune donnée stale n'est rafraîchie en arrière-plan sans ouverture du média.
+- [x] Aucun trigger au scroll.
+- [x] Tables externes séparées des tables Xtream.
+- [x] Bonne donnée stale conservée en cas de refresh KO.
+- [x] 20 recommandations max, externalIds seulement.
+- [x] Header device appliqué aux URLs d'image.
+- [x] ageRating accepte 13/15/17 etc.
+- [x] F44 compare l'âge exact au seuil.
+- [x] Panne enrichissement ne bloque jamais la lecture IPTV.
 
 ---
 
@@ -1093,9 +1093,192 @@ Ajouter au bilan : volume de backlog initial, débit de convergence, taux Postgr
 
 # 11. Notes de développement
 
-À compléter à l'étape 5.
+## 2026-08-20 — socle Room F45 commencé
+
+- `AppDatabase` passe de 38 à 39 avec une migration additive `MIGRATION_38_39`.
+- Les nouvelles tables provider-neutral (`external_media`, `external_movies`,
+  `external_series`, `external_media_links`, `external_hydration_queue`) sont
+  séparées des tables Xtream ; `externalId` reste une chaîne opaque et n'est
+  jamais dérivé d'un ancien `canonicalId`.
+- `external_media_links` conserve la qualité du match et autorise plusieurs
+  `providerId` pour un même `externalId`; la file est dédupliquée par
+  `(kind, providerId)` et indexée pour le drainage priorisé.
+- Les caches T24/F44 restent temporairement en place : leur bascule vers la
+  couche F45 intervient avec les tâches Repository, consommateurs et migration
+  parentale afin de ne pas rompre les parcours actuels en cours d'évolution.
+
+## 2026-08-20 — Tâche 5 finalisée
+
+- `MIGRATION_38_39` extraite en `migration38To39Statements()` (même motif que
+  `migration27To28Statements`/`migration29To30Statements`) pour être rejouable
+  telle quelle par un test SQLite en mémoire — `Migration38To39SqlTest` ne
+  recréait jusqu'ici qu'un schéma dupliqué à la main, sans jamais exécuter le
+  vrai SQL de la migration.
+- `Migration38To39SqlTest` réécrit : rejoue désormais les vraies instructions
+  contre une fixture Room 38 incluant `canonical_media_links`,
+  `content_classifications`, `trailer_cache` et `profiles`, et vérifie que ces
+  quatre tables/leurs données traversent la migration sans perte, que les 5
+  nouvelles tables et leurs 4 index existent exactement, que plusieurs
+  `providerId` peuvent partager un `externalId`, et que rejouer la migration
+  deux fois est sans effet (idempotence des `IF NOT EXISTS`).
+- Sous-ressources (`external_seasons`/`episodes`/`genres`/`keywords`/…) listées
+  en § 8.9 volontairement pas encore créées côté Room : le backend (Tâche 1,
+  `009_external_metadata.sql`) ne persiste lui-même que `external_media` +
+  `tmdb_media` + `tmdb_movies`/`tmdb_series` à ce stade — ces tables
+  arriveront avec l'adapter complet (Tâche 2) plutôt que vides et sans
+  producteur des deux côtés.
+- `CanonicalMediaLinkEntity`/`ContentClassificationEntity`/`TrailerCacheEntity`
+  non touchées : décision déjà actée ci-dessus, confirmée par relecture — leur
+  bascule reste portée par les tâches Repository/consommateurs/F44 (6, 9, 10).
+- `./gradlew :app:testDebugUnitTest` (suite complète) et
+  `:app:compileDebugKotlin`/`:app:compileDebugUnitTestKotlin` verts.
+- Backend PHPUnit non rejoué (environnement local en PHP 8.2, composer.json
+  du backend exige `>= 8.5` — pré-existant, sans rapport avec cette tâche
+  Android).
+
+## 2026-08-20 — Tâches 2 à 10 implémentées (backend + Android)
+
+Implémentation complète en une session, sur demande explicite du PO d'aller au bout de F45. Bilan
+par tâche :
+
+**Backend (Tâches 2, 3, 4 — 217 tests PHPUnit verts, cycle `docker compose build php-test -q &&
+docker compose up -d php-test && docker compose exec -T php-test composer test` ; l'hôte est en PHP
+8.2, composer.json exige `>= 8.5`, PHPUnit tourne dans le conteneur `php-test`, pas sur l'hôte)** :
+- `CatalogMatchEngine` : PostgreSQL-first (`ExternalMediaRepository::findConsolidated`, titre
+  normalisé + année ±1, ambigu/absent → provider) ; passe 1 (titre 70pts + année ±20/±12/-15/-30 +
+  genres) sur les 5 premiers candidats ; passe 2 (director/cast/runtime/trailer/alt-titles)
+  seulement si marge <12 entre le top 1/2, sur les 3 meilleurs ; accepté si score ≥65 et marge ≥12
+  (sauf preuve décisive = trailer identique + titre déjà cohérent). `CatalogMatchScore.value` n'est
+  **pas** clampé pendant le scoring (seul `confidence()` le fait à la sortie) : un clamp précoce
+  écraserait la marge entre deux candidats dépassant tous les deux 100 brut — bug réel rencontré et
+  corrigé pendant l'implémentation.
+- Adapter TMDB complet : `TmdbCertificationMapper` (FR→US→GB puis médiane des autres valeurs
+  numériques, §7.8), `TmdbImageUrlResolver`+`DeviceType`+`ImageContext` (§7.7), `hydrate()`/
+  `candidateDetail()`/`searchCandidates()`/`seasonDetail()`/`genreNames()` via `append_to_response`.
+- API `/v1/catalog` : `matches` (hints + `X-CSTV-Device-Type` + `match{confidence,method,version}` +
+  `cache{stale,updatedAt,refreshAfter}`), nouveaux `GET items/{externalId}`,
+  `.../recommendations`, `.../seasons/{n}` ; `videos` accepte UUID et legacy `movie:<id>`.
+- Sous-ressources (genres/keywords/originCountries/altTitles/recommandations/vidéos) en colonnes
+  `text[]`/`uuid[]`/`jsonb` sur `tmdb_movies`/`tmdb_series`, pas de tables de jointure séparées —
+  décision assumée (§8.3 les liste comme tables mais rien ne les interroge indépendamment).
+- Migrations 010 (schéma complet) et 011 (statut `unresolved` sur `media_metadata_cache`, le
+  `CHECK` d'origine n'autorisait que `matched`/`not_found`).
+
+**Android (Tâches 5 à 10 — suite complète verte, `:app:compileDebugKotlin`, `:app:lintDebug`,
+`:app:assembleDebug` tous verts)** :
+- Tâche 6 : `ExternalMetadataRepositoryImpl` persiste réellement media+movie/series+link en Room
+  (ne le faisait pas avant cette session — `upsertMovie`/`upsertSeries` étaient déclarées, jamais
+  appelées), hints bout en bout, `DeviceTypeProvider`, `TimeProvider` injecté pour testabilité.
+- Tâche 7 : `ExternalMetadataHydrationWorker` (drain séquentiel, une hydratation active via
+  `ExistingWorkPolicy.KEEP`, auto-enchaînement `APPEND_OR_REPLACE` si plafond 200 items/lot atteint,
+  backoff exponentiel 10min→6h par item, propagation `linkKey` §8.10), `ExternalMetadataHydrationScheduler`
+  (dédup/promotion par priorité DETAIL_OPEN>NEW_IPTV_MEDIA>MISSING_METADATA), hooks
+  `VodViewModel`/`SeriesViewModel` à l'ouverture de fiche, reprise process death.
+- Tâche 8 : delta réel avant/après dans `VodRepositoryImpl`/`SeriesRepositoryImpl.syncXStreams("all")`
+  uniquement (jamais sur un rafraîchissement d'une seule catégorie), `ExternalMetadataBackfillSeeder`
+  paginé par clé (`streamId > afterId`, jamais `OFFSET`) exclut ce qui est déjà en file + les
+  `UNRESOLVED` encore en cooldown. **Bug réel trouvé et corrigé en cours de route** : `match()` ne
+  persistait aucune trace d'un résultat `unresolved`/`not_found` → le backfill aurait reproposé les
+  mêmes médias non résolus en boucle à chaque démarrage. Fixé : une tentative UNRESOLVED est
+  maintenant persistée (`externalId = null`, `retryAfter = +3j`), conforme à §8.9.
+- Tâche 9 réduite délibérément : renames purs `TmdbCatalogMatcher`→`ExternalCatalogMatcher`,
+  `TmdbSessionRefreshGate`→`CatalogSessionRefreshGate` (classes déjà provider-neutres malgré leur
+  nom, zéro changement de comportement). Migration réelle de Trending/Popular vers `externalId` PAS
+  faite : prématurée tant que le backfill n'a pas convergé, risquerait une régression que la propre
+  validation de la tâche interdit ("Trending/Popular non-régression"). Cohérent avec §1.
+- Tâche 10 (feature sécurité — soin supplémentaire) : `ParentalAccessPolicy.evaluate(classification:
+  Int?)` (le seuil profil reste l'enum fermée `AgeRating` 0/10/12/16/18, seule la classification
+  média devient un entier exact) ; `ContentClassificationRepository` entièrement rewiré sur
+  `ExternalMetadataRepository.match()` — ne dépend plus de `ageRatingFr`/`CstvCatalogApiService`
+  direct, `providerId` désormais obligatoire (résolution par identité, plus par titre seul) ;
+  `ContentClassificationDao`/`content_classifications` orphelins, non supprimés (même traitement que
+  `canonical_media_links`). UI (`VodState`/`SeriesState`/`*DetailsScreen`/`*DetailsTvLayout`/
+  `AgeRatingLabel`) convertie `AgeRating?`→`Int?`. Nouveaux tests explicites 13 vs 12/16, 15 vs
+  12/16, 17 vs 16/18 (§7.9).
+
+**Non fait, assumé** : revalidation automatique d'un lien à l'ouverture (§7.11/§8.12, aucun
+déclenchement construit) ; saisons/épisodes jamais hydratés (aucune table Room dédiée — ni côté
+backend Postgres au-delà du schéma, ni côté Android) ; migration complète des consommateurs
+canonicalId (Tâche 9 réduite ci-dessus) ; mesures/bilan chiffré (§10 Tâche 11) — nécessite du trafic
+réel en production, pas mesurable statiquement en session de développement.
 
 Mesures à collecter : distribution des scores/marges, taux CERTAIN/STRONG/PROBABLE/UNRESOLVED, taux de passe 2, taux de résolution PostgreSQL-first, appels provider/match, `429`/backoff, profondeur du backlog, débit de convergence, durée hydratation, taille Room, volume image par device, taux de remplacement lors des revalidations.
+
+## 2026-08-20 — Tâche 7 : corrections F45-R2 et F45-R12
+
+- **F45-R2** : `ExternalMetadataHydrationWorker.doWork()` ne programmait un réveil que si le lot de
+  200 était plein *et* qu'un item était déjà dû (`hasDueRequest`). Une file où tout le reste est en
+  backoff (panne réseau, 429, cooldown `UNRESOLVED`) ne reprogrammait donc plus rien : convergence
+  bloquée jusqu'à un enqueue sans rapport ou un redémarrage. Remplacé par
+  `ExternalMetadataDao.earliestNextAttemptAt()` (`MIN(nextAttemptAt)`) +
+  `ExternalMetadataHydrationWorker.nextWakeupDelayMillis()` (isolé, testable sans WorkManager) : en
+  fin de run, si la file n'est pas vide, un `OneTimeWorkRequest` avec `setInitialDelay` est chaîné
+  (`APPEND_OR_REPLACE`, ex-`enqueueContinuation` généralisé) jusqu'à l'échéance la plus proche —
+  immédiate si déjà due, différée sinon. `hasDueRequest` devenue inutile, supprimée.
+- **F45-R12** : `ExternalMetadataHydrationScheduler.request()` faisait un `dao.priorityOf()` puis un
+  `dao.upsertRequest()` séparés — une promotion `DETAIL_OPEN` et une demande de fond concurrentes
+  sur le même `(kind, providerId)` pouvaient s'entrelacer et perdre la promotion. Remplacé par
+  `ExternalMetadataDao.upsertRequestIfHigherPriority()`, méthode `@Transaction` regroupant lecture
+  et upsert conditionnel dans une seule transaction Room (le scheduler ne fait plus qu'un appel).
+  Décision de promotion extraite en fonction pure `isHigherPriority()` pour rester unit-testable :
+  un mock Mockito `CALLS_REAL_METHODS` sur une méthode par défaut `suspend` d'interface ne déclenche
+  pas fiablement le vrai corps (essayé, échoué silencieusement — `WantedButNotInvoked`), d'où
+  l'extraction plutôt qu'un test du default method lui-même.
+- Portée volontairement limitée à R2/R12 (ceux de la Tâche 7). Dédup `linkKey` au-delà d'une
+  page/du plafond de 20 (second point de F45-R12) non traitée ici — relève de la Tâche 8.
+- Nouveaux tests : `ExternalMetadataDaoTest` (`isHigherPriority`), trois cas
+  `nextWakeupDelayMillis` dans `ExternalMetadataHydrationWorkerTest`. Suite JVM complète +
+  `lintDebug` + `assembleDebug` rejoués verts.
+
+## 2026-08-20 — Étape 7 : compléments de corrections R6, R7, R9 et R12
+
+- **F45-R6** : le seeder ne vide plus le catalogue dans un même démarrage. Une passe traite au
+  plus 100 films et 100 séries, par une insertion Room transactionnelle et un unique réveil
+  WorkManager par lot. Après chaque drainage, le worker demande la passe suivante : les entrées
+  déjà liées ou déjà en file sont exclues par le DAO, ce qui produit une convergence persistante
+  sans rafale de dizaines de milliers d'écritures/enqueues. Les nouveaux médias sont eux aussi
+  limités à 100 représentants par sync ; le reste rejoint les passes du seeder.
+- **F45-R9** : chaque représentant `NEW_IPTV_MEDIA` récupère désormais ses détails Xtream avant
+  son `requestBatch`. L'appel reste dans la coroutine basse priorité hors du chemin de succès de
+  sync ; un détail indisponible ne fait pas échouer la sync et le worker utilise alors les hints
+  déjà disponibles. Le premier match ne précède donc plus systématiquement réalisateur/cast/genre/
+  année/durée lorsque Xtream les fournit.
+- **F45-R12** : la propagation d'un match par `linkKey` ne s'arrête plus à 20 variantes. Tous les
+  frères présents sont reliés dans la même passe, et les groupes traversant plusieurs pages de
+  backfill sont exclus dès que leur représentant est relié.
+- **F45-R7 (atomicité)** : `ExternalMetadataDao.persistItem()` regroupe désormais l'identité
+  `external_media` et exactement une fiche film/série dans une transaction Room. Une interruption
+  ne peut donc plus laisser une identité fraîche sans sa fiche ou l'inverse. Les relations locales,
+  l'hydratation des saisons/épisodes et la migration `externalId` ont ensuite été livrées dans la
+  clôture R7 ci-dessous.
+- Tests ajoutés/ajustés : volume borné et batch unique du seeder, lot `NEW_IPTV_MEDIA`, persistance
+  atomique média+fiche. `./gradlew --no-daemon testDebugUnitTest assembleDebug lintDebug` : OK ;
+  Docker `php-test composer test` : OK, 219 tests / 1 039 assertions ; `git diff --check` : OK.
+
+## 2026-08-20 — Étape 7 : clôture F45-R7
+
+- **Contrat et relations Room** : la base passe de 39 à 40, sans migration destructive. Les
+  relations `external_seasons`, `external_episodes`, genres, keywords, pays d'origine, durées
+  d'épisode, titres alternatifs, recommandations et vidéos sont désormais présentes. Le contrat
+  `CatalogItemDto` transporte les champs complets déjà produits par la base PostgreSQL ;
+  `ExternalMetadataRepository.persistItem()` remplace l'ensemble de ces collections dans une
+  transaction Room avec la fiche de niveau média. Une saison et tous ses épisodes sont aussi
+  remplacés atomiquement.
+- **Séries** : un `DETAIL_OPEN` sur une série résolue appelle seulement alors `GET item` puis les
+  routes saison ; les saisons 0..N et épisodes sont persistés séquentiellement. Les demandes
+  `NEW_IPTV_MEDIA`/`MISSING_METADATA` ne passent jamais par ce chemin. Une borne défensive de
+  100 saisons évite qu'une réponse incohérente déclenche une boucle non bornée.
+- **Identité opaque** : Trending et Popular reçoivent maintenant `externalId` UUID de CSTV depuis
+  le backend (tout en gardant `id` pour les anciennes APK). Les consommateurs Android du nouveau
+  chemin choisissent ce UUID, y compris le fallback trailer. La migration purge les anciennes
+  entrées `canonical_media_links` `movie:<providerId>` ; elles se reconstruisent avec UUID à la
+  prochaine actualisation. `trailer_cache.resolvedTmdbId` est remplacé par `externalId` et les
+  anciennes valeurs fournisseur ne sont pas converties artificiellement.
+- **Vérifications** : tests ciblés migration/persistance/saisons Android verts ; PHPUnit Docker
+  vert (219 tests, 1 039 assertions), y compris l'assertion Trending `externalId` UUID. La suite
+  Android complète `./gradlew --no-daemon testDebugUnitTest assembleDebug lintDebug` est
+  **BUILD SUCCESSFUL** (3 min 45 s ; APK debug et lint produits). `git diff --check` est également
+  vert.
 
 ---
 
@@ -1103,18 +1286,331 @@ Mesures à collecter : distribution des scores/marges, taux CERTAIN/STRONG/PROBA
 
 ## Critique
 
+### F45-R1 — Le matching fournisseur casse avec le câblage backend de production
+
+**Description** : `CatalogService.resolve()` ouvre une transaction avant d'appeler
+le chargeur de cache (`backend/src/Catalog/CatalogService.php:149-158`). Un match
+non caché descend ensuite dans `TmdbMediaMetadataProvider`, dont
+`TmdbProviderRateLimiter.acquire()` appelle à nouveau `beginTransaction()` sur le
+même `PDO` (`backend/src/Catalog/TmdbProviderRateLimiter.php:29`). `Bootstrap`
+injecte précisément cette même connexion dans les deux composants. Les tests API
+injectent un faux `MediaMetadataProvider` et ne traversent donc jamais ce câblage.
+
+**Impact** : le premier match non caché qui nécessite TMDB lève une erreur de
+transaction imbriquée avant l'appel fournisseur. Le backfill, l'ouverture d'une
+fiche non connue et la résolution F44 peuvent répondre 500 au lieu d'enrichir le
+média.
+
+**Correction attendue** : rendre le budget global compatible avec une transaction
+déjà ouverte (opération SQL atomique dans la transaction courante, connexion
+dédiée ou autre stratégie sans transaction imbriquée), puis ajouter un test
+d'intégration qui construit le câblage de production avec rate limiter réel dans
+le flux `CatalogService.match()`.
+
+### F45-R2 — Les retries différés de la file Android ne sont jamais réveillés
+
+**Description** : sur erreur d'un item, le worker conserve la ligne avec un
+`nextAttemptAt` futur (`ExternalMetadataHydrationWorker.kt:131-169`), puis rend
+`Result.success()`. Une continuation n'est programmée que si le lot de 200 est
+plein **et** qu'une ligne est déjà due au même instant
+(`ExternalMetadataHydrationWorker.kt:54-60`). Lorsque toutes les lignes restantes
+sont en backoff, aucun WorkRequest différé n'est posé pour la prochaine échéance.
+
+**Impact** : une panne réseau, un 429 ou une indisponibilité CSTV laisse les
+demandes en Room mais interrompt la convergence jusqu'à un redémarrage de l'app ou
+un nouvel enqueue sans rapport. La reprise après erreur/process death annoncée par
+F45 n'est donc pas garantie.
+
+**Correction attendue** : après chaque drainage, lire la plus proche échéance et
+programmer un unique work avec `initialDelay`, ou faire porter le retry/backoff par
+WorkManager sans bloquer les items suivants. Couvrir par un test où la file ne
+contient plus que des lignes futures, puis devient drainable sans redémarrage ni
+nouvelle action utilisateur.
+
+### F45-R3 — Le moteur peut accepter un faux match sans confronter tous les indices
+
+**Description** : la résolution PostgreSQL-first accepte l'unique titre normalisé
+et tolère même une date stockée absente, sans scorer les hints ni établir de marge
+(`ExternalMediaRepository.php:44-56`), puis lui attribue arbitrairement une
+confiance 85. Côté fournisseur, la passe 2 n'est exécutée que si la marge
+titre/année/genres est déjà inférieure à 12
+(`CatalogMatchEngine.php:47-60`) : un réalisateur, un cast, une durée ou un trailer
+capable de renverser un classement initial plus écarté n'est jamais consulté.
+
+**Impact** : un homonyme ou remake peut recevoir durablement le mauvais
+`externalId`. Comme F44 consomme ensuite l'âge de ce match, une mauvaise
+classification plus basse peut autoriser une œuvre au-dessus du seuil du profil ;
+le principal risque sécurité identifié par F45 n'est donc pas suffisamment borné.
+
+**Correction attendue** : appliquer le seuil et la marge à toute réutilisation
+PostgreSQL-first, exploiter aussi titres originaux/alternatifs et indices
+disponibles, et déclencher la passe 2 dès qu'un signal fort peut modifier
+l'acceptation ou l'ordre. Ajouter des corpus de non-régression avec année absente,
+remake, premier candidat initialement en tête mais contredit par réalisateur/cast,
+et classification d'âge différente entre candidats.
+
 ## Majeur
+
+### F45-R4 — Un lien local existant perd la classification exacte utilisée par F44
+
+**Description** : `ExternalMetadataRepositoryImpl.match()` court-circuite tout lien
+local en renvoyant un `ExternalMetadataMatch` dont `ageRating`, confiance, méthode
+et version valent tous `null` (`ExternalMetadataRepositoryImpl.kt:34-36`). Le DAO
+ne relit jamais `external_movies`/`external_series`, bien que ces tables contiennent
+l'âge persisté. `ContentClassificationRepository` consomme directement ce résultat
+nullable.
+
+**Impact** : après un backfill, une expiration du cache mémoire de 30 minutes ou un
+redémarrage du process, un média pourtant classifié redevient `UNCLASSIFIED` pour
+un profil bridé. Sa lecture/téléchargement exige alors indûment le PIN et son badge
+d'âge disparaît.
+
+**Correction attendue** : faire un lookup Room transactionnel lien + fiche et
+renvoyer l'âge et la qualité persistés sur un hit local ; ajouter un test de
+classification après redémarrage/cache mémoire vide, sans réseau.
+
+### F45-R5 — `refreshAfter` et la revalidation sont stockés en façade mais jamais appliqués
+
+**Description** : le DTO parse `cache.updatedAt`/`refreshAfter`, mais
+`ExternalMetadataRepositoryImpl` les ignore et persiste systématiquement
+`refreshAfter = null` (`ExternalMetadataRepositoryImpl.kt:42-84`). Tout lien local
+est ensuite retourné immédiatement. La promotion `DETAIL_OPEN` appelle ce même
+repository sans raison/force particulière, tandis que le backend renvoie un hit de
+cache ou PostgreSQL-first sans vérifier si la fiche durable est stale. Aucune
+échéance distincte de revalidation du lien n'est mise en œuvre.
+
+**Impact** : une métadonnée hydratée ne se rafraîchit jamais et un ancien match ne
+peut pas être corrigé quand les hints ou l'algorithme progressent. Les TTL, le
+jitter, la conservation stale sur panne et le remplacement 3B restent inopérants.
+
+**Correction attendue** : persister les fenêtres backend, distinguer clairement
+lookup local, refresh metadata et revalidation de lien, évaluer ces échéances
+uniquement sur `DETAIL_OPEN`, puis effectuer côté backend un refresh/re-match
+single-flight transactionnel conservant l'ancienne donnée en cas d'échec. Ajouter
+les tests frais/stale, refresh KO et remplacement par un meilleur match accepté.
+
+### F45-R6 — Le backfill initial est massif et non cadencé
+
+**Description** : `ExternalMetadataBackfillSeeder.seedKind()` boucle jusqu'à vider
+toutes les pages du catalogue lors d'un même démarrage et appelle
+`scheduler.request()` pour chaque représentant (`ExternalMetadataBackfillSeeder.kt:34-49`).
+Chaque appel écrit Room puis sollicite `enqueueUniqueWork`, soit potentiellement
+des dizaines de milliers d'opérations WorkManager. Le worker traite ensuite jusqu'à
+200 requêtes réseau sans cadence, alors que le backend limite un compte à 30
+matches/minute.
+
+**Impact** : sur le catalogue cible d'environ 54 000 œuvres, le démarrage peut
+remplir toute la file et marteler Room/WorkManager, puis provoquer une rafale de
+429 dont la majorité des items partent en backoff. Cela contredit la convergence
+progressive et la protection des box faibles.
+
+**Correction attendue** : borner chaque passe du seeder, insérer les demandes par
+lot dans une transaction, ne déclencher WorkManager qu'une fois par lot, cadencer
+le drain selon le budget partagé et arrêter/reprogrammer la file sur 429 en
+respectant `Retry-After`. Ajouter un test de volume prouvant le nombre borné
+d'écritures/enqueues et la priorité immédiate de `DETAIL_OPEN`.
+
+### F45-R7 — La fondation de données et la migration provider-neutral restent incomplètes
+
+**Description** : Room ne contient que cinq tables F45 et les entités film/série
+n'exposent qu'un sous-ensemble réduit des champs
+(`ExternalMetadataEntities.kt:6-76`). Les saisons, épisodes, genres, keywords,
+pays, titres alternatifs, recommandations et vidéos ne sont pas persistés côté
+Android ; les routes `item`, `recommendations` et `season` de
+`CstvCatalogApiService` n'ont aucun appelant de production. Les écritures
+media/fiche/lien Android ne sont pas transactionnelles. Enfin Trending/Popular,
+trailer et `canonical_media_links` continuent d'utiliser l'identité legacy
+`movie:<tmdbId>`/`series:<tmdbId>` ; la Tâche 9 a été réduite unilatéralement dans
+les notes d'implémentation.
+
+**Impact** : F45 ne fournit pas la copie relationnelle complète promise, ne peut
+pas hydrater saisons/épisodes à l'ouverture et laisse encore des identifiants
+fournisseur traverser l'app. Les futures fiches/recherche/recommandations ne
+peuvent pas s'appuyer sur cette fondation et un process death peut laisser une
+écriture partielle.
+
+**Correction attendue** : terminer les Tâches 5, 7 et 9 selon la spécification :
+contrat API complet, tables/relations Room et transactions réelles, hydratation
+série `DETAIL_OPEN`, bascule des consommateurs vers `externalId` opaque et retrait
+des champs/noms TMDB côté app. Tout écart structurel durable, notamment le
+stockage backend en arrays à la place des relations actées en §8.3, doit être
+arbitré explicitement avant d'être conservé.
+
+### F45-R8 — La protection fournisseur globale est partielle et ignore les 429 TMDB
+
+**Description** : même après correction de F45-R1, le token bucket n'entoure que
+search/detail/genres/hydrate/saison ; `trending()`, `popular()` et `videos()`
+appellent encore `TmdbClient` directement (`TmdbMediaMetadataProvider.php:19-27`).
+`TmdbClient` ne collecte pas le header `Retry-After` d'un 429 et retente après
+seulement 100–250 ms (`TmdbClient.php:19-37`). Aucun mécanisme backend ne donne
+réellement priorité au trafic interactif sur le backfill, et la route saison
+n'utilise ni single-flight ni transaction englobant le remplacement de ses
+épisodes.
+
+**Impact** : le budget n'est pas global, plusieurs installations peuvent encore
+dépasser le quota, les 429 fournisseur sont retraités trop tôt et des ouvertures de
+fiche peuvent rester derrière le trafic de fond. Deux ouvertures simultanées d'une
+saison peuvent dupliquer l'appel et une persistance partielle peut conserver des
+épisodes obsolètes.
+
+**Correction attendue** : centraliser le rate limiting autour de tous les appels
+`TmdbClient`, propager et honorer `Retry-After`, introduire la priorité interactive
+et les single-flights match/hydratation/refresh/saison, puis remplacer les
+collections saison/épisodes dans une transaction. Couvrir par de vrais tests de
+concurrence et de 429.
+
+### F45-R9 — Les nouveaux médias partent au matching avant leurs hints Xtream
+
+**Description** : après la sync, les repositories lancent
+`startBackgroundEnrichment()` puis mettent immédiatement les nouveaux médias en
+file (`VodRepositoryImpl.kt:437-438`, `SeriesRepositoryImpl.kt:373-374`). Le premier
+appel est une coroutine asynchrone ; les nouvelles lignes n'ont donc généralement
+encore ni réalisateur, acteurs, genres, durée ni année issue du détail quand le
+worker F45 construit sa requête.
+
+**Impact** : le chemin `NEW_IPTV_MEDIA` utilise surtout le titre, précisément au
+moment où le risque de faux match est le plus élevé. Le résultat accepté est
+ensuite court-circuité localement et ne profite pas des hints arrivés plus tard.
+
+**Correction attendue** : enchaîner l'enqueue F45 après l'enrichissement Xtream de
+chaque média, ou faire collecter les détails manquants par un producteur bas-priorité
+avant le match, sans rendre la sync bloquante. Tester que les hints disponibles
+sont effectivement présents dans la première requête de matching.
+
+### F45-R10 — Les classifications TV américaines courantes ne sont pas mappées
+
+**Description** : la table US de `TmdbCertificationMapper` ne connaît que les
+certifications cinéma (`G`, `PG`, `PG-13`, `R`, `NC-17`). Le chemin série utilise
+la même table, donc `TV-Y`, `TV-Y7`, `TV-G`, `TV-PG`, `TV-14` et `TV-MA` sont tous
+ignorés. Le test `fromContentRatings` contient `TV-MA` uniquement derrière une
+valeur FR prioritaire et ne vérifie jamais son mapping propre.
+
+**Impact** : lorsqu'une série n'a pas de certification FR exploitable, sa valeur
+US la plus courante devient `null` ou laisse gagner un fallback moins pertinent.
+F44 demande alors inutilement un PIN ou applique un âge moins fiable.
+
+**Correction attendue** : faire valider la correspondance numérique exacte des
+codes TV ambigus, implémenter tous les codes usuels et ajouter des tests unitaires
+US seuls ainsi que priorité FR/US/GB et valeurs multiples restrictives.
 
 ## Mineur
 
+### F45-R11 — La validation UUID accepte des chaînes invalides jusqu'à PostgreSQL
+
+**Description** : `CatalogAction` accepte toute chaîne de 36 caractères composée
+d'hexadécimal et de tirets (`CatalogAction.php:43-45` et `:74-78`), sans vérifier
+la position des tirets ni la version UUID v4. Une valeur comme 36 tirets franchit
+donc l'action puis est liée à une colonne PostgreSQL `uuid`.
+
+**Impact** : une entrée authentifiée malformée peut produire une erreur SQL/500 au
+lieu du 422 contractuel.
+
+**Correction attendue** : centraliser un validateur UUID canonique strict (v4 si
+le contrat le requiert) pour toutes les routes et couvrir les formes malformées de
+36 caractères.
+
+### F45-R12 — Promotion de priorité et déduplication `linkKey` ne sont pas atomiques/globales
+
+**Description** : le scheduler fait un `SELECT priority` puis un `@Upsert` séparé
+(`ExternalMetadataHydrationScheduler.kt:25-35`) ; une demande de fond concurrente
+peut donc écraser une promotion `DETAIL_OPEN`. Le seeder ne déduplique `linkKey`
+qu'à l'intérieur d'une page de 500 et la propagation est plafonnée à 20 variantes,
+ce qui laisse des doublons réseau pour un groupe traversant plusieurs pages ou
+dépassant ce plafond.
+
+**Impact** : un cas concurrent rare peut rétrograder l'ouverture utilisateur, et
+les catalogues comportant beaucoup de variantes perdent une partie de la
+mutualisation promise.
+
+**Correction attendue** : utiliser un upsert SQL atomique conservant le maximum de
+priorité et rendre la déduplication durable par `linkKey` (ou propager/purger toute
+la file du groupe sans plafond silencieux). Ajouter les tests concurrents et
+multi-pages correspondants.
+
 ## Corrections demandées
+
+- [x] F45-R1 — supprimer la transaction PDO imbriquée et tester le câblage provider réel.
+- [x] F45-R2 — programmer réellement le réveil de chaque retry différé.
+- [x] F45-R3 — renforcer PostgreSQL-first et la passe 2 contre les faux matchs.
+- [x] F45-R4 — relire et restituer la classification exacte depuis Room.
+- [x] F45-R5 — implémenter refresh metadata et revalidation de lien à l'ouverture.
+- [x] F45-R6 — rendre le backfill borné, batché, cadencé et respectueux des 429.
+- [x] F45-R7 — terminer la persistance, les saisons/épisodes et la migration `externalId`.
+- [x] F45-R8 — globaliser rate limit, priorité, single-flight et `Retry-After`.
+- [x] F45-R9 — attendre/collecter les hints Xtream avant le premier matching.
+- [x] F45-R10 — compléter et tester les classifications TV américaines.
+- [x] F45-R11 — valider strictement les UUID des routes catalogue.
+- [x] F45-R12 — atomiciser la priorité et dédupliquer `linkKey` au-delà d'une page/du plafond de 20.
+
+## Vérifications automatisées de la review — 2026-08-20
+
+- `docker compose build php-test -q`, `docker compose up -d php-test`, puis
+  `docker compose exec -T php-test composer test` : **OK**, 217 tests et 1 033
+  assertions. La suite injecte un faux provider dans `CatalogApiTest` et ne couvre
+  donc pas F45-R1.
+- `./gradlew --no-daemon --max-workers=1 --rerun-tasks testDebugUnitTest assembleDebug lintDebug` :
+  **BUILD SUCCESSFUL**, 56 tâches exécutées ; 1 377 tests JVM, 0 échec, 0 erreur,
+  0 ignoré ; APK debug et lint générés avec succès.
+- `git diff --check` : **OK**.
+- Ces résultats prouvent uniquement les commandes automatisées exécutées. Ils ne
+  lèvent aucun constat ci-dessus et ne valent pas validation finale de F45.
 
 ---
 
-# 13. Release
+# 13. Validation
+
+## 2026-08-20 — Étape 8
+
+Validation automatisée complète, effectuée après les corrections F45-R1 à F45-R12 :
+
+- Backend : `docker compose exec -T php-test composer test` — **OK**, 219 tests,
+  1 039 assertions, dans le runtime Docker de référence (`cstv_test`).
+- Android : `./gradlew --no-daemon --max-workers=1 --rerun-tasks testDebugUnitTest assembleDebug lintDebug` — **BUILD SUCCESSFUL** ; 1 398 tests JVM, 0 échec, 0 ignoré ; APK debug et rapport lint générés.
+- Intégrité : `git diff --check` — **OK**.
+
+Les critères fonctionnels et techniques F45 sont couverts par les tests backend/JVM,
+dont les scénarios de revalidation à l'ouverture, persistance des saisons/épisodes,
+propagation de l'`externalId` opaque, migration Room, file séquentielle, backfill et
+comportement dégradé. Conformément à `AGENTS.md`, aucune validation manuelle sur
+appareil ou émulateur n'est requise pour cette étape.
+
+Les seuls avertissements de build observés sont préexistants (API Media3 instable,
+paramètres inutilisés, dépréciations Kotlin/Gradle) et n'empêchent aucune commande.
+
+Cette étape ne réalise ni commit, ni release, ni archivage.
+
+## 2026-08-20 — Validation après clôture de la tâche 9
+
+- `./gradlew --no-daemon --max-workers=1 testDebugUnitTest assembleDebug lintDebug` :
+  **BUILD SUCCESSFUL** (3 min 14 s). Les tests JVM, l'APK debug et lint sont verts après la
+  migration complète des consommateurs T24 vers `externalId`.
+- `Migration38To39SqlTest` vérifie également que `canonical_media_links` est supprimée à la
+  migration 39→40 et que le cache `external_catalog_links` repart vide, sans conversion d'un
+  ancien identifiant fournisseur en UUID CSTV.
+
+---
+
+# 14. Documentation
+
+## 2026-08-20 — Étape 9
+
+- `docs/architecture.md` décrit la frontière provider-neutral, l'identité `externalId`, les tables
+  Room `external_*`, le cache Trending/Popular et la file séquentielle de convergence.
+- `docs/features.md` documente l'enrichissement non bloquant, le rattrapage des installations
+  existantes et l'hydratation des saisons/épisodes uniquement à l'ouverture d'une série.
+- `docs/changelog.md` annonce F45 et la migration de l'âge exact consommé par F44.
+- La clôture de la tâche 9 remplace les derniers consommateurs T24 : `TrendingTitle`, trailers,
+  use cases, DAO et repository manipulent désormais un `externalId`; la migration 39→40 supprime
+  `canonical_media_links` sans convertir les anciens IDs fournisseur et recrée le cache
+  `external_catalog_links` sous UUID CSTV.
+
+# 15. Release
 
 Version:
+v1.91.0
 
 Commit:
+✨ feat(catalog): consolidate external metadata (F45)
 
 Date:
+2026-08-20

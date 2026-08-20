@@ -22,6 +22,12 @@ L'accès au contenu IPTV s'effectue exclusivement via l'API **Xtream Codes** (`p
 * **Détails consultés conservés** : Les fiches VOD et les saisons/épisodes déjà ouverts restent disponibles depuis le cache ; les programmes EPG récemment reçus sont aussi consultables hors connexion.
 * **Lecture explicite** : Hors ligne, les téléchargements restent lisibles ; un flux Live ou distant affiche un message de connexion requise au lieu d'ouvrir un lecteur en erreur.
 
+### Enrichissement progressif du catalogue (F45)
+
+* **Métadonnées externes non bloquantes** : films et séries peuvent être enrichis en arrière-plan avec titres alternatifs, images, genres, vidéos, recommandations et classifications, sans retarder la navigation ni la lecture des flux Xtream.
+* **Rattrapage discret** : le catalogue déjà stocké, comme les nouveaux médias synchronisés, est traité progressivement sur l'appareil. Les détails d'une série déclenchent seuls le chargement de ses saisons et épisodes.
+* **Âge exact** : les profils à contrôle parental utilisent la valeur d'âge exacte lorsqu'elle est connue ; les seuils de profil et le PIN ne changent pas.
+
 ---
 
 ## 2. Multi-Profils Locaux

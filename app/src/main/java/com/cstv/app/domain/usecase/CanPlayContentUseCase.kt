@@ -38,8 +38,8 @@ sealed interface PlaybackAvailability {
     data class RequiresParentalPin(
         val reason: BlockReason,
         val mediaUid: String,
-        /** Classification effectivement résolue par le contrôle parental. */
-        val classification: AgeRating? = null,
+        /** Classification effectivement résolue par le contrôle parental — entier exact (§8.13), plus de palier fermé. */
+        val classification: Int? = null,
         /**
          * F45 : identité (film/série entière) permettant à l'écran de refus de
          * proposer une autorisation permanente. `null` si non résolue (œuvre
@@ -126,9 +126,6 @@ class CanPlayContentUseCase @Inject constructor(
         if (parentalAuthorizationRepository.isAuthorized(profileId, target.kind, target.providerId)) return null
 
         val classification = classificationRepository.classificationFor(target.kind, target.title, target.year, target.providerId)
-            // Compatibilité des tests/fournisseurs legacy qui implémentent
-            // encore la résolution par titre uniquement.
-            ?: classificationRepository.classificationFor(target.kind, target.title, target.year)
 
         val decision = parentalAccessPolicy.evaluate(maxAgeRating, classification, ParentalActionType.PLAY)
         return (decision as? AccessDecision.PinRequired)?.let {

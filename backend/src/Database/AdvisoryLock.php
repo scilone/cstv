@@ -37,6 +37,19 @@ final class AdvisoryLock
         self::acquire($pdo, sprintf('verify-ip:%s', $ipKey));
     }
 
+    /**
+     * F45-R8 : single-flight pour une saison — `CatalogService::season()` ne passe pas par
+     * `CatalogService::resolve()` (sa mise en cache/verrou générique), donc deux installations
+     * ouvrant la même fiche série au même instant pouvaient toutes deux détailer le fournisseur puis
+     * remplacer les épisodes en parallèle, sans transaction commune. Le second appelant, bloqué ici
+     * jusqu'au COMMIT du premier, retrouve ensuite une saison déjà fraîche et n'a plus besoin
+     * d'appeler le fournisseur du tout.
+     */
+    public static function season(PDO $pdo, string $seriesExternalId, int $seasonNumber): void
+    {
+        self::acquire($pdo, sprintf('season:%s:%d', $seriesExternalId, $seasonNumber));
+    }
+
     private static function acquire(PDO $pdo, string $key): void
     {
         $statement = $pdo->prepare('SELECT pg_advisory_xact_lock(hashtextextended(:lock_key, 0))');

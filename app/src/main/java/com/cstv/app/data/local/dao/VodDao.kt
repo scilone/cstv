@@ -127,7 +127,7 @@ interface VodDao {
     // Appariement TMDB, une année à la fois (voir
     // VodRepositoryImpl.getCachedVodStreamsByYears) : les films déjà enrichis
     // sont pris sur `releaseYear`, les autres sur la présence de l'année dans le
-    // titre — TmdbCatalogMatcher.yearFromTitle sait la lire là ("Odyssée (2016)
+    // titre — ExternalCatalogMatcher.yearFromTitle sait la lire là ("Odyssée (2016)
     // 1080p", "Odyssée 2016", "Odyssee.2016.MULTI"), donc le motif est un simple
     // `%2016%` sans délimiteur : tout format plus étroit rejetterait des titres
     // que le matcher, lui, accepte.

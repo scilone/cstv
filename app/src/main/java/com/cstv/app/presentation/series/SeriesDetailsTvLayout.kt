@@ -386,7 +386,7 @@ fun SeriesDetailsTvLayout(
     /** F39 §8.6 (évolution PO) : voir SeriesDetailsScreen. */
     hasMultipleVersions: Boolean = false,
     onOpenVersions: () -> Unit = {},
-    ageRating: com.cstv.app.domain.model.AgeRating? = null,
+    ageRating: Int? = null,
     modifier: Modifier = Modifier
 ) {
     val seasons = remember(details.seasons, details.episodes) { tvSeriesSeasonNumbers(details) }
@@ -773,7 +773,7 @@ private fun TvSeriesHeroPanel(
     isFavorite: Boolean,
     playbackTarget: TvSeriesPlaybackTarget,
     mediaRating: MediaRatingValue?,
-    ageRating: com.cstv.app.domain.model.AgeRating?,
+    ageRating: Int?,
     isRatingSaving: Boolean,
     onToggleFavorite: () -> Unit,
     onLike: () -> Unit,
@@ -868,7 +868,7 @@ private fun TvSeriesHeroPanel(
 }
 
 @Composable
-private fun TvSeriesMetadata(details: SeriesDetails, ageRating: com.cstv.app.domain.model.AgeRating?) {
+private fun TvSeriesMetadata(details: SeriesDetails, ageRating: Int?) {
     Row(
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.CenterVertically,

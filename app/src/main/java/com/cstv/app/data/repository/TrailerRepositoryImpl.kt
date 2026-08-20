@@ -96,16 +96,15 @@ class TrailerRepositoryImpl @Inject constructor(
     // Pas de recherche fournisseur par titre : deviner l'identité d'un média IPTV à
     // partir de son titre est trop peu fiable pour le coût (un appel de
     // recherche par média, en plus de celui des vidéos). Seul un identifiant
-    // canonique déjà connu depuis le backend déclenche l'unique appel `videos`.
-    // déclenche l'unique appel `videos`.
+    // externe déjà connu depuis le backend déclenche l'unique appel `videos`.
     private suspend fun catalogFallback(media: TrailerMedia): Resolution {
-        // Aucun identifiant canonique connu : aucune résolution n'a réellement été tentée. Le
+        // Aucun externalId connu : aucune résolution n'a réellement été tentée. Le
         // marquer comme un échec le figerait pour toute la durée du TTL négatif
         // (4 heures), y compris après qu'un passage par l'Accueil ait fait
-        // connaître l'identifiant canonique du média — le trailer ne se relançait alors plus
+        // connaître l'externalId du média — le trailer ne se relançait alors plus
         // jamais depuis la fiche.
-        val canonicalId = media.canonicalId ?: return Resolution(null, false)
-        val videos = catalogApiService.videos(canonicalId).items.orEmpty()
+        val externalId = media.externalId ?: return Resolution(null, false)
+        val videos = catalogApiService.videos(externalId).items.orEmpty()
         val video = videos.firstOrNull { it.site.equals("YouTube", true) && it.type.equals("Trailer", true) && it.official == true }
             ?: videos.firstOrNull { it.site.equals("YouTube", true) && it.type.equals("Trailer", true) }
         return Resolution(normalizeYouTubeId(video?.key)?.toPreview(media), true)
@@ -116,7 +115,7 @@ class TrailerRepositoryImpl @Inject constructor(
     /**
      * Le cache est indexé sur (type, identifiant catalogue) mais mémorise le
      * `TrailerPreview` complet, `media` compris. Or le même film est demandé
-     * avec un identifiant canonique depuis l'Accueil et sans depuis sa fiche : rendre tel
+     * avec un externalId depuis l'Accueil et sans depuis sa fiche : rendre tel
      * quel le preview mis en cache par l'Accueil faisait échouer le test
      * `preview.media == trailerMedia` de la fiche, qui n'affichait alors aucun
      * trailer malgré une résolution réussie. Le preview rendu porte donc

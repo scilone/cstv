@@ -16,6 +16,7 @@ import com.cstv.app.data.remote.api.XtreamApiService
 import com.cstv.app.data.remote.api.RequestPriority
 import com.cstv.app.data.remote.api.XtreamRequestGate
 import com.cstv.app.data.sync.CacheTtl
+import com.cstv.app.di.IptvLog
 import com.cstv.app.domain.network.NetworkMonitor
 import com.cstv.app.domain.model.PlaybackPosition
 import com.cstv.app.domain.model.Credentials
@@ -49,7 +50,9 @@ class VodRepositoryImpl @Inject constructor(
     private val networkMonitor: NetworkMonitor,
     private val mediaRefDao: com.cstv.app.data.local.dao.MediaRefDao,
     private val accountKeyProvider: com.cstv.app.data.local.storage.CurrentAccountKeyProvider,
-    private val cloudSyncManager: CloudSyncManager? = null
+    private val cloudSyncManager: CloudSyncManager? = null,
+    /** F45 §7.5 : nullable pour ne pas casser les tests existants qui construisent ce repository positionnellement. */
+    private val hydrationScheduler: com.cstv.app.data.worker.ExternalMetadataHydrationScheduler? = null,
 ) : VodRepository {
 
     private var enrichmentDispatcher: CoroutineDispatcher = Dispatchers.IO
@@ -72,8 +75,9 @@ class VodRepositoryImpl @Inject constructor(
         networkMonitor: NetworkMonitor,
         mediaRefDao: com.cstv.app.data.local.dao.MediaRefDao,
         accountKeyProvider: com.cstv.app.data.local.storage.CurrentAccountKeyProvider,
-        dispatcher: CoroutineDispatcher
-    ) : this(apiService, vodDao, seriesDao, credentialsManager, profileManager, requestGate, networkMonitor, mediaRefDao, accountKeyProvider) {
+        dispatcher: CoroutineDispatcher,
+        hydrationScheduler: com.cstv.app.data.worker.ExternalMetadataHydrationScheduler? = null,
+    ) : this(apiService, vodDao, seriesDao, credentialsManager, profileManager, requestGate, networkMonitor, mediaRefDao, accountKeyProvider, null, hydrationScheduler) {
         this.enrichmentDispatcher = dispatcher
     }
 
@@ -158,6 +162,8 @@ class VodRepositoryImpl @Inject constructor(
         // constante locale d'origine était déclarée ici mais jamais lue.
         private const val ENRICHMENT_BATCH_SIZE = 50
         private const val ENRICHMENT_REQUEST_SPACING_MS = 500L
+        /** Le reste rejoint les passes persistantes du seeder, jamais une rafale après sync. */
+        private const val MAX_NEW_MEDIA_HYDRATION_PER_SYNC = 100
         private const val DEFAULT_CONTAINER_EXTENSION = "mp4"
         /** [com.cstv.app.domain.model.MediaKind.MOVIE.storageValue] — this repository only ever
          *  resolves movie playback positions; episodes go through `SeriesRepositoryImpl`. */
@@ -336,7 +342,7 @@ class VodRepositoryImpl @Inject constructor(
 
     // Une requête par année, paginée : un film candidat porte soit l'année
     // exacte (catalogue enrichi), soit l'année dans son titre (enrichissement
-    // pas encore passé — TmdbCatalogMatcher la relit). Les deux critères
+    // pas encore passé — ExternalCatalogMatcher la relit). Les deux critères
     // tiennent dans la même requête, et la pagination borne chaque curseur
     // (voir YEAR_MATCH_PAGE_SIZE). Un film peut sortir sur plusieurs années
     // demandées : la déduplication par streamId est donc nécessaire.
@@ -431,8 +437,59 @@ class VodRepositoryImpl @Inject constructor(
 
 
         startBackgroundEnrichment()
+        if (categoryId == ALL_CATEGORIES) seedNewMediaHydration(entities, existingById.keys)
 
         return entities.map { it.toDomain() }
+    }
+
+    /**
+     * F45 §7.5/§8.11 : les films réellement nouveaux (absents avant cette synchronisation) sont mis
+     * en file `NEW_IPTV_MEDIA` après récupération de leurs hints Xtream. Seule une synchronisation complète (`all`)
+     * déclenche ce chemin — un rafraîchissement d'une seule catégorie ne représente pas fiablement
+     * "ce qui est nouveau" sur l'ensemble du catalogue. Groupé par `linkKey` : plusieurs nouvelles
+     * variantes d'une même œuvre ne déclenchent qu'une seule demande, la propagation (§8.10) fait le
+     * reste après le premier match. Avant F45-R9, le lancement asynchrone de l'enrichissement puis
+     * l'enqueue immédiat créaient une course : le premier matching ne voyait généralement que le
+     * titre. Le travail reste hors du chemin critique de sync, mais chaque représentant est enrichi
+     * avant son enqueue ; si Xtream échoue, il part tout de même avec les indices disponibles.
+     */
+    private fun seedNewMediaHydration(entities: List<VodStreamEntity>, previousStreamIds: Set<Int>) {
+        val scheduler = hydrationScheduler ?: return
+        val representatives = entities
+            .filter { it.streamId !in previousStreamIds }
+            .groupBy { it.linkKey.ifBlank { "no-link:${it.streamId}" } }
+            .map { (_, group) -> group.first() }
+            .take(MAX_NEW_MEDIA_HYDRATION_PER_SYNC)
+        if (representatives.isEmpty()) return
+        repositoryScope.launch {
+            credentialsManager.getCredentials()?.let { credentials ->
+                representatives.forEach { stream ->
+                    runCatching { enrichOneForExternalHydration(credentials, stream.streamId) }
+                        .onFailure { IptvLog.e("F45", "Hints Xtream indisponibles pour streamId=${stream.streamId}", it) }
+                }
+            }
+            runCatching {
+                scheduler.requestBatch("movie", representatives.map { it.streamId }, com.cstv.app.domain.model.HydrationReason.NEW_IPTV_MEDIA)
+            }.onFailure { IptvLog.e("F45", "Mise en file NEW_IPTV_MEDIA impossible", it) }
+        }
+    }
+
+    /** F45-R9 : enrichit le représentant avant que le worker ne fabrique sa première requête de match. */
+    private suspend fun enrichOneForExternalHydration(credentials: Credentials, streamId: Int) {
+        val response = requestGate.acquire { apiService.getVodInfo(credentials.username, credentials.password, streamId) }
+        val info = response.info
+        val current = vodDao.getStreamById(streamId) ?: return
+        vodDao.insertStreams(
+            listOf(
+                current.copy(
+                    actors = extractActors(info?.actors, info?.cast),
+                    director = info?.director ?: "Inconnu",
+                    genre = info?.genre ?: "Inconnu",
+                    releaseYear = ReleaseYearParser.parseYear(info?.releaseDate) ?: 0,
+                ),
+            ),
+        )
+        delay(ENRICHMENT_REQUEST_SPACING_MS)
     }
 
     override fun getVodStreamsPaged(categoryId: String): Flow<PagingData<VodStream>> {

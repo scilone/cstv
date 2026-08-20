@@ -7,12 +7,17 @@ namespace Cstv\Backend;
 use Cstv\Backend\Account\AccountRepository;
 use Cstv\Backend\Account\IptvCredentialsRepository;
 use Cstv\Backend\Account\IptvCredentialsService;
+use Cstv\Backend\Catalog\CatalogMatchEngine;
 use Cstv\Backend\Catalog\CatalogService;
 use Cstv\Backend\Catalog\CatalogMatchThrottleRepository;
+use Cstv\Backend\Catalog\ExternalMediaIdFactory;
+use Cstv\Backend\Catalog\ExternalMediaRepository;
 use Cstv\Backend\Catalog\MediaMetadataProvider;
 use Cstv\Backend\Catalog\MediaMetadataCacheRepository;
 use Cstv\Backend\Catalog\TmdbClient;
+use Cstv\Backend\Catalog\TmdbCertificationMapper;
 use Cstv\Backend\Catalog\TmdbMediaMetadataProvider;
+use Cstv\Backend\Catalog\TmdbProviderRateLimiter;
 use Cstv\Backend\Auth\AuthService;
 use Cstv\Backend\Auth\JwtService;
 use Cstv\Backend\Auth\LogOtpSender;
@@ -86,11 +91,19 @@ final class Bootstrap
         );
         // Tests may boot the authenticated API without a provider token. The catalog endpoints
         // then fail as an enrichment outage instead of exposing a development secret.
+        $externalMedia = new ExternalMediaRepository($pdo, new ExternalMediaIdFactory());
+        $provider = $catalogProvider ?? new TmdbMediaMetadataProvider(
+            new TmdbClient($config->tmdbApiToken ?? ''),
+            new TmdbCertificationMapper(),
+            new TmdbProviderRateLimiter($pdo),
+        );
         $catalog = new CatalogService(
             $pdo,
             new MediaMetadataCacheRepository($pdo),
-            $catalogProvider ?? new TmdbMediaMetadataProvider(new TmdbClient($config->tmdbApiToken ?? '')),
+            $provider,
             new CatalogMatchThrottleRepository($pdo),
+            new CatalogMatchEngine($provider, $externalMedia),
+            $externalMedia,
         );
 
         $app = AppFactory::create();
@@ -115,7 +128,10 @@ final class Bootstrap
             $group->get('/catalog/trending', [$catalogAction, 'trending']);
             $group->get('/catalog/popular', [$catalogAction, 'popular']);
             $group->post('/catalog/matches', [$catalogAction, 'match']);
-            $group->get('/catalog/items/{canonicalId}/videos', [$catalogAction, 'videos']);
+            $group->get('/catalog/items/{externalId}', [$catalogAction, 'item']);
+            $group->get('/catalog/items/{externalId}/recommendations', [$catalogAction, 'recommendations']);
+            $group->get('/catalog/items/{externalId}/videos', [$catalogAction, 'videos']);
+            $group->get('/catalog/items/{externalId}/seasons/{seasonNumber}', [$catalogAction, 'season']);
             $group->get('/profiles', [$profileAction, 'list']);
             $group->post('/profiles', [$profileAction, 'create']);
             $group->patch('/profiles/{profileId}', [$profileAction, 'update']);

@@ -8,6 +8,7 @@ data class TrailerCacheEntity(
     val catalogId: Int,
     val videoId: String?,
     val source: String?,
-    val resolvedTmdbId: Int?,
+    /** Opaque CSTV UUID when known; never an ID from a metadata provider. */
+    val externalId: String?,
     val resolvedAt: Long
 )

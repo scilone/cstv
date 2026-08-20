@@ -2,7 +2,6 @@ package com.cstv.app.domain.usecase
 
 import com.cstv.app.data.repository.ContentClassificationRepository
 import com.cstv.app.data.repository.MediaClassificationKind
-import com.cstv.app.domain.model.AgeRating
 import com.cstv.app.domain.model.BlockReason
 import com.cstv.app.domain.model.DownloadRequestData
 import com.cstv.app.domain.model.DownloadedItem
@@ -74,7 +73,7 @@ class StartDownloadUseCaseTest {
         whenever(vodRepository.getStreamById(42)).thenReturn(
             VodStream(streamId = 42, name = "Dune", streamIcon = null, rating = null, added = null, categoryId = "cat", releaseYear = 2021)
         )
-        whenever(classificationRepository.classificationFor(MediaClassificationKind.MOVIE, "Dune", 2021)).thenReturn(AgeRating.SIXTEEN)
+        whenever(classificationRepository.classificationFor(MediaClassificationKind.MOVIE, "Dune", 2021, 42)).thenReturn(16)
 
         val result = useCase(movieRequest())
 
@@ -89,7 +88,7 @@ class StartDownloadUseCaseTest {
         whenever(vodRepository.getStreamById(42)).thenReturn(
             VodStream(streamId = 42, name = "Dune", streamIcon = null, rating = null, added = null, categoryId = "cat", releaseYear = 2021)
         )
-        whenever(classificationRepository.classificationFor(MediaClassificationKind.MOVIE, "Dune", 2021)).thenReturn(null)
+        whenever(classificationRepository.classificationFor(MediaClassificationKind.MOVIE, "Dune", 2021, 42)).thenReturn(null)
 
         val result = useCase(movieRequest())
 
@@ -118,7 +117,7 @@ class StartDownloadUseCaseTest {
         whenever(seriesRepository.getStreamById(7)).thenReturn(
             SeriesStream(seriesId = 7, name = "Supergirl", cover = null, rating = null, added = null, categoryId = "cat", releaseYear = 2015)
         )
-        whenever(classificationRepository.classificationFor(MediaClassificationKind.SERIES, "Supergirl", 2015)).thenReturn(AgeRating.SIXTEEN)
+        whenever(classificationRepository.classificationFor(MediaClassificationKind.SERIES, "Supergirl", 2015, 7)).thenReturn(16)
 
         val result = useCase(episodeRequest())
 
@@ -132,7 +131,7 @@ class StartDownloadUseCaseTest {
         whenever(vodRepository.getStreamById(42)).thenReturn(
             VodStream(streamId = 42, name = "Dune", streamIcon = null, rating = null, added = null, categoryId = "cat", releaseYear = 2021)
         )
-        whenever(classificationRepository.classificationFor(MediaClassificationKind.MOVIE, "Dune", 2021)).thenReturn(AgeRating.TWELVE)
+        whenever(classificationRepository.classificationFor(MediaClassificationKind.MOVIE, "Dune", 2021, 42)).thenReturn(12)
 
         assertEquals(DownloadStartResult.Started, useCase(movieRequest()))
         verify(repository).startDownload(movieRequest())

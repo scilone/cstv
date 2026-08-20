@@ -128,7 +128,7 @@ fun VodDetailsTvLayout(
     /** F39 §8.6 (évolution PO) : voir VodDetailsScreen. */
     hasMultipleVersions: Boolean = false,
     onOpenVersions: () -> Unit = {},
-    ageRating: com.cstv.app.domain.model.AgeRating? = null,
+    ageRating: Int? = null,
     modifier: Modifier = Modifier
 ) {
     val trailerMedia = remember(details.streamId) { TrailerMedia.Movie(details.streamId) }

@@ -7,7 +7,6 @@ import com.cstv.app.domain.model.VodStream
 import com.cstv.app.domain.model.MediaRatingValue
 import com.cstv.app.presentation.components.TrailerPreviewUiState
 import com.cstv.app.domain.model.AdvancedSearchFilter
-import com.cstv.app.domain.model.AgeRating
 
 data class VodState(
     val categories: List<VodCategory> = emptyList(),
@@ -15,8 +14,8 @@ data class VodState(
     val streams: List<VodStream> = emptyList(),
     val selectedStreamId: Int? = null,
     val selectedVodDetails: VodDetails? = null,
-    /** Classification française T22 affichée sur la fiche, quel que soit le profil. */
-    val ageRating: AgeRating? = null,
+    /** Classification exacte (F45 §8.13) affichée sur la fiche, quel que soit le profil. */
+    val ageRating: Int? = null,
     val isLoadingAgeRating: Boolean = false,
     // Films associés (mêmes genres) affichés en bas des détails.
     val relatedStreams: List<VodStream> = emptyList(),

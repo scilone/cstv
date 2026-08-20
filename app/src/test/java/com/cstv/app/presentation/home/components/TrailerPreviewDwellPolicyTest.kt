@@ -11,7 +11,7 @@ class TrailerPreviewDwellPolicyTest {
 
     private val sampleItem = TrendingCatalogItem(
         trendingTitle = TrendingTitle(
-            canonicalId = "movie:123",
+            externalId = "movie:123",
             title = "Test Movie",
             isMovie = true,
             year = 2026,

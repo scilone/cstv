@@ -21,7 +21,7 @@ class PopularRepositoryImpl @Inject constructor(
     private val context: Context,
     private val catalogApiService: CstvCatalogApiService,
     private val gson: Gson,
-    private val sessionRefreshGate: TmdbSessionRefreshGate = TmdbSessionRefreshGate()
+    private val sessionRefreshGate: CatalogSessionRefreshGate = CatalogSessionRefreshGate()
 ) : PopularRepository {
 
     private val sharedPrefs by lazy {
@@ -86,11 +86,11 @@ class PopularRepositoryImpl @Inject constructor(
                 }.flatMap { it.await().items.orEmpty() }
             }.take(POPULAR_CANDIDATE_LIMIT)
             items.mapNotNull { item ->
-                val canonicalId = item.id?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+                val externalId = item.externalId?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
                 val title = item.title
                 if (title.isNullOrBlank()) return@mapNotNull null
                 TrendingTitle(
-                    canonicalId = canonicalId,
+                    externalId = externalId,
                     title = title,
                     isMovie = isMovie,
                     year = item.releaseYear,
