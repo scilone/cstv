@@ -96,6 +96,7 @@ final class Bootstrap
             new TmdbClient($config->tmdbApiToken ?? ''),
             new TmdbCertificationMapper(),
             new TmdbProviderRateLimiter($pdo),
+            $pdo,
         );
         $catalog = new CatalogService(
             $pdo,

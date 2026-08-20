@@ -26,8 +26,12 @@ use Throwable;
  */
 final readonly class TmdbProviderRateLimiter
 {
-    private const CAPACITY = 5.0;
-    private const REFILL_PER_SECOND = 2.0;
+    // Relevé du budget initial (5 / 2 req/s) — trop conservateur pour un backfill initial de
+    // catalogue (retour utilisateur 2026-08-21) : TMDB v3 ne publie plus de limite stricte
+    // depuis 2020, la pratique courante observée tolère largement plus. Reste prudent (4 req/s
+    // sustained, burst 12) plutôt que d'aligner sur le maximum rapporté par la communauté.
+    private const CAPACITY = 12.0;
+    private const REFILL_PER_SECOND = 4.0;
 
     public function __construct(private PDO $pdo) {}
 

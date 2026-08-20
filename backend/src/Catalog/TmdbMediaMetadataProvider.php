@@ -9,10 +9,14 @@ final class TmdbMediaMetadataProvider implements MediaMetadataProvider
     /** @var array<string, array<int, string>> in-process genre id->name cache; rarely changes, one call/worker/locale */
     private static array $genreCache = [];
 
+    /** Genres TMDB rarement modifiés en pratique : 30 jours avant re-fetch persistant. */
+    private const GENRE_CACHE_TTL_SECONDS = 30 * 24 * 60 * 60;
+
     public function __construct(
         private readonly TmdbClient $client,
         private readonly TmdbCertificationMapper $certifications = new TmdbCertificationMapper(),
         private readonly ?TmdbProviderRateLimiter $rateLimiter = null,
+        private readonly ?\PDO $pdo = null,
     ) {
     }
 
@@ -75,13 +79,51 @@ final class TmdbMediaMetadataProvider implements MediaMetadataProvider
     {
         $key = $kind . '|' . $locale;
         if (isset(self::$genreCache[$key])) return self::$genreCache[$key];
+
+        // Le cache statique ci-dessus ne survit pas d'une requête PHP à l'autre sur de
+        // l'hébergement mutualisé classique (un process par requête) — sans ce palier
+        // persistant, `genreNames()` retapait TMDB à quasi chaque match ayant des hints de
+        // genre, pour une donnée qui ne change quasiment jamais.
+        $persisted = $this->pdo !== null ? $this->readPersistedGenres($kind, $locale) : null;
+        if ($persisted !== null) return self::$genreCache[$key] = $persisted;
+
         $this->rateLimiter?->acquire();
         $response = $this->client->get('genre/' . ($kind === 'movie' ? 'movie' : 'tv') . '/list', ['language' => $locale]);
         $map = [];
         foreach (is_array($response['genres'] ?? null) ? $response['genres'] : [] as $genre) {
             if (is_array($genre) && is_numeric($genre['id'] ?? null) && is_string($genre['name'] ?? null)) $map[(int) $genre['id']] = $genre['name'];
         }
+        $this->persistGenres($kind, $locale, $map);
         return self::$genreCache[$key] = $map;
+    }
+
+    /** @return array<int, string>|null */
+    private function readPersistedGenres(string $kind, string $locale): ?array
+    {
+        $statement = $this->pdo->prepare(
+            'SELECT genres FROM catalog_genre_cache WHERE kind = :kind AND locale = :locale ' .
+            "AND fetched_at >= NOW() - (:ttl || ' seconds')::interval",
+        );
+        $statement->execute(['kind' => $kind, 'locale' => $locale, 'ttl' => self::GENRE_CACHE_TTL_SECONDS]);
+        $row = $statement->fetchColumn();
+        if ($row === false) return null;
+        $decoded = json_decode((string) $row, true, 512, JSON_THROW_ON_ERROR);
+        $map = [];
+        foreach ($decoded as $id => $name) {
+            if (is_string($name)) $map[(int) $id] = $name;
+        }
+        return $map;
+    }
+
+    /** @param array<int, string> $map */
+    private function persistGenres(string $kind, string $locale, array $map): void
+    {
+        if ($this->pdo === null) return;
+        $statement = $this->pdo->prepare(
+            'INSERT INTO catalog_genre_cache (kind, locale, genres, fetched_at) VALUES (:kind, :locale, CAST(:genres AS jsonb), NOW()) ' .
+            'ON CONFLICT (kind, locale) DO UPDATE SET genres = EXCLUDED.genres, fetched_at = EXCLUDED.fetched_at',
+        );
+        $statement->execute(['kind' => $kind, 'locale' => $locale, 'genres' => json_encode($map, JSON_THROW_ON_ERROR)]);
     }
 
     public function hydrate(string $kind, int $tmdbId, string $locale): array

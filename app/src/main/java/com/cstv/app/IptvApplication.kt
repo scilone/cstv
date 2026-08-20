@@ -151,9 +151,36 @@ class IptvApplication : Application(), ImageLoaderFactory {
     private fun resumeExternalMetadataHydration() {
         try {
             com.cstv.app.data.worker.ExternalMetadataHydrationWorker.enqueue(this)
+            scheduleExternalMetadataHydrationHeartbeat()
         } catch (exception: Exception) {
             IptvLog.e("F45", "Reprise de l'hydratation externe impossible", exception)
         }
+    }
+
+    /**
+     * Retour utilisateur 2026-08-21 : sans ce battement, la convergence du backfill (§8.11) ne
+     * progressait que par rafales liées aux ouvertures d'appli — `resumeExternalMetadataHydration()`
+     * n'enqueue qu'un seul passage au démarrage, et `ExternalMetadataHydrationWorker` ne se
+     * reprogramme lui-même que jusqu'à l'échéance du prochain item en file (potentiellement des
+     * heures de silence si tout est en backoff). 15 minutes = intervalle minimal `WorkManager` pour
+     * du travail périodique ; `KEEP` ne redémarre pas le cycle déjà planifié à chaque lancement.
+     */
+    private fun scheduleExternalMetadataHydrationHeartbeat() {
+        val workManager = try {
+            WorkManager.getInstance(this)
+        } catch (e: Exception) {
+            return
+        }
+        val request = PeriodicWorkRequestBuilder<com.cstv.app.data.worker.ExternalMetadataHydrationHeartbeatWorker>(
+            15, TimeUnit.MINUTES,
+        )
+            .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
+            .build()
+        workManager.enqueueUniquePeriodicWork(
+            "external_metadata_hydration_heartbeat",
+            ExistingPeriodicWorkPolicy.KEEP,
+            request,
+        )
     }
 
     /**
