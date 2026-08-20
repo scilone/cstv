@@ -43,12 +43,13 @@ command -v rsync >/dev/null || die "rsync introuvable."
 command -v ssh >/dev/null || die "ssh introuvable."
 
 # --- Sync du code ------------------------------------------------------------
-# .env jamais écrasé (secrets prod hors dépôt). vendor/ exclu : reconstruit par
-# composer install distant juste après, source de vérité = composer.lock, pas
-# ce qui traîne localement.
+# .env jamais écrasé (secrets prod hors dépôt). .env.local (secrets/tokens de dev local,
+# jamais commités) ne doit pas non plus finir sur le serveur. vendor/ exclu : reconstruit
+# par composer install distant juste après, source de vérité = composer.lock, pas ce qui
+# traîne localement.
 
 step "Sync backend -> $REMOTE_HOST:$REMOTE_DIR"
-rsync_args=(-avz --exclude='.env' --exclude='vendor/')
+rsync_args=(-avz --exclude='.env' --exclude='.env.local' --exclude='vendor/')
 "$dry_run" && rsync_args+=(--dry-run)
 rsync "${rsync_args[@]}" backend/ "$REMOTE_HOST:$REMOTE_DIR/"
 
