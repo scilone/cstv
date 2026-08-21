@@ -10,6 +10,13 @@ use Cstv\Backend\Catalog\MediaMetadataProvider;
 
 final class CatalogApiTest extends IntegrationTestCase
 {
+    /**
+     * T28 review R4 : instance conservée pour compter les appels provider depuis les tests de cache
+     * (`object`, pas `MediaMetadataProvider` : `searchCalls`/`hydrateCalls` sont des compteurs de
+     * double de test, hors interface).
+     */
+    private object $provider;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -19,7 +26,10 @@ final class CatalogApiTest extends IntegrationTestCase
         // un tmdbId dérivé de l'année, donc deux tests utilisant la même année collisionnaient sans
         // cet isolement.
         $this->pdo->exec('TRUNCATE TABLE external_media, tmdb_media, tmdb_movies, tmdb_series RESTART IDENTITY CASCADE');
-        $this->app = Bootstrap::createApp($this->config, $this->pdo, new class implements MediaMetadataProvider {
+        $this->provider = new class implements MediaMetadataProvider {
+            public int $searchCalls = 0;
+            public int $hydrateCalls = 0;
+
             public function trending(string $locale): array { return [['id' => 'movie:42', 'kind' => 'movie', 'title' => 'Dune', 'originalTitle' => 'Dune', 'releaseYear' => 2021, 'overview' => null, 'rating' => 8.0, 'posterUrl' => 'https://images.example/dune.jpg', 'backdropUrl' => null, 'ageRating' => null, 'ageRatingFr' => 12]]; }
             public function popular(string $kind, int $page, string $locale): array { return $this->trending($locale); }
             public function videos(string $canonicalId, string $locale): array { return [['site' => 'YouTube', 'key' => 'dQw4w9WgXcQ', 'type' => 'Trailer', 'official' => true]]; }
@@ -27,6 +37,7 @@ final class CatalogApiTest extends IntegrationTestCase
             /** Un seul candidat, exactement le titre demandé : `CatalogMatchEngine` l'accepte sans ambiguïté à scorer. */
             public function searchCandidates(string $kind, string $title, ?int $year, string $locale): array
             {
+                $this->searchCalls++;
                 if ($title === 'Missing') return [];
                 // L'id fournisseur encode l'année pour que `hydrate()` puisse la restituer dans `releaseDate`
                 // sans dépendre d'un état partagé entre les deux méthodes (double de test, pas de vraie recherche).
@@ -38,6 +49,7 @@ final class CatalogApiTest extends IntegrationTestCase
 
             public function hydrate(string $kind, int $tmdbId, string $locale): array
             {
+                $this->hydrateCalls++;
                 $year = $tmdbId === 999999 ? null : $tmdbId;
                 $shared = [
                     'originalLanguage' => 'en', 'overview' => null, 'posterPath' => '/dune.jpg', 'backdropPath' => '/dune-backdrop.jpg',
@@ -66,7 +78,8 @@ final class CatalogApiTest extends IntegrationTestCase
                     ]],
                 ];
             }
-        });
+        };
+        $this->app = Bootstrap::createApp($this->config, $this->pdo, $this->provider);
     }
 
     public function testCatalogRoutesAreAuthenticatedAndExposeProductContract(): void
@@ -191,6 +204,32 @@ final class CatalogApiTest extends IntegrationTestCase
 
         self::assertSame(200, $response->getStatusCode());
         self::assertSame('tmdb-first-result', $this->json($response)['match']['method']);
+    }
+
+    /**
+     * T28 review R4 : la Tâche 8 (§10) demandait un scénario "100 hits cache" au même titre que les
+     * scénarios backend-first/tmdbId/média inconnu — non couvert par les notes d'implémentation de
+     * l'étape 5. `CatalogService::resolve()` retourne avant tout appel à `$load()` (donc au moteur et
+     * au provider) dès que l'entrée de cache est fraîche ; ce test verrouille cette garantie au
+     * niveau HTTP plutôt que de la décrire seulement en prose.
+     */
+    public function testCatalogMatchCacheHitNeverCallsTheEngineOrTheProvider(): void
+    {
+        $account = $this->createAccount();
+        $body = ['kind' => 'movie', 'title' => 'Cache Hit Guard', 'year' => 2021];
+
+        $first = $this->jsonRequest('POST', '/v1/catalog/matches', $body, $this->auth($account['token']));
+        self::assertSame(200, $first->getStatusCode());
+        self::assertSame(1, $this->provider->searchCalls);
+        self::assertSame(1, $this->provider->hydrateCalls);
+        $externalId = $this->json($first)['item']['externalId'];
+
+        $second = $this->jsonRequest('POST', '/v1/catalog/matches', $body, $this->auth($account['token']));
+
+        self::assertSame(200, $second->getStatusCode());
+        self::assertSame($externalId, $this->json($second)['item']['externalId']);
+        self::assertSame(1, $this->provider->searchCalls, 'a fresh media_metadata_cache hit must not call the provider again');
+        self::assertSame(1, $this->provider->hydrateCalls, 'a fresh media_metadata_cache hit must not call the provider again');
     }
 
     public function testCatalogMatchDynamicTtlCachingBasedOnReleaseYear(): void

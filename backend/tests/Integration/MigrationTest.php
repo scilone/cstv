@@ -17,7 +17,7 @@ final class MigrationTest extends IntegrationTestCase
         try {
             $migrator = new Migrator($this->pdo, dirname(__DIR__, 2) . '/migrations');
             self::assertSame(
-                ['001_initial.sql', '002_namespace_snapshots.sql', '003_verify_throttle.sql', '004_account_iptv_credentials.sql', '005_playback_locks.sql', '006_media_metadata_cache.sql', '007_catalog_match_throttle.sql', '008_profile_max_age_rating.sql', '009_external_metadata.sql', '010_catalog_matching.sql', '011_catalog_match_unresolved_status.sql', '012_catalog_genre_cache.sql'],
+                ['001_initial.sql', '002_namespace_snapshots.sql', '003_verify_throttle.sql', '004_account_iptv_credentials.sql', '005_playback_locks.sql', '006_media_metadata_cache.sql', '007_catalog_match_throttle.sql', '008_profile_max_age_rating.sql', '009_external_metadata.sql', '010_catalog_matching.sql', '011_catalog_match_unresolved_status.sql', '012_catalog_genre_cache.sql', '013_catalog_matching_locale_and_alt_title_index.sql'],
                 $migrator->migrate(),
             );
             self::assertSame([], $migrator->migrate());

@@ -3,7 +3,7 @@
 ## Informations générales
 
 Status:
-IMPLEMENTATION
+FIXES
 
 Created:
 2026-08-21
@@ -949,19 +949,206 @@ Mesures à conserver pour préparer T29 :
 
 Ces ratios permettront de dimensionner le débit batch sans deviner la proportion réelle de misses fournisseur.
 
+## Corrections (étape 7)
+
+Corrige les 4 points de la review (§12) — 2 majeurs, 2 mineurs. Suite complète : **249 tests, 1149
+assertions**, verte en ordre fixe et `--order-by=random`.
+
+### R1 — Réutilisation locale-safe
+
+- `tmdb_media.locale` ajouté (migration `013_...sql`) : mémorise la locale d'hydratation. `NULL` pour
+  les fiches antérieures à ce correctif — traité comme incompatible avec toute locale demandée
+  plutôt que supposé `fr-FR`, donc ces fiches se réhydratent proprement au prochain miss plutôt que
+  de rester bloquées avec une locale inconnue.
+- `persistMovie()`/`persistSeries()` reçoivent désormais `$locale` et l'écrivent.
+- `findStrictConsolidatedMatch()` filtre par locale dans le SQL (passe 1 et passe 2, jointure sur
+  `tmdb_media`) : une fiche dans la mauvaise locale n'est même pas candidate au backend-first.
+- `CatalogMatchEngine::reuseStored()` (chemin `tmdbId` après `/search`, qui n'a pas ce filtre SQL en
+  amont) compare explicitement `$row['locale'] !== $locale` et retourne `null` sinon — l'appelant
+  retombe alors sur l'hydratation normale dans la locale demandée.
+- Tests ajoutés : fiche `fr-FR` non réutilisée pour une requête `en-US` (backend-first **et**
+  réutilisation par `tmdbId`), plus un test de non-régression prouvant que le cas nominal
+  (locale identique) n'est pas cassé par ce contrôle.
+
+### R2 — Passe titre alternatif indexée
+
+- Migration `013_...sql` : fonction SQL immuable `cstv_lower_text_array()`, colonne générée
+  `alternative_titles_lower TEXT[] STORED` sur `tmdb_movies`/`tmdb_series`, index `GIN` dessus, et
+  index d'expression `LOWER(original_title|original_name)`.
+- Requête réécrite : `LOWER(original_title) = LOWER(:raw_title) OR ARRAY[LOWER(:raw_title)] <@
+  alternative_titles_lower` — les deux branches deviennent indexables (l'opérateur `<@` est celui
+  que `GIN` sait accélérer sur un tableau, contrairement à `EXISTS unnest(...) WHERE LOWER(alt) =
+  ...`).
+- Mesuré avec `EXPLAIN (ANALYZE, BUFFERS)` sur 30 000 lignes `tmdb_movies` (volume représentatif),
+  requête passe 2 sur un titre absent du catalogue (le pire cas — celui qui scannait toute la table) :
+
+  | | Plan | Buffers | Temps |
+  |---|---|---|---|
+  | Avant (index désactivés, mêmes prédicats) | `Seq Scan` sur `tmdb_movies` (30000 lignes filtrées) + `Seq Scan` sur `tmdb_media` | 1220 | 5.3 ms |
+  | Après (index d'expression + GIN) | `Bitmap Heap Scan` (`BitmapOr` sur les 2 index) + `Index Scan` sur `tmdb_media` | 212 | 1.6 ms |
+
+  Le point important n'est pas le facteur (~3.5×) à 30k lignes mais la forme du plan : `Seq Scan`
+  avec `Rows Removed by Filter: 30000` scale linéairement avec la taille du catalogue consolidé,
+  tandis que le plan indexé reste borné par la sélectivité du titre recherché — la question ouverte
+  du ticket (§6, coût de la passe alternative à grande échelle) est donc close.
+
+### R3 — Couverture backend-first séries
+
+- `seedStoredSeries()`/`series()` ajoutés au double de test (mêmes formes que `seedStoredMovie()`/
+  `movie()`, adaptées aux colonnes `name`/`original_name`/`first_air_date`).
+- 3 tests série : titre exact + année (0 provider), titre alternatif + année (0 provider), `tmdbId`
+  déjà hydraté après `/search` (1 `search`, 0 `hydrate`) — verrouille la frontière `first_air_date`/
+  `original_name` déjà fautive une fois (régression de noms de colonnes en F45).
+
+### R4 — Scénario cache de la Tâche 8
+
+- `CatalogApiTest` : le double `MediaMetadataProvider` compte désormais `searchCalls`/`hydrateCalls`
+  et est conservé (`$this->provider`) pour être interrogé depuis les tests.
+- Nouveau test `testCatalogMatchCacheHitNeverCallsTheEngineOrTheProvider` : deux appels HTTP
+  identiques à `/v1/catalog/matches`, le second doit laisser les compteurs provider inchangés — preuve
+  au niveau HTTP que `CatalogService::resolve()` retourne avant `$load()` (donc avant le moteur et le
+  provider) sur un hit `media_metadata_cache` frais, plutôt qu'une simple affirmation en prose.
+
 ---
 
 # 12. Review
 
-À compléter à l’étape 6.
+Review effectuée le 2026-08-21 sur le commit `8b49c03e920afa1f5b245fbe7aaa96ee2b5678ad`.
+
+Verdict:
+CHANGES REQUESTED
+
+Status:
+RESOLVED (étape 7, voir §11 pour le détail des corrections)
+
+L’architecture générale est conforme à T28 : le moteur passe bien par PostgreSQL avant TMDB, exige
+titre + année + unicité, réutilise une fiche déjà hydratée après `/search`, conserve le fallback
+TMDB et versionne le matching en `ALGORITHM_VERSION = 3`. Les tests ajoutés couvrent correctement
+les principaux chemins film et prouvent les gains attendus sur le nombre d’appels fournisseur.
 
 ## Critique
 
+Aucun problème critique identifié.
+
 ## Majeur
+
+### R1 — La réutilisation PostgreSQL ignore la locale demandée
+
+Description:
+
+`CatalogMatchEngine::resolve()` appelle `findStrictConsolidatedMatch()` puis `reuseStored()` sans
+tenir compte de `CatalogMatchRequest::locale`. Le même problème existe après `/search` TMDB :
+si le `tmdbId` est déjà hydraté, la fiche PostgreSQL est resservie immédiatement quelle que soit la
+locale de la requête.
+
+Or le contrat catalogue accepte au moins `fr-FR` et `en-US`, tandis que `tmdb_media`,
+`tmdb_movies` et `tmdb_series` ne mémorisent pas la locale d’hydratation. Une fiche hydratée en
+français peut donc être renvoyée à une requête `en-US` (ou l’inverse) sans nouvel appel fournisseur.
+
+Impact:
+
+- changement de comportement par rapport au chemin TMDB antérieur, qui hydrait avec la locale
+  demandée ;
+- métadonnées potentiellement dans la mauvaise langue ;
+- cache de match pourtant séparé par locale, mais alimenté par une ligne PostgreSQL qui ne l’est pas ;
+- le problème concerne les deux optimisations principales de T28 : backend-first et réutilisation
+  après `/search`.
+
+Correction attendue:
+
+Rendre la réutilisation locale-safe avant validation de T28.
+
+Solution recommandée : mémoriser la locale d’hydratation de la fiche (par exemple dans
+`tmdb_media`) et ne réutiliser une fiche que si sa locale est compatible avec la requête. Ajouter
+des tests `fr-FR` / `en-US` couvrant le backend-first et le cas `/search` + `tmdbId` déjà hydraté.
+
+Si le produit décide au contraire que les métadonnées consolidées sont toujours canoniquement
+`fr-FR`, cette règle doit être explicitement actée et le contrat `en-US` adapté ; elle ne doit pas
+être implicite dans T28.
+
+### R2 — La passe titre original/alternatif est un scan non indexé sur le chemin chaud du backfill
+
+Description:
+
+`strictMatchByAlternativeTitle()` est exécutée après chaque miss sur `normalized_title` et filtre
+avec :
+
+- `EXTRACT(YEAR FROM release_date|first_air_date)` ;
+- `LOWER(original_title|original_name)` ;
+- `unnest(alternative_titles)` + `LOWER(...)`.
+
+Aucun de ces prédicats ne bénéficie des index `normalized_title` existants. Sur un catalogue
+consolidé qui grossit, chaque média absent du backend peut donc provoquer un scan de la table et des
+tableaux de titres alternatifs avant même d’atteindre TMDB.
+
+Le benchmark de l’étape 5 a été réalisé sur la base de test et mesure les chemins fonctionnels, mais
+ne valide pas le coût de cette passe à une cardinalité représentative. La question ouverte du ticket
+sur le coût réel des `alternative_titles` reste donc non résolue.
+
+Impact:
+
+- risque de déplacer le goulet d’étranglement de TMDB vers PostgreSQL ;
+- coût croissant précisément sur les misses, très nombreux pendant une première convergence ;
+- T29 augmentera ensuite le débit des batchs et amplifiera ce chemin si le point n’est pas corrigé.
+
+Correction attendue:
+
+Mesurer avec `EXPLAIN (ANALYZE, BUFFERS)` et un volume représentatif avant validation.
+
+La correction doit garantir une recherche bornée/indexable : index d’expression adaptés pour
+l’année/titre original et stratégie indexable pour les titres alternatifs (ou retrait de cette passe
+du chemin chaud tant qu’elle ne l’est pas). Ajouter un test/benchmark dédié au scénario
+« miss normalized_title → recherche alternative ».
 
 ## Mineur
 
+### R3 — Le chemin backend-first série n’est pas testé en succès
+
+Description:
+
+Les nouveaux tests prouvent le backend-first sur les films et vérifient qu’un film ne traverse pas
+la frontière `movie` / `series`, mais aucun test ne seed une `tmdb_series` puis ne vérifie un succès
+backend-first ou un succès par `original_name` / titre alternatif.
+
+Impact:
+
+La branche série utilise des colonnes différentes (`first_air_date`, `original_name`) et cette zone
+a déjà connu une régression de noms de colonnes dans F45. Le code actuel paraît correct, mais la
+non-régression n’est pas verrouillée.
+
+Correction attendue:
+
+Ajouter au minimum :
+
+- série titre exact + année → 0 `search`, 0 `hydrate` ;
+- série titre original/alternatif + année → 0 provider ;
+- série `tmdbId` déjà hydraté après `/search` → `search = 1`, `hydrate = 0`.
+
+### R4 — Le benchmark déclaré par la Tâche 8 ne couvre pas le scénario cache
+
+Description:
+
+La Tâche 8 demandait quatre scénarios, dont `100 hits cache`. Les notes d’implémentation documentent
+les hits PostgreSQL, les `tmdbId` déjà hydratés et les médias inconnus, mais pas les 100 hits cache.
+
+Impact:
+
+Faible, car le cache n’est pas modifié directement par T28, mais `ALGORITHM_VERSION = 3` change les
+clés de matching et le scénario faisait explicitement partie du critère de validation.
+
+Correction attendue:
+
+Ajouter la mesure manquante ou documenter explicitement pourquoi le scénario est couvert par un test
+existant avec une assertion garantissant zéro appel moteur/provider.
+
 ## Corrections demandées
+
+- [x] R1 — Rendre la réutilisation backend-first et post-`/search` compatible avec la locale.
+- [x] R1 — Ajouter les tests de non-régression `fr-FR` / `en-US`.
+- [x] R2 — Mesurer le plan/coût de la passe titre alternatif sur un volume représentatif.
+- [x] R2 — Rendre cette passe indexable/bornée avant T29.
+- [x] R3 — Ajouter les tests backend-first spécifiques aux séries.
+- [x] R4 — Compléter la validation du scénario cache de la Tâche 8.
 
 ---
 

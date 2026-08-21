@@ -42,47 +42,61 @@ final readonly class ExternalMediaRepository
      * première échoue, sur le titre original/un titre alternatif. Chaque passe exige l'unicité
      * (LIMIT 2 pour distinguer 1 candidat de 2+ sans jamais en tolérer plusieurs, R4).
      *
+     * Review T28/R1 : une fiche hydratée dans une autre locale (`tmdb_media.locale`) n'est jamais
+     * réutilisée — une ligne sans locale connue (fiches hydratées avant ce correctif) est traitée
+     * comme incompatible plutôt que supposée `fr-FR`, ce qui la fait retomber sur TMDB une fois puis
+     * régularise sa locale.
+     *
      * @return array{externalId: string, method: string}|null
      */
-    public function findStrictConsolidatedMatch(string $kind, string $title, int $year): ?array
+    public function findStrictConsolidatedMatch(string $kind, string $title, int $year, string $locale): ?array
     {
-        $externalId = $this->strictMatchByNormalizedTitle($kind, $title, $year);
+        $externalId = $this->strictMatchByNormalizedTitle($kind, $title, $year, $locale);
         if ($externalId !== null) return ['externalId' => $externalId, 'method' => 'postgresql-exact-title-year'];
 
-        $externalId = $this->strictMatchByAlternativeTitle($kind, $title, $year);
+        $externalId = $this->strictMatchByAlternativeTitle($kind, $title, $year, $locale);
         if ($externalId !== null) return ['externalId' => $externalId, 'method' => 'postgresql-alternative-title-year'];
 
         return null;
     }
 
-    /** T28 §8.2 passe 1 : `normalized_title` exact + année exacte (R2/R3). */
-    private function strictMatchByNormalizedTitle(string $kind, string $title, int $year): ?string
+    /** T28 §8.2 passe 1 : `normalized_title` exact + année exacte (R2/R3), déjà indexé (§8.9). */
+    private function strictMatchByNormalizedTitle(string $kind, string $title, int $year, string $locale): ?string
     {
         $normalized = TitleNormalizer::normalize($title);
         if ($normalized === '') return null;
         $table = $kind === 'movie' ? 'tmdb_movies' : 'tmdb_series';
         $dateColumn = $kind === 'movie' ? 'release_date' : 'first_air_date';
         $statement = $this->pdo->prepare(
-            "SELECT external_id::text FROM {$table} WHERE normalized_title = :normalized " .
-            "AND EXTRACT(YEAR FROM {$dateColumn}) = CAST(:year AS integer) LIMIT 2",
+            "SELECT m.external_id::text FROM {$table} m JOIN tmdb_media t ON t.external_id = m.external_id " .
+            'WHERE m.normalized_title = :normalized ' .
+            "AND EXTRACT(YEAR FROM m.{$dateColumn}) = CAST(:year AS integer) AND t.locale = :locale LIMIT 2",
         );
-        $statement->execute(['normalized' => $normalized, 'year' => $year]);
+        $statement->execute(['normalized' => $normalized, 'year' => $year, 'locale' => $locale]);
         return self::soleMatch($statement->fetchAll(PDO::FETCH_COLUMN));
     }
 
-    /** T28 §8.2 passe 2 : titre original ou titre alternatif exact (casse ignorée) + année exacte (R5). */
-    private function strictMatchByAlternativeTitle(string $kind, string $title, int $year): ?string
+    /**
+     * T28 §8.2 passe 2 : titre original ou titre alternatif exact (casse ignorée) + année exacte
+     * (R5). Review T28/R2 : `LOWER(original_title|original_name)` s'appuie sur l'index d'expression
+     * `tmdb_{movies,series}_original_{title,name}_lower_idx` ; les titres alternatifs utilisent
+     * l'opérateur de containment `<@` sur la colonne générée `alternative_titles_lower`
+     * (`GIN`, migration 013) au lieu d'un `unnest()`+`LOWER()` non indexable qui forçait un scan
+     * complet sur chaque miss de la passe 1 — le chemin le plus fréquent pendant le backfill initial.
+     */
+    private function strictMatchByAlternativeTitle(string $kind, string $title, int $year, string $locale): ?string
     {
         if (trim($title) === '') return null;
         $table = $kind === 'movie' ? 'tmdb_movies' : 'tmdb_series';
         $dateColumn = $kind === 'movie' ? 'release_date' : 'first_air_date';
         $originalTitleColumn = $kind === 'movie' ? 'original_title' : 'original_name';
         $statement = $this->pdo->prepare(
-            "SELECT external_id::text FROM {$table} WHERE EXTRACT(YEAR FROM {$dateColumn}) = CAST(:year AS integer) " .
-            "AND (LOWER({$originalTitleColumn}) = LOWER(:raw_title) " .
-            'OR EXISTS (SELECT 1 FROM unnest(alternative_titles) AS alt WHERE LOWER(alt) = LOWER(:raw_title))) LIMIT 2',
+            "SELECT m.external_id::text FROM {$table} m JOIN tmdb_media t ON t.external_id = m.external_id " .
+            "WHERE EXTRACT(YEAR FROM m.{$dateColumn}) = CAST(:year AS integer) AND t.locale = :locale " .
+            "AND (LOWER(m.{$originalTitleColumn}) = LOWER(:raw_title) " .
+            'OR ARRAY[LOWER(:raw_title)] <@ m.alternative_titles_lower) LIMIT 2',
         );
-        $statement->execute(['raw_title' => $title, 'year' => $year]);
+        $statement->execute(['raw_title' => $title, 'year' => $year, 'locale' => $locale]);
         return self::soleMatch($statement->fetchAll(PDO::FETCH_COLUMN));
     }
 
@@ -130,15 +144,20 @@ final readonly class ExternalMediaRepository
         ], $statement->fetchAll(PDO::FETCH_ASSOC));
     }
 
-    /** @param array<string, mixed> $movie §7.2 fields, `recommendations` already resolved to externalIds */
-    public function persistMovie(string $externalId, array $movie): void
+    /**
+     * @param array<string, mixed> $movie §7.2 fields, `recommendations` already resolved to externalIds
+     * @param string $locale T28 review R1 : locale d'hydratation, mémorisée pour que le backend-first
+     *     et la réutilisation après `/search` ne resservent jamais une fiche dans la mauvaise langue.
+     */
+    public function persistMovie(string $externalId, array $movie, string $locale): void
     {
         $now = new DateTimeImmutable();
         $refreshAfter = $this->freshness->movieRefreshAfter($movie['releaseDate'] ?? null, $now);
 
         $this->pdo->prepare(
-            'UPDATE tmdb_media SET hydrated_at = NOW(), refresh_after = :refresh_after, last_refresh_attempt_at = NOW() WHERE external_id = :id',
-        )->execute(['id' => $externalId, 'refresh_after' => $refreshAfter->format(DateTimeImmutable::ATOM)]);
+            'UPDATE tmdb_media SET hydrated_at = NOW(), refresh_after = :refresh_after, ' .
+            'last_refresh_attempt_at = NOW(), locale = :locale WHERE external_id = :id',
+        )->execute(['id' => $externalId, 'refresh_after' => $refreshAfter->format(DateTimeImmutable::ATOM), 'locale' => $locale]);
 
         $this->pdo->prepare(
             'INSERT INTO tmdb_movies (external_id, title, original_title, original_language, overview, poster_path, ' .
@@ -180,15 +199,19 @@ final readonly class ExternalMediaRepository
         ]);
     }
 
-    /** @param array<string, mixed> $series §7.3 fields, `recommendations` already resolved to externalIds */
-    public function persistSeries(string $externalId, array $series): void
+    /**
+     * @param array<string, mixed> $series §7.3 fields, `recommendations` already resolved to externalIds
+     * @param string $locale T28 review R1 : locale d'hydratation (voir `persistMovie()`)
+     */
+    public function persistSeries(string $externalId, array $series, string $locale): void
     {
         $now = new DateTimeImmutable();
         $refreshAfter = $this->freshness->seriesRefreshAfter((bool) ($series['inProduction'] ?? false), $series['lastAirDate'] ?? null, $now);
 
         $this->pdo->prepare(
-            'UPDATE tmdb_media SET hydrated_at = NOW(), refresh_after = :refresh_after, last_refresh_attempt_at = NOW() WHERE external_id = :id',
-        )->execute(['id' => $externalId, 'refresh_after' => $refreshAfter->format(DateTimeImmutable::ATOM)]);
+            'UPDATE tmdb_media SET hydrated_at = NOW(), refresh_after = :refresh_after, ' .
+            'last_refresh_attempt_at = NOW(), locale = :locale WHERE external_id = :id',
+        )->execute(['id' => $externalId, 'refresh_after' => $refreshAfter->format(DateTimeImmutable::ATOM), 'locale' => $locale]);
 
         $this->pdo->prepare(
             'INSERT INTO tmdb_series (external_id, name, original_name, original_language, overview, poster_path, ' .
@@ -240,22 +263,22 @@ final readonly class ExternalMediaRepository
         ]);
     }
 
-    /** @return array<string, mixed>|null includes `tmdb_id` (joined) for the legacy `id` field */
+    /** @return array<string, mixed>|null includes `tmdb_id`/`locale` (joined, T28 review R1) for the legacy `id` field */
     public function getMovie(string $externalId): ?array
     {
         $statement = $this->pdo->prepare(
-            'SELECT m.*, t.tmdb_id FROM tmdb_movies m JOIN tmdb_media t ON t.external_id = m.external_id WHERE m.external_id = :id',
+            'SELECT m.*, t.tmdb_id, t.locale FROM tmdb_movies m JOIN tmdb_media t ON t.external_id = m.external_id WHERE m.external_id = :id',
         );
         $statement->execute(['id' => $externalId]);
         $row = $statement->fetch(PDO::FETCH_ASSOC);
         return $row === false ? null : $this->hydrateRow($row, movie: true);
     }
 
-    /** @return array<string, mixed>|null includes `tmdb_id` (joined) for the legacy `id` field */
+    /** @return array<string, mixed>|null includes `tmdb_id`/`locale` (joined, T28 review R1) for the legacy `id` field */
     public function getSeries(string $externalId): ?array
     {
         $statement = $this->pdo->prepare(
-            'SELECT s.*, t.tmdb_id FROM tmdb_series s JOIN tmdb_media t ON t.external_id = s.external_id WHERE s.external_id = :id',
+            'SELECT s.*, t.tmdb_id, t.locale FROM tmdb_series s JOIN tmdb_media t ON t.external_id = s.external_id WHERE s.external_id = :id',
         );
         $statement->execute(['id' => $externalId]);
         $row = $statement->fetch(PDO::FETCH_ASSOC);

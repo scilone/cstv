@@ -361,20 +361,135 @@ final class CatalogMatchEngineTest extends IntegrationTestCase
         self::assertSame(1, $provider->hydrateCalls);
     }
 
+    // --- T28 review R1 : la réutilisation ne doit jamais traverser une frontière de locale --------
+
+    public function testStrictBackendMatchNeverReusesAFicheHydratedInAnotherLocale(): void
+    {
+        $this->seedStoredMovie(514, 'Locale Guard', '2014-01-01', locale: 'fr-FR');
+
+        $provider = new FakeCatalogProvider();
+        $provider->candidates = [new CatalogMatchCandidate(515, 'Locale Guard', 'Locale Guard', 2014, [])];
+        $provider->hydrated[515] = $this->movie('Locale Guard', '2014-01-01');
+
+        $engine = new CatalogMatchEngine($provider, $this->externalMedia);
+        $result = $engine->resolve($this->matchRequest('Locale Guard', 2014, 'en-US'));
+
+        self::assertSame('matched', $result->status);
+        self::assertSame('tmdb-first-result', $result->method, 'a fr-FR row must not satisfy an en-US backend-first lookup');
+        self::assertSame(1, $provider->searchCalls);
+    }
+
+    public function testTmdbSearchResultAlreadyHydratedInAnotherLocaleStillHydrates(): void
+    {
+        $stored = $this->seedStoredMovie(516, 'Reuse Locale Guard', '2013-01-01', locale: 'fr-FR');
+
+        $provider = new FakeCatalogProvider();
+        $provider->candidates = [new CatalogMatchCandidate(516, 'Reuse Locale Guard EN', 'Reuse Locale Guard', 2013, [])];
+        $provider->hydrated[516] = $this->movie('Reuse Locale Guard EN', '2013-01-01');
+
+        $engine = new CatalogMatchEngine($provider, $this->externalMedia);
+        $result = $engine->resolve($this->matchRequest('Reuse Locale Guard EN', 2013, 'en-US'));
+
+        self::assertSame('matched', $result->status);
+        self::assertSame($stored, $result->externalId, 'same identity, re-hydrated in the requested locale');
+        self::assertSame('tmdb-first-result', $result->method, 'a tmdbId hydrated in fr-FR must not short-circuit an en-US request');
+        self::assertSame(1, $provider->searchCalls);
+        self::assertSame(1, $provider->hydrateCalls, 'the en-US fiche must be fetched, not reused from the fr-FR one');
+    }
+
+    public function testStrictBackendMatchSucceedsWhenTheStoredLocaleMatchesTheRequest(): void
+    {
+        // Non-régression : le contrôle de locale (R1) ne doit pas casser le cas nominal déjà couvert.
+        $stored = $this->seedStoredMovie(517, 'Same Locale', '2012-01-01', locale: 'en-US');
+
+        $provider = new FakeCatalogProvider();
+        $engine = new CatalogMatchEngine($provider, $this->externalMedia);
+        $result = $engine->resolve($this->matchRequest('Same Locale', 2012, 'en-US'));
+
+        self::assertSame('matched', $result->status);
+        self::assertSame($stored, $result->externalId);
+        self::assertSame('postgresql-exact-title-year', $result->method);
+        self::assertSame(0, $provider->searchCalls);
+    }
+
+    // --- T28 review R3 : le chemin backend-first série n'était couvert par aucun test de succès ----
+
+    public function testStrictBackendMatchAvoidsProviderEntirelyForSeries(): void
+    {
+        $stored = $this->seedStoredSeries(601, 'Backend Series Exact', '2020-09-01');
+
+        $provider = new FakeCatalogProvider();
+        $engine = new CatalogMatchEngine($provider, $this->externalMedia);
+        $result = $engine->resolve($this->seriesMatchRequest('Backend Series Exact', 2020));
+
+        self::assertSame('matched', $result->status);
+        self::assertSame($stored, $result->externalId);
+        self::assertSame('postgresql-exact-title-year', $result->method);
+        self::assertSame(0, $provider->searchCalls);
+        self::assertSame(0, $provider->hydrateCalls);
+    }
+
+    public function testStrictBackendMatchFallsBackToAlternativeTitleForSeries(): void
+    {
+        $stored = $this->seedStoredSeries(602, 'Original Series Name', '2019-01-01', alternativeTitles: ['Alt Series Match']);
+
+        $provider = new FakeCatalogProvider();
+        $engine = new CatalogMatchEngine($provider, $this->externalMedia);
+        $result = $engine->resolve($this->seriesMatchRequest('Alt Series Match', 2019));
+
+        self::assertSame('matched', $result->status);
+        self::assertSame($stored, $result->externalId);
+        self::assertSame('postgresql-alternative-title-year', $result->method);
+        self::assertSame(0, $provider->searchCalls);
+    }
+
+    public function testTmdbSearchResultAlreadyHydratedSkipsHydrateCallForSeries(): void
+    {
+        $stored = $this->seedStoredSeries(603, 'Previously Consolidated Series', '2018-01-01');
+
+        $provider = new FakeCatalogProvider();
+        $provider->candidates = [new CatalogMatchCandidate(603, 'Different IPTV Series Wording', 'Previously Consolidated Series', 2018, [])];
+
+        $engine = new CatalogMatchEngine($provider, $this->externalMedia);
+        $result = $engine->resolve($this->seriesMatchRequest('Different IPTV Series Wording', 2018));
+
+        self::assertSame('matched', $result->status);
+        self::assertSame($stored, $result->externalId);
+        self::assertSame('tmdb-first-result-existing', $result->method);
+        self::assertSame(1, $provider->searchCalls);
+        self::assertSame(0, $provider->hydrateCalls, 'a series tmdbId already hydrated in PostgreSQL must not trigger a detail call');
+    }
+
     /** @param list<string> $alternativeTitles */
-    private function seedStoredMovie(int $tmdbId, string $title, string $releaseDate, array $alternativeTitles = []): string
+    private function seedStoredMovie(int $tmdbId, string $title, string $releaseDate, array $alternativeTitles = [], string $locale = 'fr-FR'): string
     {
         $externalId = $this->externalMedia->findOrCreateForTmdb('movie', $tmdbId);
         $this->externalMedia->persistMovie($externalId, [
             ...$this->movie($title, $releaseDate),
             'alternativeTitles' => $alternativeTitles,
-        ]);
+        ], $locale);
         return $externalId;
     }
 
-    private function matchRequest(string $title, ?int $year): CatalogMatchRequest
+    /** @param list<string> $alternativeTitles */
+    private function seedStoredSeries(int $tmdbId, string $name, string $firstAirDate, array $alternativeTitles = [], string $locale = 'fr-FR'): string
     {
-        return new CatalogMatchRequest('movie', $title, $year, 'fr-FR', new CatalogMatchHints());
+        $externalId = $this->externalMedia->findOrCreateForTmdb('series', $tmdbId);
+        $this->externalMedia->persistSeries($externalId, [
+            ...$this->series($name, $firstAirDate),
+            'alternativeTitles' => $alternativeTitles,
+        ], $locale);
+        return $externalId;
+    }
+
+    private function matchRequest(string $title, ?int $year, string $locale = 'fr-FR'): CatalogMatchRequest
+    {
+        return new CatalogMatchRequest('movie', $title, $year, $locale, new CatalogMatchHints());
+    }
+
+    private function seriesMatchRequest(string $title, ?int $year, string $locale = 'fr-FR'): CatalogMatchRequest
+    {
+        return new CatalogMatchRequest('series', $title, $year, $locale, new CatalogMatchHints());
     }
 
     /** @return array<string, mixed> */
@@ -386,6 +501,19 @@ final class CatalogMatchEngineTest extends IntegrationTestCase
             'ageRating' => null, 'adult' => false, 'status' => 'Released', 'tagline' => null, 'voteAverage' => null,
             'voteCount' => null, 'genres' => [], 'originCountries' => [], 'keywords' => [], 'alternativeTitles' => [],
             'recommendations' => [], 'videos' => [],
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function series(string $name, string $firstAirDate): array
+    {
+        return [
+            'name' => $name, 'originalName' => $name, 'originalLanguage' => 'en', 'overview' => null,
+            'posterPath' => null, 'backdropPath' => null, 'firstAirDate' => $firstAirDate, 'lastAirDate' => null,
+            'numberOfEpisodes' => 10, 'numberOfSeasons' => 1, 'inProduction' => false, 'nextEpisodeToAir' => null,
+            'ageRating' => null, 'adult' => false, 'status' => 'Ended', 'tagline' => null, 'voteAverage' => null,
+            'voteCount' => null, 'episodeRunTimes' => [], 'genres' => [], 'originCountries' => [], 'keywords' => [],
+            'alternativeTitles' => [], 'recommendations' => [], 'videos' => [],
         ];
     }
 }
