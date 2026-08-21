@@ -13,6 +13,9 @@ import com.cstv.app.domain.model.SubtitleBackground
 import com.cstv.app.domain.model.SubtitleStyle
 import com.cstv.app.domain.model.SubtitleTextColor
 import com.cstv.app.domain.model.SubtitleTextSize
+import com.cstv.app.domain.model.ExternalMetadataCoverage
+import com.cstv.app.domain.model.ExternalMetadataCoverageByKind
+import com.cstv.app.domain.model.coveragePercent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -302,6 +305,8 @@ private fun TvSettingsLayout(
             onLogout = onLogout
         )
 
+        TvExternalMetadataCoverageCard(coverage = state.externalMetadataCoverage)
+
         Spacer(modifier = Modifier.height(16.dp))
     }
 }
@@ -579,6 +584,8 @@ private fun MobileSettingsLayout(
             onCstvLogout = onCstvLogout,
             onLogout = onLogout
         )
+
+        MobileExternalMetadataCoverageCard(coverage = state.externalMetadataCoverage)
 
         Spacer(modifier = Modifier.height(24.dp))
     }
@@ -1516,4 +1523,228 @@ private fun DiagnosticLogsDialog(
         containerColor = Color(0xFF1E1E24),
         shape = RoundedCornerShape(12.dp)
     )
+}
+
+/**
+ * F46 §8.9 : une décimale maximum, `100 %` sans décimale. `Locale.FRANCE` pour la virgule
+ * décimale — cohérent avec le reste des libellés français de l'écran.
+ */
+private fun formatCoveragePercent(percent: Double): String {
+    val rounded = kotlin.math.round(percent * 10.0) / 10.0
+    return if (rounded == rounded.toInt().toDouble()) {
+        "${rounded.toInt()} %"
+    } else {
+        String.format(java.util.Locale.FRANCE, "%.1f %%", rounded)
+    }
+}
+
+/**
+ * F46 §9.2 : composable purement déclaratif — aucune logique SQL ou de matching ici. `coverage ==
+ * null` représente uniquement l'état initial avant la première émission Room (§8.7), rendu comme
+ * un état de chargement discret plutôt qu'un pourcentage trompeur.
+ */
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+private fun TvExternalMetadataCoverageCard(coverage: ExternalMetadataCoverage?) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = Surface3),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            TvText(
+                text = stringResource(R.string.settings_external_coverage_title_tv),
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.Bold,
+                style = TvTheme.typography.titleMedium
+            )
+
+            when {
+                coverage == null -> TvText(
+                    text = "…",
+                    color = Color.Gray,
+                    style = TvTheme.typography.bodySmall
+                )
+                coverage.total == 0 -> TvText(
+                    text = stringResource(R.string.settings_external_coverage_empty),
+                    color = Color.Gray,
+                    style = TvTheme.typography.bodySmall
+                )
+                else -> {
+                    val linkedPercent = coveragePercent(coverage.linked, coverage.total)
+                    val processedPercent = coveragePercent(coverage.processed, coverage.total)
+
+                    TvText(
+                        text = stringResource(
+                            R.string.settings_external_coverage_linked_percent,
+                            linkedPercent?.let { formatCoveragePercent(it) } ?: "—"
+                        ),
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        style = TvTheme.typography.titleSmall
+                    )
+                    TvText(
+                        text = stringResource(
+                            R.string.settings_external_coverage_linked_count,
+                            coverage.linked,
+                            coverage.total
+                        ),
+                        color = Color.Gray,
+                        style = TvTheme.typography.bodySmall
+                    )
+                    TvText(
+                        text = stringResource(
+                            R.string.settings_external_coverage_processed_percent,
+                            processedPercent?.let { formatCoveragePercent(it) } ?: "—"
+                        ),
+                        color = Color.White.copy(alpha = 0.85f),
+                        style = TvTheme.typography.bodySmall
+                    )
+
+                    HorizontalDivider(color = Color.White.copy(alpha = 0.12f))
+
+                    TvText(
+                        text = "${stringResource(R.string.settings_external_coverage_linked_label)}  ${coverage.linked}",
+                        color = Color.Gray,
+                        style = TvTheme.typography.bodySmall
+                    )
+                    TvText(
+                        text = "${stringResource(R.string.settings_external_coverage_unresolved_label)}  ${coverage.unresolved}",
+                        color = Color.Gray,
+                        style = TvTheme.typography.bodySmall
+                    )
+                    TvText(
+                        text = "${stringResource(R.string.settings_external_coverage_pending_label)}  ${coverage.pending}",
+                        color = Color.Gray,
+                        style = TvTheme.typography.bodySmall
+                    )
+
+                    HorizontalDivider(color = Color.White.copy(alpha = 0.12f))
+
+                    TvExternalMetadataCoverageByKindRow(stringResource(R.string.settings_external_coverage_movies_label), coverage.movies)
+                    TvExternalMetadataCoverageByKindRow(stringResource(R.string.settings_external_coverage_series_label), coverage.series)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TvExternalMetadataCoverageByKindRow(label: String, byKind: ExternalMetadataCoverageByKind) {
+    val text = if (byKind.total == 0) {
+        stringResource(R.string.settings_external_coverage_by_kind_row_empty, label)
+    } else {
+        val percent = coveragePercent(byKind.linked, byKind.total)
+        stringResource(
+            R.string.settings_external_coverage_by_kind_row,
+            label,
+            percent?.let { formatCoveragePercent(it) } ?: "—",
+            byKind.linked,
+            byKind.total
+        )
+    }
+    TvText(text = text, color = Color.Gray, style = TvTheme.typography.bodySmall)
+}
+
+/** Pendant mobile de [TvExternalMetadataCoverageCard]. */
+@Composable
+private fun MobileExternalMetadataCoverageCard(coverage: ExternalMetadataCoverage?) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = Surface3),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                text = stringResource(R.string.settings_external_coverage_title_mobile),
+                color = Color.White,
+                fontWeight = FontWeight.Bold,
+                fontSize = 15.sp
+            )
+
+            when {
+                coverage == null -> Text(text = "…", color = Color.Gray, fontSize = 12.sp)
+                coverage.total == 0 -> Text(
+                    text = stringResource(R.string.settings_external_coverage_empty),
+                    color = Color.Gray,
+                    fontSize = 12.sp
+                )
+                else -> {
+                    val linkedPercent = coveragePercent(coverage.linked, coverage.total)
+                    val processedPercent = coveragePercent(coverage.processed, coverage.total)
+
+                    Text(
+                        text = stringResource(
+                            R.string.settings_external_coverage_linked_percent,
+                            linkedPercent?.let { formatCoveragePercent(it) } ?: "—"
+                        ),
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp
+                    )
+                    Text(
+                        text = stringResource(
+                            R.string.settings_external_coverage_linked_count,
+                            coverage.linked,
+                            coverage.total
+                        ),
+                        color = Color.Gray,
+                        fontSize = 12.sp
+                    )
+                    Text(
+                        text = stringResource(
+                            R.string.settings_external_coverage_processed_percent,
+                            processedPercent?.let { formatCoveragePercent(it) } ?: "—"
+                        ),
+                        color = Color.White.copy(alpha = 0.85f),
+                        fontSize = 12.sp
+                    )
+
+                    HorizontalDivider(color = Color.White.copy(alpha = 0.12f))
+
+                    Text(
+                        text = "${stringResource(R.string.settings_external_coverage_linked_label)}  ${coverage.linked}",
+                        color = Color.Gray,
+                        fontSize = 12.sp
+                    )
+                    Text(
+                        text = "${stringResource(R.string.settings_external_coverage_unresolved_label)}  ${coverage.unresolved}",
+                        color = Color.Gray,
+                        fontSize = 12.sp
+                    )
+                    Text(
+                        text = "${stringResource(R.string.settings_external_coverage_pending_label)}  ${coverage.pending}",
+                        color = Color.Gray,
+                        fontSize = 12.sp
+                    )
+
+                    HorizontalDivider(color = Color.White.copy(alpha = 0.12f))
+
+                    MobileExternalMetadataCoverageByKindRow(stringResource(R.string.settings_external_coverage_movies_label), coverage.movies)
+                    MobileExternalMetadataCoverageByKindRow(stringResource(R.string.settings_external_coverage_series_label), coverage.series)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MobileExternalMetadataCoverageByKindRow(label: String, byKind: ExternalMetadataCoverageByKind) {
+    val text = if (byKind.total == 0) {
+        stringResource(R.string.settings_external_coverage_by_kind_row_empty, label)
+    } else {
+        val percent = coveragePercent(byKind.linked, byKind.total)
+        stringResource(
+            R.string.settings_external_coverage_by_kind_row,
+            label,
+            percent?.let { formatCoveragePercent(it) } ?: "—",
+            byKind.linked,
+            byKind.total
+        )
+    }
+    Text(text = text, color = Color.Gray, fontSize = 12.sp)
 }

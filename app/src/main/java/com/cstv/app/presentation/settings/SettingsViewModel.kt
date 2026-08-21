@@ -12,6 +12,7 @@ import com.cstv.app.data.util.DiagnosticManager
 import com.cstv.app.data.worker.DatabaseSyncWorker
 import com.cstv.app.data.worker.SyncScheduling
 import com.cstv.app.domain.repository.CstvAuthRepository
+import com.cstv.app.domain.repository.ExternalMetadataRepository
 import com.cstv.app.domain.usecase.SignOutCstvUseCase
 import com.cstv.app.domain.sync.CloudSyncManager
 import com.cstv.app.domain.model.SubtitleBackground
@@ -36,7 +37,8 @@ class SettingsViewModel @Inject constructor(
     private val credentialsManager: CredentialsManager,
     private val signOutCstvUseCase: SignOutCstvUseCase,
     @ApplicationContext private val context: Context,
-    private val profileManager: ProfileManager
+    private val profileManager: ProfileManager,
+    private val externalMetadataRepository: ExternalMetadataRepository
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(SettingsState())
@@ -52,6 +54,13 @@ class SettingsViewModel @Inject constructor(
         observeForceSyncStatus()
         viewModelScope.launch {
             cloudSyncManager.status.collect { status -> _state.update { it.copy(cloudSyncStatus = status) } }
+        }
+        // F46 : purement observatoire — aucun matching n'est déclenché par la consultation des
+        // Paramètres. La collecte vit uniquement avec ce ViewModel (§8.6).
+        viewModelScope.launch {
+            externalMetadataRepository.observeCoverage().collect { coverage ->
+                _state.update { it.copy(externalMetadataCoverage = coverage) }
+            }
         }
     }
 

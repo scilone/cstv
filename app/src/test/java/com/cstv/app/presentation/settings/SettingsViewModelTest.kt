@@ -64,6 +64,9 @@ class SettingsViewModelTest {
     @Mock
     private lateinit var profileManager: ProfileManager
 
+    @Mock
+    private lateinit var externalMetadataRepository: com.cstv.app.domain.repository.ExternalMetadataRepository
+
     private lateinit var viewModel: SettingsViewModel
     private val testDispatcher = UnconfinedTestDispatcher()
 
@@ -85,6 +88,7 @@ class SettingsViewModelTest {
             Credentials(host = "http://panel.test", port = 80, username = "user42", password = "secret")
         )
         whenever(credentialsManager.getLastUserInfo()).thenReturn(null)
+        whenever(externalMetadataRepository.observeCoverage()).thenReturn(kotlinx.coroutines.flow.emptyFlow())
 
         viewModel = buildViewModel()
     }
@@ -97,7 +101,8 @@ class SettingsViewModelTest {
         credentialsManager,
         signOutCstvUseCase,
         context,
-        profileManager
+        profileManager,
+        externalMetadataRepository
     )
 
     @After
@@ -275,5 +280,42 @@ class SettingsViewModelTest {
         whenever(credentialsManager.getLastUserInfo()).thenReturn(null)
 
         assertNull(buildViewModel().state.value.iptvUsername)
+    }
+
+    @Test
+    fun `F46 externalMetadataCoverage is null before the first Room emission`() {
+        assertNull(viewModel.state.value.externalMetadataCoverage)
+    }
+
+    @Test
+    fun `F46 externalMetadataCoverage exposes the first emitted coverage`() {
+        val coverage = com.cstv.app.domain.model.ExternalMetadataCoverage(
+            total = 10, linked = 8, unresolved = 1,
+            movies = com.cstv.app.domain.model.ExternalMetadataCoverageByKind(6, 5, 1),
+            series = com.cstv.app.domain.model.ExternalMetadataCoverageByKind(4, 3, 0),
+        )
+        whenever(externalMetadataRepository.observeCoverage()).thenReturn(kotlinx.coroutines.flow.flowOf(coverage))
+
+        val fresh = buildViewModel()
+
+        assertEquals(coverage, fresh.state.value.externalMetadataCoverage)
+    }
+
+    @Test
+    fun `F46 externalMetadataCoverage updates are propagated as they are emitted`() {
+        val flow = kotlinx.coroutines.flow.MutableStateFlow(
+            com.cstv.app.domain.model.ExternalMetadataCoverage(
+                total = 10, linked = 5, unresolved = 0,
+                movies = com.cstv.app.domain.model.ExternalMetadataCoverageByKind(10, 5, 0),
+                series = com.cstv.app.domain.model.ExternalMetadataCoverageByKind(0, 0, 0),
+            )
+        )
+        whenever(externalMetadataRepository.observeCoverage()).thenReturn(flow)
+
+        val fresh = buildViewModel()
+        assertEquals(5, fresh.state.value.externalMetadataCoverage?.linked)
+
+        flow.value = flow.value.copy(linked = 9)
+        assertEquals(9, fresh.state.value.externalMetadataCoverage?.linked)
     }
 }

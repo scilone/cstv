@@ -21,11 +21,16 @@ import com.cstv.app.data.remote.dto.CatalogMatchBatchRequestDto
 import com.cstv.app.data.remote.dto.CatalogMatchRequestDto
 import com.cstv.app.data.remote.dto.CatalogMatchResponseDto
 import com.cstv.app.domain.model.ExternalMatchHints
+import com.cstv.app.domain.model.ExternalMetadataCoverage
+import com.cstv.app.domain.model.ExternalMetadataCoverageByKind
 import com.cstv.app.domain.model.ExternalMetadataMatch
 import com.cstv.app.domain.model.ExternalMetadataMatchRequest
 import com.cstv.app.domain.repository.ExternalMetadataRepository
 import com.cstv.app.domain.util.IsoInstant
 import com.cstv.app.domain.util.TimeProvider
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 
 class ExternalMetadataRepositoryImpl @Inject constructor(
@@ -233,6 +238,34 @@ class ExternalMetadataRepositoryImpl @Inject constructor(
 
     /** F45-R5 : `refreshAfter == null` (jamais hydraté avec fenêtre connue, ex. lignes créées avant ce correctif) compte comme stale — se corrige tout seul au prochain hit `allowRefresh`. */
     private fun isStale(refreshAfter: Long?): Boolean = refreshAfter == null || refreshAfter <= timeProvider.nowMillis()
+
+    /**
+     * F46 §8.5 : transforme la projection de persistance en modèle métier provider-neutral —
+     * `unresolved` se déduit de `processed - linked`, borné défensivement à `>= 0` (§9.5, données
+     * historiques incohérentes). Aucun appel [CstvCatalogApiService] dans ce flux.
+     */
+    override fun observeCoverage(): Flow<ExternalMetadataCoverage> =
+        dao.observeCoverage()
+            .map { projection ->
+                val movies = ExternalMetadataCoverageByKind(
+                    total = projection.movieTotal,
+                    linked = projection.movieLinked,
+                    unresolved = (projection.movieProcessed - projection.movieLinked).coerceAtLeast(0),
+                )
+                val series = ExternalMetadataCoverageByKind(
+                    total = projection.seriesTotal,
+                    linked = projection.seriesLinked,
+                    unresolved = (projection.seriesProcessed - projection.seriesLinked).coerceAtLeast(0),
+                )
+                ExternalMetadataCoverage(
+                    total = movies.total + series.total,
+                    linked = movies.linked + series.linked,
+                    unresolved = movies.unresolved + series.unresolved,
+                    movies = movies,
+                    series = series,
+                )
+            }
+            .distinctUntilChanged()
 
     companion object {
         /** §8.9/§6 : "UNRESOLVED ~1-7j", cooldown ajustable — retenu médian pour ne pas rescanner en boucle sans surexposer. */

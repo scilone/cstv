@@ -19,6 +19,7 @@ import com.cstv.app.data.remote.dto.CatalogEpisodeDto
 import com.cstv.app.domain.model.ExternalMatchHints
 import com.cstv.app.domain.model.ExternalMetadataMatchRequest
 import com.cstv.app.domain.util.TimeProvider
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -33,6 +34,7 @@ import org.mockito.kotlin.mock
 import org.mockito.kotlin.never
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
+import org.mockito.kotlin.verifyNoInteractions
 import org.mockito.kotlin.whenever
 
 class ExternalMetadataRepositoryImplTest {
@@ -298,5 +300,57 @@ class ExternalMetadataRepositoryImplTest {
         verify(api).season(externalId, 0, "tv")
         verify(api).season(externalId, 1, "tv")
         verify(dao, times(2)).persistSeason(any(), any())
+    }
+
+    @Test
+    fun `F46 observeCoverage maps the DAO projection into the domain model without any network call`() = runBlocking<Unit> {
+        val projection = com.cstv.app.data.local.dao.ExternalMetadataCoverageProjection(
+            movieTotal = 100, movieLinked = 80, movieProcessed = 90,
+            seriesTotal = 50, seriesLinked = 40, seriesProcessed = 45,
+        )
+        whenever(dao.observeCoverage()).thenReturn(kotlinx.coroutines.flow.flowOf(projection))
+
+        val coverage = repository.observeCoverage().first()
+
+        assertEquals(150, coverage.total)
+        assertEquals(120, coverage.linked)
+        assertEquals(15, coverage.unresolved) // (90-80) + (45-40)
+        assertEquals(135, coverage.processed)
+        assertEquals(15, coverage.pending)
+
+        assertEquals(100, coverage.movies.total)
+        assertEquals(80, coverage.movies.linked)
+        assertEquals(10, coverage.movies.unresolved)
+
+        assertEquals(50, coverage.series.total)
+        assertEquals(40, coverage.series.linked)
+        assertEquals(5, coverage.series.unresolved)
+
+        verifyNoInteractions(api)
+    }
+
+    @Test
+    fun `F46 observeCoverage defensively floors unresolved at zero on inconsistent counters`() = runBlocking<Unit> {
+        val projection = com.cstv.app.data.local.dao.ExternalMetadataCoverageProjection(
+            movieTotal = 10, movieLinked = 10, movieProcessed = 5, // processed < linked : incohérent
+            seriesTotal = 0, seriesLinked = 0, seriesProcessed = 0,
+        )
+        whenever(dao.observeCoverage()).thenReturn(kotlinx.coroutines.flow.flowOf(projection))
+
+        val coverage = repository.observeCoverage().first()
+
+        assertEquals(0, coverage.movies.unresolved)
+    }
+
+    @Test
+    fun `F46 observeCoverage represents an empty catalogue with total zero`() = runBlocking<Unit> {
+        val projection = com.cstv.app.data.local.dao.ExternalMetadataCoverageProjection(0, 0, 0, 0, 0, 0)
+        whenever(dao.observeCoverage()).thenReturn(kotlinx.coroutines.flow.flowOf(projection))
+
+        val coverage = repository.observeCoverage().first()
+
+        assertEquals(0, coverage.total)
+        assertEquals(0, coverage.processed)
+        assertEquals(0, coverage.pending)
     }
 }

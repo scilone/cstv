@@ -18,6 +18,7 @@ import com.cstv.app.data.local.entity.ExternalEpisodeRuntimeEntity
 import com.cstv.app.data.local.entity.ExternalAlternativeTitleEntity
 import com.cstv.app.data.local.entity.ExternalRecommendationEntity
 import com.cstv.app.data.local.entity.ExternalVideoEntity
+import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface ExternalMetadataDao {
@@ -189,7 +190,50 @@ interface ExternalMetadataDao {
             "ORDER BY seriesId LIMIT :limit",
     )
     suspend fun findSeriesMissingExternalMetadata(afterId: Int, now: Long, limit: Int): List<BackfillCandidate>
+
+    /**
+     * F46 §8.3 : projection agrégée unique de la couverture de l'enrichissement — jamais les lignes
+     * du catalogue en Kotlin (§8.10). Un média est lié si `externalId IS NOT NULL` ; traité s'il est
+     * lié ou si `lastMatchAttemptAt IS NOT NULL` (§8.4 : un `UNRESOLVED` compte, son `retryAfter` de
+     * cooldown n'est jamais utilisé ici). La jointure `INNER JOIN` sur `external_media_links` exclut
+     * naturellement les liens orphelins (§7.9, `providerId` disparu du catalogue local).
+     *
+     * `Flow` : Room invalide automatiquement sur toute écriture des trois tables source
+     * (`vod_streams`, `series_streams`, `external_media_links`) — aucun polling (§8.11).
+     */
+    @Query(COVERAGE_QUERY)
+    fun observeCoverage(): Flow<ExternalMetadataCoverageProjection>
 }
+
+private const val COVERAGE_QUERY = """
+    SELECT
+        (SELECT COUNT(*) FROM vod_streams) AS movieTotal,
+        (
+            SELECT COUNT(*)
+            FROM vod_streams v
+            JOIN external_media_links l ON l.kind = 'movie' AND l.providerId = v.streamId
+            WHERE l.externalId IS NOT NULL
+        ) AS movieLinked,
+        (
+            SELECT COUNT(*)
+            FROM vod_streams v
+            JOIN external_media_links l ON l.kind = 'movie' AND l.providerId = v.streamId
+            WHERE l.externalId IS NOT NULL OR l.lastMatchAttemptAt IS NOT NULL
+        ) AS movieProcessed,
+        (SELECT COUNT(*) FROM series_streams) AS seriesTotal,
+        (
+            SELECT COUNT(*)
+            FROM series_streams s
+            JOIN external_media_links l ON l.kind = 'series' AND l.providerId = s.seriesId
+            WHERE l.externalId IS NOT NULL
+        ) AS seriesLinked,
+        (
+            SELECT COUNT(*)
+            FROM series_streams s
+            JOIN external_media_links l ON l.kind = 'series' AND l.providerId = s.seriesId
+            WHERE l.externalId IS NOT NULL OR l.lastMatchAttemptAt IS NOT NULL
+        ) AS seriesProcessed
+"""
 
 /** Projection légère pour le backfill — jamais la ligne complète (titre/plot/...), juste de quoi mettre en file et dédupliquer. */
 data class BackfillCandidate(val providerId: Int, val linkKey: String)
@@ -202,6 +246,16 @@ data class LocalMatchProjection(
     val matchVersion: Int?,
     val ageRating: Int?,
     val refreshAfter: Long?,
+)
+
+/** F46 §8.3 : une seule ligne — voir [ExternalMetadataDao.observeCoverage]. */
+data class ExternalMetadataCoverageProjection(
+    val movieTotal: Int,
+    val movieLinked: Int,
+    val movieProcessed: Int,
+    val seriesTotal: Int,
+    val seriesLinked: Int,
+    val seriesProcessed: Int,
 )
 
 /**

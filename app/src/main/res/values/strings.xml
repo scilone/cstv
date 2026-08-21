@@ -257,6 +257,20 @@
     <string name="settings_account_logout_mobile">Se déconnecter</string>
     <string name="settings_manage_categories_tv">GÉRER LES CATÉGORIES</string>
     <string name="settings_manage_categories_mobile">Gérer les catégories</string>
+    <!-- F46 : carte « Enrichissement des médias » des Paramètres (TV + mobile) -->
+    <string name="settings_external_coverage_title_tv">ENRICHISSEMENT DES MÉDIAS</string>
+    <string name="settings_external_coverage_title_mobile">Enrichissement des médias</string>
+    <string name="settings_external_coverage_empty">Aucun média dans le catalogue</string>
+    <string name="settings_external_coverage_linked_percent">%1$s liés</string>
+    <string name="settings_external_coverage_linked_count">%1$d / %2$d médias</string>
+    <string name="settings_external_coverage_processed_percent">Traitement : %1$s</string>
+    <string name="settings_external_coverage_linked_label">Liés</string>
+    <string name="settings_external_coverage_unresolved_label">Non résolus</string>
+    <string name="settings_external_coverage_pending_label">À traiter</string>
+    <string name="settings_external_coverage_movies_label">Films</string>
+    <string name="settings_external_coverage_series_label">Séries</string>
+    <string name="settings_external_coverage_by_kind_row">%1$s   %2$s   %3$d / %4$d</string>
+    <string name="settings_external_coverage_by_kind_row_empty">%1$s   0 média</string>
     <string name="settings_sync_in_progress">SYNCHRONISATION...</string>
     <string name="settings_force_sync_now">FORCER LA MISE À JOUR MAINTENANT</string>
     <string name="settings_sync_in_progress_mobile">Synchronisation...</string>

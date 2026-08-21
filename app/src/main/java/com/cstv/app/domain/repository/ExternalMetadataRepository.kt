@@ -1,8 +1,10 @@
 package com.cstv.app.domain.repository
 
 import com.cstv.app.domain.model.ExternalMatchHints
+import com.cstv.app.domain.model.ExternalMetadataCoverage
 import com.cstv.app.domain.model.ExternalMetadataMatchRequest
 import com.cstv.app.domain.model.ExternalMetadataMatch
+import kotlinx.coroutines.flow.Flow
 
 interface ExternalMetadataRepository {
     /**
@@ -32,4 +34,11 @@ interface ExternalMetadataRepository {
 
     /** F45-R7 : uniquement après une demande `DETAIL_OPEN` d'une série, jamais pendant le backfill. */
     suspend fun hydrateSeriesSeasons(externalId: String)
+
+    /**
+     * F46 : état courant de la couverture de l'enrichissement du catalogue local (films/séries
+     * uniquement). Lecture Room pure, aucun appel réseau, jamais de matching déclenché par
+     * l'observation.
+     */
+    fun observeCoverage(): Flow<ExternalMetadataCoverage>
 }
