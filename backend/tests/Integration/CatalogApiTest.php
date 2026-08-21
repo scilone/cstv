@@ -13,6 +13,12 @@ final class CatalogApiTest extends IntegrationTestCase
     protected function setUp(): void
     {
         parent::setUp();
+        // T28 : `TestDatabase::reset()` ne vide pas les tables catalogue — nécessaire ici car le
+        // backend-first (§8.2) et la réutilisation par tmdbId (§8.3) lisent désormais `tmdb_movies`
+        // par titre/tmdbId ; ce double fournisseur hydrate systématiquement sous le titre "Dune" avec
+        // un tmdbId dérivé de l'année, donc deux tests utilisant la même année collisionnaient sans
+        // cet isolement.
+        $this->pdo->exec('TRUNCATE TABLE external_media, tmdb_media, tmdb_movies, tmdb_series RESTART IDENTITY CASCADE');
         $this->app = Bootstrap::createApp($this->config, $this->pdo, new class implements MediaMetadataProvider {
             public function trending(string $locale): array { return [['id' => 'movie:42', 'kind' => 'movie', 'title' => 'Dune', 'originalTitle' => 'Dune', 'releaseYear' => 2021, 'overview' => null, 'rating' => 8.0, 'posterUrl' => 'https://images.example/dune.jpg', 'backdropUrl' => null, 'ageRating' => null, 'ageRatingFr' => 12]]; }
             public function popular(string $kind, int $page, string $locale): array { return $this->trending($locale); }

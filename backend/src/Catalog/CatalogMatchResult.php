@@ -24,18 +24,6 @@ final readonly class CatalogMatchResult
         return new self('matched', $externalId, $confidence, $method, $version, $item);
     }
 
-    /**
-     * F45-R3 : un hit PostgreSQL-first est désormais scoré exactement comme un candidat fournisseur
-     * (titre/année/genres + seuil + marge, `CatalogMatchEngine::scoreInternalCandidate()`) — la
-     * confiance/méthode reflètent ce score réel plutôt qu'une valeur `85` fixe accordée à tout
-     * homonyme unique sans preuve.
-     * @param array<string, mixed> $item
-     */
-    public static function reused(string $externalId, int $confidence, string $method, int $version, array $item): self
-    {
-        return new self('matched', $externalId, $confidence, 'postgresql-first:' . $method, $version, $item);
-    }
-
     /** No candidate at all — the provider genuinely has nothing under that title (legacy status). */
     public static function notFound(int $version): self
     {

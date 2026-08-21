@@ -37,6 +37,62 @@ final readonly class ExternalMediaRepository
     }
 
     /**
+     * T28 §8.2 : chemin rapide déterministe (backend-first, pas de scoring) — un titre+année exact
+     * qui n'identifie qu'une seule œuvre consolidée. Passe 1 sur le titre normalisé ; passe 2, si la
+     * première échoue, sur le titre original/un titre alternatif. Chaque passe exige l'unicité
+     * (LIMIT 2 pour distinguer 1 candidat de 2+ sans jamais en tolérer plusieurs, R4).
+     *
+     * @return array{externalId: string, method: string}|null
+     */
+    public function findStrictConsolidatedMatch(string $kind, string $title, int $year): ?array
+    {
+        $externalId = $this->strictMatchByNormalizedTitle($kind, $title, $year);
+        if ($externalId !== null) return ['externalId' => $externalId, 'method' => 'postgresql-exact-title-year'];
+
+        $externalId = $this->strictMatchByAlternativeTitle($kind, $title, $year);
+        if ($externalId !== null) return ['externalId' => $externalId, 'method' => 'postgresql-alternative-title-year'];
+
+        return null;
+    }
+
+    /** T28 §8.2 passe 1 : `normalized_title` exact + année exacte (R2/R3). */
+    private function strictMatchByNormalizedTitle(string $kind, string $title, int $year): ?string
+    {
+        $normalized = TitleNormalizer::normalize($title);
+        if ($normalized === '') return null;
+        $table = $kind === 'movie' ? 'tmdb_movies' : 'tmdb_series';
+        $dateColumn = $kind === 'movie' ? 'release_date' : 'first_air_date';
+        $statement = $this->pdo->prepare(
+            "SELECT external_id::text FROM {$table} WHERE normalized_title = :normalized " .
+            "AND EXTRACT(YEAR FROM {$dateColumn}) = CAST(:year AS integer) LIMIT 2",
+        );
+        $statement->execute(['normalized' => $normalized, 'year' => $year]);
+        return self::soleMatch($statement->fetchAll(PDO::FETCH_COLUMN));
+    }
+
+    /** T28 §8.2 passe 2 : titre original ou titre alternatif exact (casse ignorée) + année exacte (R5). */
+    private function strictMatchByAlternativeTitle(string $kind, string $title, int $year): ?string
+    {
+        if (trim($title) === '') return null;
+        $table = $kind === 'movie' ? 'tmdb_movies' : 'tmdb_series';
+        $dateColumn = $kind === 'movie' ? 'release_date' : 'first_air_date';
+        $originalTitleColumn = $kind === 'movie' ? 'original_title' : 'original_name';
+        $statement = $this->pdo->prepare(
+            "SELECT external_id::text FROM {$table} WHERE EXTRACT(YEAR FROM {$dateColumn}) = CAST(:year AS integer) " .
+            "AND (LOWER({$originalTitleColumn}) = LOWER(:raw_title) " .
+            'OR EXISTS (SELECT 1 FROM unnest(alternative_titles) AS alt WHERE LOWER(alt) = LOWER(:raw_title))) LIMIT 2',
+        );
+        $statement->execute(['raw_title' => $title, 'year' => $year]);
+        return self::soleMatch($statement->fetchAll(PDO::FETCH_COLUMN));
+    }
+
+    /** @param list<mixed> $rows 0 ligne -> null ; 1 -> l'unique externalId ; 2+ -> null (ambigu, R4). */
+    private static function soleMatch(array $rows): ?string
+    {
+        return count($rows) === 1 ? (string) $rows[0] : null;
+    }
+
+    /**
      * F45-R3 : candidats bruts pour la résolution PostgreSQL-first (§8.6) — plus une décision. Le
      * SQL ne fait que rassembler ce qui *pourrait* correspondre (titre normalisé, titre original,
      * ou un titre alternatif, sans filtre année) ; `CatalogMatchEngine` score ensuite chaque ligne

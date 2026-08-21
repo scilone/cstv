@@ -7,10 +7,16 @@ namespace Cstv\Backend\Catalog;
 /**
  * F45 hotfix : TMDB ordonne déjà les résultats de recherche. CSTV hydrate donc le premier résultat
  * avec les seules données de matching utiles : type, titre et année.
+ *
+ * T28 §8.4 : le backend consolidé (PostgreSQL) devient la première source lorsqu'il possède déjà
+ * une correspondance sûre — titre+année exact et unique (§8.2). TMDB reste le fallback dès qu'aucune
+ * résolution backend stricte n'est possible, et conserve sa règle premier-résultat inchangée. Un
+ * `tmdbId` retourné par TMDB `/search` mais déjà hydraté en PostgreSQL est resservi sans appel
+ * `hydrate()` (§8.3) ; seule une identité connue sans fiche complète déclenche encore l'hydratation.
  */
 final readonly class CatalogMatchEngine
 {
-    public const ALGORITHM_VERSION = 2;
+    public const ALGORITHM_VERSION = 3;
 
     public function __construct(
         private MediaMetadataProvider $provider,
@@ -20,11 +26,27 @@ final readonly class CatalogMatchEngine
 
     public function resolve(CatalogMatchRequest $request): CatalogMatchResult
     {
+        $strict = $request->year !== null
+            ? $this->externalMedia->findStrictConsolidatedMatch($request->kind, $request->title, $request->year)
+            : null;
+        if ($strict !== null) {
+            $reused = $this->reuseStored($request->kind, $strict['externalId'], $strict['method']);
+            if ($reused !== null) return $reused;
+        }
+
         $candidates = $this->provider->searchCandidates($request->kind, $request->title, $request->year, $request->locale);
         if ($candidates === []) return CatalogMatchResult::notFound(self::ALGORITHM_VERSION);
 
         $candidate = $candidates[0];
-        $externalId = $this->externalMedia->findOrCreateForTmdb($request->kind, $candidate->tmdbId);
+        $existingId = $this->externalMedia->findByTmdb($request->kind, $candidate->tmdbId);
+        if ($existingId !== null) {
+            $reused = $this->reuseStored($request->kind, $existingId, 'tmdb-first-result-existing');
+            if ($reused !== null) return $reused;
+        }
+
+        // Identité déjà connue (`tmdb_media`) mais sans fiche `tmdb_movies`/`tmdb_series` (R6) : on la
+        // réutilise plutôt que d'en recréer une, mais l'hydratation reste nécessaire.
+        $externalId = $existingId ?? $this->externalMedia->findOrCreateForTmdb($request->kind, $candidate->tmdbId);
         $hydrated = $this->provider->hydrate($request->kind, $candidate->tmdbId, $request->locale);
         $hydrated['recommendations'] = array_map(
             fn (int $tmdbId): string => $this->externalMedia->findOrCreateForTmdb($request->kind, $tmdbId),
@@ -47,5 +69,17 @@ final readonly class CatalogMatchEngine
             self::ALGORITHM_VERSION,
             $this->presenter->present($request->kind, $externalId, $row),
         );
+    }
+
+    /**
+     * T28 §8.6/R6 : ne retourne un résultat que si la fiche complète (`tmdb_movies`/`tmdb_series`)
+     * existe déjà — une simple ligne `tmdb_media` ne suffit pas et laisse l'appelant hydrater.
+     */
+    private function reuseStored(string $kind, string $externalId, string $method): ?CatalogMatchResult
+    {
+        $row = $kind === 'movie' ? $this->externalMedia->getMovie($externalId) : $this->externalMedia->getSeries($externalId);
+        if ($row === null) return null;
+
+        return CatalogMatchResult::matched($externalId, 0, $method, self::ALGORITHM_VERSION, $this->presenter->present($kind, $externalId, $row));
     }
 }
