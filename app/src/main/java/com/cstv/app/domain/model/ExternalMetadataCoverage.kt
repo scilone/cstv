@@ -37,3 +37,17 @@ fun coveragePercent(part: Int, total: Int): Double? {
     if (total <= 0) return null
     return (part.toDouble() / total.toDouble() * 100.0).coerceIn(0.0, 100.0)
 }
+
+/**
+ * F46 §8.9 / F46-R3 : formatage de présentation, extrait de `SettingsScreen.kt` pour rester une
+ * fonction pure JVM-testable (aucune dépendance Compose). Une décimale maximum, `100 %` rendu
+ * sans décimale, virgule décimale française — cohérent avec le reste des libellés de l'écran.
+ */
+fun formatCoveragePercent(percent: Double): String {
+    val rounded = kotlin.math.round(percent * 10.0) / 10.0
+    return if (rounded == rounded.toInt().toDouble()) {
+        "${rounded.toInt()} %"
+    } else {
+        String.format(java.util.Locale.FRANCE, "%.1f %%", rounded)
+    }
+}

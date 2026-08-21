@@ -3,7 +3,7 @@
 ## Informations générales
 
 Status:
-IMPLEMENTED
+REVIEW
 
 Created:
 2026-08-21
@@ -1138,15 +1138,149 @@ Room ni index supplémentaire ajoutés.
 
 # 12. Review
 
-À compléter à l’étape 6.
+Revue technique du 2026-08-21 portant sur le commit d’implémentation
+`405ba30` : projection Room et requête SQL, mapping domaine, collecte dans
+`SettingsViewModel`, cartes Paramètres mobile/TV, ressources et tests F46.
+Aucun code de production ni test n’a été modifié pendant cette étape.
+
+Décision : **CHANGES REQUESTED**.
 
 ## Critique
 
+Aucun constat.
+
 ## Majeur
+
+### F46-R1 — La carte TV n’est pas consultable entièrement au D-pad
+
+**Description :** `TvSettingsLayout` repose sur une `Column.verticalScroll`
+(`SettingsScreen.kt:232-242`) dont le défilement TV est entraîné par les
+changements de focus. La carte F46 est ajoutée après `TvAccountsCard`
+(`SettingsScreen.kt:300-310`), qui contient les derniers contrôles focalisables
+de la page, tandis que `TvExternalMetadataCoverageCard` est volontairement non
+focalisable (`SettingsScreen.kt:1546-1632`). Une fois la dernière action de la
+carte Comptes focalisée, il n’existe donc aucune cible plus basse susceptible de
+faire défiler la colonne jusqu’au contenu F46.
+
+**Impact :** sur Android TV, la carte peut rester entièrement ou partiellement
+sous le bord de l’écran et ne peut pas être atteinte avec la seule télécommande.
+Le rendu ne satisfait pas les validations de la tâche 6 (« contenu lisible »,
+« pas de régression du scroll »), alors que la feature exige explicitement un
+affichage TV. Sur mobile, le même ordre place aussi une section informative
+après les actions de déconnexion, contrairement à la hiérarchie de la référence
+`docs/design-reference/screenshots/settings.png`, où l’action destructive clôt
+la page.
+
+**Correction attendue :** conserver la carte informative non focalisable mais
+la placer avant une section possédant une cible de focus plus basse, notamment
+avant la carte Comptes sur TV, afin que le passage au contrôle suivant l’amène
+dans la zone visible. Appliquer le même ordre sur mobile pour garder les actions
+de déconnexion en fin de page. Ajouter une vérification automatisée de l’ordre
+des sections si elle est réalisable sans introduire un harnais UI disproportionné.
 
 ## Mineur
 
+### F46-R2 — Les lignes Films/Séries n’indiquent pas ce que compte le ratio
+
+**Description :** la ressource
+`settings_external_coverage_by_kind_row` rend seulement
+`%1$s   %2$s   %3$d / %4$d` (`strings.xml:272`). Les deux composables l’utilisent
+telle quelle (`SettingsScreen.kt:1635-1648` et `1736-1749`). La décision produit
+de l’étape 2 et le parcours §7.2 demandent pourtant un compteur `liés / total`
+pour chaque type.
+
+**Impact :** contrairement au compteur global explicitement précédé de
+« liés », le ratio par type est ambigu et peut être lu comme un compteur de
+médias traités ou présents. L’écran perd une partie de la clarté recherchée par
+F46.
+
+**Correction attendue :** rendre explicitement la sémantique du ratio dans la
+ressource, par exemple `N / N liés`, avec une formulation française cohérente
+pour Films et Séries.
+
+### F46-R3 — Les tests ne couvrent pas la logique de rendu annoncée
+
+**Description :** `formatCoveragePercent` est une fonction privée de
+`SettingsScreen.kt:1532-1539` sans test direct. Les tests domaine valident le
+calcul brut du pourcentage, mais pas son arrondi/format français, et les tests
+ViewModel ne rendent aucune des deux cartes. Les notes d’implémentation affirment
+pourtant que les scénarios 80 %/100 %, 80 %/90 %, Films 100 %/Séries 50 % et
+type absent sont couverts au niveau domaine/ViewModel ; aucun test n’en vérifie
+les libellés ou la représentation. F46-R2 illustre précisément ce que cette
+couverture laisse passer.
+
+**Impact :** une régression de l’arrondi, du catalogue vide, du type absent ou
+de la sémantique des ratios mobile/TV peut passer avec toute la suite JVM verte.
+La validation annoncée pour la tâche 7 est donc plus large que la preuve
+automatisée réelle.
+
+**Correction attendue :** extraire au minimum le formatage du pourcentage dans
+une fonction pure JVM-testable et couvrir les cas déclarés par la tâche 7. Si
+aucun test Compose n’est ajouté, documenter honnêtement que le rendu et les
+libellés mobile/TV restent vérifiés statiquement, sans les présenter comme
+couverts par les tests domaine/ViewModel.
+
+## Vérifications effectuées
+
+- La requête agrégée compte uniquement `vod_streams` et `series_streams`, joint
+  les liens par `(kind, providerId)`, ignore les liens orphelins et distingue
+  correctement `linked` de `processed` sans utiliser `retryAfter` ni la file.
+- Le repository ne matérialise aucune liste de catalogue, n’effectue aucun appel
+  réseau dans `observeCoverage()` et borne les compteurs dérivés.
+- Le Flow Room dépend bien des trois tables attendues et le ViewModel ne crée ni
+  polling, ni worker, ni action de matching.
+- Le catalogue vide et le type absent évitent la division par zéro dans le code
+  de rendu ; les chaînes principales F46 proviennent des ressources Android.
+- La carte Material 3 utilisée côté TV ne porte ni `clickable`, ni action : elle
+  ne capture pas le focus, conformément au ticket. Le problème F46-R1 porte sur
+  son accessibilité par le défilement, pas sur une capture de focus.
+- La suite `./gradlew testDebugUnitTest` est consignée verte dans les notes de
+  l’étape 5. Elle n’a pas été relancée à cette étape documentaire et aucun
+  résultat `assembleDebug`/`lintDebug` n’est revendiqué pour la review.
+
+## Limites de la review
+
+- L’accessibilité D-pad de F46-R1 est établie par la structure statique du
+  scroll et des cibles de focus ; aucun test sur appareil ou émulateur n’est
+  inclus dans les critères de validation du projet.
+- La lisibilité à distance et le rendu pixel des nouvelles cartes n’ont pas de
+  preuve UI automatisée dans l’infrastructure actuelle.
+
 ## Corrections demandées
+
+- Corriger F46-R1, F46-R2 et F46-R3 à l’étape 7 avant toute validation finale.
+
+## Corrections apportées (étape 7)
+
+- **F46-R1** : sur `TvSettingsLayout` et `MobileSettingsLayout`
+  (`SettingsScreen.kt`), `TvExternalMetadataCoverageCard`/
+  `MobileExternalMetadataCoverageCard` sont désormais placées **avant** la
+  carte Comptes (`TvAccountsCard`/`MobileAccountsCard`) au lieu d’être en toute
+  dernière position. La carte informative reste non focalisable ; c’est
+  maintenant la carte Comptes, focalisable, qui referme la page et entraîne le
+  défilement TV jusqu’en bas. Même ordre appliqué sur mobile pour garder les
+  actions de déconnexion en fin de page, conforme à
+  `docs/design-reference/screenshots/settings.png`.
+- **F46-R2** : la ressource `settings_external_coverage_by_kind_row`
+  (`strings.xml`) rend désormais `%1$s   %2$s   %3$d / %4$d liés` — le ratio
+  par type explicite sa sémantique, cohérent avec le compteur global déjà
+  précédé de « liés ».
+- **F46-R3** : `formatCoveragePercent` a été extraite de `SettingsScreen.kt`
+  (composable, privée, non testable) vers
+  `domain/model/ExternalMetadataCoverage.kt` comme fonction pure JVM-testable ;
+  `SettingsScreen.kt` l’importe désormais depuis le domaine. Tests ajoutés dans
+  `ExternalMetadataCoverageTest` : arrondi à une décimale, `100 %`/`0 %` sans
+  décimale, virgule française, et les scénarios de la tâche 7 (100 %/100 %,
+  80 %/100 %, 80 %/90 %, films 100 % / séries 50 %, type absent, catalogue
+  vide) recomposés via `coveragePercent` + `formatCoveragePercent`. Écart
+  assumé inchangé : le rendu Compose (libellés à l’écran mobile/TV) reste
+  vérifié statiquement, faute de harnais de test Compose dans le projet — ce
+  n’est plus présenté comme couvert par les tests domaine/ViewModel au-delà de
+  ce qu’ils couvrent réellement.
+
+`./gradlew testDebugUnitTest --rerun-tasks` (ciblé sur
+`ExternalMetadataCoverageTest` et `SettingsViewModelTest`) et
+`./gradlew assembleDebug` : verts (build local du 2026-08-21).
 
 ---
 

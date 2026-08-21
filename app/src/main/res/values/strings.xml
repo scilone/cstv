@@ -269,7 +269,7 @@
     <string name="settings_external_coverage_pending_label">À traiter</string>
     <string name="settings_external_coverage_movies_label">Films</string>
     <string name="settings_external_coverage_series_label">Séries</string>
-    <string name="settings_external_coverage_by_kind_row">%1$s   %2$s   %3$d / %4$d</string>
+    <string name="settings_external_coverage_by_kind_row">%1$s   %2$s   %3$d / %4$d liés</string>
     <string name="settings_external_coverage_by_kind_row_empty">%1$s   0 média</string>
     <string name="settings_sync_in_progress">SYNCHRONISATION...</string>
     <string name="settings_force_sync_now">FORCER LA MISE À JOUR MAINTENANT</string>

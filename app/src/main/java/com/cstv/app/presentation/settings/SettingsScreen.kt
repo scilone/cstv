@@ -16,6 +16,7 @@ import com.cstv.app.domain.model.SubtitleTextSize
 import com.cstv.app.domain.model.ExternalMetadataCoverage
 import com.cstv.app.domain.model.ExternalMetadataCoverageByKind
 import com.cstv.app.domain.model.coveragePercent
+import com.cstv.app.domain.model.formatCoveragePercent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -297,6 +298,13 @@ private fun TvSettingsLayout(
             onCheckForUpdate = onCheckForUpdate
         )
 
+        // F46-R1 : carte informative non focalisable placée avant la carte
+        // Comptes, qui porte les derniers contrôles focalisables de l'écran.
+        // Le défilement TV étant entraîné par le focus, une carte non
+        // focalisable placée après le dernier contrôle ne serait jamais
+        // atteignable au D-pad.
+        TvExternalMetadataCoverageCard(coverage = state.externalMetadataCoverage)
+
         TvAccountsCard(
             iptvUsername = state.iptvUsername,
             cstvEmail = cstvEmail,
@@ -304,8 +312,6 @@ private fun TvSettingsLayout(
             onCstvLogout = onCstvLogout,
             onLogout = onLogout
         )
-
-        TvExternalMetadataCoverageCard(coverage = state.externalMetadataCoverage)
 
         Spacer(modifier = Modifier.height(16.dp))
     }
@@ -577,6 +583,11 @@ private fun MobileSettingsLayout(
             onCheckForUpdate = onCheckForUpdate
         )
 
+        // F46-R1 : carte informative placée avant la carte Comptes afin de
+        // garder les actions de déconnexion en fin de page, cohérent avec
+        // `docs/design-reference/screenshots/settings.png`.
+        MobileExternalMetadataCoverageCard(coverage = state.externalMetadataCoverage)
+
         MobileAccountsCard(
             iptvUsername = state.iptvUsername,
             cstvEmail = cstvEmail,
@@ -584,8 +595,6 @@ private fun MobileSettingsLayout(
             onCstvLogout = onCstvLogout,
             onLogout = onLogout
         )
-
-        MobileExternalMetadataCoverageCard(coverage = state.externalMetadataCoverage)
 
         Spacer(modifier = Modifier.height(24.dp))
     }
@@ -1523,19 +1532,6 @@ private fun DiagnosticLogsDialog(
         containerColor = Color(0xFF1E1E24),
         shape = RoundedCornerShape(12.dp)
     )
-}
-
-/**
- * F46 §8.9 : une décimale maximum, `100 %` sans décimale. `Locale.FRANCE` pour la virgule
- * décimale — cohérent avec le reste des libellés français de l'écran.
- */
-private fun formatCoveragePercent(percent: Double): String {
-    val rounded = kotlin.math.round(percent * 10.0) / 10.0
-    return if (rounded == rounded.toInt().toDouble()) {
-        "${rounded.toInt()} %"
-    } else {
-        String.format(java.util.Locale.FRANCE, "%.1f %%", rounded)
-    }
 }
 
 /**
