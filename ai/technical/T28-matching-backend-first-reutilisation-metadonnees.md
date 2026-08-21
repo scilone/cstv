@@ -3,7 +3,7 @@
 ## Informations générales
 
 Status:
-FIXES
+VALIDATED
 
 Created:
 2026-08-21
@@ -1150,12 +1150,127 @@ existant avec une assertion garantissant zéro appel moteur/provider.
 - [x] R3 — Ajouter les tests backend-first spécifiques aux séries.
 - [x] R4 — Compléter la validation du scénario cache de la Tâche 8.
 
+## Validation finale (étape 8)
+
+Validation effectuée le 2026-08-21 sur `main`, après le commit de corrections
+`dda94cae357dfc2235a49cf3fc1be8ca6756bcfd`.
+
+Verdict:
+VALIDATED
+
+### Comportement attendu
+
+- Le cache de match reste le premier niveau et court-circuite le moteur lorsqu'il est frais.
+- Le backend-first ne réutilise une œuvre que sur `kind` + titre exact + année exacte + locale
+  compatible + unicité.
+- Une ambiguïté, une année absente/différente ou une locale incompatible retombe sur TMDB.
+- Après `/search`, un `tmdbId` déjà hydraté dans la bonne locale évite `hydrate()`.
+- Une identité seule, ou une fiche hydratée dans une autre locale, est réhydratée sans recréer
+  l'`externalId`.
+- Le fallback TMDB conserve la règle du premier résultat.
+- Le rate limit TMDB n'est pas augmenté par T28.
+
+Résultat:
+CONFORME.
+
+### Règles métier et compatibilité
+
+- La frontière `movie` / `series` est conservée.
+- Les homonymes ne sont jamais acceptés silencieusement par la fast lane.
+- Les titres originaux/alternatifs restent soumis à année exacte et unicité.
+- Les données stale ne déclenchent pas de refresh opportuniste dans T28.
+- Le contrat HTTP reste inchangé.
+- L'application Android reste provider-neutral et ne connaît toujours que les `externalId` CSTV.
+- Aucun changement UI n'est introduit.
+
+Résultat:
+CONFORME.
+
+### Qualité technique et performances
+
+- `ALGORITHM_VERSION = 3` isole les nouvelles clés de cache de matching.
+- La locale d'hydratation est mémorisée dans `tmdb_media.locale`.
+- Les anciennes lignes à locale inconnue sont traitées de manière conservative : elles sont
+  réhydratées avant réutilisation.
+- La passe titre original/alternatif est désormais indexable via index d'expression et GIN.
+- Le benchmark documenté sur 30 000 lignes passe d'un `Seq Scan` à un `Bitmap Heap Scan` et réduit
+  le coût observé de 5.3 ms / 1220 buffers à 1.6 ms / 212 buffers.
+- Aucune dépendance externe supplémentaire n'est ajoutée.
+
+Résultat:
+CONFORME.
+
+### Absence de régression et tests
+
+La correction d'étape 7 documente :
+
+```text
+249 tests
+1149 assertions
+ordre fixe : vert
+--order-by=random : vert
+```
+
+La couverture spécifique T28 comprend désormais :
+
+- backend-first film : titre exact, année, ambiguïté, titre alternatif, frontière de type ;
+- backend-first série : titre exact, titre alternatif et réutilisation après `/search` ;
+- locale : `fr-FR` / `en-US`, mismatch et cas nominal ;
+- `tmdbId` hydraté : `search = 1`, `hydrate = 0` ;
+- identité seule : hydratation conservée ;
+- cache de match frais : aucun nouvel appel provider ;
+- migration 013 incluse dans le test d'idempotence des migrations.
+
+Pour le scénario cache, le test HTTP vérifie l'absence de nouvel appel provider et
+`CatalogService::resolve()` garantit par lecture du code qu'un cache frais retourne avant
+l'exécution de `$load()` ; le moteur n'est donc pas exécuté sur ce chemin.
+
+Résultat:
+CONFORME.
+
+### Conclusion
+
+T28 répond au besoin initial et ne présente plus de correction bloquante issue de la review.
+
+Le ticket peut passer à l'étape 9 — documentation.
+
+T29 peut désormais être développé sur la base de T28.
+
 ---
 
 # 13. Release
 
 Version:
+v1.92.0
 
 Commit:
+dda94ca
 
 Date:
+2026-08-21
+
+Notes:
+
+T28 complète la convergence initiale sur la consolidation des métadonnées (F45, T22) en réintroduisant
+une résolution PostgreSQL-first stricte pour réduire les appels TMDB. Le ticket vise deux optimisations
+principales :
+
+1. **Backend-first strict** : résolution directe sur les médias déjà hydratés dans PostgreSQL sans
+   ambiguïté (kind + titre + année + unicité + locale compatible).
+
+2. **Réutilisation après `/search` TMDB** : si le `tmdbId` retourné par TMDB possède déjà une fiche
+   complète en PostgreSQL dans la locale demandée, la fiche stockée est utilisée directement sans
+   nouvel appel de détail.
+
+Le ticket conserve le fallback TMDB pour tous les cas ambigus et maintient le rate limit existant.
+
+Impacts mesurables :
+
+- Hit PostgreSQL exact → 0 appel TMDB.
+- Search + fiche déjà hydratée → 1 appel (search seul, pas hydrate).
+- Média totalement inconnu → comportement inchangé.
+
+La couverture de test inclut les chemins film et série, les scénarios locale `fr-FR` / `en-US`,
+le cache de match, et les performances mesurées sur un benchmark représentatif.
+
+T29 peut désormais être développé en parallèle pour traiter le débit batch et les quotas fournisseur.
