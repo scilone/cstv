@@ -38,6 +38,28 @@ final readonly class CatalogAction
         return $this->respond($response, $this->service->match($matchRequest, $accountId, ClientIp::rateLimitKey(is_string($ip) ? $ip : '0.0.0.0'), $this->device($request)));
     }
 
+    public function matchBatch(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
+    {
+        if (strtolower(trim(explode(';', $request->getHeaderLine('Content-Type'), 2)[0])) !== 'application/json') throw new ApiException(415, 'UNSUPPORTED_MEDIA_TYPE', 'Content-Type must be application/json.');
+        $body = Json::body($request);
+        $items = $body['items'] ?? null;
+        if (!is_array($items) || $items === [] || count($items) > 50) throw new ApiException(422, 'INVALID_CATALOG_BATCH', 'items must contain between 1 and 50 matches.');
+        $account = $request->getAttribute('account');
+        $accountId = is_array($account) && is_string($account['id'] ?? null) ? $account['id'] : throw new ApiException(401, 'AUTHENTICATION_REQUIRED', 'A bearer access token is required.');
+        $ip = $request->getServerParams()['REMOTE_ADDR'] ?? '0.0.0.0';
+        $matches = [];
+        foreach ($items as $item) {
+            if (!is_array($item)) throw new ApiException(422, 'INVALID_CATALOG_BATCH', 'Each item must be an object.');
+            // Hints sent by APKs published before this hotfix are accepted but ignored.
+            $matches[] = new CatalogMatchRequest(
+                $this->kind($item['kind'] ?? null), $this->title($item['title'] ?? null),
+                $this->year($item['year'] ?? null), $this->locale($request, $item['locale'] ?? null),
+                new CatalogMatchHints(),
+            );
+        }
+        return $this->respond($response, $this->service->matchBatch($matches, $accountId, ClientIp::rateLimitKey(is_string($ip) ? $ip : '0.0.0.0'), $this->device($request)));
+    }
+
     public function videos(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
     {
         $id = $args['externalId'] ?? '';

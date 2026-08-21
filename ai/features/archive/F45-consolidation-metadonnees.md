@@ -1606,11 +1606,24 @@ Cette étape ne réalise ni commit, ni release, ni archivage.
 
 # 15. Release
 
+## 2026-08-21 — Hotfix de simplification et débit
+
+- Le contrat actif de matching envoie `kind`, `title` et `year` uniquement ; les `hints` des APK
+  antérieures restent tolérés côté backend et sont ignorés, donc aucun client déjà publié ne casse.
+- Le backend hydrate directement le premier résultat TMDB, sans score, passe de détails, marge ni
+  réutilisation PostgreSQL-first. La clé de cache est versionnée pour ne pas resservir l'ancien
+  résultat de scoring.
+- `POST /v1/catalog/matches/batch` accepte 1 à 50 médias. Le worker Android utilise des lots de
+  20, en conservant l'ordre de réponse, les erreurs individuelles et la persistance Room par média.
+- Le quota devient 120 médias/minute/compte et 240 médias/minute/IP, y compris pour chaque média
+  contenu dans un batch. Le client TMDB retente désormais jusqu'à deux fois après une erreur 429
+  ou transitoire, en respectant `Retry-After`, puis propage le statut et le délai restants.
+
 Version:
-v1.91.0
+v1.91.2
 
 Commit:
-✨ feat(catalog): consolidate external metadata (F45)
+À compléter à la livraison du hotfix.
 
 Date:
-2026-08-20
+2026-08-21

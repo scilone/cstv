@@ -129,6 +129,7 @@ final class Bootstrap
             $group->get('/catalog/trending', [$catalogAction, 'trending']);
             $group->get('/catalog/popular', [$catalogAction, 'popular']);
             $group->post('/catalog/matches', [$catalogAction, 'match']);
+            $group->post('/catalog/matches/batch', [$catalogAction, 'matchBatch']);
             $group->get('/catalog/items/{externalId}', [$catalogAction, 'item']);
             $group->get('/catalog/items/{externalId}/recommendations', [$catalogAction, 'recommendations']);
             $group->get('/catalog/items/{externalId}/videos', [$catalogAction, 'videos']);

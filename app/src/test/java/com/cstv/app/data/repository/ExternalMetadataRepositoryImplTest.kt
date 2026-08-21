@@ -9,6 +9,7 @@ import com.cstv.app.data.local.entity.ExternalSeriesEntity
 import com.cstv.app.data.remote.api.CstvCatalogApiService
 import com.cstv.app.data.remote.api.DeviceTypeProvider
 import com.cstv.app.data.remote.dto.CatalogCacheDto
+import com.cstv.app.data.remote.dto.CatalogMatchBatchResponseDto
 import com.cstv.app.data.remote.dto.CatalogItemDto
 import com.cstv.app.data.remote.dto.CatalogMatchQualityDto
 import com.cstv.app.data.remote.dto.CatalogMatchRequestDto
@@ -16,6 +17,7 @@ import com.cstv.app.data.remote.dto.CatalogMatchResponseDto
 import com.cstv.app.data.remote.dto.CatalogSeasonDto
 import com.cstv.app.data.remote.dto.CatalogEpisodeDto
 import com.cstv.app.domain.model.ExternalMatchHints
+import com.cstv.app.domain.model.ExternalMetadataMatchRequest
 import com.cstv.app.domain.util.TimeProvider
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -234,7 +236,7 @@ class ExternalMetadataRepositoryImplTest {
     }
 
     @Test
-    fun `hints are forwarded to the request and omitted entirely when empty`() = runBlocking<Unit> {
+    fun `matching requests only send kind title and year`() = runBlocking<Unit> {
         whenever(dao.findLocalMatch(any(), any())).thenReturn(null)
         whenever(api.match(any(), any())).thenReturn(CatalogMatchResponseDto(status = "unresolved", item = null))
         val request = argumentCaptor<CatalogMatchRequestDto>()
@@ -243,8 +245,36 @@ class ExternalMetadataRepositoryImplTest {
         repository.match("movie", 2, "No Hints", null, null, ExternalMatchHints())
         verify(api, times(2)).match(request.capture(), any())
 
-        assertEquals("John Carpenter", request.firstValue.hints?.director)
+        assertNull(request.firstValue.hints)
         assertNull(request.secondValue.hints)
+    }
+
+    @Test
+    fun `batch sends compact requests and preserves their response order`() = runBlocking<Unit> {
+        whenever(dao.findLocalMatch(any(), any())).thenReturn(null)
+        whenever(api.matchBatch(any(), eq("tv"))).thenReturn(
+            CatalogMatchBatchResponseDto(
+                items = listOf(
+                    CatalogMatchResponseDto(status = "matched", item = CatalogItemDto(externalId = "5e37ba2a-1cda-4faf-9f10-335b2f6556a7", kind = "movie", title = "First")),
+                    CatalogMatchResponseDto(status = "not_found"),
+                ),
+            ),
+        )
+
+        val result = repository.matchBatch(
+            listOf(
+                ExternalMetadataMatchRequest("movie", 1, "First", 2021, "first"),
+                ExternalMetadataMatchRequest("series", 2, "Missing", null, "missing"),
+            ),
+        )
+
+        assertEquals("5e37ba2a-1cda-4faf-9f10-335b2f6556a7", result[0]?.externalId)
+        assertNull(result[1])
+        val request = argumentCaptor<com.cstv.app.data.remote.dto.CatalogMatchBatchRequestDto>()
+        verify(api).matchBatch(request.capture(), eq("tv"))
+        assertEquals(listOf("First", "Missing"), request.firstValue.items.map { it.title })
+        assertEquals(listOf(2021, null), request.firstValue.items.map { it.year })
+        assertTrue(request.firstValue.items.all { it.hints == null })
     }
 
     @Test

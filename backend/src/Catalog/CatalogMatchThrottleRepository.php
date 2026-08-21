@@ -12,10 +12,12 @@ final readonly class CatalogMatchThrottleRepository
     public function __construct(private PDO $pdo) {}
     public function countForAccount(string $accountId, int $window): int { return $this->count('account_id = :key', $accountId, $window); }
     public function countForIp(string $ipKey, int $window): int { return $this->count('ip_key = :key', $ipKey, $window); }
-    public function record(string $accountId, string $ipKey): void
+    public function record(string $accountId, string $ipKey, int $count = 1): void
     {
         $statement = $this->pdo->prepare('INSERT INTO catalog_match_attempts (id, account_id, ip_key) VALUES (:id, :account, :ip)');
-        $statement->execute(['id' => Uuid::v4(), 'account' => $accountId, 'ip' => $ipKey]);
+        for ($index = 0; $index < $count; $index++) {
+            $statement->execute(['id' => Uuid::v4(), 'account' => $accountId, 'ip' => $ipKey]);
+        }
     }
     private function count(string $predicate, string $key, int $window): int
     {

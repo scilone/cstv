@@ -9,6 +9,17 @@ data class ExternalMatchHints(
     val youtubeTrailerKey: String? = null,
 )
 
+/** Internal queue input. Only kind, title and year leave the device for an F45 match. */
+data class ExternalMetadataMatchRequest(
+    val kind: String,
+    val providerId: Int,
+    val title: String,
+    val year: Int?,
+    val linkKey: String?,
+    val hints: ExternalMatchHints = ExternalMatchHints(),
+    val allowRefresh: Boolean = false,
+)
+
 /**
  * Résultat provider-neutral renvoyé par CSTV. Les IDs externes sont des chaînes UUID opaques.
  *

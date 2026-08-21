@@ -17,6 +17,8 @@ data class CatalogMatchRequestDto(
     val locale: String = "fr-FR",
     val hints: CatalogMatchHintsDto? = null,
 )
+data class CatalogMatchBatchRequestDto(val items: List<CatalogMatchRequestDto>)
+data class CatalogMatchBatchResponseDto(val items: List<CatalogMatchResponseDto>? = null)
 data class CatalogMatchQualityDto(val confidence: Int? = null, val method: String? = null, val version: Int? = null)
 data class CatalogMatchResponseDto(val status: String? = null, val match: CatalogMatchQualityDto? = null, val item: CatalogItemDto? = null, val cache: CatalogCacheDto? = null)
 data class CatalogVideosResponseDto(val items: List<CatalogVideoDto>? = null, val cache: CatalogCacheDto? = null)

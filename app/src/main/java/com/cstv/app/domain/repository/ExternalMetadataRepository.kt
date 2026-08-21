@@ -1,6 +1,7 @@
 package com.cstv.app.domain.repository
 
 import com.cstv.app.domain.model.ExternalMatchHints
+import com.cstv.app.domain.model.ExternalMetadataMatchRequest
 import com.cstv.app.domain.model.ExternalMetadataMatch
 
 interface ExternalMetadataRepository {
@@ -26,6 +27,8 @@ interface ExternalMetadataRepository {
         hints: ExternalMatchHints = ExternalMatchHints(),
         allowRefresh: Boolean = false,
     ): ExternalMetadataMatch?
+
+    suspend fun matchBatch(requests: List<ExternalMetadataMatchRequest>): List<ExternalMetadataMatch?>
 
     /** F45-R7 : uniquement après une demande `DETAIL_OPEN` d'une série, jamais pendant le backfill. */
     suspend fun hydrateSeriesSeasons(externalId: String)

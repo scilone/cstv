@@ -8,6 +8,7 @@ import com.cstv.app.data.local.entity.ExternalMediaLinkEntity
 import com.cstv.app.data.local.entity.VodStreamEntity
 import com.cstv.app.domain.model.ExternalMatchHints
 import com.cstv.app.domain.model.ExternalMetadataMatch
+import com.cstv.app.domain.model.ExternalMetadataMatchRequest
 import com.cstv.app.domain.repository.ExternalMetadataRepository
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -184,6 +185,30 @@ class ExternalMetadataHydrationWorkerTest {
     }
 
     @Test
+    fun `due requests are sent in one compact backend batch`() = runTest {
+        val dao: ExternalMetadataDao = mock()
+        val vodDao: VodDao = mock()
+        val seriesDao: SeriesDao = mock()
+        val repository: ExternalMetadataRepository = mock()
+        val first = ExternalHydrationRequestEntity("movie", 1, "MISSING_METADATA", 1, 1L, 1L, 0)
+        val second = ExternalHydrationRequestEntity("movie", 2, "MISSING_METADATA", 1, 1L, 1L, 0)
+        whenever(dao.nextRequests(any(), any())).thenReturn(listOf(first, second), emptyList())
+        whenever(vodDao.getStreamById(1)).thenReturn(vodRow(1, "batch-1"))
+        whenever(vodDao.getStreamById(2)).thenReturn(vodRow(2, "batch-2"))
+        whenever(repository.matchBatch(any())).thenReturn(listOf(null, null))
+
+        ExternalMetadataHydrationWorker.drainQueue(dao, vodDao, seriesDao, repository) { 1_000L }
+
+        val requests = argumentCaptor<List<ExternalMetadataMatchRequest>>()
+        verify(repository).matchBatch(requests.capture())
+        assertEquals(listOf(1, 2), requests.firstValue.map { it.providerId })
+        assertEquals(listOf("Dune", "Dune"), requests.firstValue.map { it.title })
+        assertTrue(requests.firstValue.all { it.allowRefresh == false })
+        verify(dao).deleteRequest("movie", 1)
+        verify(dao).deleteRequest("movie", 2)
+    }
+
+    @Test
     fun `nextWakeupDelayMillis is null when the queue is empty`() = runTest {
         // F45-R2 : rien à réveiller, le worker ne doit se reprogrammer sous aucune forme.
         val dao: ExternalMetadataDao = mock()
@@ -244,4 +269,3 @@ class ExternalMetadataHydrationWorkerTest {
         assertEquals(null, ExternalMetadataHydrationWorker.firstName(null))
     }
 }
-

@@ -6,6 +6,7 @@ namespace Cstv\Backend\Catalog;
 
 final readonly class TmdbClient
 {
+    private const MAX_ATTEMPTS = 3;
     /** @param null|\Closure(string, array<string, scalar>): array<string, mixed> $transport */
     public function __construct(private string $token, private ?\Closure $transport = null) {}
 
@@ -17,7 +18,7 @@ final readonly class TmdbClient
         if ($query !== []) $url .= '?' . http_build_query($query, '', '&', PHP_QUERY_RFC3986);
         $lastStatus = 503;
         $lastRetryAfter = null;
-        for ($attempt = 0; $attempt < 2; $attempt++) {
+        for ($attempt = 0; $attempt < self::MAX_ATTEMPTS; $attempt++) {
             $curl = curl_init($url);
             // F45-R8 : capture les en-têtes pour lire un éventuel `Retry-After` sur 429 — avant ce
             // correctif, le client retentait après un délai fixe de 100-250ms sans jamais consulter
@@ -38,7 +39,7 @@ final readonly class TmdbClient
             // curl_close() est un no-op depuis PHP 8.0 (déprécié en 8.5) : la référence CurlHandle
             // est libérée par le GC. L'appel injectait un warning brut dans le corps de la réponse
             // HTTP en prod (display_errors actif), rendant le JSON invalide côté client Android.
-            $lastStatus = $status >= 500 || $status === 429 || $error !== 0 ? 503 : 502;
+            $lastStatus = $status === 429 ? 429 : ($status >= 500 || $error !== 0 ? 503 : 502);
             if ($error === 0 && $status >= 200 && $status < 300 && is_string($body)) {
                 try {
                     $decoded = json_decode($body, true, 512, JSON_THROW_ON_ERROR);
@@ -49,7 +50,7 @@ final readonly class TmdbClient
                 throw new CatalogProviderException(502, 'Catalog provider returned an invalid response.');
             }
             if ($status === 429) $lastRetryAfter = self::parseRetryAfter($headerLines);
-            if (!($error !== 0 || $status === 429 || $status >= 500) || $attempt === 1) break;
+            if (!($error !== 0 || $status === 429 || $status >= 500) || $attempt === self::MAX_ATTEMPTS - 1) break;
             // `Retry-After` prime toujours (§8.16) ; borné à 5s pour ne jamais geler un worker
             // PHP-FPM sur une valeur agressive — au-delà, on abandonne cette tentative et laisse le
             // délai réel remonter via `CatalogProviderException::$retryAfterSeconds` au lieu d'attendre.

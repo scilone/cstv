@@ -17,10 +17,12 @@ import com.cstv.app.data.local.entity.ExternalEpisodeEntity
 import com.cstv.app.data.remote.api.CstvCatalogApiService
 import com.cstv.app.data.remote.api.DeviceTypeProvider
 import com.cstv.app.data.remote.dto.CatalogItemDto
-import com.cstv.app.data.remote.dto.CatalogMatchHintsDto
+import com.cstv.app.data.remote.dto.CatalogMatchBatchRequestDto
 import com.cstv.app.data.remote.dto.CatalogMatchRequestDto
+import com.cstv.app.data.remote.dto.CatalogMatchResponseDto
 import com.cstv.app.domain.model.ExternalMatchHints
 import com.cstv.app.domain.model.ExternalMetadataMatch
+import com.cstv.app.domain.model.ExternalMetadataMatchRequest
 import com.cstv.app.domain.repository.ExternalMetadataRepository
 import com.cstv.app.domain.util.IsoInstant
 import com.cstv.app.domain.util.TimeProvider
@@ -93,10 +95,37 @@ class ExternalMetadataRepositoryImpl @Inject constructor(
             }
         }
 
-        val response = api.match(
-            CatalogMatchRequestDto(kind = kind, title = title, year = year, hints = hints.toDto()),
-            deviceType.current(),
-        )
+        val response = api.match(CatalogMatchRequestDto(kind = kind, title = title, year = year), deviceType.current())
+        return persistNetworkMatch(kind, providerId, linkKey, response)
+    }
+
+    override suspend fun matchBatch(requests: List<ExternalMetadataMatchRequest>): List<ExternalMetadataMatch?> {
+        if (requests.isEmpty()) return emptyList()
+        val results = arrayOfNulls<ExternalMetadataMatch>(requests.size)
+        val remote = mutableListOf<Pair<Int, ExternalMetadataMatchRequest>>()
+        requests.forEachIndexed { index, request ->
+            val local = dao.findLocalMatch(request.kind, request.providerId)
+            if (local != null && (!request.allowRefresh || !isStale(local.refreshAfter))) {
+                results[index] = ExternalMetadataMatch(local.externalId, request.kind, local.confidence, local.matchMethod, local.matchVersion, local.ageRating, fromNetwork = false)
+            } else {
+                remote += index to request
+            }
+        }
+        if (remote.isNotEmpty()) {
+            val response = api.matchBatch(
+                CatalogMatchBatchRequestDto(remote.map { (_, request) -> CatalogMatchRequestDto(kind = request.kind, title = request.title, year = request.year) }),
+                deviceType.current(),
+            )
+            val items = response.items ?: throw IllegalStateException("Catalog match batch returned no items")
+            check(items.size == remote.size) { "Catalog match batch response size mismatch" }
+            remote.forEachIndexed { responseIndex, (requestIndex, request) ->
+                results[requestIndex] = persistNetworkMatch(request.kind, request.providerId, request.linkKey, items[responseIndex])
+            }
+        }
+        return results.toList()
+    }
+
+    private suspend fun persistNetworkMatch(kind: String, providerId: Int, linkKey: String?, response: CatalogMatchResponseDto): ExternalMetadataMatch? {
         val now = timeProvider.nowMillis()
         val item = response.item
         val externalId = item?.externalId
@@ -212,14 +241,4 @@ class ExternalMetadataRepositoryImpl @Inject constructor(
         private const val MAX_SEASONS_PER_DETAIL_OPEN = 100
     }
 
-    private fun ExternalMatchHints.toDto(): CatalogMatchHintsDto? {
-        if (director == null && actors.isEmpty() && genres.isEmpty() && runtimeMinutes == null && youtubeTrailerKey == null) return null
-        return CatalogMatchHintsDto(
-            director = director,
-            actors = actors.ifEmpty { null },
-            genres = genres.ifEmpty { null },
-            runtimeMinutes = runtimeMinutes,
-            youtubeTrailerKey = youtubeTrailerKey,
-        )
-    }
 }

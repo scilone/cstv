@@ -2,6 +2,12 @@
 
 ## À venir — non publiée
 
+### ⚡ Hotfix F45 — matching externe allégé
+* **Contrat compact et compatible** : les nouvelles versions envoient uniquement le type, le titre et l'année ; le backend accepte toujours les `hints` des APK déjà publiés, puis les ignore sans erreur.
+* **Premier résultat TMDB** : le matching hydrate directement le premier résultat retourné par TMDB, sans score multi-indices, deuxième passe ni désambiguïsation coûteuse.
+* **Batch de convergence** : la file d'hydratation envoie jusqu'à 20 médias par appel à `POST /v1/catalog/matches/batch`, tout en conservant un résultat/persistance par média.
+* **Débit et résilience** : quota porté à 120 médias/minute par compte et 240 par IP ; les réponses TMDB 429 sont retentées deux fois en respectant `Retry-After`, puis restent propagées au client.
+
 ### ✨ Consolidation progressive des métadonnées externes (F45)
 * **Identité CSTV indépendante du fournisseur** : films et séries enrichis portent désormais un `externalId` UUID opaque. L'application ne reçoit ni ne stocke d'identifiant TMDB ; les anciennes associations locales sont purgées à la migration puis reconstruites avec les UUID CSTV.
 * **Enrichissement silencieux et durable** : le backend mutualise matching, cache et limitation fournisseur. L'application conserve une copie Room relationnelle, hydrate une seule œuvre à la fois et ne bloque jamais l'ouverture d'une fiche ou la lecture IPTV.

@@ -17,6 +17,7 @@ import com.cstv.app.data.local.entity.ExternalMediaLinkEntity
 import com.cstv.app.di.IptvLog
 import com.cstv.app.domain.model.ExternalMatchHints
 import com.cstv.app.domain.model.ExternalMetadataMatch
+import com.cstv.app.domain.model.ExternalMetadataMatchRequest
 import com.cstv.app.domain.model.GenreParser
 import com.cstv.app.domain.model.HydrationReason
 import com.cstv.app.domain.repository.ExternalMetadataRepository
@@ -80,6 +81,7 @@ class ExternalMetadataHydrationWorker(appContext: Context, params: WorkerParamet
     companion object {
         private const val UNIQUE_WORK_NAME = "external_metadata_hydration"
         internal const val MAX_ITEMS_PER_RUN = 200
+        internal const val MAX_ITEMS_PER_BATCH = 20
 
         fun enqueue(context: Context) {
             WorkManager.getInstance(context).enqueueUniqueWork(UNIQUE_WORK_NAME, ExistingWorkPolicy.KEEP, build())
@@ -121,9 +123,53 @@ class ExternalMetadataHydrationWorker(appContext: Context, params: WorkerParamet
         ): Boolean {
             var processed = 0
             while (processed < MAX_ITEMS_PER_RUN) {
-                val request = dao.nextRequest(now()) ?: return false
-                processOne(request, dao, vodDao, seriesDao, repository, now())
-                processed++
+                // Mockito returns null for an unstubbed Kotlin collection despite the DAO contract;
+                // `orEmpty()` also makes a transient empty Room read explicit.
+                val requests = dao.nextRequests(now(), minOf(MAX_ITEMS_PER_BATCH, MAX_ITEMS_PER_RUN - processed)).orEmpty()
+                if (requests.isEmpty()) {
+                    // Défense contre une ligne retirée entre la lecture groupée et l'exécution :
+                    // le chemin unitaire conserve le traitement sans empêcher les lots normaux.
+                    val request = dao.nextRequest(now()) ?: return false
+                    processOne(request, dao, vodDao, seriesDao, repository, now())
+                    processed++
+                    continue
+                }
+                val active = requests.mapNotNull { request ->
+                    val source = source(request, vodDao, seriesDao)
+                    if (source == null) {
+                        dao.deleteRequest(request.kind, request.providerId)
+                        null
+                    } else {
+                        request to source
+                    }
+                }
+                if (active.isNotEmpty()) {
+                    try {
+                        val matches = repository.matchBatch(active.map { (request, source) ->
+                            ExternalMetadataMatchRequest(
+                                kind = request.kind, providerId = request.providerId, title = source.title, year = source.year,
+                                linkKey = source.linkKey, hints = source.hints,
+                                allowRefresh = request.priority == HydrationReason.DETAIL_OPEN.priority,
+                            )
+                        })
+                        check(matches.size == active.size) { "External metadata batch response size mismatch" }
+                        active.forEachIndexed { index, (request, source) ->
+                            val match = matches[index]
+                            dao.deleteRequest(request.kind, request.providerId)
+                            if (request.kind == "series" && request.priority == HydrationReason.DETAIL_OPEN.priority && match != null) {
+                                repository.hydrateSeriesSeasons(match.externalId)
+                            }
+                            if (match != null && match.fromNetwork) {
+                                propagateLinkKey(request.kind, request.providerId, source, match, dao, vodDao, seriesDao, now())
+                            }
+                        }
+                    } catch (exception: CancellationException) {
+                        throw exception
+                    } catch (exception: Exception) {
+                        active.forEach { (request, _) -> requeueWithBackoff(request, dao, now()) }
+                    }
+                }
+                processed += requests.size
             }
             return true
         }

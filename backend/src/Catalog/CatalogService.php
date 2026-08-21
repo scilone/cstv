@@ -31,18 +31,26 @@ final readonly class CatalogService
     /** @return array<string, mixed> */
     public function match(CatalogMatchRequest $request, string $accountId, string $ipKey, DeviceType $device): array
     {
-        $this->throttleMatch($accountId, $ipKey);
-        // Les hints font partie de la clé : de meilleurs indices ne doivent jamais rester bloqués
-        // derrière un ancien résultat moins bien informé (§7.11). `ALGORITHM_VERSION` invalide le
-        // cache dès que le scoring change (§8.6).
-        $hintsKey = hash('sha256', json_encode($request->hints, JSON_THROW_ON_ERROR));
+        $this->throttleMatch($accountId, $ipKey, 1);
+        return $this->matchWithoutThrottle($request, $device);
+    }
+
+    /** @param list<CatalogMatchRequest> $requests @return array{items: list<array<string, mixed>>} */
+    public function matchBatch(array $requests, string $accountId, string $ipKey, DeviceType $device): array
+    {
+        $this->throttleMatch($accountId, $ipKey, count($requests));
+        return ['items' => array_map(fn (CatalogMatchRequest $request): array => $this->matchWithoutThrottle($request, $device), $requests)];
+    }
+
+    /** @return array<string, mixed> */
+    private function matchWithoutThrottle(CatalogMatchRequest $request, DeviceType $device): array
+    {
+        $hintsKey = 'ignored';
         $args = ['kind' => $request->kind, 'title' => $request->title, 'year' => $request->year, 'locale' => $request->locale, 'hints' => $hintsKey, 'v' => CatalogMatchEngine::ALGORITHM_VERSION];
         $payload = $this->resolve('match', $args, 604800, fn () => $this->fromMatchResult($this->matchEngine->resolve($request)), true);
         $item = $payload['item'] ?? null;
         if (!is_array($item)) return $payload;
         $payload['item'] = $this->withDeviceImages($item, $device);
-        // §8.7 : `cache.updatedAt`/`refreshAfter` reflètent l'état réel de `tmdb_media`, pas le TTL
-        // de `media_metadata_cache` — recalculés à chaque réponse, y compris depuis un hit L1 stale.
         $window = is_string($item['externalId'] ?? null) ? $this->externalMedia->hydrationWindow($item['externalId']) : null;
         if ($window !== null) $payload['cache'] = [...$payload['cache'], ...$window];
         return $payload;
@@ -230,16 +238,16 @@ final readonly class CatalogService
         ksort($args);
         return $args;
     }
-    private function throttleMatch(string $accountId, string $ipKey): void
+    private function throttleMatch(string $accountId, string $ipKey, int $count): void
     {
         $this->pdo->beginTransaction();
         try {
             AdvisoryLock::account($this->pdo, $accountId);
             AdvisoryLock::verifyIp($this->pdo, $ipKey);
-            if ($this->matchThrottle->countForAccount($accountId, 60) >= 30 || $this->matchThrottle->countForIp($ipKey, 60) >= 60) {
+            if ($this->matchThrottle->countForAccount($accountId, 60) + $count > 120 || $this->matchThrottle->countForIp($ipKey, 60) + $count > 240) {
                 throw new ApiException(429, 'CATALOG_MATCH_RATE_LIMITED', 'Too many catalog matching requests. Try again later.');
             }
-            $this->matchThrottle->record($accountId, $ipKey);
+            $this->matchThrottle->record($accountId, $ipKey, $count);
             $this->pdo->commit();
         } catch (Throwable $error) { if ($this->pdo->inTransaction()) $this->pdo->rollBack(); throw $error; }
     }

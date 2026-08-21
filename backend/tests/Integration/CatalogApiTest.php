@@ -91,7 +91,7 @@ final class CatalogApiTest extends IntegrationTestCase
         $mobileItem = $this->json($mobile)['item'];
         self::assertNotNull($this->json($mobile)['cache']['updatedAt']);
         self::assertNotNull($this->json($mobile)['cache']['refreshAfter']);
-        self::assertSame(90, $this->json($mobile)['match']['confidence']); // titre identique (70) + année exacte (20)
+        self::assertSame(0, $this->json($mobile)['match']['confidence']); // premier résultat TMDB, sans score local
         self::assertStringContainsString('/w1280/', $mobileItem['backdropUrl']);
 
         $tv = $this->jsonRequest('POST', '/v1/catalog/matches', ['kind' => 'movie', 'title' => 'Device Aware Movie', 'year' => 2015], [...$this->auth($account['token']), 'X-CSTV-Device-Type' => 'tv']);
@@ -150,13 +150,41 @@ final class CatalogApiTest extends IntegrationTestCase
     public function testCatalogMatchIsRateLimitedPerAccount(): void
     {
         $account = $this->createAccount();
-        for ($i = 0; $i < 30; $i++) {
+        for ($i = 0; $i < 120; $i++) {
             $this->pdo->prepare('INSERT INTO catalog_match_attempts (id, account_id, ip_key) VALUES (:id, :account, :ip)')
                 ->execute(['id' => \Cstv\Backend\Shared\Uuid::v4(), 'account' => $account['id'], 'ip' => '127.0.0.1']);
         }
         $response = $this->jsonRequest('POST', '/v1/catalog/matches', ['kind' => 'movie', 'title' => 'Dune'], $this->auth($account['token']));
         self::assertSame(429, $response->getStatusCode());
         self::assertSame('CATALOG_MATCH_RATE_LIMITED', $this->json($response)['error']['code']);
+    }
+
+    public function testCatalogMatchBatchUsesOneHttpRequestAndCountsEveryMediaAgainstTheQuota(): void
+    {
+        $account = $this->createAccount();
+        $response = $this->jsonRequest('POST', '/v1/catalog/matches/batch', [
+            'items' => [
+                ['kind' => 'movie', 'title' => 'Batch One', 'year' => 2021],
+                ['kind' => 'series', 'title' => 'Batch Two', 'year' => 2022],
+            ],
+        ], $this->auth($account['token']));
+
+        self::assertSame(200, $response->getStatusCode());
+        self::assertCount(2, $this->json($response)['items']);
+        self::assertSame('matched', $this->json($response)['items'][0]['status']);
+        self::assertSame(2, (int) $this->pdo->query("SELECT COUNT(*) FROM catalog_match_attempts WHERE account_id = '" . $account['id'] . "'")->fetchColumn());
+    }
+
+    public function testLegacyHintsRemainAcceptedAndIgnored(): void
+    {
+        $account = $this->createAccount();
+        $response = $this->jsonRequest('POST', '/v1/catalog/matches', [
+            'kind' => 'movie', 'title' => 'Legacy Hints', 'year' => 2021,
+            'hints' => ['director' => 'Ignored Director', 'actors' => ['Ignored Actor']],
+        ], $this->auth($account['token']));
+
+        self::assertSame(200, $response->getStatusCode());
+        self::assertSame('tmdb-first-result', $this->json($response)['match']['method']);
     }
 
     public function testCatalogMatchDynamicTtlCachingBasedOnReleaseYear(): void

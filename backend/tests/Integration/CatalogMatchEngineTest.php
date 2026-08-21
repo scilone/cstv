@@ -45,7 +45,7 @@ final class CatalogMatchEngineTest extends IntegrationTestCase
         self::assertSame(0, $provider->detailCalls, 'a single candidate must never trigger a passe-2 detail call');
     }
 
-    public function testHomonymsAreDisambiguatedByPassTwoDirectorSignal(): void
+    public function testFirstTmdbResultIsUsedWithoutReadingDisambiguationHints(): void
     {
         $provider = new FakeCatalogProvider();
         $provider->candidates = [
@@ -54,18 +54,18 @@ final class CatalogMatchEngineTest extends IntegrationTestCase
         ];
         $provider->details[1] = ['directors' => ['Someone Else'], 'cast' => [], 'runtimeMinutes' => null, 'trailerKeys' => [], 'alternativeTitles' => []];
         $provider->details[2] = ['directors' => ['John Carpenter'], 'cast' => [], 'runtimeMinutes' => null, 'trailerKeys' => [], 'alternativeTitles' => []];
-        $provider->hydrated[2] = $this->movie('The Thing Homonym', '1982-06-25');
+        $provider->hydrated[1] = $this->movie('The Thing Homonym', '1982-06-25');
 
         $engine = new CatalogMatchEngine($provider, $this->externalMedia);
         $hints = new CatalogMatchHints(director: 'John Carpenter');
         $result = $engine->resolve(new CatalogMatchRequest('movie', 'The Thing Homonym', 1982, 'fr-FR', $hints));
 
         self::assertSame('matched', $result->status);
-        self::assertSame(2, $provider->detailCalls, 'exactly the two ambiguous candidates get a passe-2 call');
-        self::assertStringContainsString('director', $result->method);
+        self::assertSame(0, $provider->detailCalls);
+        self::assertSame('tmdb-first-result', $result->method);
     }
 
-    public function testScoresStillTooCloseAfterPassTwoResultInUnresolved(): void
+    public function testAmbiguousResultsStillUseTheFirstTmdbResult(): void
     {
         $provider = new FakeCatalogProvider();
         $provider->candidates = [
@@ -75,12 +75,13 @@ final class CatalogMatchEngineTest extends IntegrationTestCase
         // Aucun indice ne permet de départager : les deux gardent le même score après la passe 2.
         $provider->details[1] = ['directors' => [], 'cast' => [], 'runtimeMinutes' => null, 'trailerKeys' => [], 'alternativeTitles' => []];
         $provider->details[2] = ['directors' => [], 'cast' => [], 'runtimeMinutes' => null, 'trailerKeys' => [], 'alternativeTitles' => []];
+        $provider->hydrated[1] = $this->movie('The Thing Ambiguous', '1982-06-25');
 
         $engine = new CatalogMatchEngine($provider, $this->externalMedia);
         $result = $engine->resolve($this->matchRequest('The Thing Ambiguous', 1982));
 
-        self::assertSame('unresolved', $result->status);
-        self::assertNull($result->externalId);
+        self::assertSame('matched', $result->status);
+        self::assertNotNull($result->externalId);
     }
 
     public function testYearOffByOneStillAcceptedWhenTitleIsExact(): void
@@ -96,7 +97,7 @@ final class CatalogMatchEngineTest extends IntegrationTestCase
         self::assertSame('matched', $result->status);
     }
 
-    public function testIdenticalTrailerIsDecisiveProofEvenWithACloseMargin(): void
+    public function testTrailerHintsDoNotChangeTheFirstTmdbResult(): void
     {
         $provider = new FakeCatalogProvider();
         $provider->candidates = [
@@ -105,14 +106,14 @@ final class CatalogMatchEngineTest extends IntegrationTestCase
         ];
         $provider->details[1] = ['directors' => [], 'cast' => [], 'runtimeMinutes' => null, 'trailerKeys' => [], 'alternativeTitles' => []];
         $provider->details[2] = ['directors' => [], 'cast' => [], 'runtimeMinutes' => null, 'trailerKeys' => ['abc123XYZ'], 'alternativeTitles' => []];
-        $provider->hydrated[2] = $this->movie('The Thing Trailer', '1982-06-25');
+        $provider->hydrated[1] = $this->movie('The Thing Trailer', '1982-06-25');
 
         $engine = new CatalogMatchEngine($provider, $this->externalMedia);
         $hints = new CatalogMatchHints(youtubeTrailerKey: 'abc123XYZ');
         $result = $engine->resolve(new CatalogMatchRequest('movie', 'The Thing Trailer', 1982, 'fr-FR', $hints));
 
         self::assertSame('matched', $result->status);
-        self::assertStringContainsString('trailer', $result->method);
+        self::assertSame('tmdb-first-result', $result->method);
     }
 
     public function testNoCandidateAtAllIsNotFoundNotUnresolved(): void
@@ -126,7 +127,7 @@ final class CatalogMatchEngineTest extends IntegrationTestCase
         self::assertSame('not_found', $result->status);
     }
 
-    public function testPostgresqlFirstReusesTheExistingExternalIdWithoutSearchingTheProviderAgain(): void
+    public function testIdenticalRequestsKeepUsingTmdbFirstResult(): void
     {
         $provider = new FakeCatalogProvider();
         $provider->candidates = [new CatalogMatchCandidate(1, 'Dune Reuse', 'Dune Reuse', 2021, [])];
@@ -140,12 +141,9 @@ final class CatalogMatchEngineTest extends IntegrationTestCase
         $second = $engine->resolve($this->matchRequest('Dune Reuse', 2021));
 
         self::assertSame($first->externalId, $second->externalId);
-        // F45-R3 : la méthode porte désormais les signaux réellement scorés (titre exact + année
-        // exacte ici) plutôt qu'une étiquette fixe "postgresql-first" accordée sans preuve.
-        self::assertStringStartsWith('postgresql-first:', $second->method);
-        self::assertStringContainsString('title', $second->method);
-        self::assertGreaterThanOrEqual(65, $second->confidence);
-        self::assertSame(1, $provider->searchCalls, 'a second identical request must be resolved from PostgreSQL, not the provider');
+        self::assertSame('tmdb-first-result', $second->method);
+        self::assertSame(0, $second->confidence);
+        self::assertSame(2, $provider->searchCalls);
     }
 
     public function testPostgresqlFirstNeverReusesAnUnrelatedHomonymBelowTheMarginBar(): void
@@ -173,10 +171,10 @@ final class CatalogMatchEngineTest extends IntegrationTestCase
 
         self::assertSame('matched', $result->status);
         self::assertSame(1, $providerSecond->searchCalls, 'the 1999 row must not short-circuit the provider for the 1978 request');
-        self::assertStringStartsWith('title+year', $result->method);
+        self::assertSame('tmdb-first-result', $result->method);
     }
 
-    public function testStrongHintsCanOverturnANonAmbiguousPassOneLeader(): void
+    public function testHintsCannotOverrideTheFirstTmdbResult(): void
     {
         // F45-R3 : la passe 1 seule donne 50 points d'écart (loin au-dessus de la marge minimale)
         // entre le candidat "2000" (année exacte selon l'IPTV) et le candidat "1985" — avant le
@@ -196,7 +194,7 @@ final class CatalogMatchEngineTest extends IntegrationTestCase
             'trailerKeys' => ['trailerXYZ'],
             'alternativeTitles' => ['Contradicted Lead'],
         ];
-        $provider->hydrated[2] = $this->movie('Contradicted Lead', '1985-01-01');
+        $provider->hydrated[1] = $this->movie('Contradicted Lead', '2000-01-01');
 
         $engine = new CatalogMatchEngine($provider, $this->externalMedia);
         $hints = new CatalogMatchHints(
@@ -208,9 +206,8 @@ final class CatalogMatchEngineTest extends IntegrationTestCase
         $result = $engine->resolve(new CatalogMatchRequest('movie', 'Contradicted Lead', 2000, 'fr-FR', $hints));
 
         self::assertSame('matched', $result->status);
-        self::assertSame(2, $provider->detailCalls, 'pass 2 must run even though pass 1 alone looked unambiguous');
-        self::assertStringContainsString('director', $result->method);
-        self::assertStringContainsString('trailer', $result->method);
+        self::assertSame(0, $provider->detailCalls);
+        self::assertSame('tmdb-first-result', $result->method);
     }
 
     private function matchRequest(string $title, ?int $year): CatalogMatchRequest

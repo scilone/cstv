@@ -57,6 +57,9 @@ interface ExternalMetadataDao {
     @Query("SELECT * FROM external_hydration_queue WHERE nextAttemptAt <= :now ORDER BY priority DESC, createdAt ASC LIMIT 1")
     suspend fun nextRequest(now: Long): ExternalHydrationRequestEntity?
 
+    @Query("SELECT * FROM external_hydration_queue WHERE nextAttemptAt <= :now ORDER BY priority DESC, createdAt ASC LIMIT :limit")
+    suspend fun nextRequests(now: Long, limit: Int): List<ExternalHydrationRequestEntity>
+
     @Query("DELETE FROM external_hydration_queue WHERE kind = :kind AND providerId = :providerId")
     suspend fun deleteRequest(kind: String, providerId: Int)
 

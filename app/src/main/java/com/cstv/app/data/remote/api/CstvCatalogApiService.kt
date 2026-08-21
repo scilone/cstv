@@ -3,6 +3,8 @@ package com.cstv.app.data.remote.api
 import com.cstv.app.data.remote.dto.CatalogItemDto
 import com.cstv.app.data.remote.dto.CatalogItemsResponseDto
 import com.cstv.app.data.remote.dto.CatalogMatchRequestDto
+import com.cstv.app.data.remote.dto.CatalogMatchBatchRequestDto
+import com.cstv.app.data.remote.dto.CatalogMatchBatchResponseDto
 import com.cstv.app.data.remote.dto.CatalogMatchResponseDto
 import com.cstv.app.data.remote.dto.CatalogRecommendationsResponseDto
 import com.cstv.app.data.remote.dto.CatalogSeasonDto
@@ -23,6 +25,9 @@ interface CstvCatalogApiService {
     // (ContentClassificationRepository, migré Tâche 10) qui n'a pas encore de DeviceTypeProvider.
     @POST("v1/catalog/matches")
     suspend fun match(@Body request: CatalogMatchRequestDto, @Header("X-CSTV-Device-Type") deviceType: String = "mobile"): CatalogMatchResponseDto
+
+    @POST("v1/catalog/matches/batch")
+    suspend fun matchBatch(@Body request: CatalogMatchBatchRequestDto, @Header("X-CSTV-Device-Type") deviceType: String = "mobile"): CatalogMatchBatchResponseDto
 
     @GET("v1/catalog/items/{externalId}")
     suspend fun item(@Path("externalId") externalId: String, @Header("X-CSTV-Device-Type") deviceType: String = "mobile"): CatalogItemDto
