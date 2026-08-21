@@ -3,7 +3,7 @@
 ## Informations générales
 
 Status:
-REVIEW
+RELEASED
 
 Created:
 2026-08-21
@@ -1284,10 +1284,48 @@ couverts par les tests domaine/ViewModel.
 
 ---
 
-# 13. Release
+# 13. Validation
+
+## 2026-08-21 — Étape 8
+
+Validation automatisée effectuée après les corrections F46-R1 à F46-R3 :
+
+- `./gradlew --no-daemon --max-workers=1 testDebugUnitTest` : **BUILD SUCCESSFUL**.
+- `./gradlew --no-daemon --max-workers=1 assembleDebug` : **BUILD SUCCESSFUL**.
+- `./gradlew --no-daemon --max-workers=1 lintDebug` : **BUILD SUCCESSFUL**.
+- `git diff --check` : **OK** avant la documentation ; aucune modification non liée
+  n'était présente dans l'arbre de travail.
+
+Les tests JVM couvrent les compteurs et états métier, la projection SQL, le mapping
+repository, la propagation dans `SettingsViewModel` et le formatage des pourcentages.
+Le build debug et lint valident l'intégration Android. Conformément à `AGENTS.md`,
+aucune validation manuelle sur appareil ou émulateur ne fait partie de cette étape.
+
+---
+
+# 14. Documentation
+
+## 2026-08-21 — Étape 9
+
+- `docs/features.md` présente le suivi de la couverture : taux de liaison et de
+  traitement, états liés/non résolus/à traiter, détail films et séries, sans
+  déclenchement de matching.
+- `docs/user-guide.md` explique la lecture de la carte depuis les Paramètres et
+  précise qu'un catalogue traité à 100 % peut ne pas être lié à 100 %.
+- `docs/architecture.md` documente la projection Room agrégée, le passage par
+  `ExternalMetadataRepository` et l'absence assumée de migration, worker,
+  cache, polling et appel backend.
+- `docs/changelog.md` annonce F46 dans la section de la prochaine publication.
+
+---
+
+# 15. Release
 
 Version:
+v1.92.0
 
 Commit:
+Commit de release F46, amendé par `scripts/release-local.sh` avec l’APK signé.
 
 Date:
+2026-08-21

@@ -1,5 +1,11 @@
 # Journal des Modifications (Changelog) - CSTV IPTV
 
+## [v1.92.0] - 2026-08-21
+
+### ✨ Indicateur de couverture de l’enrichissement des médias (F46)
+* **Suivi clair dans les Paramètres** : une carte mobile et Android TV affiche le taux de médias liés, le taux de traitement et les compteurs liés, non résolus et à traiter pour le catalogue local.
+* **Lecture sans action ni réseau** : les valeurs détaillent séparément Films et Séries, se mettent à jour depuis Room pendant la consultation et n’entraînent ni appel backend ni relance du backfill.
+
 ## À venir — non publiée
 
 ### ⚡ Hotfix F45 — matching externe allégé

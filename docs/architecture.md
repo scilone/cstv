@@ -8,6 +8,15 @@ Le backend résout d'abord son catalogue consolidé, puis interroge le fournisse
 
 Une file WorkManager persistante et séquentielle reçoit trois motifs : ouverture réelle de fiche, nouveau média IPTV, média existant sans métadonnées. Le rattrapage est paginé et borné ; aucune donnée stale n'est rafraîchie en arrière-plan. Une série hydrate ses saisons et épisodes seulement depuis une ouverture de fiche. Toute panne de la couche externe laisse l'interface et la lecture s'appuyer sur Room/Xtream.
 
+F46 expose l’état de cette convergence sans influencer son ordonnancement :
+`ExternalMetadataDao.observeCoverage()` agrège en une projection Room les tables
+`vod_streams`, `series_streams` et `external_media_links`. Le
+`ExternalMetadataRepository` transforme cette projection en
+`ExternalMetadataCoverage`, observé par `SettingsViewModel`. Il n’existe ni
+nouvelle table, migration, index, worker, cache applicatif, appel backend ni
+polling : les invalidations Room reflètent directement les médias ajoutés,
+supprimés, liés ou non résolus.
+
 Ce document présente l'architecture globale, les choix techniques majeurs, la structure des répertoires et les flux de données au sein de l'application.
 
 ---

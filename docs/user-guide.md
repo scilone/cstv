@@ -132,6 +132,7 @@ Pour une meilleure ergonomie à la télécommande (D-pad), plusieurs simplificat
 * **Langues par défaut** : Définissez vos préférences de pistes audio et de sous-titres (ex: Français par défaut). Le lecteur ExoPlayer tentera systématiquement de sélectionner ces pistes en priorité lors du démarrage d'une vidéo.
 * **Filtrage des catégories** : Si certaines catégories de chaînes ou de VOD ne vous intéressent pas (ex : langues étrangères, chaînes thématiques inutilisées), vous pouvez les masquer complètement dans les paramètres afin d'épurer l'interface de l'application.
 * **Synchronisation** : Vous pouvez forcer manuellement la mise à jour du catalogue de votre serveur IPTV ou régler la fréquence de mise à jour automatique en arrière-plan.
+* **Enrichissement des médias (F46)** : La carte « Enrichissement des médias » indique la couverture du catalogue local. Elle affiche séparément le pourcentage de médias liés et le taux de traitement, avec les compteurs **Liés**, **Non résolus** et **À traiter**, puis le détail Films/Séries. Un catalogue entièrement traité peut rester sous 100 % liés lorsque certains titres n'ont pas pu être résolus. Cette consultation est informative : elle ne relance ni synchronisation ni matching.
 * **Refonte de l'interface Android TV (F32)** : L'écran des paramètres sur Android TV a été entièrement refondu pour une meilleure ergonomie et une intégration parfaite dans la charte esthétique de l'application :
   - **Élimination des éléments inutiles** : Le bouton de retour textuel "Retour" (redondant avec la touche Back physique de votre télécommande) ainsi que la section "Téléchargements hors-ligne" (spécifique aux mobiles) ont été retirés de la version TV pour une interface plus claire et épurée.
   - **Boutons d'action optimisés** : Les boutons d'action (Gérer les catégories, Forcer la mise à jour, Extraire les logs et Déconnexion) ont été redessinés sous forme de cartes élégantes avec un liseré lumineux de focus très visible à distance.
@@ -489,7 +490,6 @@ Si vous oubliez votre PIN parental :
 ### 📂 Téléchargements hors-ligne
 * **Blocage au téléchargement** : Un profil bridé ne peut pas télécharger un contenu qui dépasse ses restrictions d'âge ou qui est non classifié.
 * **Limite connue (V1)** : Pour des raisons de performance et de lecture hors-ligne, un contenu déjà téléchargé localement sur l'appareil avant que le profil ne soit bridé (ou avant que son niveau ne soit abaissé) reste lisible sans demande de PIN.
-
 
 
 

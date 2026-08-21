@@ -28,6 +28,12 @@ L'accès au contenu IPTV s'effectue exclusivement via l'API **Xtream Codes** (`p
 * **Rattrapage discret** : le catalogue déjà stocké, comme les nouveaux médias synchronisés, est traité progressivement sur l'appareil. Les détails d'une série déclenchent seuls le chargement de ses saisons et épisodes.
 * **Âge exact** : les profils à contrôle parental utilisent la valeur d'âge exacte lorsqu'elle est connue ; les seuils de profil et le PIN ne changent pas.
 
+### Suivi de la couverture d’enrichissement (F46)
+
+* **Carte informative dans les Paramètres** : sur mobile et Android TV, la carte « Enrichissement des médias » indique la part du catalogue IPTV local effectivement liée à une identité externe CSTV, sans lancer de matching ni d’appel réseau.
+* **Progression explicite** : elle distingue les médias liés, non résolus et à traiter afin de différencier un taux de liaison incomplet d’un backfill encore en cours. Films et séries affichent chacun leur propre ratio `liés / total`.
+* **État local et réactif** : les compteurs sont recalculés par Room depuis les films et séries actuellement présents ; les catégories masquées, les saisons et les épisodes n’influencent pas ce suivi.
+
 ---
 
 ## 2. Multi-Profils Locaux
