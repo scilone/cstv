@@ -2,8 +2,8 @@ package com.cstv.app.domain.repository
 
 import com.cstv.app.domain.model.ExternalMatchHints
 import com.cstv.app.domain.model.ExternalMetadataCoverage
+import com.cstv.app.domain.model.ExternalMetadataMatchOutcome
 import com.cstv.app.domain.model.ExternalMetadataMatchRequest
-import com.cstv.app.domain.model.ExternalMetadataMatch
 import kotlinx.coroutines.flow.Flow
 
 interface ExternalMetadataRepository {
@@ -28,9 +28,9 @@ interface ExternalMetadataRepository {
         linkKey: String?,
         hints: ExternalMatchHints = ExternalMatchHints(),
         allowRefresh: Boolean = false,
-    ): ExternalMetadataMatch?
+    ): ExternalMetadataMatchOutcome
 
-    suspend fun matchBatch(requests: List<ExternalMetadataMatchRequest>): List<ExternalMetadataMatch?>
+    suspend fun matchBatch(requests: List<ExternalMetadataMatchRequest>): List<ExternalMetadataMatchOutcome>
 
     /** F45-R7 : uniquement après une demande `DETAIL_OPEN` d'une série, jamais pendant le backfill. */
     suspend fun hydrateSeriesSeasons(externalId: String)

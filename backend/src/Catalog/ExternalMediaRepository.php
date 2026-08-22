@@ -107,6 +107,116 @@ final readonly class ExternalMediaRepository
     }
 
     /**
+     * T29 §8.5/§8.15 : version batch de `findStrictConsolidatedMatch()` — nombre constant de
+     * requêtes bulk par kind (2 passes × kinds réellement présents dans le lot, groupées par
+     * `locale`) plutôt qu'une paire de requêtes par média. Mêmes règles d'unicité que la version
+     * unitaire (LIMIT implicite via comptage en PHP, jamais de résolution ambiguë).
+     *
+     * @param list<array{index: int, kind: string, title: string, year: int, locale: string}> $requests
+     *     uniquement les entrées avec une année connue — l'appelant filtre en amont (le lookup
+     *     unitaire fait la même chose, §8.2 R3).
+     * @return array<int, array{externalId: string, method: string}> indexé par `index` d'entrée
+     */
+    public function findStrictConsolidatedMatchBatch(array $requests): array
+    {
+        $resolved = [];
+        foreach (['movie', 'series'] as $kind) {
+            $subset = array_values(array_filter($requests, static fn (array $request): bool => $request['kind'] === $kind));
+            if ($subset === []) continue;
+            $resolved += $this->strictMatchByNormalizedTitleBatch($kind, $subset);
+            $remaining = array_values(array_filter($subset, static fn (array $request): bool => !isset($resolved[$request['index']])));
+            if ($remaining !== []) $resolved += $this->strictMatchByAlternativeTitleBatch($kind, $remaining);
+        }
+        return $resolved;
+    }
+
+    /**
+     * @param list<array{index: int, kind: string, title: string, year: int, locale: string}> $requests
+     * @return array<int, array{externalId: string, method: string}>
+     */
+    private function strictMatchByNormalizedTitleBatch(string $kind, array $requests): array
+    {
+        $table = $kind === 'movie' ? 'tmdb_movies' : 'tmdb_series';
+        $dateColumn = $kind === 'movie' ? 'release_date' : 'first_air_date';
+
+        $byLocale = [];
+        foreach ($requests as $request) {
+            $normalized = TitleNormalizer::normalize($request['title']);
+            if ($normalized === '') continue;
+            $byLocale[$request['locale']][] = ['index' => $request['index'], 'normalized' => $normalized, 'year' => $request['year']];
+        }
+
+        $result = [];
+        foreach ($byLocale as $locale => $items) {
+            $titles = array_values(array_unique(array_column($items, 'normalized')));
+            $statement = $this->pdo->prepare(
+                "SELECT m.external_id::text AS external_id, m.normalized_title AS normalized_title, EXTRACT(YEAR FROM m.{$dateColumn})::int AS year " .
+                "FROM {$table} m JOIN tmdb_media t ON t.external_id = m.external_id " .
+                'WHERE m.normalized_title = ANY(:titles::text[]) AND t.locale = :locale',
+            );
+            $statement->execute(['titles' => PgArray::encode($titles), 'locale' => $locale]);
+
+            $groups = [];
+            foreach ($statement->fetchAll(PDO::FETCH_ASSOC) as $row) {
+                if ($row['year'] === null) continue;
+                $groups[$row['normalized_title'] . '|' . $row['year']][] = $row['external_id'];
+            }
+            foreach ($items as $item) {
+                $sole = self::soleMatch(array_values(array_unique($groups[$item['normalized'] . '|' . $item['year']] ?? [])));
+                if ($sole !== null) $result[$item['index']] = ['externalId' => $sole, 'method' => 'postgresql-exact-title-year'];
+            }
+        }
+        return $result;
+    }
+
+    /**
+     * @param list<array{index: int, kind: string, title: string, year: int, locale: string}> $requests
+     * @return array<int, array{externalId: string, method: string}>
+     */
+    private function strictMatchByAlternativeTitleBatch(string $kind, array $requests): array
+    {
+        $table = $kind === 'movie' ? 'tmdb_movies' : 'tmdb_series';
+        $dateColumn = $kind === 'movie' ? 'release_date' : 'first_air_date';
+        $originalTitleColumn = $kind === 'movie' ? 'original_title' : 'original_name';
+
+        $byLocale = [];
+        foreach ($requests as $request) {
+            if (trim($request['title']) === '') continue;
+            $byLocale[$request['locale']][] = ['index' => $request['index'], 'lower' => mb_strtolower($request['title']), 'year' => $request['year']];
+        }
+
+        $result = [];
+        foreach ($byLocale as $locale => $items) {
+            $lowers = array_values(array_unique(array_column($items, 'lower')));
+            $statement = $this->pdo->prepare(
+                "SELECT m.external_id::text AS external_id, LOWER(m.{$originalTitleColumn}) AS original_lower, " .
+                "m.alternative_titles_lower AS alt_lower, EXTRACT(YEAR FROM m.{$dateColumn})::int AS year " .
+                "FROM {$table} m JOIN tmdb_media t ON t.external_id = m.external_id " .
+                "WHERE t.locale = :locale AND (LOWER(m.{$originalTitleColumn}) = ANY(:lowers::text[]) OR m.alternative_titles_lower && CAST(:lowers AS text[]))",
+            );
+            $statement->execute(['locale' => $locale, 'lowers' => PgArray::encode($lowers)]);
+
+            $groups = [];
+            foreach ($statement->fetchAll(PDO::FETCH_ASSOC) as $row) {
+                if ($row['year'] === null) continue;
+                $matchedLowers = [];
+                if ($row['original_lower'] !== null && in_array($row['original_lower'], $lowers, true)) $matchedLowers[] = $row['original_lower'];
+                foreach (PgArray::decode($row['alt_lower']) as $alt) {
+                    if (in_array($alt, $lowers, true)) $matchedLowers[] = $alt;
+                }
+                foreach (array_unique($matchedLowers) as $matchedLower) {
+                    $groups[$matchedLower . '|' . $row['year']][] = $row['external_id'];
+                }
+            }
+            foreach ($items as $item) {
+                $sole = self::soleMatch(array_values(array_unique($groups[$item['lower'] . '|' . $item['year']] ?? [])));
+                if ($sole !== null) $result[$item['index']] = ['externalId' => $sole, 'method' => 'postgresql-alternative-title-year'];
+            }
+        }
+        return $result;
+    }
+
+    /**
      * F45-R3 : candidats bruts pour la résolution PostgreSQL-first (§8.6) — plus une décision. Le
      * SQL ne fait que rassembler ce qui *pourrait* correspondre (titre normalisé, titre original,
      * ou un titre alternatif, sans filtre année) ; `CatalogMatchEngine` score ensuite chaque ligne

@@ -460,6 +460,51 @@ final class CatalogMatchEngineTest extends IntegrationTestCase
         self::assertSame(0, $provider->hydrateCalls, 'a series tmdbId already hydrated in PostgreSQL must not trigger a detail call');
     }
 
+    // --- T29 §8.5 : lookup backend-first bulk ------------------------------------------------------
+
+    public function testFindStrictConsolidatedMatchBatchResolvesEachUniqueHitAndSkipsAmbiguousOnes(): void
+    {
+        $exact = $this->seedStoredMovie(701, 'Batch Exact', '2021-01-01');
+        $altStored = $this->seedStoredMovie(702, 'Batch Alt Original', '2020-01-01', alternativeTitles: ['Batch Alt Match']);
+        $this->seedStoredMovie(703, 'Batch Ambiguous', '2019-01-01');
+        $this->seedStoredMovie(704, 'Batch Ambiguous', '2019-06-01');
+
+        $requests = [
+            ['index' => 0, 'kind' => 'movie', 'title' => 'Batch Exact', 'year' => 2021, 'locale' => 'fr-FR'],
+            ['index' => 1, 'kind' => 'movie', 'title' => 'Batch Alt Match', 'year' => 2020, 'locale' => 'fr-FR'],
+            ['index' => 2, 'kind' => 'movie', 'title' => 'Batch Ambiguous', 'year' => 2019, 'locale' => 'fr-FR'],
+            ['index' => 3, 'kind' => 'movie', 'title' => 'Batch Unknown Title', 'year' => 2021, 'locale' => 'fr-FR'],
+        ];
+
+        $result = $this->externalMedia->findStrictConsolidatedMatchBatch($requests);
+
+        self::assertSame(['externalId' => $exact, 'method' => 'postgresql-exact-title-year'], $result[0]);
+        self::assertSame(['externalId' => $altStored, 'method' => 'postgresql-alternative-title-year'], $result[1]);
+        self::assertArrayNotHasKey(2, $result, 'two rows sharing title+year must never resolve silently in bulk (R4)');
+        self::assertArrayNotHasKey(3, $result, 'an unknown title must simply be absent from the result');
+    }
+
+    public function testFindStrictConsolidatedMatchBatchNeverCrossesKindsOrLocales(): void
+    {
+        $movie = $this->seedStoredMovie(705, 'Cross Kind Batch', '2021-01-01', locale: 'fr-FR');
+        $series = $this->seedStoredSeries(706, 'Cross Kind Batch Series', '2021-01-01', locale: 'en-US');
+
+        $requests = [
+            // Same title as the stored movie, but requested as a series -> must not match the movie row.
+            ['index' => 0, 'kind' => 'series', 'title' => 'Cross Kind Batch', 'year' => 2021, 'locale' => 'fr-FR'],
+            // Same title/year/kind as the stored series, but requested in the wrong locale.
+            ['index' => 1, 'kind' => 'series', 'title' => 'Cross Kind Batch Series', 'year' => 2021, 'locale' => 'fr-FR'],
+            ['index' => 2, 'kind' => 'movie', 'title' => 'Cross Kind Batch', 'year' => 2021, 'locale' => 'fr-FR'],
+        ];
+
+        $result = $this->externalMedia->findStrictConsolidatedMatchBatch($requests);
+
+        self::assertArrayNotHasKey(0, $result);
+        self::assertArrayNotHasKey(1, $result);
+        self::assertSame($movie, $result[2]['externalId']);
+        self::assertNotSame($series, $movie);
+    }
+
     /** @param list<string> $alternativeTitles */
     private function seedStoredMovie(int $tmdbId, string $title, string $releaseDate, array $alternativeTitles = [], string $locale = 'fr-FR'): string
     {

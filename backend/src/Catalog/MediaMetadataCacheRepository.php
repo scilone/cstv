@@ -19,6 +19,35 @@ final readonly class MediaMetadataCacheRepository
         $payload = json_decode((string) $row['payload'], true, 512, JSON_THROW_ON_ERROR);
         return ['payload' => $payload, 'status' => (string) $row['result_status'], 'fresh' => (bool) $row['fresh'], 'usableStale' => (bool) $row['usable_stale']];
     }
+
+    /**
+     * T29 §8.4 : lecture multi-clés — un seul SELECT indexé au lieu de N pour un batch, remplaçant
+     * `find()` appelé en boucle. Ne retourne que les clés trouvées (clés absentes simplement omises,
+     * comme `find()` renvoie `null` pour elles) ; l'appelant décide du sort des misses/stale (§8.6, le
+     * chemin unitaire `resolve()` reste la seule source de vérité pour le verrouillage/single-flight).
+     *
+     * @param list<string> $keys @return array<string, array<string, mixed>> indexé par cache_key
+     */
+    public function findMany(array $keys): array
+    {
+        if ($keys === []) return [];
+        $statement = $this->pdo->prepare(
+            'SELECT cache_key, payload, result_status, expires_at > NOW() AS fresh, stale_until > NOW() AS usable_stale ' .
+            'FROM media_metadata_cache WHERE cache_key = ANY(:keys::text[])',
+        );
+        $statement->execute(['keys' => PgArray::encode($keys)]);
+        $result = [];
+        foreach ($statement->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $result[(string) $row['cache_key']] = [
+                'payload' => json_decode((string) $row['payload'], true, 512, JSON_THROW_ON_ERROR),
+                'status' => (string) $row['result_status'],
+                'fresh' => (bool) $row['fresh'],
+                'usableStale' => (bool) $row['usable_stale'],
+            ];
+        }
+        return $result;
+    }
+
     /** @param array<string, mixed> $payload */
     public function put(string $key, array $payload, string $status, int $ttlSeconds, int $staleSeconds): void
     {

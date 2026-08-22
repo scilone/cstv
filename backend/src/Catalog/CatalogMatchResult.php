@@ -15,6 +15,8 @@ final readonly class CatalogMatchResult
         public int $version,
         /** @var array<string, mixed>|null full item payload (§8.7) once matched */
         public ?array $item,
+        /** T29 §8.7 : délai TMDB `Retry-After` connu, seulement renseigné pour `retry`. */
+        public ?int $retryAfterSeconds = null,
     ) {
     }
 
@@ -34,5 +36,16 @@ final readonly class CatalogMatchResult
     public static function unresolved(int $version): self
     {
         return new self('unresolved', null, null, null, $version, null);
+    }
+
+    /**
+     * T29 §7.3/§8.7 : résolution non aboutie pour une raison **technique** temporaire (429 provider,
+     * budget TMDB local épuisé, erreur réseau transitoire) — jamais un résultat métier. Distinct de
+     * `unresolved` : un client ne doit jamais persister ce statut comme un échec de matching définitif
+     * (§7.3), seulement reprogrammer l'item.
+     */
+    public static function retry(int $version, ?int $retryAfterSeconds): self
+    {
+        return new self('retry', null, null, null, $version, null, $retryAfterSeconds);
     }
 }

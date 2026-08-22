@@ -12,6 +12,11 @@ use Throwable;
 
 final readonly class CatalogService
 {
+    // T29 §11 : valeurs de tuning initiales (hypothèse §4.2), à confirmer par métriques post-release
+    // — le plafond de 50 items/batch borne déjà le coût maximum d'une requête (§7.4).
+    private const MATCH_REQUESTS_PER_MINUTE_ACCOUNT = 30;
+    private const MATCH_REQUESTS_PER_MINUTE_IP = 60;
+
     public function __construct(
         private PDO $pdo,
         private MediaMetadataCacheRepository $cache,
@@ -31,29 +36,119 @@ final readonly class CatalogService
     /** @return array<string, mixed> */
     public function match(CatalogMatchRequest $request, string $accountId, string $ipKey, DeviceType $device): array
     {
-        $this->throttleMatch($accountId, $ipKey, 1);
+        $this->throttleMatchRequest($accountId, $ipKey);
         return $this->matchWithoutThrottle($request, $device);
     }
 
-    /** @param list<CatalogMatchRequest> $requests @return array{items: list<array<string, mixed>>} */
+    /**
+     * T29 §8.3/§8.6 : le throttle CSTV compte désormais une seule unité de requête, indépendamment
+     * du nombre d'items — protéger le endpoint, pas le fournisseur (§7.4). Le pipeline lui-même
+     * (cache bulk → PostgreSQL-first bulk → provider par item, isolé) vit dans `matchBatchItems()`.
+     * @param list<CatalogMatchRequest> $requests @return array{items: list<array<string, mixed>>}
+     */
     public function matchBatch(array $requests, string $accountId, string $ipKey, DeviceType $device): array
     {
-        $this->throttleMatch($accountId, $ipKey, count($requests));
-        return ['items' => array_map(fn (CatalogMatchRequest $request): array => $this->matchWithoutThrottle($request, $device), $requests)];
+        $this->throttleMatchRequest($accountId, $ipKey);
+        return ['items' => $this->matchBatchItems($requests, $device)];
     }
 
-    /** @return array<string, mixed> */
-    private function matchWithoutThrottle(CatalogMatchRequest $request, DeviceType $device): array
+    /**
+     * §7.2 Flux batch cible : cache bulk → PostgreSQL backend-first bulk (misses seulement) →
+     * provider par item (misses restants, isolé §8.8) → ordre d'origine préservé (§7.6).
+     * @param list<CatalogMatchRequest> $requests @return list<array<string, mixed>>
+     */
+    private function matchBatchItems(array $requests, DeviceType $device): array
     {
-        $hintsKey = 'ignored';
-        $args = ['kind' => $request->kind, 'title' => $request->title, 'year' => $request->year, 'locale' => $request->locale, 'hints' => $hintsKey, 'v' => CatalogMatchEngine::ALGORITHM_VERSION];
-        $payload = $this->resolve('match', $args, 604800, fn () => $this->fromMatchResult($this->matchEngine->resolve($request)), true);
+        if ($requests === []) return [];
+
+        // Tâche 4 §8.4 : un SELECT bulk au lieu de N pour les hits déjà frais en cache.
+        $keys = array_map(fn (CatalogMatchRequest $request): string => $this->matchCacheKey($request), $requests);
+        $cacheHits = $this->cache->findMany($keys);
+
+        $results = array_fill(0, count($requests), null);
+        $pending = [];
+        foreach ($requests as $index => $request) {
+            $hit = $cacheHits[$keys[$index]] ?? null;
+            if ($hit !== null && $hit['fresh']) {
+                $results[$index] = $this->finishMatchPayload($this->response($hit['payload'], $hit['status'], false, true), $device);
+            } else {
+                $pending[$index] = $request;
+            }
+        }
+
+        if ($pending !== []) {
+            // Tâche 5 §8.5 : lookup backend-first bulk pour les misses restants (année connue
+            // uniquement — même contrainte que le chemin unitaire, §8.2 R3).
+            $strictInputs = [];
+            foreach ($pending as $index => $request) {
+                if ($request->year !== null) {
+                    $strictInputs[] = ['index' => $index, 'kind' => $request->kind, 'title' => $request->title, 'year' => $request->year, 'locale' => $request->locale];
+                }
+            }
+            $strictMatches = $strictInputs !== [] ? $this->externalMedia->findStrictConsolidatedMatchBatch($strictInputs) : [];
+
+            foreach ($pending as $index => $request) {
+                $results[$index] = $this->matchBatchItem($request, $device, $strictMatches[$index] ?? []);
+            }
+        }
+
+        return $results;
+    }
+
+    /**
+     * Tâche 2/8.8 : isole les erreurs provider par item — un 429 fournisseur (budget local épuisé,
+     * `TmdbProviderRateLimiter`) ou une indisponibilité TMDB transitoire (`CatalogProviderException`
+     * remontée par `resolve()` sous forme d'`ApiException` 502/503/429) devient un résultat `retry`
+     * pour cet item seul, sans invalider les succès déjà calculés dans le lot (§7.6). Toute autre
+     * erreur (bug interne, 4xx inattendu) continue de se propager — §8.8 "erreurs non retryables/bugs
+     * internes ne doivent pas être silencieusement converties en retry".
+     * @param array{externalId: string, method: string}|array{} $precomputedStrict
+     * @return array<string, mixed>
+     */
+    private function matchBatchItem(CatalogMatchRequest $request, DeviceType $device, array $precomputedStrict): array
+    {
+        try {
+            return $this->matchWithoutThrottle($request, $device, $precomputedStrict);
+        } catch (ApiException $error) {
+            if (!in_array($error->status, [429, 502, 503], true)) throw $error;
+            $result = CatalogMatchResult::retry(CatalogMatchEngine::ALGORITHM_VERSION, $error->retryAfterSeconds);
+            return ['status' => $result->status, 'match' => null, 'item' => null, 'cache' => ['retryAfter' => $result->retryAfterSeconds]];
+        }
+    }
+
+    /**
+     * @param array{externalId: string, method: string}|array{}|null $precomputedStrict `null` (défaut,
+     *     chemin unitaire `match()`) laisse `CatalogMatchEngine` calculer lui-même le lookup backend-first.
+     * @return array<string, mixed>
+     */
+    private function matchWithoutThrottle(CatalogMatchRequest $request, DeviceType $device, ?array $precomputedStrict = null): array
+    {
+        $args = $this->matchCacheArgs($request);
+        $payload = $this->resolve('match', $args, 604800, fn () => $this->fromMatchResult($this->matchEngine->resolve($request, $precomputedStrict)), true);
+        return $this->finishMatchPayload($payload, $device);
+    }
+
+    /** Résolution du poster/backdrop selon le device + fenêtre d'hydratation — factorisé pour être partagé par le hit cache bulk (§8.4) et le chemin de résolution complet. @param array<string, mixed> $payload @return array<string, mixed> */
+    private function finishMatchPayload(array $payload, DeviceType $device): array
+    {
         $item = $payload['item'] ?? null;
         if (!is_array($item)) return $payload;
         $payload['item'] = $this->withDeviceImages($item, $device);
         $window = is_string($item['externalId'] ?? null) ? $this->externalMedia->hydrationWindow($item['externalId']) : null;
         if ($window !== null) $payload['cache'] = [...$payload['cache'], ...$window];
         return $payload;
+    }
+
+    /** @return array<string, mixed> */
+    private function matchCacheArgs(CatalogMatchRequest $request): array
+    {
+        return ['kind' => $request->kind, 'title' => $request->title, 'year' => $request->year, 'locale' => $request->locale, 'hints' => 'ignored', 'v' => CatalogMatchEngine::ALGORITHM_VERSION];
+    }
+
+    /** T29 §8.4 : même formule de clé que `resolve()`, calculable sans exécuter le chargement — nécessaire pour le lookup bulk `MediaMetadataCacheRepository::findMany()`. */
+    private function matchCacheKey(CatalogMatchRequest $request): string
+    {
+        return $this->cacheKey('match', $this->matchCacheArgs($request));
     }
 
     /** Accepts an opaque `externalId` UUID (new app) or the legacy `movie:<id>`/`series:<id>` form (§8.7). @return array<string, mixed> */
@@ -170,7 +265,7 @@ final readonly class CatalogService
     /** @param array<string, mixed> $args @param callable(): array<string, mixed> $load @return array<string, mixed> */
     private function resolve(string $operation, array $args, int $ttl, callable $load, bool $match = false): array
     {
-        $key = hash('sha256', 'v1|' . $operation . '|' . json_encode($this->normaliseArgs($args), JSON_THROW_ON_ERROR));
+        $key = $this->cacheKey($operation, $args);
         $cached = $this->cache->find($key);
         if ($cached !== null && $cached['fresh']) return $this->response($cached['payload'], $cached['status'], false, $match);
         $this->pdo->beginTransaction();
@@ -225,6 +320,11 @@ final readonly class CatalogService
             'cache' => ['stale' => $stale],
         ];
     }
+    /** @param array<string, mixed> $args */
+    private function cacheKey(string $operation, array $args): string
+    {
+        return hash('sha256', 'v1|' . $operation . '|' . json_encode($this->normaliseArgs($args), JSON_THROW_ON_ERROR));
+    }
     /** @param array<string, mixed> $args @return array<string, mixed> */
     private function normaliseArgs(array $args): array
     {
@@ -238,16 +338,23 @@ final readonly class CatalogService
         ksort($args);
         return $args;
     }
-    private function throttleMatch(string $accountId, string $ipKey, int $count): void
+    /**
+     * T29 §8.3 : quota de **requêtes** de matching plutôt que de médias — un batch de `MAX_ITEMS_PER_BATCH`
+     * items ne coûte qu'une unité, indépendamment de sa taille (§7.4). Protège le endpoint HTTP contre
+     * l'abus (fréquence/compte/IP), pas le budget fournisseur TMDB (`TmdbProviderRateLimiter`, §9.2 —
+     * responsabilité séparée et volontairement indépendante).
+     */
+    private function throttleMatchRequest(string $accountId, string $ipKey): void
     {
         $this->pdo->beginTransaction();
         try {
             AdvisoryLock::account($this->pdo, $accountId);
             AdvisoryLock::verifyIp($this->pdo, $ipKey);
-            if ($this->matchThrottle->countForAccount($accountId, 60) + $count > 120 || $this->matchThrottle->countForIp($ipKey, 60) + $count > 240) {
+            if ($this->matchThrottle->countForAccount($accountId, 60) + 1 > self::MATCH_REQUESTS_PER_MINUTE_ACCOUNT
+                || $this->matchThrottle->countForIp($ipKey, 60) + 1 > self::MATCH_REQUESTS_PER_MINUTE_IP) {
                 throw new ApiException(429, 'CATALOG_MATCH_RATE_LIMITED', 'Too many catalog matching requests. Try again later.');
             }
-            $this->matchThrottle->record($accountId, $ipKey, $count);
+            $this->matchThrottle->record($accountId, $ipKey, 1);
             $this->pdo->commit();
         } catch (Throwable $error) { if ($this->pdo->inTransaction()) $this->pdo->rollBack(); throw $error; }
     }

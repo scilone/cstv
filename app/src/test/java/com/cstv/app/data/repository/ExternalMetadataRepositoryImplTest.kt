@@ -17,7 +17,9 @@ import com.cstv.app.data.remote.dto.CatalogMatchResponseDto
 import com.cstv.app.data.remote.dto.CatalogSeasonDto
 import com.cstv.app.data.remote.dto.CatalogEpisodeDto
 import com.cstv.app.domain.model.ExternalMatchHints
+import com.cstv.app.domain.model.ExternalMetadataMatchOutcome
 import com.cstv.app.domain.model.ExternalMetadataMatchRequest
+import com.cstv.app.domain.model.matchOrNull
 import com.cstv.app.domain.util.TimeProvider
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -66,7 +68,7 @@ class ExternalMetadataRepositoryImplTest {
 
         val result = repository.match("movie", 42, "Dune", 2021, null)
 
-        assertEquals("5e37ba2a-1cda-4faf-9f10-335b2f6556a7", result?.externalId)
+        assertEquals("5e37ba2a-1cda-4faf-9f10-335b2f6556a7", result.matchOrNull?.externalId)
         verify(api, never()).match(any(), any())
     }
 
@@ -79,11 +81,11 @@ class ExternalMetadataRepositoryImplTest {
 
         val result = repository.match("movie", 42, "Dune", 2021, null)
 
-        assertEquals(96, result?.confidence)
-        assertEquals("title+year+director", result?.matchMethod)
-        assertEquals(2, result?.matchVersion)
-        assertEquals(17, result?.ageRating)
-        assertEquals(false, result?.fromNetwork)
+        assertEquals(96, result.matchOrNull?.confidence)
+        assertEquals("title+year+director", result.matchOrNull?.matchMethod)
+        assertEquals(2, result.matchOrNull?.matchVersion)
+        assertEquals(17, result.matchOrNull?.ageRating)
+        assertEquals(false, result.matchOrNull?.fromNetwork)
     }
 
     @Test
@@ -92,7 +94,7 @@ class ExternalMetadataRepositoryImplTest {
 
         val result = repository.match("movie", 42, "Dune", 2021, null, allowRefresh = true)
 
-        assertEquals("5e37ba2a-1cda-4faf-9f10-335b2f6556a7", result?.externalId)
+        assertEquals("5e37ba2a-1cda-4faf-9f10-335b2f6556a7", result.matchOrNull?.externalId)
         verify(api, never()).match(any(), any())
     }
 
@@ -102,7 +104,7 @@ class ExternalMetadataRepositoryImplTest {
 
         val result = repository.match("movie", 42, "Dune", 2021, null, allowRefresh = false)
 
-        assertEquals("5e37ba2a-1cda-4faf-9f10-335b2f6556a7", result?.externalId)
+        assertEquals("5e37ba2a-1cda-4faf-9f10-335b2f6556a7", result.matchOrNull?.externalId)
         verify(api, never()).match(any(), any())
     }
 
@@ -120,7 +122,7 @@ class ExternalMetadataRepositoryImplTest {
         val result = repository.match("movie", 42, "Dune", 2021, null, allowRefresh = true)
 
         verify(api).match(any(), eq("tv"))
-        assertEquals(true, result?.fromNetwork)
+        assertEquals(true, result.matchOrNull?.fromNetwork)
     }
 
     @Test
@@ -153,9 +155,9 @@ class ExternalMetadataRepositoryImplTest {
 
         val result = repository.match("movie", 42, "Dune", 2021, "dune-2021")
 
-        assertEquals(96, result?.confidence)
-        assertEquals(13, result?.ageRating)
-        assertEquals(true, result?.fromNetwork)
+        assertEquals(96, result.matchOrNull?.confidence)
+        assertEquals(13, result.matchOrNull?.ageRating)
+        assertEquals(true, result.matchOrNull?.fromNetwork)
         // F45-R5 : la fenêtre `cache.refreshAfter` du backend (2024-01-08T00:00:00Z) doit être
         // persistée, plus jamais écrite `null` inconditionnellement.
         verify(dao).persistItem(
@@ -228,7 +230,7 @@ class ExternalMetadataRepositoryImplTest {
 
         val result = repository.match("movie", 99, "Unknown", null, null)
 
-        assertNull(result)
+        assertEquals(ExternalMetadataMatchOutcome.Unresolved, result)
         verify(dao, never()).upsertMedia(any())
         val link = argumentCaptor<ExternalMediaLinkEntity>()
         verify(dao).upsertLink(link.capture())
@@ -270,13 +272,62 @@ class ExternalMetadataRepositoryImplTest {
             ),
         )
 
-        assertEquals("5e37ba2a-1cda-4faf-9f10-335b2f6556a7", result[0]?.externalId)
-        assertNull(result[1])
+        assertEquals("5e37ba2a-1cda-4faf-9f10-335b2f6556a7", result[0].matchOrNull?.externalId)
+        assertEquals(ExternalMetadataMatchOutcome.Unresolved, result[1])
         val request = argumentCaptor<com.cstv.app.data.remote.dto.CatalogMatchBatchRequestDto>()
         verify(api).matchBatch(request.capture(), eq("tv"))
         assertEquals(listOf("First", "Missing"), request.firstValue.items.map { it.title })
         assertEquals(listOf(2021, null), request.firstValue.items.map { it.year })
         assertTrue(request.firstValue.items.all { it.hints == null })
+    }
+
+    @Test
+    fun `T29 a retry status never persists a link and converts retryAfter seconds to millis`() = runBlocking<Unit> {
+        whenever(dao.findLocalMatch("movie", 42)).thenReturn(null)
+        whenever(api.match(any(), eq("tv"))).thenReturn(
+            CatalogMatchResponseDto(status = "retry", item = null, cache = CatalogCacheDto(retryAfter = 3)),
+        )
+
+        val result = repository.match("movie", 42, "Dune", 2021, "dune-2021")
+
+        assertEquals(ExternalMetadataMatchOutcome.Retry(3_000L), result)
+        verify(dao, never()).upsertLink(any())
+    }
+
+    @Test
+    fun `T29 a retry status with no retryAfter still yields Retry with a null delay`() = runBlocking<Unit> {
+        whenever(dao.findLocalMatch("movie", 42)).thenReturn(null)
+        whenever(api.match(any(), eq("tv"))).thenReturn(CatalogMatchResponseDto(status = "retry", item = null, cache = null))
+
+        val result = repository.match("movie", 42, "Dune", 2021, null)
+
+        assertEquals(ExternalMetadataMatchOutcome.Retry(null), result)
+    }
+
+    @Test
+    fun `T29 a batch preserves order when one item is retry and never persists it as unresolved`() = runBlocking<Unit> {
+        whenever(dao.findLocalMatch(any(), any())).thenReturn(null)
+        whenever(api.matchBatch(any(), eq("tv"))).thenReturn(
+            CatalogMatchBatchResponseDto(
+                items = listOf(
+                    CatalogMatchResponseDto(status = "matched", item = CatalogItemDto(externalId = "5e37ba2a-1cda-4faf-9f10-335b2f6556a7", kind = "movie", title = "First")),
+                    CatalogMatchResponseDto(status = "retry", item = null, cache = CatalogCacheDto(retryAfter = 5)),
+                    CatalogMatchResponseDto(status = "not_found"),
+                ),
+            ),
+        )
+
+        val result = repository.matchBatch(
+            listOf(
+                ExternalMetadataMatchRequest("movie", 1, "First", 2021, "first"),
+                ExternalMetadataMatchRequest("movie", 2, "Retry Me", 2021, "retry"),
+                ExternalMetadataMatchRequest("series", 3, "Missing", null, "missing"),
+            ),
+        )
+
+        assertEquals("5e37ba2a-1cda-4faf-9f10-335b2f6556a7", result[0].matchOrNull?.externalId)
+        assertEquals(ExternalMetadataMatchOutcome.Retry(5_000L), result[1])
+        assertEquals(ExternalMetadataMatchOutcome.Unresolved, result[2])
     }
 
     @Test

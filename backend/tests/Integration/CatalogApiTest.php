@@ -6,6 +6,7 @@ namespace Cstv\Backend\Tests\Integration;
 
 use Cstv\Backend\Bootstrap;
 use Cstv\Backend\Catalog\CatalogMatchCandidate;
+use Cstv\Backend\Catalog\CatalogProviderException;
 use Cstv\Backend\Catalog\MediaMetadataProvider;
 
 final class CatalogApiTest extends IntegrationTestCase
@@ -39,6 +40,9 @@ final class CatalogApiTest extends IntegrationTestCase
             {
                 $this->searchCalls++;
                 if ($title === 'Missing') return [];
+                // T29 §8.8 : simule un budget TMDB local épuisé / une indisponibilité transitoire —
+                // le seul moyen, avec ce double de test, de déclencher le chemin `retry` par item.
+                if ($title === 'Retry Me') throw new CatalogProviderException(429, retryAfterSeconds: 3);
                 // L'id fournisseur encode l'année pour que `hydrate()` puisse la restituer dans `releaseDate`
                 // sans dépendre d'un état partagé entre les deux méthodes (double de test, pas de vraie recherche).
                 return [new CatalogMatchCandidate($year ?? 999999, $title, $title, $year, [])];
@@ -178,7 +182,32 @@ final class CatalogApiTest extends IntegrationTestCase
         self::assertSame('CATALOG_MATCH_RATE_LIMITED', $this->json($response)['error']['code']);
     }
 
-    public function testCatalogMatchBatchUsesOneHttpRequestAndCountsEveryMediaAgainstTheQuota(): void
+    /**
+     * T29 §8.3/§11 : le nouveau seuil (30 *requêtes*/min/compte, hypothèse §4.2) s'applique
+     * identiquement à une requête batch — un lot de 50 items ne consomme toujours qu'une seule unité
+     * de quota, donc une seule requête supplémentaire suffit à faire dépasser un compte déjà à 30.
+     */
+    public function testCatalogMatchBatchIsRateLimitedPerAccountAtTheRequestLevel(): void
+    {
+        $account = $this->createAccount();
+        for ($i = 0; $i < 30; $i++) {
+            $this->pdo->prepare('INSERT INTO catalog_match_attempts (id, account_id, ip_key) VALUES (:id, :account, :ip)')
+                ->execute(['id' => \Cstv\Backend\Shared\Uuid::v4(), 'account' => $account['id'], 'ip' => '127.0.0.1']);
+        }
+        $response = $this->jsonRequest('POST', '/v1/catalog/matches/batch', [
+            'items' => [['kind' => 'movie', 'title' => 'Over Quota', 'year' => 2021]],
+        ], $this->auth($account['token']));
+        self::assertSame(429, $response->getStatusCode());
+        self::assertSame('CATALOG_MATCH_RATE_LIMITED', $this->json($response)['error']['code']);
+    }
+
+    /**
+     * T29 §8.3 : le throttle CSTV devient un quota de *requêtes*, plus un quota par média contenu
+     * dans le batch — un lot de N items ne coûte plus qu'une seule unité de quota, quel que soit N.
+     * Avant T29, cette même requête aurait inséré une ligne par item (`count($items)` passé à
+     * `throttleMatch()`) ; désormais une seule ligne est insérée par requête HTTP.
+     */
+    public function testCatalogMatchBatchUsesOneHttpRequestAndCountsOnlyOneRequestAgainstTheQuota(): void
     {
         $account = $this->createAccount();
         $response = $this->jsonRequest('POST', '/v1/catalog/matches/batch', [
@@ -191,7 +220,52 @@ final class CatalogApiTest extends IntegrationTestCase
         self::assertSame(200, $response->getStatusCode());
         self::assertCount(2, $this->json($response)['items']);
         self::assertSame('matched', $this->json($response)['items'][0]['status']);
-        self::assertSame(2, (int) $this->pdo->query("SELECT COUNT(*) FROM catalog_match_attempts WHERE account_id = '" . $account['id'] . "'")->fetchColumn());
+        self::assertSame(1, (int) $this->pdo->query("SELECT COUNT(*) FROM catalog_match_attempts WHERE account_id = '" . $account['id'] . "'")->fetchColumn(), 'a 2-item batch must count as a single throttle request');
+    }
+
+    /**
+     * T29 §7.6/§8.8 : un item en échec technique (budget provider épuisé) doit devenir `retry` sans
+     * faire perdre les résultats des autres items du même batch, et sans perturber leur ordre.
+     */
+    public function testCatalogMatchBatchIsolatesProviderErrorsPerItemAndPreservesOrder(): void
+    {
+        $account = $this->createAccount();
+        $response = $this->jsonRequest('POST', '/v1/catalog/matches/batch', [
+            'items' => [
+                ['kind' => 'movie', 'title' => 'Batch Isolation Matched', 'year' => 2021],
+                ['kind' => 'movie', 'title' => 'Retry Me', 'year' => 2021],
+                ['kind' => 'movie', 'title' => 'Missing', 'year' => 2021],
+            ],
+        ], $this->auth($account['token']));
+
+        self::assertSame(200, $response->getStatusCode());
+        $items = $this->json($response)['items'];
+        self::assertCount(3, $items);
+        self::assertSame('matched', $items[0]['status']);
+        self::assertSame('retry', $items[1]['status']);
+        self::assertNull($items[1]['item']);
+        self::assertNull($items[1]['match']);
+        self::assertSame(3, $items[1]['cache']['retryAfter']);
+        self::assertSame('not_found', $items[2]['status']);
+    }
+
+    /** T29 §8.4 : un batch entièrement servi par le cache ne doit jamais rappeler le moteur/le fournisseur. */
+    public function testCatalogMatchBatchCacheHitsNeverCallTheEngineOrTheProvider(): void
+    {
+        $account = $this->createAccount();
+        $body = ['items' => [['kind' => 'movie', 'title' => 'Bulk Cache Hit', 'year' => 2021]]];
+
+        $first = $this->jsonRequest('POST', '/v1/catalog/matches/batch', $body, $this->auth($account['token']));
+        self::assertSame(200, $first->getStatusCode());
+        self::assertSame(1, $this->provider->searchCalls);
+        self::assertSame(1, $this->provider->hydrateCalls);
+
+        $second = $this->jsonRequest('POST', '/v1/catalog/matches/batch', $body, $this->auth($account['token']));
+
+        self::assertSame(200, $second->getStatusCode());
+        self::assertSame('matched', $this->json($second)['items'][0]['status']);
+        self::assertSame(1, $this->provider->searchCalls, 'a fresh bulk cache hit must not call the provider again');
+        self::assertSame(1, $this->provider->hydrateCalls, 'a fresh bulk cache hit must not call the provider again');
     }
 
     public function testLegacyHintsRemainAcceptedAndIgnored(): void

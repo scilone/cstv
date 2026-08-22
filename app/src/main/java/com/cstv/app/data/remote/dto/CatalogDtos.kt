@@ -22,7 +22,13 @@ data class CatalogMatchBatchResponseDto(val items: List<CatalogMatchResponseDto>
 data class CatalogMatchQualityDto(val confidence: Int? = null, val method: String? = null, val version: Int? = null)
 data class CatalogMatchResponseDto(val status: String? = null, val match: CatalogMatchQualityDto? = null, val item: CatalogItemDto? = null, val cache: CatalogCacheDto? = null)
 data class CatalogVideosResponseDto(val items: List<CatalogVideoDto>? = null, val cache: CatalogCacheDto? = null)
-data class CatalogCacheDto(val stale: Boolean? = null, @SerializedName("updatedAt") val updatedAt: String? = null, @SerializedName("refreshAfter") val refreshAfter: String? = null)
+data class CatalogCacheDto(
+    val stale: Boolean? = null,
+    @SerializedName("updatedAt") val updatedAt: String? = null,
+    @SerializedName("refreshAfter") val refreshAfter: String? = null,
+    // T29 §8.7 : secondes avant nouvelle tentative, uniquement renseigné quand `status == "retry"`.
+    @SerializedName("retryAfter") val retryAfter: Int? = null,
+)
 data class CatalogItemDto(
     @SerializedName("externalId") val externalId: String? = null,
     val id: String? = null, val kind: String? = null, val title: String? = null,

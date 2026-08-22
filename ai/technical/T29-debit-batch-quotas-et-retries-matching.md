@@ -3,7 +3,7 @@
 ## Informations générales
 
 Status:
-TASK BREAKDOWN
+IMPLEMENTATION
 
 Created:
 2026-08-21
@@ -836,7 +836,7 @@ bulk queries, index existants, mesure.
 
 ## Tâche 1 — Introduire le résultat retryable backend
 
-- [ ] Ajouter un outcome `retry` par item.
+- [x] Ajouter un outcome `retry` par item.
 
 Objectif:
 Distinguer une impossibilité temporaire d’un vrai résultat métier.
@@ -856,7 +856,7 @@ Validation:
 
 ## Tâche 2 — Isoler les erreurs provider par item dans le batch
 
-- [ ] Rendre `/matches/batch` partiellement réussi.
+- [x] Rendre `/matches/batch` partiellement réussi.
 
 Objectif:
 Un item en erreur ne fait pas perdre les succès des autres.
@@ -878,7 +878,7 @@ ordre identique.
 
 ## Tâche 3 — Passer le throttle CSTV au niveau requête
 
-- [ ] Modifier la sémantique du quota.
+- [x] Modifier la sémantique du quota.
 
 Objectif:
 Un batch compte une unité de throttle, indépendamment de son nombre d’items.
@@ -899,7 +899,7 @@ Validation:
 
 ## Tâche 4 — Ajouter le cache bulk
 
-- [ ] Implémenter `MediaMetadataCacheRepository::findMany()`.
+- [x] Implémenter `MediaMetadataCacheRepository::findMany()`.
 
 Objectif:
 Supprimer N SELECT cache pour un batch.
@@ -917,7 +917,7 @@ Validation:
 
 ## Tâche 5 — Ajouter le backend-first bulk
 
-- [ ] Implémenter le lookup T28 en lot.
+- [x] Implémenter le lookup T28 en lot.
 
 Objectif:
 Résoudre les hits PostgreSQL avec un nombre constant de requêtes.
@@ -937,7 +937,7 @@ Validation:
 
 ## Tâche 6 — Refactorer `CatalogService::matchBatch`
 
-- [ ] Construire le pipeline cache → PostgreSQL → provider.
+- [x] Construire le pipeline cache → PostgreSQL → provider.
 
 Objectif:
 Éviter `array_map(matchWithoutThrottle)` comme stratégie principale.
@@ -951,7 +951,7 @@ Validation:
 
 ## Tâche 7 — Adapter le contrat Android de résultat
 
-- [ ] Introduire un outcome explicite.
+- [x] Introduire un outcome explicite.
 
 Fichiers:
 - DTO catalog Android
@@ -970,7 +970,7 @@ Validation:
 
 ## Tâche 8 — Adapter le worker pour retry par item
 
-- [ ] Ne reprogrammer que les items retryables.
+- [x] Ne reprogrammer que les items retryables.
 
 Fichiers:
 - `ExternalMetadataHydrationWorker.kt`
@@ -998,7 +998,7 @@ Les 2 retry ne créent aucune ligne unresolved.
 
 ## Tâche 9 — Passer les batchs Android à 50
 
-- [ ] Modifier `MAX_ITEMS_PER_BATCH`.
+- [x] Modifier `MAX_ITEMS_PER_BATCH`.
 
 Objectif:
 Réduire les allers-retours backend.
@@ -1017,7 +1017,7 @@ Validation:
 
 ## Tâche 10 — Tests anti-abus et compatibilité
 
-- [ ] Compléter tests backend/API.
+- [x] Compléter tests backend/API.
 
 Scénarios:
 - limite compte;
@@ -1032,7 +1032,9 @@ Scénarios:
 
 ## Tâche 11 — Benchmark avant/après
 
-- [ ] Mesurer T29 avec T28 actif.
+- [ ] Mesurer T29 avec T28 actif. **Non exécutable en étape 5** : mesure sur backend/APK réels en
+  conditions live, exclue des critères de validation automatisés (AGENTS.md — pas de test manuel/
+  device). À faire après déploiement, par le PO ou en observation post-release.
 
 Mesures minimales :
 
@@ -1058,7 +1060,9 @@ Le débit backend doit augmenter sans hausse du plafond TMDB.
 
 ## Tâche 12 — Vérification F46
 
-- [ ] Vérifier le comportement réel sur une APK de test.
+- [ ] Vérifier le comportement réel sur une APK de test. **Non exécutable en étape 5** : nécessite un
+  appareil/émulateur et une APK installée (AGENTS.md exclut explicitement ce type de vérification des
+  critères de validation d'agent). À faire manuellement après release.
 
 Objectif:
 Confirmer que “À traiter” diminue plus rapidement.
@@ -1077,7 +1081,61 @@ Ne pas modifier F46 dans ce ticket sauf bug découvert.
 
 # 11. Notes de développement
 
-À compléter à l’étape 5.
+## Étape 5 — implémentation
+
+### Backend (`backend/src/Catalog/`)
+
+- `CatalogMatchResult` : nouveau statut `retry` (+ `retryAfterSeconds`), factory `retry()`.
+- `CatalogMatchEngine::resolve()` : second paramètre optionnel `$precomputedStrict` (`null` = calcule
+  lui-même, comme avant ; `[]` = déjà tenté par le lot, aucun match ; tableau non vide = réutiliser).
+  Le chemin unitaire (`match()`) reste inchangé (aucun argument passé).
+- `CatalogService` :
+  - `throttleMatch(count)` → `throttleMatchRequest()` : une unité de quota par requête HTTP
+    (`match()` et `matchBatch()`), plus par média. Seuils passés à 30 req/min/compte, 60 req/min/IP
+    (`MATCH_REQUESTS_PER_MINUTE_ACCOUNT`/`_IP`).
+  - Nouveau pipeline `matchBatchItems()` : cache bulk (`MediaMetadataCacheRepository::findMany()`) →
+    backend-first bulk (`ExternalMediaRepository::findStrictConsolidatedMatchBatch()`, misses
+    seulement, année connue) → provider par item (`matchBatchItem()`, isolé).
+  - `matchBatchItem()` catch `ApiException` avec `status` ∈ {429, 502, 503} → item `retry` ; toute
+    autre exception continue de se propager (pas de conversion silencieuse d'un bug interne).
+  - Le endpoint unitaire (`match()`) n'a **pas** ce filet : un échec provider y reste une erreur HTTP
+    classique (429/502/503), comportement inchangé — seul le chemin batch isole par item (§8.8).
+- `MediaMetadataCacheRepository::findMany()` : un SELECT `= ANY(:keys::text[])` au lieu de N.
+- `ExternalMediaRepository::findStrictConsolidatedMatchBatch()` : 2 passes (titre normalisé, puis
+  titre original/alternatif) groupées par `kind` × `locale`, résolues en PHP pour respecter la même
+  règle d'unicité stricte que la version unitaire (jamais de résolution ambiguë).
+- Aucune migration (§4.3) — `retry` n'est jamais écrit dans `media_metadata_cache` (transitoire par
+  nature, la contrainte `result_status` CHECK n'a donc pas besoin de l'accepter).
+
+### Android (`app/src/main/java/com/cstv/app/`)
+
+- `domain/model/ExternalMetadata.kt` : `ExternalMetadataMatchOutcome` (sealed interface `Matched` /
+  `Unresolved` / `Retry(retryAfterMillis)`) remplace `ExternalMetadataMatch?` en retour de
+  `ExternalMetadataRepository.match()`/`matchBatch()`. Extension `matchOrNull` pour l'accès pratique
+  au match résolu (équivalent de l'ancien `?.`).
+- `data/remote/dto/CatalogDtos.kt` : `CatalogCacheDto.retryAfter` (secondes, `§8.7`).
+- `data/repository/ExternalMetadataRepositoryImpl.kt` : `persistNetworkMatch()` retourne `Retry` sans
+  toucher Room (§7.3 — jamais persisté comme `unresolved`) quand `response.status == "retry"`.
+- `data/repository/ContentClassificationRepository.kt` : un `Retry` est traité comme une erreur
+  réseau (jamais mis en cache 30 min comme "inconnu"), contrairement à `Unresolved` qui l'est.
+- `data/worker/ExternalMetadataHydrationWorker.kt` : `processOne()`/`drainQueue()` branchent sur le
+  scellé (`when`) — `Matched`/`Unresolved` retirent la demande de la file comme avant, `Retry`
+  reprogramme via `requeueWithBackoff(retryAfterMillis)` (délai backend si connu, sinon le backoff
+  exponentiel F45 existant). `MAX_ITEMS_PER_BATCH` 20 → 50 ; `MAX_ITEMS_PER_RUN` inchangé (200).
+
+### Tests
+
+- Backend : `CatalogApiTest` (throttle requête vs média, isolation retry par item, cache hit bulk),
+  `CatalogMatchEngineTest` (`findStrictConsolidatedMatchBatch` — unique/ambigu/cross-kind/locale).
+  Suite complète (`vendor/bin/phpunit`) : 249 tests, verte.
+- Android : `ExternalMetadataRepositoryImplTest`, `ContentClassificationRepositoryTest`,
+  `ExternalMetadataHydrationWorkerTest` mis à jour pour le type scellé + nouveaux cas retry.
+  `./gradlew testDebugUnitTest` (suite complète), `assembleDebug`, `lintDebug` : verts.
+
+### Hors périmètre étape 5 (nécessitent mesures live/device, exclus par AGENTS.md)
+
+Tâche 11 (benchmark avant/après) et Tâche 12 (vérification F46 sur APK réelle) — voir notes dans
+leurs sections respectives (§10).
 
 Paramètres initiaux :
 

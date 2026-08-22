@@ -24,6 +24,7 @@ import com.cstv.app.domain.model.ExternalMatchHints
 import com.cstv.app.domain.model.ExternalMetadataCoverage
 import com.cstv.app.domain.model.ExternalMetadataCoverageByKind
 import com.cstv.app.domain.model.ExternalMetadataMatch
+import com.cstv.app.domain.model.ExternalMetadataMatchOutcome
 import com.cstv.app.domain.model.ExternalMetadataMatchRequest
 import com.cstv.app.domain.repository.ExternalMetadataRepository
 import com.cstv.app.domain.util.IsoInstant
@@ -90,13 +91,15 @@ class ExternalMetadataRepositoryImpl @Inject constructor(
         linkKey: String?,
         hints: ExternalMatchHints,
         allowRefresh: Boolean,
-    ): ExternalMetadataMatch? {
+    ): ExternalMetadataMatchOutcome {
         dao.findLocalMatch(kind, providerId)?.let { local ->
             // F45-R5 : hors DETAIL_OPEN, jamais de rafraîchissement (§7.1/§7.5) — un lien local est
             // toujours resservi tel quel, même stale. `allowRefresh` seul peut faire retomber sur le
             // réseau ci-dessous, et seulement si `refreshAfter` est effectivement dépassé.
             if (!allowRefresh || !isStale(local.refreshAfter)) {
-                return ExternalMetadataMatch(local.externalId, kind, local.confidence, local.matchMethod, local.matchVersion, local.ageRating, fromNetwork = false)
+                return ExternalMetadataMatchOutcome.Matched(
+                    ExternalMetadataMatch(local.externalId, kind, local.confidence, local.matchMethod, local.matchVersion, local.ageRating, fromNetwork = false),
+                )
             }
         }
 
@@ -104,14 +107,16 @@ class ExternalMetadataRepositoryImpl @Inject constructor(
         return persistNetworkMatch(kind, providerId, linkKey, response)
     }
 
-    override suspend fun matchBatch(requests: List<ExternalMetadataMatchRequest>): List<ExternalMetadataMatch?> {
+    override suspend fun matchBatch(requests: List<ExternalMetadataMatchRequest>): List<ExternalMetadataMatchOutcome> {
         if (requests.isEmpty()) return emptyList()
-        val results = arrayOfNulls<ExternalMetadataMatch>(requests.size)
+        val results = arrayOfNulls<ExternalMetadataMatchOutcome>(requests.size)
         val remote = mutableListOf<Pair<Int, ExternalMetadataMatchRequest>>()
         requests.forEachIndexed { index, request ->
             val local = dao.findLocalMatch(request.kind, request.providerId)
             if (local != null && (!request.allowRefresh || !isStale(local.refreshAfter))) {
-                results[index] = ExternalMetadataMatch(local.externalId, request.kind, local.confidence, local.matchMethod, local.matchVersion, local.ageRating, fromNetwork = false)
+                results[index] = ExternalMetadataMatchOutcome.Matched(
+                    ExternalMetadataMatch(local.externalId, request.kind, local.confidence, local.matchMethod, local.matchVersion, local.ageRating, fromNetwork = false),
+                )
             } else {
                 remote += index to request
             }
@@ -127,10 +132,17 @@ class ExternalMetadataRepositoryImpl @Inject constructor(
                 results[requestIndex] = persistNetworkMatch(request.kind, request.providerId, request.linkKey, items[responseIndex])
             }
         }
-        return results.toList()
+        return results.map { it ?: error("Catalog match batch outcome missing at a filled index") }
     }
 
-    private suspend fun persistNetworkMatch(kind: String, providerId: Int, linkKey: String?, response: CatalogMatchResponseDto): ExternalMetadataMatch? {
+    private suspend fun persistNetworkMatch(kind: String, providerId: Int, linkKey: String?, response: CatalogMatchResponseDto): ExternalMetadataMatchOutcome {
+        // T29 §7.3/§8.9/§8.10 : `retry` est une impossibilité *technique* temporaire (429 provider,
+        // budget TMDB local épuisé, panne transitoire) — jamais persisté comme une tentative métier,
+        // contrairement à `not_found`/`unresolved` ci-dessous (§7.3 "ne jamais enregistrer un échec
+        // technique comme UNRESOLVED").
+        if (response.status == "retry") {
+            return ExternalMetadataMatchOutcome.Retry(response.cache?.retryAfter?.toLong()?.times(1000L))
+        }
         val now = timeProvider.nowMillis()
         val item = response.item
         val externalId = item?.externalId
@@ -138,7 +150,7 @@ class ExternalMetadataRepositoryImpl @Inject constructor(
             // §8.9 : un média UNRESOLVED/not_found n'est pas "jamais tenté" — persister la tentative
             // (sans externalId) évite au backfill de le remettre en file en boucle (§7.5/§7.1).
             persistUnresolvedAttempt(kind, providerId, linkKey, response.match?.version, now)
-            return null
+            return ExternalMetadataMatchOutcome.Unresolved
         }
         val quality = response.match
         // F45-R5 : la fenêtre vient du backend (§7.10, le client ne duplique jamais les règles de
@@ -162,7 +174,7 @@ class ExternalMetadataRepositoryImpl @Inject constructor(
             ),
         )
 
-        return ExternalMetadataMatch(externalId, kind, quality?.confidence, quality?.method, quality?.version, item.ageRating)
+        return ExternalMetadataMatchOutcome.Matched(ExternalMetadataMatch(externalId, kind, quality?.confidence, quality?.method, quality?.version, item.ageRating))
     }
 
     private suspend fun persistUnresolvedAttempt(kind: String, providerId: Int, linkKey: String?, matchVersion: Int?, now: Long) {

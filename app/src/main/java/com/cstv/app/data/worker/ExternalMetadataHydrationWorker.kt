@@ -17,6 +17,7 @@ import com.cstv.app.data.local.entity.ExternalMediaLinkEntity
 import com.cstv.app.di.IptvLog
 import com.cstv.app.domain.model.ExternalMatchHints
 import com.cstv.app.domain.model.ExternalMetadataMatch
+import com.cstv.app.domain.model.ExternalMetadataMatchOutcome
 import com.cstv.app.domain.model.ExternalMetadataMatchRequest
 import com.cstv.app.domain.model.GenreParser
 import com.cstv.app.domain.model.HydrationReason
@@ -81,7 +82,10 @@ class ExternalMetadataHydrationWorker(appContext: Context, params: WorkerParamet
     companion object {
         private const val UNIQUE_WORK_NAME = "external_metadata_hydration"
         internal const val MAX_ITEMS_PER_RUN = 200
-        internal const val MAX_ITEMS_PER_BATCH = 20
+        // T29 §8.11 : 20 -> 50, capacité maximale déjà acceptée par `/v1/catalog/matches/batch`
+        // (§8.3) — réduit les allers-retours backend sans changer `MAX_ITEMS_PER_RUN` (isolé pour
+        // mesurer le gain du seul batching avant de toucher à la durée d'un run WorkManager).
+        internal const val MAX_ITEMS_PER_BATCH = 50
 
         fun enqueue(context: Context) {
             WorkManager.getInstance(context).enqueueUniqueWork(UNIQUE_WORK_NAME, ExistingWorkPolicy.KEEP, build())
@@ -154,13 +158,22 @@ class ExternalMetadataHydrationWorker(appContext: Context, params: WorkerParamet
                         })
                         check(matches.size == active.size) { "External metadata batch response size mismatch" }
                         active.forEachIndexed { index, (request, source) ->
-                            val match = matches[index]
-                            dao.deleteRequest(request.kind, request.providerId)
-                            if (request.kind == "series" && request.priority == HydrationReason.DETAIL_OPEN.priority && match != null) {
-                                repository.hydrateSeriesSeasons(match.externalId)
-                            }
-                            if (match != null && match.fromNetwork) {
-                                propagateLinkKey(request.kind, request.providerId, source, match, dao, vodDao, seriesDao, now())
+                            // T29 §7.6/§8.10 : seul `retry` (impossibilité technique temporaire) reste en
+                            // file — `matched`/`unresolved` sont retirés comme avant, un `retry` ne doit
+                            // jamais être persisté comme `unresolved` (§7.3).
+                            when (val outcome = matches[index]) {
+                                is ExternalMetadataMatchOutcome.Matched -> {
+                                    dao.deleteRequest(request.kind, request.providerId)
+                                    val match = outcome.match
+                                    if (request.kind == "series" && request.priority == HydrationReason.DETAIL_OPEN.priority) {
+                                        repository.hydrateSeriesSeasons(match.externalId)
+                                    }
+                                    if (match.fromNetwork) {
+                                        propagateLinkKey(request.kind, request.providerId, source, match, dao, vodDao, seriesDao, now())
+                                    }
+                                }
+                                ExternalMetadataMatchOutcome.Unresolved -> dao.deleteRequest(request.kind, request.providerId)
+                                is ExternalMetadataMatchOutcome.Retry -> requeueWithBackoff(request, dao, now(), outcome.retryAfterMillis)
                             }
                         }
                     } catch (exception: CancellationException) {
@@ -192,20 +205,28 @@ class ExternalMetadataHydrationWorker(appContext: Context, params: WorkerParamet
                 // F45-R5 : seul `DETAIL_OPEN` peut faire retomber un hit local sur le réseau — les
                 // priorités de fond ne doivent jamais rafraîchir une donnée stale (§7.1/§7.5).
                 val allowRefresh = request.priority == HydrationReason.DETAIL_OPEN.priority
-                val match = repository.match(request.kind, request.providerId, source.title, source.year, source.linkKey, source.hints, allowRefresh)
-                dao.deleteRequest(request.kind, request.providerId)
-                // F45-R7 : la série de niveau média est traitée par tous les producteurs, mais les
-                // saisons/épisodes sont strictement réservés à l'ouverture réelle de la fiche.
-                // La boucle du repository est séquentielle et son échec reste non bloquant : le
-                // prochain DETAIL_OPEN pourra reprendre les saisons manquantes/stale.
-                if (request.kind == "series" && request.priority == HydrationReason.DETAIL_OPEN.priority && match != null) {
-                    repository.hydrateSeriesSeasons(match.externalId)
-                }
-                // F45-R4 : un hit local renvoie désormais une vraie confidence (plus jamais null par
-                // construction) — `fromNetwork` est le seul signal fiable qu'un travail réseau a eu
-                // lieu ; sans lui, chaque hit local re-propagerait `linkKey` inutilement à chaque passage.
-                if (match != null && match.fromNetwork) {
-                    propagateLinkKey(request.kind, request.providerId, source, match, dao, vodDao, seriesDao, now)
+                // T29 §7.6/§8.10 : un `retry` (impossibilité technique temporaire) reste en file —
+                // il ne doit jamais être persisté comme `unresolved` (§7.3).
+                when (val outcome = repository.match(request.kind, request.providerId, source.title, source.year, source.linkKey, source.hints, allowRefresh)) {
+                    is ExternalMetadataMatchOutcome.Matched -> {
+                        dao.deleteRequest(request.kind, request.providerId)
+                        val match = outcome.match
+                        // F45-R7 : la série de niveau média est traitée par tous les producteurs, mais les
+                        // saisons/épisodes sont strictement réservés à l'ouverture réelle de la fiche.
+                        // La boucle du repository est séquentielle et son échec reste non bloquant : le
+                        // prochain DETAIL_OPEN pourra reprendre les saisons manquantes/stale.
+                        if (request.kind == "series" && request.priority == HydrationReason.DETAIL_OPEN.priority) {
+                            repository.hydrateSeriesSeasons(match.externalId)
+                        }
+                        // F45-R4 : un hit local renvoie désormais une vraie confidence (plus jamais null par
+                        // construction) — `fromNetwork` est le seul signal fiable qu'un travail réseau a eu
+                        // lieu ; sans lui, chaque hit local re-propagerait `linkKey` inutilement à chaque passage.
+                        if (match.fromNetwork) {
+                            propagateLinkKey(request.kind, request.providerId, source, match, dao, vodDao, seriesDao, now)
+                        }
+                    }
+                    ExternalMetadataMatchOutcome.Unresolved -> dao.deleteRequest(request.kind, request.providerId)
+                    is ExternalMetadataMatchOutcome.Retry -> requeueWithBackoff(request, dao, now, outcome.retryAfterMillis)
                 }
             } catch (exception: CancellationException) {
                 throw exception
@@ -242,9 +263,15 @@ class ExternalMetadataHydrationWorker(appContext: Context, params: WorkerParamet
             }
         }
 
-        private suspend fun requeueWithBackoff(request: ExternalHydrationRequestEntity, dao: ExternalMetadataDao, now: Long) {
+        /**
+         * §7.7 : `retryAfterMillis` (fourni par le backend, `Retry-After` TMDB) prime sur le backoff
+         * exponentiel F45 quand connu — sinon le backoff habituel s'applique, comme pour toute erreur
+         * technique classique (réseau, batch entier en échec).
+         */
+        private suspend fun requeueWithBackoff(request: ExternalHydrationRequestEntity, dao: ExternalMetadataDao, now: Long, retryAfterMillis: Long? = null) {
             val attemptCount = request.attemptCount + 1
-            dao.upsertRequest(request.copy(attemptCount = attemptCount, nextAttemptAt = now + backoffDelayMillis(attemptCount)))
+            val delayMillis = retryAfterMillis ?: backoffDelayMillis(attemptCount)
+            dao.upsertRequest(request.copy(attemptCount = attemptCount, nextAttemptAt = now + delayMillis))
         }
 
         /** 10min, 20, 40, 80, 160, 320, plafonné à 6h (360min) — cooldown après échec fournisseur (§6, paramètre ajustable). */

@@ -39,3 +39,22 @@ data class ExternalMetadataMatch(
     val ageRating: Int?,
     val fromNetwork: Boolean = true,
 )
+
+/**
+ * T29 §8.9 : résultat provider-neutral d'une tentative de matching, remplaçant l'ancien
+ * `ExternalMetadataMatch?` — un simple `null` ne distinguait pas un résultat métier terminé
+ * (`not_found`/`unresolved` backend) d'une impossibilité **technique** temporaire (429 fournisseur,
+ * budget TMDB local épuisé, erreur réseau transitoire, §7.3). Un `Retry` ne doit jamais être persisté
+ * comme un `Unresolved` (§7.3, §8.10) : l'appelant reprogramme l'item au lieu d'écrire une tentative.
+ */
+sealed interface ExternalMetadataMatchOutcome {
+    data class Matched(val match: ExternalMetadataMatch) : ExternalMetadataMatchOutcome
+    /** Résolution métier terminée sans match retenu (`not_found`/`unresolved` côté backend). */
+    data object Unresolved : ExternalMetadataMatchOutcome
+    /** §7.7 : `retryAfterMillis` vient du `Retry-After` backend quand connu, sinon `null` (le backoff F45 s'applique). */
+    data class Retry(val retryAfterMillis: Long?) : ExternalMetadataMatchOutcome
+}
+
+/** Accès pratique au match résolu, `null` pour `Unresolved`/`Retry` — mêmes usages que l'ancien `?.` sur `ExternalMetadataMatch?`. */
+val ExternalMetadataMatchOutcome.matchOrNull: ExternalMetadataMatch?
+    get() = (this as? ExternalMetadataMatchOutcome.Matched)?.match

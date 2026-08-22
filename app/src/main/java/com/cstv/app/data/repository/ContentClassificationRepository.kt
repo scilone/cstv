@@ -1,6 +1,8 @@
 package com.cstv.app.data.repository
 
 import com.cstv.app.domain.model.ExternalMatchHints
+import com.cstv.app.domain.model.ExternalMetadataMatchOutcome
+import com.cstv.app.domain.model.matchOrNull
 import com.cstv.app.domain.repository.ExternalMetadataRepository
 import com.cstv.app.domain.util.TimeProvider
 import javax.inject.Inject
@@ -63,10 +65,10 @@ class ContentClassificationRepository @Inject constructor(
         // interprète prématurément l'absence de résultat comme « inconnue ».
         if (!isOwner) return request.await()
 
-        val ageRating = try {
+        val outcome = try {
             // F45-R5 : une fiche/lecture ouverte est l'équivalent interactif de DETAIL_OPEN — seul
             // chemin autorisé à rafraîchir une métadonnée stale (§7.5/§7.10).
-            externalMetadataRepository.match(kind.wireValue, providerId, title, year, linkKey = null, ExternalMatchHints(), allowRefresh = true)?.ageRating
+            externalMetadataRepository.match(kind.wireValue, providerId, title, year, linkKey = null, ExternalMatchHints(), allowRefresh = true)
         } catch (error: Exception) {
             if (error is CancellationException) throw error
             mutex.withLock { inFlight.remove(key)?.complete(null) }
@@ -74,6 +76,15 @@ class ContentClassificationRepository @Inject constructor(
             // ne doit pas transformer une micro-coupure en cache négatif.
             return null
         }
+
+        if (outcome is ExternalMetadataMatchOutcome.Retry) {
+            // T29 §7.3 : une impossibilité *technique* temporaire (429 provider, budget TMDB local
+            // épuisé) se comporte comme une erreur réseau — jamais mise en cache comme "inconnue",
+            // pour que le prochain appel puisse retenter sans attendre l'expiration du cache.
+            mutex.withLock { inFlight.remove(key)?.complete(null) }
+            return null
+        }
+        val ageRating = outcome.matchOrNull?.ageRating
 
         mutex.withLock {
             cache[key] = CacheEntry(ageRating, timeProvider.nowMillis())

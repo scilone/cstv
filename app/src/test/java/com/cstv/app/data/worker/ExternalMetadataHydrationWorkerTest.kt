@@ -8,6 +8,7 @@ import com.cstv.app.data.local.entity.ExternalMediaLinkEntity
 import com.cstv.app.data.local.entity.VodStreamEntity
 import com.cstv.app.domain.model.ExternalMatchHints
 import com.cstv.app.domain.model.ExternalMetadataMatch
+import com.cstv.app.domain.model.ExternalMetadataMatchOutcome
 import com.cstv.app.domain.model.ExternalMetadataMatchRequest
 import com.cstv.app.domain.repository.ExternalMetadataRepository
 import kotlinx.coroutines.test.runTest
@@ -59,7 +60,7 @@ class ExternalMetadataHydrationWorkerTest {
         whenever(vodDao.getStreamById(42)).thenReturn(vodRow(42))
         whenever(vodDao.getStreamsByLinkKey(eq("dune-2021"), eq(2021), any())).thenReturn(emptyList())
         whenever(repository.match(any(), any(), any(), anyOrNull(), anyOrNull(), any(), any())).thenReturn(
-            ExternalMetadataMatch("5e37ba2a-1cda-4faf-9f10-335b2f6556a7", "movie", 92, "title+year+director", 1, 13),
+            ExternalMetadataMatchOutcome.Matched(ExternalMetadataMatch("5e37ba2a-1cda-4faf-9f10-335b2f6556a7", "movie", 92, "title+year+director", 1, 13)),
         )
 
         val batchWasFull = ExternalMetadataHydrationWorker.drainQueue(dao, vodDao, seriesDao, repository) { 1_000L }
@@ -86,7 +87,7 @@ class ExternalMetadataHydrationWorkerTest {
         val request = ExternalHydrationRequestEntity("movie", 55, "MISSING_METADATA", 1, 1L, 1L, 0)
         whenever(dao.nextRequest(any())).thenReturn(request, null)
         whenever(vodDao.getStreamById(55)).thenReturn(vodRow(55, linkKey = "bg-55"))
-        whenever(repository.match(any(), any(), any(), anyOrNull(), anyOrNull(), any(), any())).thenReturn(null)
+        whenever(repository.match(any(), any(), any(), anyOrNull(), anyOrNull(), any(), any())).thenReturn(ExternalMetadataMatchOutcome.Unresolved)
 
         ExternalMetadataHydrationWorker.drainQueue(dao, vodDao, seriesDao, repository) { 1_000L }
 
@@ -124,7 +125,7 @@ class ExternalMetadataHydrationWorkerTest {
             if (invocation.getArgument<Int>(1) == 1) {
                 throw RuntimeException("network down")
             } else {
-                ExternalMetadataMatch("6f48cb3b-2ddb-5fbf-a021-446c3f6667b8", "movie", 90, "title+year", 1, null)
+                ExternalMetadataMatchOutcome.Matched(ExternalMetadataMatch("6f48cb3b-2ddb-5fbf-a021-446c3f6667b8", "movie", 90, "title+year", 1, null))
             }
         }
         whenever(vodDao.getStreamsByLinkKey(any(), anyOrNull(), any())).thenReturn(emptyList())
@@ -139,6 +140,65 @@ class ExternalMetadataHydrationWorkerTest {
         verify(dao).deleteRequest("movie", 2) // l'item suivant est bien traité malgré l'échec du premier
     }
 
+    /**
+     * T29 §7.6/§8.10 : un `retry` (impossibilité technique temporaire) doit rester en file — jamais
+     * retiré comme un résultat métier — et son délai vient du backend (`Retry-After`) quand fourni.
+     */
+    @Test
+    fun `T29 a single retry item is requeued using the backend retryAfter and never deleted`() = runTest {
+        val dao: ExternalMetadataDao = mock()
+        val vodDao: VodDao = mock()
+        val seriesDao: SeriesDao = mock()
+        val repository: ExternalMetadataRepository = mock()
+        val request = ExternalHydrationRequestEntity("movie", 7, "MISSING_METADATA", 1, 1L, 1L, 0)
+        whenever(dao.nextRequest(any())).thenReturn(request, null)
+        whenever(vodDao.getStreamById(7)).thenReturn(vodRow(7, linkKey = "retry-7"))
+        whenever(repository.match(any(), any(), any(), anyOrNull(), anyOrNull(), any(), any()))
+            .thenReturn(ExternalMetadataMatchOutcome.Retry(4_000L))
+
+        ExternalMetadataHydrationWorker.drainQueue(dao, vodDao, seriesDao, repository) { 1_000L }
+
+        verify(dao, never()).deleteRequest("movie", 7)
+        val requeued = argumentCaptor<ExternalHydrationRequestEntity>()
+        verify(dao).upsertRequest(requeued.capture())
+        assertEquals(1, requeued.firstValue.attemptCount)
+        assertEquals(5_000L, requeued.firstValue.nextAttemptAt) // now(1_000) + retryAfterMillis(4_000)
+    }
+
+    @Test
+    fun `T29 a batch requeues only the retry item and processes matched-unresolved-retry independently`() = runTest {
+        val dao: ExternalMetadataDao = mock()
+        val vodDao: VodDao = mock()
+        val seriesDao: SeriesDao = mock()
+        val repository: ExternalMetadataRepository = mock()
+        val matched = ExternalHydrationRequestEntity("movie", 1, "MISSING_METADATA", 1, 1L, 1L, 0)
+        val unresolved = ExternalHydrationRequestEntity("movie", 2, "MISSING_METADATA", 1, 1L, 1L, 0)
+        val retry = ExternalHydrationRequestEntity("movie", 3, "MISSING_METADATA", 1, 1L, 1L, 0)
+        whenever(dao.nextRequests(any(), any())).thenReturn(listOf(matched, unresolved, retry), emptyList())
+        whenever(vodDao.getStreamById(1)).thenReturn(vodRow(1, "batch-1"))
+        whenever(vodDao.getStreamById(2)).thenReturn(vodRow(2, "batch-2"))
+        whenever(vodDao.getStreamById(3)).thenReturn(vodRow(3, "batch-3"))
+        whenever(vodDao.getStreamsByLinkKey(any(), anyOrNull(), any())).thenReturn(emptyList())
+        whenever(repository.matchBatch(any())).thenReturn(
+            listOf(
+                ExternalMetadataMatchOutcome.Matched(ExternalMetadataMatch("5e37ba2a-1cda-4faf-9f10-335b2f6556a7", "movie", 90, "title+year", 1, null)),
+                ExternalMetadataMatchOutcome.Unresolved,
+                ExternalMetadataMatchOutcome.Retry(null), // pas de Retry-After connu -> backoff F45
+            ),
+        )
+
+        ExternalMetadataHydrationWorker.drainQueue(dao, vodDao, seriesDao, repository) { 1_000L }
+
+        verify(dao).deleteRequest("movie", 1)
+        verify(dao).deleteRequest("movie", 2)
+        verify(dao, never()).deleteRequest("movie", 3)
+        val requeued = argumentCaptor<ExternalHydrationRequestEntity>()
+        verify(dao).upsertRequest(requeued.capture())
+        assertEquals(3, requeued.firstValue.providerId)
+        assertEquals(1, requeued.firstValue.attemptCount)
+        assertEquals(1_000L + ExternalMetadataHydrationWorker.backoffDelayMillis(1), requeued.firstValue.nextAttemptAt)
+    }
+
     @Test
     fun `a fresh match propagates the same externalId to same-linkKey siblings but not to itself`() = runTest {
         val dao: ExternalMetadataDao = mock()
@@ -151,7 +211,7 @@ class ExternalMetadataHydrationWorkerTest {
         whenever(vodDao.getStreamsByLinkKey(eq("dune-2021"), eq(2021), any()))
             .thenReturn(listOf(vodRow(42), vodRow(43), vodRow(44))) // le groupe inclut l'item lui-même
         whenever(repository.match(any(), any(), any(), anyOrNull(), anyOrNull(), any(), any())).thenReturn(
-            ExternalMetadataMatch("5e37ba2a-1cda-4faf-9f10-335b2f6556a7", "movie", 92, "title+year", 1, 13),
+            ExternalMetadataMatchOutcome.Matched(ExternalMetadataMatch("5e37ba2a-1cda-4faf-9f10-335b2f6556a7", "movie", 92, "title+year", 1, 13)),
         )
 
         ExternalMetadataHydrationWorker.drainQueue(dao, vodDao, seriesDao, repository) { 1_000L }
@@ -175,7 +235,7 @@ class ExternalMetadataHydrationWorkerTest {
         whenever(dao.nextRequest(any())).thenReturn(request, null)
         whenever(vodDao.getStreamById(42)).thenReturn(vodRow(42))
         whenever(repository.match(any(), any(), any(), anyOrNull(), anyOrNull(), any(), any())).thenReturn(
-            ExternalMetadataMatch("5e37ba2a-1cda-4faf-9f10-335b2f6556a7", "movie", 90, "title+year", 1, 13, fromNetwork = false),
+            ExternalMetadataMatchOutcome.Matched(ExternalMetadataMatch("5e37ba2a-1cda-4faf-9f10-335b2f6556a7", "movie", 90, "title+year", 1, 13, fromNetwork = false)),
         )
 
         ExternalMetadataHydrationWorker.drainQueue(dao, vodDao, seriesDao, repository) { 1_000L }
@@ -195,7 +255,7 @@ class ExternalMetadataHydrationWorkerTest {
         whenever(dao.nextRequests(any(), any())).thenReturn(listOf(first, second), emptyList())
         whenever(vodDao.getStreamById(1)).thenReturn(vodRow(1, "batch-1"))
         whenever(vodDao.getStreamById(2)).thenReturn(vodRow(2, "batch-2"))
-        whenever(repository.matchBatch(any())).thenReturn(listOf(null, null))
+        whenever(repository.matchBatch(any())).thenReturn(listOf(ExternalMetadataMatchOutcome.Unresolved, ExternalMetadataMatchOutcome.Unresolved))
 
         ExternalMetadataHydrationWorker.drainQueue(dao, vodDao, seriesDao, repository) { 1_000L }
 

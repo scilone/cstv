@@ -28,11 +28,17 @@ final readonly class CatalogMatchEngine
         private CatalogItemPresenter $presenter = new CatalogItemPresenter(),
     ) {}
 
-    public function resolve(CatalogMatchRequest $request): CatalogMatchResult
+    /**
+     * @param array{externalId: string, method: string}|array{}|null $precomputedStrict T29 §8.5/§8.6 :
+     *     résultat déjà calculé par le lookup PostgreSQL-first en lot (`CatalogService::matchBatchItems()`).
+     *     `null` (défaut, chemin unitaire) : ce calcul est fait ici. Tableau vide `[]` : le lot l'a déjà
+     *     tenté sans succès, ne pas relancer une seconde requête SQL. Tableau non vide : réutiliser tel quel.
+     */
+    public function resolve(CatalogMatchRequest $request, ?array $precomputedStrict = null): CatalogMatchResult
     {
-        $strict = $request->year !== null
-            ? $this->externalMedia->findStrictConsolidatedMatch($request->kind, $request->title, $request->year, $request->locale)
-            : null;
+        $strict = $precomputedStrict !== null
+            ? ($precomputedStrict !== [] ? $precomputedStrict : null)
+            : ($request->year !== null ? $this->externalMedia->findStrictConsolidatedMatch($request->kind, $request->title, $request->year, $request->locale) : null);
         if ($strict !== null) {
             $reused = $this->reuseStored($request->kind, $strict['externalId'], $strict['method'], $request->locale);
             if ($reused !== null) return $reused;
