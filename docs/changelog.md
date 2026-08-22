@@ -1,5 +1,11 @@
 # Journal des Modifications (Changelog) - CSTV IPTV
 
+## [v1.93.1] - 2026-08-22
+
+### ⚡ Débit d'enrichissement des médias (T29)
+* **Amélioration du débit d'enrichissement des médias** : l'application espace désormais ses lots d'enrichissement pour rester sous le quota du serveur au lieu de le déclencher, et le serveur borne le temps de traitement d'un lot pour toujours répondre avant l'expiration du délai client.
+* **Meilleure gestion des reprises lors d'une limitation serveur** : quand le serveur demande d'attendre, les médias concernés restent en file et sont repris à l'heure indiquée par le serveur, au lieu d'être repoussés de dix minutes à six heures.
+
 ## [v1.92.0] - 2026-08-21
 
 ### ✨ Indicateur de couverture de l’enrichissement des médias (F46)

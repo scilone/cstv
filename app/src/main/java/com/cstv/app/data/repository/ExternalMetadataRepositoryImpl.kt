@@ -14,12 +14,14 @@ import com.cstv.app.data.local.entity.ExternalRecommendationEntity
 import com.cstv.app.data.local.entity.ExternalVideoEntity
 import com.cstv.app.data.local.entity.ExternalSeasonEntity
 import com.cstv.app.data.local.entity.ExternalEpisodeEntity
+import com.cstv.app.data.remote.RetryAfterHeader
 import com.cstv.app.data.remote.api.CstvCatalogApiService
 import com.cstv.app.data.remote.api.DeviceTypeProvider
 import com.cstv.app.data.remote.dto.CatalogItemDto
 import com.cstv.app.data.remote.dto.CatalogMatchBatchRequestDto
 import com.cstv.app.data.remote.dto.CatalogMatchRequestDto
 import com.cstv.app.data.remote.dto.CatalogMatchResponseDto
+import com.cstv.app.domain.model.CatalogThrottledException
 import com.cstv.app.domain.model.ExternalMatchHints
 import com.cstv.app.domain.model.ExternalMetadataCoverage
 import com.cstv.app.domain.model.ExternalMetadataCoverageByKind
@@ -32,6 +34,7 @@ import com.cstv.app.domain.util.TimeProvider
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import retrofit2.HttpException
 import javax.inject.Inject
 
 class ExternalMetadataRepositoryImpl @Inject constructor(
@@ -103,7 +106,7 @@ class ExternalMetadataRepositoryImpl @Inject constructor(
             }
         }
 
-        val response = api.match(CatalogMatchRequestDto(kind = kind, title = title, year = year), deviceType.current())
+        val response = throttleAware { api.match(CatalogMatchRequestDto(kind = kind, title = title, year = year), deviceType.current()) }
         return persistNetworkMatch(kind, providerId, linkKey, response)
     }
 
@@ -122,10 +125,12 @@ class ExternalMetadataRepositoryImpl @Inject constructor(
             }
         }
         if (remote.isNotEmpty()) {
-            val response = api.matchBatch(
-                CatalogMatchBatchRequestDto(remote.map { (_, request) -> CatalogMatchRequestDto(kind = request.kind, title = request.title, year = request.year) }),
-                deviceType.current(),
-            )
+            val response = throttleAware {
+                api.matchBatch(
+                    CatalogMatchBatchRequestDto(remote.map { (_, request) -> CatalogMatchRequestDto(kind = request.kind, title = request.title, year = request.year) }),
+                    deviceType.current(),
+                )
+            }
             val items = response.items ?: throw IllegalStateException("Catalog match batch returned no items")
             check(items.size == remote.size) { "Catalog match batch response size mismatch" }
             remote.forEachIndexed { responseIndex, (requestIndex, request) ->
@@ -133,6 +138,20 @@ class ExternalMetadataRepositoryImpl @Inject constructor(
             }
         }
         return results.map { it ?: error("Catalog match batch outcome missing at a filled index") }
+    }
+
+    /**
+     * T29 débit §2 : le throttle de cadence du backend (HTTP 429) est traduit **ici**, dans la couche
+     * data, en [CatalogThrottledException] porteuse du `Retry-After` serveur. Le worker n'a donc
+     * jamais à connaître Retrofit ni les en-têtes HTTP, et ne peut plus confondre ce refus de cadence
+     * avec une vraie panne réseau (qui, elle, continue de remonter telle quelle vers le backoff F45).
+     * Seul le 429 est intercepté : tout autre code HTTP garde exactement le comportement précédent.
+     */
+    private inline fun <T> throttleAware(call: () -> T): T = try {
+        call()
+    } catch (error: HttpException) {
+        if (error.code() != HTTP_TOO_MANY_REQUESTS) throw error
+        throw CatalogThrottledException(RetryAfterHeader.parseMillis(error.response()?.headers()?.get("Retry-After")))
     }
 
     private suspend fun persistNetworkMatch(kind: String, providerId: Int, linkKey: String?, response: CatalogMatchResponseDto): ExternalMetadataMatchOutcome {
@@ -284,6 +303,8 @@ class ExternalMetadataRepositoryImpl @Inject constructor(
         internal const val UNRESOLVED_RETRY_COOLDOWN_MS = 3L * 24 * 60 * 60 * 1000
         /** Garde-fou défensif : une série incohérente ne doit jamais créer une hydratation sans fin. */
         private const val MAX_SEASONS_PER_DETAIL_OPEN = 100
+        /** T29 débit §2 : seul code HTTP traité comme un refus de cadence, jamais comme une panne. */
+        internal const val HTTP_TOO_MANY_REQUESTS = 429
     }
 
 }

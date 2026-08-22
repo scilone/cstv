@@ -6,11 +6,17 @@ import com.cstv.app.data.local.dao.VodDao
 import com.cstv.app.data.local.entity.ExternalHydrationRequestEntity
 import com.cstv.app.data.local.entity.ExternalMediaLinkEntity
 import com.cstv.app.data.local.entity.VodStreamEntity
+import com.cstv.app.domain.model.CatalogThrottledException
 import com.cstv.app.domain.model.ExternalMatchHints
+import com.cstv.app.domain.model.ExternalMetadataCoverage
 import com.cstv.app.domain.model.ExternalMetadataMatch
 import com.cstv.app.domain.model.ExternalMetadataMatchOutcome
 import com.cstv.app.domain.model.ExternalMetadataMatchRequest
 import com.cstv.app.domain.repository.ExternalMetadataRepository
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.test.TestCoroutineScheduler
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -27,6 +33,8 @@ import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 
+// `TestCoroutineScheduler.currentTime` : horloge virtuelle des tests de cadence T29 (§3).
+@kotlinx.coroutines.ExperimentalCoroutinesApi
 class ExternalMetadataHydrationWorkerTest {
 
     private fun vodRow(streamId: Int, linkKey: String = "dune-2021") = VodStreamEntity(
@@ -43,7 +51,7 @@ class ExternalMetadataHydrationWorkerTest {
         val repository: ExternalMetadataRepository = mock()
         whenever(dao.nextRequest(any())).thenReturn(null)
 
-        val batchWasFull = ExternalMetadataHydrationWorker.drainQueue(dao, vodDao, seriesDao, repository) { 1_000L }
+        val batchWasFull = ExternalMetadataHydrationWorker.drainQueue(dao, vodDao, seriesDao, repository) { 1_000L }.runFull
 
         assertFalse(batchWasFull)
         verify(repository, never()).match(any(), any(), any(), anyOrNull(), anyOrNull(), any(), any())
@@ -63,7 +71,7 @@ class ExternalMetadataHydrationWorkerTest {
             ExternalMetadataMatchOutcome.Matched(ExternalMetadataMatch("5e37ba2a-1cda-4faf-9f10-335b2f6556a7", "movie", 92, "title+year+director", 1, 13)),
         )
 
-        val batchWasFull = ExternalMetadataHydrationWorker.drainQueue(dao, vodDao, seriesDao, repository) { 1_000L }
+        val batchWasFull = ExternalMetadataHydrationWorker.drainQueue(dao, vodDao, seriesDao, repository) { 1_000L }.runFull
 
         assertFalse(batchWasFull)
         verify(dao).deleteRequest("movie", 42)
@@ -307,6 +315,172 @@ class ExternalMetadataHydrationWorkerTest {
         assertEquals(20 * 60_000L, ExternalMetadataHydrationWorker.backoffDelayMillis(2))
         assertEquals(40 * 60_000L, ExternalMetadataHydrationWorker.backoffDelayMillis(3))
         assertEquals(360 * 60_000L, ExternalMetadataHydrationWorker.backoffDelayMillis(10))
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // T29 débit §2 : un HTTP 429 CSTV est un problème de cadence, jamais un échec du média.
+    // ---------------------------------------------------------------------------------------
+
+    @Test
+    fun `T29 debit a backend throttle keeps the batch queued on the server Retry-After without any backoff`() = runTest {
+        val dao: ExternalMetadataDao = mock()
+        val vodDao: VodDao = mock()
+        val seriesDao: SeriesDao = mock()
+        val repository: ExternalMetadataRepository = mock()
+        // attemptCount déjà à 2 : il doit rester intact, un throttle n'est pas une tentative ratée.
+        val first = ExternalHydrationRequestEntity("movie", 1, "MISSING_METADATA", 1, 1L, 1L, 2)
+        val second = ExternalHydrationRequestEntity("movie", 2, "MISSING_METADATA", 1, 1L, 1L, 2)
+        whenever(dao.nextRequests(any(), any())).thenReturn(listOf(first, second), emptyList())
+        whenever(vodDao.getStreamById(1)).thenReturn(vodRow(1, "throttle-1"))
+        whenever(vodDao.getStreamById(2)).thenReturn(vodRow(2, "throttle-2"))
+        whenever(repository.matchBatch(any())).thenAnswer { throw CatalogThrottledException(45_000L) }
+
+        val result = ExternalMetadataHydrationWorker.drainQueue(dao, vodDao, seriesDao, repository) { 1_000L }
+
+        assertEquals(45_000L, result.throttleDelayMillis)
+        verify(dao, never()).deleteRequest(any(), any())
+        val requeued = argumentCaptor<ExternalHydrationRequestEntity>()
+        verify(dao, times(2)).upsertRequest(requeued.capture())
+        assertEquals(setOf(1, 2), requeued.allValues.map { it.providerId }.toSet())
+        requeued.allValues.forEach { entity ->
+            assertEquals(2, entity.attemptCount) // jamais incrémenté : pas d'exponentiation via attemptCount
+            assertEquals(46_000L, entity.nextAttemptAt) // now(1 000) + Retry-After(45 000)
+            assertTrue(entity.nextAttemptAt < 1_000L + ExternalMetadataHydrationWorker.backoffDelayMillis(1))
+        }
+    }
+
+    @Test
+    fun `T29 debit a throttle without a usable Retry-After falls back on a short cadence delay, never the backoff`() = runTest {
+        val dao: ExternalMetadataDao = mock()
+        val vodDao: VodDao = mock()
+        val seriesDao: SeriesDao = mock()
+        val repository: ExternalMetadataRepository = mock()
+        val request = ExternalHydrationRequestEntity("movie", 9, "MISSING_METADATA", 1, 1L, 1L, 0)
+        whenever(dao.nextRequests(any(), any())).thenReturn(listOf(request), emptyList())
+        whenever(vodDao.getStreamById(9)).thenReturn(vodRow(9, "throttle-9"))
+        whenever(repository.matchBatch(any())).thenAnswer { throw CatalogThrottledException(null) }
+
+        val result = ExternalMetadataHydrationWorker.drainQueue(dao, vodDao, seriesDao, repository) { 1_000L }
+
+        assertEquals(ExternalMetadataHydrationWorker.THROTTLE_FALLBACK_DELAY_MILLIS, result.throttleDelayMillis)
+        val requeued = argumentCaptor<ExternalHydrationRequestEntity>()
+        verify(dao).upsertRequest(requeued.capture())
+        assertEquals(0, requeued.firstValue.attemptCount)
+        assertEquals(1_000L + ExternalMetadataHydrationWorker.THROTTLE_FALLBACK_DELAY_MILLIS, requeued.firstValue.nextAttemptAt)
+    }
+
+    @Test
+    fun `T29 debit a plain network failure on a batch keeps the F45 exponential backoff`() = runTest {
+        // Non-régression : seul le 429 change de traitement — une vraie panne garde le backoff.
+        val dao: ExternalMetadataDao = mock()
+        val vodDao: VodDao = mock()
+        val seriesDao: SeriesDao = mock()
+        val repository: ExternalMetadataRepository = mock()
+        val request = ExternalHydrationRequestEntity("movie", 4, "MISSING_METADATA", 1, 1L, 1L, 0)
+        whenever(dao.nextRequests(any(), any())).thenReturn(listOf(request), emptyList())
+        whenever(vodDao.getStreamById(4)).thenReturn(vodRow(4, "down-4"))
+        whenever(repository.matchBatch(any())).thenAnswer { throw RuntimeException("network down") }
+
+        val result = ExternalMetadataHydrationWorker.drainQueue(dao, vodDao, seriesDao, repository) { 1_000L }
+
+        assertNull(result.throttleDelayMillis)
+        val requeued = argumentCaptor<ExternalHydrationRequestEntity>()
+        verify(dao).upsertRequest(requeued.capture())
+        assertEquals(1, requeued.firstValue.attemptCount)
+        assertEquals(1_000L + ExternalMetadataHydrationWorker.backoffDelayMillis(1), requeued.firstValue.nextAttemptAt)
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // T29 débit §3 : cadence préventive — on borne l'intervalle entre les START de requête.
+    // Tous les tests avancent en temps virtuel (`runTest`) : aucune attente réelle.
+    // ---------------------------------------------------------------------------------------
+
+    /** Repository de test : enregistre l'instant virtuel de chaque appel et simule sa durée. */
+    private class PacingRepository(
+        private val scheduler: TestCoroutineScheduler,
+        private val batchDurationMillis: Long,
+        private val fromNetwork: Boolean = true,
+    ) : ExternalMetadataRepository {
+        val batchStartedAt = mutableListOf<Long>()
+
+        override suspend fun matchBatch(requests: List<ExternalMetadataMatchRequest>): List<ExternalMetadataMatchOutcome> {
+            batchStartedAt += scheduler.currentTime
+            delay(batchDurationMillis)
+            return requests.map {
+                ExternalMetadataMatchOutcome.Matched(
+                    ExternalMetadataMatch("5e37ba2a-1cda-4faf-9f10-335b2f6556a7", it.kind, 90, "title+year", 1, null, fromNetwork = fromNetwork),
+                )
+            }
+        }
+
+        override suspend fun match(
+            kind: String, providerId: Int, title: String, year: Int?, linkKey: String?,
+            hints: ExternalMatchHints, allowRefresh: Boolean,
+        ): ExternalMetadataMatchOutcome = throw UnsupportedOperationException("unused")
+
+        override suspend fun hydrateSeriesSeasons(externalId: String) = Unit
+        override fun observeCoverage(): Flow<ExternalMetadataCoverage> = emptyFlow()
+    }
+
+    private suspend fun pacingDao(vararg batches: List<ExternalHydrationRequestEntity>): ExternalMetadataDao = mock<ExternalMetadataDao>().also { dao ->
+        val stub = whenever(dao.nextRequests(any(), any()))
+        batches.fold(stub) { chain, batch -> chain.thenReturn(batch) }.thenReturn(emptyList())
+    }
+
+    @Test
+    fun `T29 debit a fast batch waits the remaining cadence before starting the next request`() = runTest {
+        val dao = pacingDao(
+            listOf(ExternalHydrationRequestEntity("movie", 1, "MISSING_METADATA", 1, 1L, 1L, 0)),
+            listOf(ExternalHydrationRequestEntity("movie", 2, "MISSING_METADATA", 1, 1L, 1L, 0)),
+        )
+        val vodDao: VodDao = mock()
+        val seriesDao: SeriesDao = mock()
+        whenever(vodDao.getStreamById(any())).thenReturn(vodRow(1, "pace-fast"))
+        whenever(vodDao.getStreamsByLinkKey(any(), anyOrNull(), any())).thenReturn(emptyList())
+        val repository = PacingRepository(testScheduler, batchDurationMillis = 200L)
+
+        ExternalMetadataHydrationWorker.drainQueue(dao, vodDao, seriesDao, repository) { testScheduler.currentTime }
+
+        assertEquals(2, repository.batchStartedAt.size)
+        assertEquals(0L, repository.batchStartedAt[0]) // la première requête ne doit jamais être retardée
+        assertEquals(
+            ExternalMetadataHydrationWorker.MIN_BATCH_INTERVAL_MILLIS,
+            repository.batchStartedAt[1] - repository.batchStartedAt[0],
+        )
+    }
+
+    @Test
+    fun `T29 debit a batch longer than the cadence adds no extra wait at all`() = runTest {
+        val dao = pacingDao(
+            listOf(ExternalHydrationRequestEntity("movie", 1, "MISSING_METADATA", 1, 1L, 1L, 0)),
+            listOf(ExternalHydrationRequestEntity("movie", 2, "MISSING_METADATA", 1, 1L, 1L, 0)),
+        )
+        val vodDao: VodDao = mock()
+        val seriesDao: SeriesDao = mock()
+        whenever(vodDao.getStreamById(any())).thenReturn(vodRow(1, "pace-slow"))
+        whenever(vodDao.getStreamsByLinkKey(any(), anyOrNull(), any())).thenReturn(emptyList())
+        val repository = PacingRepository(testScheduler, batchDurationMillis = 4_000L)
+
+        ExternalMetadataHydrationWorker.drainQueue(dao, vodDao, seriesDao, repository) { testScheduler.currentTime }
+
+        // 4 s de traitement > 2 s de cadence : le lot suivant part immédiatement après le précédent.
+        assertEquals(4_000L, repository.batchStartedAt[1] - repository.batchStartedAt[0])
+    }
+
+    @Test
+    fun `T29 debit a batch fully served by local links never imposes the network cadence`() = runTest {
+        val dao = pacingDao(
+            listOf(ExternalHydrationRequestEntity("movie", 1, "MISSING_METADATA", 1, 1L, 1L, 0)),
+            listOf(ExternalHydrationRequestEntity("movie", 2, "MISSING_METADATA", 1, 1L, 1L, 0)),
+        )
+        val vodDao: VodDao = mock()
+        val seriesDao: SeriesDao = mock()
+        whenever(vodDao.getStreamById(any())).thenReturn(vodRow(1, "pace-local"))
+        val repository = PacingRepository(testScheduler, batchDurationMillis = 0L, fromNetwork = false)
+
+        ExternalMetadataHydrationWorker.drainQueue(dao, vodDao, seriesDao, repository) { testScheduler.currentTime }
+
+        assertEquals(0L, repository.batchStartedAt[1] - repository.batchStartedAt[0])
     }
 
     @Test

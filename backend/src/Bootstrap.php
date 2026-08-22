@@ -42,6 +42,8 @@ use Cstv\Backend\Playback\PlaybackLockService;
 use Cstv\Backend\Shared\Config;
 use Cstv\Backend\Shared\Crypto\EnvelopeCipher;
 use Cstv\Backend\Shared\Crypto\KeyRing;
+use Cstv\Backend\Shared\HrtimeMonotonicClock;
+use Cstv\Backend\Shared\MonotonicClock;
 use Cstv\Backend\Sync\ObjectRepository;
 use Cstv\Backend\Sync\ObjectService;
 use PDO;
@@ -51,7 +53,11 @@ use Slim\Routing\RouteCollectorProxy;
 
 final class Bootstrap
 {
-    public static function createApp(?Config $config = null, ?PDO $pdo = null, ?MediaMetadataProvider $catalogProvider = null): App
+    /**
+     * `$catalogClock` : horloge monotone du budget de batch catalogue (T29 débit §4). Injectable
+     * uniquement pour que les tests fassent expirer la deadline sans attendre réellement 7 secondes.
+     */
+    public static function createApp(?Config $config = null, ?PDO $pdo = null, ?MediaMetadataProvider $catalogProvider = null, ?MonotonicClock $catalogClock = null): App
     {
         $config ??= Config::fromEnvironment();
         $pdo ??= Connection::create($config);
@@ -105,6 +111,7 @@ final class Bootstrap
             new CatalogMatchThrottleRepository($pdo),
             new CatalogMatchEngine($provider, $externalMedia),
             $externalMedia,
+            clock: $catalogClock ?? new HrtimeMonotonicClock(),
         );
 
         $app = AppFactory::create();

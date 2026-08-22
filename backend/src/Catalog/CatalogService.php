@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Cstv\Backend\Catalog;
 
 use Cstv\Backend\Shared\ApiException;
+use Cstv\Backend\Shared\HrtimeMonotonicClock;
+use Cstv\Backend\Shared\MonotonicClock;
 use Cstv\Backend\Shared\Uuid;
 use Cstv\Backend\Database\AdvisoryLock;
 use PDO;
@@ -16,6 +18,22 @@ final readonly class CatalogService
     // — le plafond de 50 items/batch borne déjà le coût maximum d'une requête (§7.4).
     private const MATCH_REQUESTS_PER_MINUTE_ACCOUNT = 30;
     private const MATCH_REQUESTS_PER_MINUTE_IP = 60;
+    private const MATCH_THROTTLE_WINDOW_SECONDS = 60;
+
+    /**
+     * T29 débit : budget de traitement d'un batch, choisi **sous** le `readTimeout` de 10 s du client
+     * catalogue Android (§5). Un lot de 50 médias froids coûtait jusqu'à 15-20 s côté backend : le
+     * client abandonnait à 10 s, PHP continuait à travailler pour personne, et le worker
+     * reprogrammait les 50 items. Passé ce budget, plus aucune résolution fournisseur n'est
+     * *commencée* — les items restants deviennent `retry`, à leur position exacte.
+     */
+    private const BATCH_BUDGET_NANOS = 7_000_000_000;
+
+    /**
+     * Délai rendu aux items sacrifiés par la deadline : court (le backend n'est pas en panne, juste
+     * saturé sur cette requête) mais assez long pour ne pas rappeler dans la même seconde.
+     */
+    private const BATCH_DEADLINE_RETRY_AFTER_SECONDS = 30;
 
     public function __construct(
         private PDO $pdo,
@@ -26,6 +44,7 @@ final readonly class CatalogService
         private ExternalMediaRepository $externalMedia,
         private TmdbImageUrlResolver $images = new TmdbImageUrlResolver(),
         private CatalogItemPresenter $presenter = new CatalogItemPresenter(),
+        private MonotonicClock $clock = new HrtimeMonotonicClock(),
     ) {}
 
     /** @return array<string, mixed> */
@@ -69,6 +88,10 @@ final readonly class CatalogService
     {
         if ($requests === []) return [];
 
+        // Le budget court dès l'entrée, lookups bulk compris : c'est le temps vu par le client qui
+        // compte, pas seulement celui passé chez le fournisseur.
+        $deadlineNanos = $this->clock->nanos() + self::BATCH_BUDGET_NANOS;
+
         // Tâche 4 §8.4 : un SELECT bulk au lieu de N pour les hits déjà frais en cache.
         $keys = array_map(fn (CatalogMatchRequest $request): string => $this->matchCacheKey($request), $requests);
         $cacheHits = $this->cache->findMany($keys);
@@ -96,11 +119,39 @@ final readonly class CatalogService
             $strictMatches = $strictInputs !== [] ? $this->externalMedia->findStrictConsolidatedMatchBatch($strictInputs) : [];
 
             foreach ($pending as $index => $request) {
+                // Deadline vérifiée *avant* de commencer l'item : on ne coupe jamais une résolution
+                // en cours, on refuse seulement d'en démarrer une nouvelle (§4).
+                if ($this->clock->nanos() >= $deadlineNanos) {
+                    $results[$index] = $this->deadlineResult($retryAware);
+                    continue;
+                }
                 $results[$index] = $this->matchBatchItem($request, $device, $strictMatches[$index] ?? [], $retryAware);
             }
         }
 
         return $results;
+    }
+
+    /**
+     * T29 débit, comportement legacy explicite : un client qui n'a pas annoncé la capacité `retry`
+     * lirait un item sans `item` comme un `unresolved` définitif (§7.3) — jamais acceptable pour une
+     * simple deadline. Faute de statut par item utilisable, la requête entière échoue en 429 avec un
+     * `Retry-After` : un code que son worker sait déjà traiter comme un échec HTTP global à
+     * reprogrammer, et qui libère immédiatement l'unique process FCGI au lieu de le monopoliser.
+     * @return array<string, mixed>
+     */
+    private function deadlineResult(bool $retryAware): array
+    {
+        if (!$retryAware) {
+            throw new ApiException(
+                429,
+                'CATALOG_MATCH_BUDGET_EXCEEDED',
+                'Catalog matching batch exceeded its time budget. Retry with a smaller batch.',
+                self::BATCH_DEADLINE_RETRY_AFTER_SECONDS,
+            );
+        }
+        $result = CatalogMatchResult::retry(CatalogMatchEngine::ALGORITHM_VERSION, self::BATCH_DEADLINE_RETRY_AFTER_SECONDS);
+        return ['status' => $result->status, 'match' => null, 'item' => null, 'cache' => ['retryAfter' => $result->retryAfterSeconds]];
     }
 
     /**
@@ -361,9 +412,24 @@ final readonly class CatalogService
         try {
             AdvisoryLock::account($this->pdo, $accountId);
             AdvisoryLock::verifyIp($this->pdo, $ipKey);
-            if ($this->matchThrottle->countForAccount($accountId, 60) + 1 > self::MATCH_REQUESTS_PER_MINUTE_ACCOUNT
-                || $this->matchThrottle->countForIp($ipKey, 60) + 1 > self::MATCH_REQUESTS_PER_MINUTE_IP) {
-                throw new ApiException(429, 'CATALOG_MATCH_RATE_LIMITED', 'Too many catalog matching requests. Try again later.');
+            $window = self::MATCH_THROTTLE_WINDOW_SECONDS;
+            $accountOverQuota = $this->matchThrottle->countForAccount($accountId, $window) + 1 > self::MATCH_REQUESTS_PER_MINUTE_ACCOUNT;
+            $ipOverQuota = $this->matchThrottle->countForIp($ipKey, $window) + 1 > self::MATCH_REQUESTS_PER_MINUTE_IP;
+            if ($accountOverQuota || $ipOverQuota) {
+                // T29 débit : `Retry-After` réellement calculé sur la fenêtre glissante (§1). Sans
+                // lui, le worker Android retombait sur son backoff exponentiel 10 → 320 min et
+                // restait inactif pour un simple problème de cadence. Les deux quotas peuvent être
+                // dépassés à la fois : c'est le plus tardif qui débloque effectivement la requête.
+                $delays = array_filter([
+                    $accountOverQuota ? $this->matchThrottle->secondsUntilAccountSlot($accountId, $window, self::MATCH_REQUESTS_PER_MINUTE_ACCOUNT) : null,
+                    $ipOverQuota ? $this->matchThrottle->secondsUntilIpSlot($ipKey, $window, self::MATCH_REQUESTS_PER_MINUTE_IP) : null,
+                ], static fn (?int $delay): bool => $delay !== null);
+                throw new ApiException(
+                    429,
+                    'CATALOG_MATCH_RATE_LIMITED',
+                    'Too many catalog matching requests. Try again later.',
+                    $delays === [] ? $window : max($delays),
+                );
             }
             $this->matchThrottle->record($accountId, $ipKey, 1);
             $this->pdo->commit();

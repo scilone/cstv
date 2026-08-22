@@ -8,9 +8,13 @@ use Cstv\Backend\Bootstrap;
 use Cstv\Backend\Catalog\CatalogMatchCandidate;
 use Cstv\Backend\Catalog\CatalogProviderException;
 use Cstv\Backend\Catalog\MediaMetadataProvider;
+use Cstv\Backend\Tests\Support\FakeMonotonicClock;
 
 final class CatalogApiTest extends IntegrationTestCase
 {
+    /** T29 débit §4 : horloge du budget de batch, figée par défaut (aucune deadline hors tests dédiés). */
+    private FakeMonotonicClock $clock;
+
     /**
      * T28 review R4 : instance conservée pour compter les appels provider depuis les tests de cache
      * (`object`, pas `MediaMetadataProvider` : `searchCalls`/`hydrateCalls` sont des compteurs de
@@ -84,7 +88,23 @@ final class CatalogApiTest extends IntegrationTestCase
                 ];
             }
         };
-        $this->app = Bootstrap::createApp($this->config, $this->pdo, $this->provider);
+        $this->clock = new FakeMonotonicClock();
+        $this->app = Bootstrap::createApp($this->config, $this->pdo, $this->provider, $this->clock);
+    }
+
+    /**
+     * Insère `$count` tentatives de matching datées de `$ageSeconds` dans le passé — la fenêtre du
+     * throttle étant glissante, c'est cet âge qui détermine le `Retry-After` attendu.
+     */
+    private function seedMatchAttempts(string $accountId, int $count, int $ageSeconds, string $ip = '127.0.0.1'): void
+    {
+        $statement = $this->pdo->prepare(
+            'INSERT INTO catalog_match_attempts (id, account_id, ip_key, created_at)'
+            . " VALUES (:id, :account, :ip, NOW() - (:age || ' seconds')::interval)",
+        );
+        for ($index = 0; $index < $count; $index++) {
+            $statement->execute(['id' => \Cstv\Backend\Shared\Uuid::v4(), 'account' => $accountId, 'ip' => $ip, 'age' => (string) $ageSeconds]);
+        }
     }
 
     public function testCatalogRoutesAreAuthenticatedAndExposeProductContract(): void
@@ -242,6 +262,190 @@ final class CatalogApiTest extends IntegrationTestCase
 
         self::assertSame(429, $response->getStatusCode());
         self::assertSame('CATALOG_MATCH_RATE_LIMITED', $this->json($response)['error']['code']);
+    }
+
+    /**
+     * T29 débit §1 : un 429 de throttle CSTV doit porter un `Retry-After` **calculé** sur la fenêtre
+     * glissante, pas une constante. Sans lui, le worker Android retombait sur son backoff exponentiel
+     * (10 → 320 min) pour un simple problème de cadence, et le débit réel tombait à ~25 médias/min.
+     * 30 tentatives vieilles de 10 s : la plus ancienne sort de la fenêtre de 60 s dans 50 s.
+     */
+    public function testAccountThrottleExposesARetryAfterComputedFromTheSlidingWindow(): void
+    {
+        $account = $this->createAccount();
+        $this->seedMatchAttempts($account['id'], 30, 10);
+
+        $response = $this->jsonRequest('POST', '/v1/catalog/matches', ['kind' => 'movie', 'title' => 'Quota Account', 'year' => 2021], $this->auth($account['token']));
+
+        self::assertSame(429, $response->getStatusCode());
+        self::assertSame('CATALOG_MATCH_RATE_LIMITED', $this->json($response)['error']['code']);
+        $retryAfter = (int) $response->getHeaderLine('Retry-After');
+        self::assertGreaterThanOrEqual(48, $retryAfter);
+        self::assertLessThanOrEqual(51, $retryAfter);
+    }
+
+    /** T29 débit §1 : même exigence sur le quota IP (60/min), indépendant du compte. */
+    public function testIpThrottleExposesARetryAfterComputedFromTheSlidingWindow(): void
+    {
+        $flooder = $this->createAccount('retry-after-ip-flood@example.com');
+        $this->seedMatchAttempts($flooder['id'], 60, 20);
+
+        $victim = $this->createAccount('retry-after-ip-victim@example.com');
+        $response = $this->jsonRequest('POST', '/v1/catalog/matches', ['kind' => 'movie', 'title' => 'Quota Ip', 'year' => 2021], $this->auth($victim['token']));
+
+        self::assertSame(429, $response->getStatusCode());
+        $retryAfter = (int) $response->getHeaderLine('Retry-After');
+        self::assertGreaterThanOrEqual(38, $retryAfter);
+        self::assertLessThanOrEqual(41, $retryAfter);
+    }
+
+    /**
+     * T29 débit §1 : boundary exacte. 29 tentatives + la requête courante = 30, autorisé et sans
+     * `Retry-After` ; la suivante (30 déjà consommées) est refusée avec un délai borné par la fenêtre.
+     * Verrouille aussi que les quotas restent 30/60 après ce correctif.
+     */
+    public function testThrottleBoundaryAtThirtyStillPassesAndTheNextRequestCarriesARetryAfter(): void
+    {
+        $account = $this->createAccount();
+        $this->seedMatchAttempts($account['id'], 29, 5);
+
+        $allowed = $this->jsonRequest('POST', '/v1/catalog/matches', ['kind' => 'movie', 'title' => 'Boundary Ok', 'year' => 2021], $this->auth($account['token']));
+        self::assertSame(200, $allowed->getStatusCode());
+        self::assertSame('', $allowed->getHeaderLine('Retry-After'));
+
+        $blocked = $this->jsonRequest('POST', '/v1/catalog/matches', ['kind' => 'movie', 'title' => 'Boundary Over', 'year' => 2021], $this->auth($account['token']));
+        self::assertSame(429, $blocked->getStatusCode());
+        $retryAfter = (int) $blocked->getHeaderLine('Retry-After');
+        self::assertGreaterThanOrEqual(1, $retryAfter);
+        self::assertLessThanOrEqual(60, $retryAfter);
+    }
+
+    /**
+     * T29 débit §1 : une fois la fenêtre logiquement expirée, la requête repasse — le quota est bien
+     * glissant et le `Retry-After` annoncé mène réellement à une réouverture.
+     */
+    public function testRequestIsAcceptedAgainOnceTheThrottleWindowHasLogicallyExpired(): void
+    {
+        $account = $this->createAccount();
+        $this->seedMatchAttempts($account['id'], 30, 61);
+
+        $response = $this->jsonRequest('POST', '/v1/catalog/matches', ['kind' => 'movie', 'title' => 'Window Expired', 'year' => 2021], $this->auth($account['token']));
+
+        self::assertSame(200, $response->getStatusCode());
+    }
+
+    /**
+     * T29 débit §4 (A) : un batch entièrement servi par le cache ne doit jamais être tronqué par la
+     * deadline, même avec une horloge qui dépasse le budget dès la première lecture — ces items ne
+     * démarrent aucune résolution fournisseur.
+     */
+    public function testBatchOfCacheHitsIsNeverTruncatedByTheTimeBudget(): void
+    {
+        $account = $this->createAccount();
+        $body = ['items' => array_map(
+            static fn (int $index): array => ['kind' => 'movie', 'title' => 'Warm Cache ' . $index, 'year' => 2021],
+            range(1, 50),
+        )];
+        $headers = [...$this->auth($account['token']), 'X-CSTV-Catalog-Capabilities' => 'retry'];
+
+        // Préchauffage avec une horloge figée : aucune deadline, les 50 entrées entrent en cache.
+        $warm = $this->jsonRequest('POST', '/v1/catalog/matches/batch', $body, $headers);
+        self::assertSame(200, $warm->getStatusCode());
+        self::assertSame(['matched'], array_values(array_unique(array_column($this->json($warm)['items'], 'status'))));
+
+        // Budget dépassé dès la première lecture d'horloge : les hits cache doivent tout de même sortir.
+        $this->clock->stepNanos = 10_000_000_000;
+        $cached = $this->jsonRequest('POST', '/v1/catalog/matches/batch', $body, $headers);
+
+        self::assertSame(200, $cached->getStatusCode());
+        $items = $this->json($cached)['items'];
+        self::assertCount(50, $items);
+        self::assertSame(['matched'], array_values(array_unique(array_column($items, 'status'))));
+    }
+
+    /**
+     * T29 débit §4 (B/C/D/E) : au-delà du budget, les items non encore traités deviennent `retry` à
+     * leur position exacte, la taille de la réponse est conservée, et les premiers items restent
+     * résolus normalement. Horloge à 1 s par lecture : la deadline de 7 s tombe en cours de lot.
+     */
+    public function testBatchTimeBudgetTurnsRemainingItemsIntoOrderedRetriesWithoutChangingResponseSize(): void
+    {
+        $account = $this->createAccount();
+        $this->clock->stepNanos = 1_000_000_000;
+        $titles = array_map(static fn (int $index): string => 'Budget Cold ' . $index, range(1, 12));
+
+        $response = $this->jsonRequest('POST', '/v1/catalog/matches/batch', [
+            'items' => array_map(static fn (string $title): array => ['kind' => 'movie', 'title' => $title, 'year' => 2021], $titles),
+        ], [...$this->auth($account['token']), 'X-CSTV-Catalog-Capabilities' => 'retry']);
+
+        self::assertSame(200, $response->getStatusCode());
+        $items = $this->json($response)['items'];
+        self::assertCount(12, $items, 'la taille de la réponse doit rester celle de la requête');
+
+        $statuses = array_column($items, 'status');
+        self::assertContains('matched', $statuses, 'les premiers items doivent être résolus normalement');
+        self::assertContains('retry', $statuses, 'la deadline doit sacrifier les derniers items');
+        // Ordre strictement conservé : une fois le premier `retry` rencontré, plus aucun `matched`.
+        $firstRetry = array_search('retry', $statuses, true);
+        self::assertSame(array_fill(0, 12 - $firstRetry, 'retry'), array_slice($statuses, $firstRetry));
+        foreach (array_slice($items, $firstRetry) as $item) {
+            self::assertNull($item['item']);
+            self::assertNull($item['match']);
+            self::assertSame(30, $item['cache']['retryAfter']);
+        }
+    }
+
+    /**
+     * T29 débit §4 (G) : un item sacrifié par la deadline n'est jamais persisté comme `unresolved`.
+     * Preuve par le rejeu : les mêmes titres se résolvent en `matched` au passage suivant, donc rien
+     * de définitif n'a été écrit pour eux.
+     */
+    public function testItemsDroppedByTheDeadlineAreNeverPersistedAsUnresolved(): void
+    {
+        $this->pdo->exec('TRUNCATE TABLE media_metadata_cache');
+        $account = $this->createAccount();
+        $this->clock->stepNanos = 1_000_000_000;
+        $body = ['items' => array_map(
+            static fn (int $index): array => ['kind' => 'movie', 'title' => 'Deadline Replay ' . $index, 'year' => 2021],
+            range(1, 12),
+        )];
+        $headers = [...$this->auth($account['token']), 'X-CSTV-Catalog-Capabilities' => 'retry'];
+
+        $first = $this->json($this->jsonRequest('POST', '/v1/catalog/matches/batch', $body, $headers))['items'];
+        self::assertContains('retry', array_column($first, 'status'));
+
+        $this->clock->stepNanos = 0;
+        $second = $this->json($this->jsonRequest('POST', '/v1/catalog/matches/batch', $body, $headers))['items'];
+
+        self::assertSame(['matched'], array_values(array_unique(array_column($second, 'status'))));
+        self::assertSame(
+            0,
+            (int) $this->pdo->query("SELECT COUNT(*) FROM media_metadata_cache WHERE result_status IN ('unresolved', 'retry')")->fetchColumn(),
+            'une deadline ne doit jamais laisser de trace définitive en cache',
+        );
+    }
+
+    /**
+     * T29 débit §4 (F) : un client legacy (pas de `X-CSTV-Catalog-Capabilities: retry`) ne peut pas
+     * recevoir de statut `retry` par item — il le lirait comme un `unresolved` définitif (§7.3). La
+     * requête échoue donc entièrement en 429 avec un `Retry-After`, un contrat que son worker connaît
+     * déjà, et l'unique process FCGI est libéré immédiatement.
+     */
+    public function testLegacyClientGetsAWholeRequest429WithRetryAfterWhenTheBudgetExpires(): void
+    {
+        $account = $this->createAccount();
+        $this->clock->stepNanos = 1_000_000_000;
+
+        $response = $this->jsonRequest('POST', '/v1/catalog/matches/batch', [
+            'items' => array_map(
+                static fn (int $index): array => ['kind' => 'movie', 'title' => 'Legacy Budget ' . $index, 'year' => 2021],
+                range(1, 12),
+            ),
+        ], $this->auth($account['token']));
+
+        self::assertSame(429, $response->getStatusCode());
+        self::assertSame('CATALOG_MATCH_BUDGET_EXCEEDED', $this->json($response)['error']['code']);
+        self::assertSame('30', $response->getHeaderLine('Retry-After'));
     }
 
     /** Review T29/R3 : le plafond de payload (§7.4/§8.16) reste 50 — verrouille les deux bornes. */

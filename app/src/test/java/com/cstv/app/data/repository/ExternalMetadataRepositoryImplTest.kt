@@ -16,6 +16,7 @@ import com.cstv.app.data.remote.dto.CatalogMatchRequestDto
 import com.cstv.app.data.remote.dto.CatalogMatchResponseDto
 import com.cstv.app.data.remote.dto.CatalogSeasonDto
 import com.cstv.app.data.remote.dto.CatalogEpisodeDto
+import com.cstv.app.domain.model.CatalogThrottledException
 import com.cstv.app.domain.model.ExternalMatchHints
 import com.cstv.app.domain.model.ExternalMetadataMatchOutcome
 import com.cstv.app.domain.model.ExternalMetadataMatchRequest
@@ -23,9 +24,13 @@ import com.cstv.app.domain.model.matchOrNull
 import com.cstv.app.domain.util.TimeProvider
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
+import retrofit2.HttpException
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.Timeout
@@ -328,6 +333,68 @@ class ExternalMetadataRepositoryImplTest {
         assertEquals("5e37ba2a-1cda-4faf-9f10-335b2f6556a7", result[0].matchOrNull?.externalId)
         assertEquals(ExternalMetadataMatchOutcome.Retry(5_000L), result[1])
         assertEquals(ExternalMetadataMatchOutcome.Unresolved, result[2])
+    }
+
+    // -------------------------------------------------------------------------------------------
+    // T29 débit §2 : le 429 de throttle CSTV est traduit ici, jamais lu par le worker.
+    // -------------------------------------------------------------------------------------------
+
+    private fun httpException(code: Int, retryAfter: String? = null): HttpException {
+        val raw = okhttp3.Response.Builder()
+            .code(code)
+            .message("error")
+            .protocol(okhttp3.Protocol.HTTP_1_1)
+            .request(okhttp3.Request.Builder().url("https://cstv.example/v1/catalog/matches/batch").build())
+            .apply { retryAfter?.let { header("Retry-After", it) } }
+            .build()
+        return HttpException(retrofit2.Response.error<Any>("{}".toResponseBody("application/json".toMediaType()), raw))
+    }
+
+    @Test
+    fun `T29 debit a batch throttled with 429 raises CatalogThrottledException carrying the Retry-After in millis`() = runBlocking<Unit> {
+        whenever(dao.findLocalMatch(any(), any())).thenReturn(null)
+        whenever(api.matchBatch(any(), eq("tv"))).thenAnswer { throw httpException(429, "45") }
+
+        val error = assertThrows(CatalogThrottledException::class.java) {
+            runBlocking { repository.matchBatch(listOf(ExternalMetadataMatchRequest("movie", 1, "First", 2021, "first"))) }
+        }
+
+        assertEquals(45_000L, error.retryAfterMillis)
+        verify(dao, never()).upsertLink(any())
+    }
+
+    @Test
+    fun `T29 debit a 429 without a parsable Retry-After yields a null delay rather than a guessed one`() = runBlocking<Unit> {
+        whenever(dao.findLocalMatch(any(), any())).thenReturn(null)
+        whenever(api.matchBatch(any(), eq("tv"))).thenAnswer { throw httpException(429, "Wed, 21 Oct 2015 07:28:00 GMT") }
+
+        val error = assertThrows(CatalogThrottledException::class.java) {
+            runBlocking { repository.matchBatch(listOf(ExternalMetadataMatchRequest("movie", 1, "First", 2021, "first"))) }
+        }
+
+        assertNull(error.retryAfterMillis)
+    }
+
+    @Test
+    fun `T29 debit the single match path is throttle-aware too`() = runBlocking<Unit> {
+        whenever(dao.findLocalMatch("movie", 42)).thenReturn(null)
+        whenever(api.match(any(), eq("tv"))).thenAnswer { throw httpException(429, "12") }
+
+        val error = assertThrows(CatalogThrottledException::class.java) {
+            runBlocking { repository.match("movie", 42, "Dune", 2021, "dune-2021") }
+        }
+
+        assertEquals(12_000L, error.retryAfterMillis)
+    }
+
+    @Test
+    fun `T29 debit a non-429 HTTP error is never mistaken for a throttle`() = runBlocking<Unit> {
+        whenever(dao.findLocalMatch(any(), any())).thenReturn(null)
+        whenever(api.matchBatch(any(), eq("tv"))).thenAnswer { throw httpException(503, "45") }
+
+        assertThrows(HttpException::class.java) {
+            runBlocking { repository.matchBatch(listOf(ExternalMetadataMatchRequest("movie", 1, "First", 2021, "first"))) }
+        }
     }
 
     @Test
