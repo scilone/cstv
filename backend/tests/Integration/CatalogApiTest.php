@@ -392,6 +392,9 @@ final class CatalogApiTest extends IntegrationTestCase
             self::assertNull($item['item']);
             self::assertNull($item['match']);
             self::assertSame(30, $item['cache']['retryAfter']);
+            // T29 cycle backfill P0-1 : la cause doit être explicite — le client ne doit jamais avoir
+            // à la déduire du délai, sous peine de compter une deadline comme un échec du média.
+            self::assertSame('batch_deadline', $item['cache']['retryReason']);
         }
     }
 
@@ -510,6 +513,9 @@ final class CatalogApiTest extends IntegrationTestCase
         self::assertNull($items[1]['item']);
         self::assertNull($items[1]['match']);
         self::assertSame(3, $items[1]['cache']['retryAfter']);
+        // T29 cycle backfill P0-1 : erreur fournisseur = vraie tentative du média, contrairement à
+        // `batch_deadline`. Le client doit pouvoir les distinguer sans heuristique sur le délai.
+        self::assertSame('provider', $items[1]['cache']['retryReason']);
         self::assertSame('not_found', $items[2]['status']);
     }
 

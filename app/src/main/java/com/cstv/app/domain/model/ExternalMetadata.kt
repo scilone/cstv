@@ -51,8 +51,16 @@ sealed interface ExternalMetadataMatchOutcome {
     data class Matched(val match: ExternalMetadataMatch) : ExternalMetadataMatchOutcome
     /** Résolution métier terminée sans match retenu (`not_found`/`unresolved` côté backend). */
     data object Unresolved : ExternalMetadataMatchOutcome
-    /** §7.7 : `retryAfterMillis` vient du `Retry-After` backend quand connu, sinon `null` (le backoff F45 s'applique). */
-    data class Retry(val retryAfterMillis: Long?) : ExternalMetadataMatchOutcome
+    /**
+     * §7.7 : `retryAfterMillis` vient du `Retry-After` backend quand connu, sinon `null` (le backoff
+     * F45 s'applique). T29 cycle backfill P0-1 : [reason] dit si cette reprogrammation compte comme
+     * une tentative du média — voir [HydrationRetryReason]. Le défaut [HydrationRetryReason.NETWORK]
+     * conserve le comportement d'avant le correctif pour tout appelant/backend qui ne renseigne rien.
+     */
+    data class Retry(
+        val retryAfterMillis: Long?,
+        val reason: HydrationRetryReason = HydrationRetryReason.NETWORK,
+    ) : ExternalMetadataMatchOutcome
 }
 
 /** Accès pratique au match résolu, `null` pour `Unresolved`/`Retry` — mêmes usages que l'ancien `?.` sur `ExternalMetadataMatch?`. */

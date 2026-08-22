@@ -22,6 +22,7 @@ import com.cstv.app.domain.model.ExternalMetadataMatchOutcome
 import com.cstv.app.domain.model.ExternalMetadataMatchRequest
 import com.cstv.app.domain.model.GenreParser
 import com.cstv.app.domain.model.HydrationReason
+import com.cstv.app.domain.model.HydrationRetryReason
 import com.cstv.app.domain.repository.ExternalMetadataRepository
 import com.cstv.app.domain.util.TimeProvider
 import dagger.hilt.EntryPoint
@@ -29,7 +30,6 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.delay
 import java.util.concurrent.TimeUnit
 
 /**
@@ -54,6 +54,7 @@ class ExternalMetadataHydrationWorker(appContext: Context, params: WorkerParamet
         fun seriesDao(): SeriesDao
         fun externalMetadataRepository(): ExternalMetadataRepository
         fun externalMetadataBackfillSeeder(): ExternalMetadataBackfillSeeder
+        fun externalMetadataBatchCadence(): ExternalMetadataBatchCadence
         fun timeProvider(): TimeProvider
     }
 
@@ -61,11 +62,14 @@ class ExternalMetadataHydrationWorker(appContext: Context, params: WorkerParamet
         val entryPoint = EntryPointAccessors.fromApplication(applicationContext, HydrationWorkerEntryPoint::class.java)
         val dao = entryPoint.externalMetadataDao()
         val timeProvider = entryPoint.timeProvider()
-        val drain = drainQueue(dao, entryPoint.vodDao(), entryPoint.seriesDao(), entryPoint.externalMetadataRepository()) { timeProvider.nowMillis() }
+        val drain = drainQueue(
+            dao, entryPoint.vodDao(), entryPoint.seriesDao(), entryPoint.externalMetadataRepository(),
+            entryPoint.externalMetadataBatchCadence(),
+        ) { timeProvider.nowMillis() }
         // F45-R6 : une passe courte remplit le prochain créneau seulement après le drainage. La
         // convergence continue donc sans scan massif au démarrage ; les demandes déjà en file sont
         // exclues par le DAO et le scheduler ne fait qu'un réveil par lot.
-        entryPoint.externalMetadataBackfillSeeder().seed()
+        val seed = entryPoint.externalMetadataBackfillSeeder().seed()
         // F45-R2 : la file peut ne plus rien avoir de dû *maintenant* (batch plafonné vidé, ou
         // items restants tous en backoff) sans être vide pour autant. Sans réveil programmé ici,
         // ces demandes restaient orphelines en Room jusqu'au prochain enqueue sans rapport
@@ -73,7 +77,7 @@ class ExternalMetadataHydrationWorker(appContext: Context, params: WorkerParamet
         // T29 débit §2 : après un throttle serveur, le réveil ne peut pas être plus tôt que le
         // `Retry-After` reçu — sinon le run suivant repart aussitôt sur les items *non* reprogrammés
         // et se fait refuser à nouveau, brûlant le quota au lieu de le respecter.
-        nextWakeupDelayMillis(dao, timeProvider.nowMillis())
+        nextWakeupDelayMillis(dao, timeProvider.nowMillis(), seed.catalogExhausted)
             ?.let { delayMillis -> maxOf(delayMillis, drain.throttleDelayMillis ?: 0L) }
             ?.let { delayMillis -> enqueueDelayed(applicationContext, delayMillis) }
         Result.success()
@@ -111,9 +115,30 @@ class ExternalMetadataHydrationWorker(appContext: Context, params: WorkerParamet
         /**
          * F45-R2 : délai jusqu'au prochain item de la file (dû immédiatement ou encore en backoff),
          * `null` si la file est vide — isolé de `doWork()` pour rester testable sans WorkManager.
+         *
+         * T29 cycle backfill P0-2 : tant que le catalogue n'est pas convergé, ce délai est **borné**
+         * à [BACKFILL_WAKEUP_MAX_DELAY_MILLIS]. Sans cette borne, une file dont tous les items sont
+         * repoussés à +20 min programmait une continuation 20 minutes plus tard ; le battement
+         * périodique de 15 min ne la remplaçait pas (`ExistingWorkPolicy.KEEP` conserve un travail
+         * différé déjà programmé), et le backend restait inutilisé pendant tout ce temps alors que
+         * des milliers de médias jamais traités attendaient d'être seedés. Le réveil court n'existe
+         * que dans cet état : une fois `catalogExhausted` vrai (chaque kind a atteint la fin de son
+         * catalogue), on retombe sur l'échéance réelle de la file — et sur rien du tout si elle est
+         * vide, donc aucun polling permanent après convergence.
          */
-        internal suspend fun nextWakeupDelayMillis(dao: ExternalMetadataDao, now: Long): Long? =
-            dao.earliestNextAttemptAt()?.let { earliest -> (earliest - now).coerceAtLeast(0L) }
+        internal suspend fun nextWakeupDelayMillis(dao: ExternalMetadataDao, now: Long, catalogExhausted: Boolean = true): Long? {
+            val earliest = dao.earliestNextAttemptAt()?.let { earliest -> (earliest - now).coerceAtLeast(0L) }
+            if (catalogExhausted) return earliest
+            return minOf(earliest ?: BACKFILL_WAKEUP_MAX_DELAY_MILLIS, BACKFILL_WAKEUP_MAX_DELAY_MILLIS)
+        }
+
+        /**
+         * Réveil de contrôle maximal tant que le backfill catalogue peut encore fournir du travail
+         * neuf. Assez court pour que le backend ne reste jamais des dizaines de minutes inutilisé,
+         * assez long pour ne pas devenir une boucle de sondage : chaque réveil interroge le seeder,
+         * qui découvre le travail neuf (nouveaux médias synchronisés, cooldowns `unresolved` expirés).
+         */
+        internal const val BACKFILL_WAKEUP_MAX_DELAY_MILLIS = 90_000L
 
         private fun build(delayMillis: Long = 0L) = OneTimeWorkRequestBuilder<ExternalMetadataHydrationWorker>()
             .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
@@ -122,15 +147,19 @@ class ExternalMetadataHydrationWorker(appContext: Context, params: WorkerParamet
             .build()
 
         /**
-         * T29 débit §3 : intervalle minimum entre deux **démarrages** de requête réseau. Le quota
-         * backend est de 30 requêtes/min/compte : une toutes les 2 s reste dessous sans jamais le
-         * déclencher. Prévention seulement — plusieurs appareils peuvent partager le même compte, le
-         * backend reste l'autorité finale (d'où le traitement du 429, §2).
+         * T29 débit §3 : intervalle minimum entre deux **démarrages** de requête réseau — porté par
+         * [ExternalMetadataBatchCadence], qui le fait désormais survivre d'un run à l'autre (P1).
          */
-        internal const val MIN_BATCH_INTERVAL_MILLIS = 2_000L
+        internal const val MIN_BATCH_INTERVAL_MILLIS = ExternalMetadataBatchCadence.MIN_BATCH_INTERVAL_MILLIS
 
         /** Throttle serveur sans `Retry-After` exploitable : délai de cadence court, jamais le backoff d'échec. */
         internal const val THROTTLE_FALLBACK_DELAY_MILLIS = 60_000L
+
+        /**
+         * T29 cycle backfill P0-1 : deadline de batch annoncée sans délai exploitable. Court — le
+         * backend n'est pas en panne, il a seulement manqué de budget pour commencer cet item.
+         */
+        internal const val BATCH_DEADLINE_FALLBACK_DELAY_MILLIS = 30_000L
 
         /**
          * @param runFull `true` si `MAX_ITEMS_PER_RUN` a été atteint (la file peut ne pas être vide).
@@ -147,12 +176,12 @@ class ExternalMetadataHydrationWorker(appContext: Context, params: WorkerParamet
             vodDao: VodDao,
             seriesDao: SeriesDao,
             repository: ExternalMetadataRepository,
+            // T29 cycle backfill P1 : la cadence vit hors du run. Le défaut (mémoire fraîche, donc
+            // aucune attente initiale) ne sert qu'aux appels de test qui n'étudient pas la cadence.
+            cadence: ExternalMetadataBatchCadence = ExternalMetadataBatchCadence(InMemoryBatchCadenceStore()),
             now: () -> Long,
         ): DrainResult {
             var processed = 0
-            // Instant du dernier START de requête réseau — `null` tant qu'aucune n'a été émise, pour
-            // ne jamais retarder la toute première.
-            var lastNetworkStartedAt: Long? = null
             while (processed < MAX_ITEMS_PER_RUN) {
                 // Mockito returns null for an unstubbed Kotlin collection despite the DAO contract;
                 // `orEmpty()` also makes a transient empty Room read explicit.
@@ -161,8 +190,8 @@ class ExternalMetadataHydrationWorker(appContext: Context, params: WorkerParamet
                     // Défense contre une ligne retirée entre la lecture groupée et l'exécution :
                     // le chemin unitaire conserve le traitement sans empêcher les lots normaux.
                     val request = dao.nextRequest(now()) ?: return DrainResult(false)
-                    pace(lastNetworkStartedAt, now)
-                    lastNetworkStartedAt = now()
+                    cadence.awaitSlot(now)
+                    cadence.recordNetworkStart(now())
                     processOne(request, dao, vodDao, seriesDao, repository, now())?.let { throttleDelay ->
                         return DrainResult(false, throttleDelay)
                     }
@@ -179,7 +208,7 @@ class ExternalMetadataHydrationWorker(appContext: Context, params: WorkerParamet
                     }
                 }
                 if (active.isNotEmpty()) {
-                    pace(lastNetworkStartedAt, now)
+                    cadence.awaitSlot(now)
                     val startedAt = now()
                     try {
                         val matches = repository.matchBatch(active.map { (request, source) ->
@@ -193,7 +222,7 @@ class ExternalMetadataHydrationWorker(appContext: Context, params: WorkerParamet
                         // Un lot entièrement servi par les liens déjà présents en Room n'a consommé
                         // aucun quota : il ne doit pas imposer sa cadence au lot suivant.
                         if (matches.any { it !is ExternalMetadataMatchOutcome.Matched || it.match.fromNetwork }) {
-                            lastNetworkStartedAt = startedAt
+                            cadence.recordNetworkStart(startedAt)
                         }
                         active.forEachIndexed { index, (request, source) ->
                             // T29 §7.6/§8.10 : seul `retry` (impossibilité technique temporaire) reste en
@@ -211,7 +240,7 @@ class ExternalMetadataHydrationWorker(appContext: Context, params: WorkerParamet
                                     }
                                 }
                                 ExternalMetadataMatchOutcome.Unresolved -> dao.deleteRequest(request.kind, request.providerId)
-                                is ExternalMetadataMatchOutcome.Retry -> requeueWithBackoff(request, dao, now(), outcome.retryAfterMillis)
+                                is ExternalMetadataMatchOutcome.Retry -> requeueRetry(request, dao, now(), outcome)
                             }
                         }
                     } catch (exception: CancellationException) {
@@ -223,32 +252,19 @@ class ExternalMetadataHydrationWorker(appContext: Context, params: WorkerParamet
                         // condamner ces médias à un backoff exponentiel de plusieurs heures.
                         val delayMillis = throttled.retryAfterMillis ?: THROTTLE_FALLBACK_DELAY_MILLIS
                         val throttledAt = now()
-                        active.forEach { (request, _) -> requeueForThrottle(request, dao, throttledAt, delayMillis) }
+                        active.forEach { (request, _) ->
+                            requeueRetry(request, dao, throttledAt, ExternalMetadataMatchOutcome.Retry(delayMillis, HydrationRetryReason.THROTTLE))
+                        }
                         return DrainResult(false, delayMillis)
                     } catch (exception: Exception) {
                         // Vraie erreur (réseau, réponse illisible) : comportement F45 inchangé.
-                        lastNetworkStartedAt = startedAt
+                        cadence.recordNetworkStart(startedAt)
                         active.forEach { (request, _) -> requeueWithBackoff(request, dao, now()) }
                     }
                 }
                 processed += requests.size
             }
             return DrainResult(true)
-        }
-
-        /**
-         * T29 débit §3 : borne l'intervalle entre deux **démarrages** de requête, jamais une pause
-         * fixe ajoutée après coup — un batch de 4 s a déjà largement dépassé la cadence et repart
-         * immédiatement, un batch de 0,2 s attend le complément (~1,8 s). `delay` (coroutine), jamais
-         * `Thread.sleep` : le worker reste annulable et les tests avancent en temps virtuel.
-         *
-         * Le plafond sur l'attente protège d'un `now()` qui reculerait (heure murale ajustée par le
-         * système) : au pire on attend un intervalle, jamais une durée absurde.
-         */
-        private suspend fun pace(lastNetworkStartedAt: Long?, now: () -> Long) {
-            if (lastNetworkStartedAt == null) return
-            val remaining = MIN_BATCH_INTERVAL_MILLIS - (now() - lastNetworkStartedAt)
-            if (remaining > 0) delay(remaining.coerceAtMost(MIN_BATCH_INTERVAL_MILLIS))
         }
 
         /** @return le délai imposé par un throttle backend (HTTP 429), `null` dans tous les autres cas. */
@@ -291,14 +307,14 @@ class ExternalMetadataHydrationWorker(appContext: Context, params: WorkerParamet
                         }
                     }
                     ExternalMetadataMatchOutcome.Unresolved -> dao.deleteRequest(request.kind, request.providerId)
-                    is ExternalMetadataMatchOutcome.Retry -> requeueWithBackoff(request, dao, now, outcome.retryAfterMillis)
+                    is ExternalMetadataMatchOutcome.Retry -> requeueRetry(request, dao, now, outcome)
                 }
             } catch (exception: CancellationException) {
                 throw exception
             } catch (throttled: CatalogThrottledException) {
                 // T29 débit §2 : même règle que sur le chemin batch — cadence, pas échec.
                 val delayMillis = throttled.retryAfterMillis ?: THROTTLE_FALLBACK_DELAY_MILLIS
-                requeueForThrottle(request, dao, now, delayMillis)
+                requeueRetry(request, dao, now, ExternalMetadataMatchOutcome.Retry(delayMillis, HydrationRetryReason.THROTTLE))
                 return delayMillis
             } catch (exception: Exception) {
                 requeueWithBackoff(request, dao, now)
@@ -346,13 +362,33 @@ class ExternalMetadataHydrationWorker(appContext: Context, params: WorkerParamet
         }
 
         /**
-         * T29 débit §2 : reprogrammation après throttle serveur. `attemptCount` est délibérément
-         * **inchangé** — un refus de cadence n'est pas une tentative ratée du média, et l'incrémenter
-         * ferait basculer l'item sur le backoff exponentiel dès sa prochaine vraie erreur (voire
-         * directement à plusieurs heures après quelques throttles). L'item n'est jamais retiré de la
-         * file ni persisté comme `unresolved`.
+         * T29 cycle backfill P0-1 : aiguillage unique de tous les `retry` par item. La décision vient
+         * de la **raison** annoncée par le backend, jamais de la durée : `BATCH_DEADLINE` (le backend
+         * n'a pas eu le budget de commencer l'item) et `THROTTLE` sont des refus de cadence, pas des
+         * tentatives ratées du média. Jusqu'à ~26 items sur 50 pouvaient être concernés dans un batch
+         * froid : les compter gonflait `attemptCount` de plusieurs unités par passage, si bien que la
+         * première vraie erreur réseau appliquait d'emblée un backoff de plusieurs heures.
          */
-        private suspend fun requeueForThrottle(request: ExternalHydrationRequestEntity, dao: ExternalMetadataDao, now: Long, delayMillis: Long) {
+        private suspend fun requeueRetry(
+            request: ExternalHydrationRequestEntity,
+            dao: ExternalMetadataDao,
+            now: Long,
+            outcome: ExternalMetadataMatchOutcome.Retry,
+        ) {
+            if (outcome.reason.countsAsAttempt) {
+                requeueWithBackoff(request, dao, now, outcome.retryAfterMillis)
+            } else {
+                requeueWithoutAttempt(request, dao, now, outcome.retryAfterMillis ?: BATCH_DEADLINE_FALLBACK_DELAY_MILLIS)
+            }
+        }
+
+        /**
+         * T29 débit §2 : reprogrammation après un refus de cadence (throttle serveur, deadline de
+         * batch). `attemptCount` est délibérément **inchangé** — l'incrémenter ferait basculer l'item
+         * sur le backoff exponentiel dès sa prochaine vraie erreur (voire directement à plusieurs
+         * heures). L'item n'est jamais retiré de la file ni persisté comme `unresolved`.
+         */
+        private suspend fun requeueWithoutAttempt(request: ExternalHydrationRequestEntity, dao: ExternalMetadataDao, now: Long, delayMillis: Long) {
             dao.upsertRequest(request.copy(nextAttemptAt = now + delayMillis))
         }
 

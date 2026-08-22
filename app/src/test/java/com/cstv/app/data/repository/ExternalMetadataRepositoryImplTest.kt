@@ -20,6 +20,7 @@ import com.cstv.app.domain.model.CatalogThrottledException
 import com.cstv.app.domain.model.ExternalMatchHints
 import com.cstv.app.domain.model.ExternalMetadataMatchOutcome
 import com.cstv.app.domain.model.ExternalMetadataMatchRequest
+import com.cstv.app.domain.model.HydrationRetryReason
 import com.cstv.app.domain.model.matchOrNull
 import com.cstv.app.domain.util.TimeProvider
 import kotlinx.coroutines.flow.first
@@ -307,6 +308,50 @@ class ExternalMetadataRepositoryImplTest {
         val result = repository.match("movie", 42, "Dune", 2021, null)
 
         assertEquals(ExternalMetadataMatchOutcome.Retry(null), result)
+    }
+
+    /**
+     * T29 cycle backfill P0-1 : la raison du `retry` traverse le protocole telle quelle. Le worker
+     * s'en sert pour décider si l'item a vraiment échoué — jamais une heuristique sur `retryAfter`.
+     */
+    @Test
+    fun `T29 cycle a batch_deadline retry carries its reason up to the queue`() = runBlocking<Unit> {
+        whenever(dao.findLocalMatch("movie", 42)).thenReturn(null)
+        whenever(api.match(any(), eq("tv"))).thenReturn(
+            CatalogMatchResponseDto(status = "retry", item = null, cache = CatalogCacheDto(retryAfter = 30, retryReason = "batch_deadline")),
+        )
+
+        val result = repository.match("movie", 42, "Dune", 2021, null)
+
+        assertEquals(ExternalMetadataMatchOutcome.Retry(30_000L, HydrationRetryReason.BATCH_DEADLINE), result)
+        verify(dao, never()).upsertLink(any())
+    }
+
+    @Test
+    fun `T29 cycle a provider retry stays a real attempt`() = runBlocking<Unit> {
+        whenever(dao.findLocalMatch("movie", 42)).thenReturn(null)
+        whenever(api.match(any(), eq("tv"))).thenReturn(
+            CatalogMatchResponseDto(status = "retry", item = null, cache = CatalogCacheDto(retryAfter = 3, retryReason = "provider")),
+        )
+
+        val result = repository.match("movie", 42, "Dune", 2021, null)
+
+        assertEquals(ExternalMetadataMatchOutcome.Retry(3_000L, HydrationRetryReason.PROVIDER), result)
+        assertTrue((result as ExternalMetadataMatchOutcome.Retry).reason.countsAsAttempt)
+    }
+
+    /** Compatibilité : un backend antérieur n'envoie pas `retryReason` — l'ancien comportement (backoff) reste. */
+    @Test
+    fun `T29 cycle a retry without a reason falls back on the legacy network behaviour`() = runBlocking<Unit> {
+        whenever(dao.findLocalMatch("movie", 42)).thenReturn(null)
+        whenever(api.match(any(), eq("tv"))).thenReturn(
+            CatalogMatchResponseDto(status = "retry", item = null, cache = CatalogCacheDto(retryAfter = 7, retryReason = null)),
+        )
+
+        val result = repository.match("movie", 42, "Dune", 2021, null)
+
+        assertEquals(HydrationRetryReason.NETWORK, (result as ExternalMetadataMatchOutcome.Retry).reason)
+        assertTrue(result.reason.countsAsAttempt)
     }
 
     @Test

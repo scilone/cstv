@@ -28,6 +28,9 @@ data class CatalogCacheDto(
     @SerializedName("refreshAfter") val refreshAfter: String? = null,
     // T29 §8.7 : secondes avant nouvelle tentative, uniquement renseigné quand `status == "retry"`.
     @SerializedName("retryAfter") val retryAfter: Int? = null,
+    // T29 cycle backfill P0-1 : cause explicite du `retry` (`batch_deadline`/`provider`). Absent des
+    // backends antérieurs — `HydrationRetryReason.fromWire` retombe alors sur l'ancien comportement.
+    @SerializedName("retryReason") val retryReason: String? = null,
 )
 data class CatalogItemDto(
     @SerializedName("externalId") val externalId: String? = null,

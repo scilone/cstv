@@ -1,5 +1,11 @@
 # Journal des Modifications (Changelog) - CSTV IPTV
 
+## [v1.93.2] - 2026-08-22
+
+### ⚡ Continuité de l'enrichissement des médias (T29)
+* **Amélioration de la continuité de l'enrichissement des médias** : le rattrapage du catalogue alimente désormais la file de travail sur plusieurs pages au lieu d'une seule, et l'application ne reste plus inactive de longues minutes tant qu'il reste des médias à traiter.
+* **Meilleure gestion des reprises du traitement** : un média simplement reporté par le serveur, faute de temps dans la requête, n'est plus compté comme un échec ; seules les vraies erreurs allongent le délai avant nouvelle tentative.
+
 ## [v1.93.1] - 2026-08-22
 
 ### ⚡ Débit d'enrichissement des médias (T29)

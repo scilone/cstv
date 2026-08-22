@@ -246,6 +246,13 @@ object AppModule {
     @Provides @Singleton
     fun provideCstvErrorMapper(gson: Gson): CstvErrorMapper = CstvErrorMapper(gson)
 
+    // T29 cycle backfill P1 : la cadence entre lots de matching doit survivre aux runs du worker et
+    // au redémarrage du process — sinon le premier lot de chaque run repart sans aucune attente.
+    @Provides @Singleton
+    fun provideBatchCadenceStore(
+        impl: com.cstv.app.data.local.storage.BatchCadencePreferences,
+    ): com.cstv.app.data.worker.BatchCadenceStore = impl
+
     @Provides @Singleton fun provideSnapshotCodec(gson: Gson): SnapshotCodec = SnapshotCodec(gson)
     @Provides @Singleton fun provideSnapshotMerger(): SnapshotMerger = SnapshotMerger()
     @Provides @Singleton

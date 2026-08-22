@@ -28,6 +28,7 @@ import com.cstv.app.domain.model.ExternalMetadataCoverageByKind
 import com.cstv.app.domain.model.ExternalMetadataMatch
 import com.cstv.app.domain.model.ExternalMetadataMatchOutcome
 import com.cstv.app.domain.model.ExternalMetadataMatchRequest
+import com.cstv.app.domain.model.HydrationRetryReason
 import com.cstv.app.domain.repository.ExternalMetadataRepository
 import com.cstv.app.domain.util.IsoInstant
 import com.cstv.app.domain.util.TimeProvider
@@ -160,7 +161,13 @@ class ExternalMetadataRepositoryImpl @Inject constructor(
         // contrairement à `not_found`/`unresolved` ci-dessous (§7.3 "ne jamais enregistrer un échec
         // technique comme UNRESOLVED").
         if (response.status == "retry") {
-            return ExternalMetadataMatchOutcome.Retry(response.cache?.retryAfter?.toLong()?.times(1000L))
+            // T29 cycle backfill P0-1 : la cause est portée par le backend, jamais devinée à partir
+            // de la durée — une deadline de batch et un 429 fournisseur peuvent annoncer le même délai
+            // alors que l'un n'est pas une tentative du média et l'autre si.
+            return ExternalMetadataMatchOutcome.Retry(
+                response.cache?.retryAfter?.toLong()?.times(1000L),
+                HydrationRetryReason.fromWire(response.cache?.retryReason),
+            )
         }
         val now = timeProvider.nowMillis()
         val item = response.item

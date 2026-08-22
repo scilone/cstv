@@ -150,8 +150,29 @@ final readonly class CatalogService
                 self::BATCH_DEADLINE_RETRY_AFTER_SECONDS,
             );
         }
-        $result = CatalogMatchResult::retry(CatalogMatchEngine::ALGORITHM_VERSION, self::BATCH_DEADLINE_RETRY_AFTER_SECONDS);
-        return ['status' => $result->status, 'match' => null, 'item' => null, 'cache' => ['retryAfter' => $result->retryAfterSeconds]];
+        $result = CatalogMatchResult::retry(
+            CatalogMatchEngine::ALGORITHM_VERSION,
+            self::BATCH_DEADLINE_RETRY_AFTER_SECONDS,
+            CatalogMatchResult::REASON_BATCH_DEADLINE,
+        );
+        return $this->retryPayload($result);
+    }
+
+    /**
+     * T29 cycle backfill P0-1 : `retryReason` accompagne toujours `retryAfter`, à côté de lui dans
+     * `cache` — un champ inconnu est ignoré par les clients existants (Gson), donc l'ajout ne casse
+     * aucune compatibilité : une APK antérieure continue de lire `retryAfter` seul et garde son
+     * backoff d'avant.
+     * @return array<string, mixed>
+     */
+    private function retryPayload(CatalogMatchResult $result): array
+    {
+        return [
+            'status' => $result->status,
+            'match' => null,
+            'item' => null,
+            'cache' => ['retryAfter' => $result->retryAfterSeconds, 'retryReason' => $result->retryReason],
+        ];
     }
 
     /**
@@ -173,8 +194,12 @@ final readonly class CatalogService
             return $this->matchWithoutThrottle($request, $device, $precomputedStrict);
         } catch (ApiException $error) {
             if (!$retryAware || !in_array($error->status, [429, 502, 503], true)) throw $error;
-            $result = CatalogMatchResult::retry(CatalogMatchEngine::ALGORITHM_VERSION, $error->retryAfterSeconds);
-            return ['status' => $result->status, 'match' => null, 'item' => null, 'cache' => ['retryAfter' => $result->retryAfterSeconds]];
+            $result = CatalogMatchResult::retry(
+                CatalogMatchEngine::ALGORITHM_VERSION,
+                $error->retryAfterSeconds,
+                CatalogMatchResult::REASON_PROVIDER,
+            );
+            return $this->retryPayload($result);
         }
     }
 

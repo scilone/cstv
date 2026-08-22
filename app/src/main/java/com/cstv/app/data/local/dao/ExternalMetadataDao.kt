@@ -74,6 +74,15 @@ interface ExternalMetadataDao {
     @Query("SELECT MIN(nextAttemptAt) FROM external_hydration_queue")
     suspend fun earliestNextAttemptAt(): Long?
 
+    /**
+     * T29 cycle backfill P0-3 : profondeur de travail **immédiatement exploitable**. Un item encore
+     * en backoff est bien en file mais ne peut alimenter aucun lot : le compter reviendrait à croire
+     * la file pleine alors que le worker n'a rien à faire — exactement la situation qui laissait le
+     * backend inutilisé 10 à 22 minutes. Un simple `COUNT(*)` agrégé, jamais les lignes (§8.10).
+     */
+    @Query("SELECT COUNT(*) FROM external_hydration_queue WHERE nextAttemptAt <= :now")
+    suspend fun countReadyRequests(now: Long): Int
+
     @Upsert suspend fun upsertMedia(media: ExternalMediaEntity)
     @Upsert suspend fun upsertMovie(movie: ExternalMovieEntity)
     @Upsert suspend fun upsertSeries(series: ExternalSeriesEntity)

@@ -12,6 +12,7 @@ import com.cstv.app.domain.model.ExternalMetadataCoverage
 import com.cstv.app.domain.model.ExternalMetadataMatch
 import com.cstv.app.domain.model.ExternalMetadataMatchOutcome
 import com.cstv.app.domain.model.ExternalMetadataMatchRequest
+import com.cstv.app.domain.model.HydrationRetryReason
 import com.cstv.app.domain.repository.ExternalMetadataRepository
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -481,6 +482,208 @@ class ExternalMetadataHydrationWorkerTest {
         ExternalMetadataHydrationWorker.drainQueue(dao, vodDao, seriesDao, repository) { testScheduler.currentTime }
 
         assertEquals(0L, repository.batchStartedAt[1] - repository.batchStartedAt[0])
+    }
+
+    /**
+     * T29 cycle backfill P1 : la cadence doit survivre à la fin d'un run. Deux `drainQueue`
+     * successifs partagent le même portillon, comme deux runs successifs du worker partagent le
+     * même singleton Hilt et le même stockage.
+     */
+    @Test
+    fun `T29 cycle a new run right after the previous one still honours the 2s cadence`() = runTest {
+        val vodDao: VodDao = mock()
+        val seriesDao: SeriesDao = mock()
+        whenever(vodDao.getStreamById(any())).thenReturn(vodRow(1, "pace-across-runs"))
+        whenever(vodDao.getStreamsByLinkKey(any(), anyOrNull(), any())).thenReturn(emptyList())
+        val repository = PacingRepository(testScheduler, batchDurationMillis = 100L)
+        val cadence = ExternalMetadataBatchCadence(InMemoryBatchCadenceStore())
+
+        val firstRun = pacingDao(listOf(ExternalHydrationRequestEntity("movie", 1, "MISSING_METADATA", 1, 1L, 1L, 0)))
+        ExternalMetadataHydrationWorker.drainQueue(dao = firstRun, vodDao = vodDao, seriesDao = seriesDao, repository = repository, cadence = cadence) { testScheduler.currentTime }
+        val secondRun = pacingDao(listOf(ExternalHydrationRequestEntity("movie", 2, "MISSING_METADATA", 1, 1L, 1L, 0)))
+        ExternalMetadataHydrationWorker.drainQueue(dao = secondRun, vodDao = vodDao, seriesDao = seriesDao, repository = repository, cadence = cadence) { testScheduler.currentTime }
+
+        assertEquals(2, repository.batchStartedAt.size)
+        assertEquals(
+            ExternalMetadataHydrationWorker.MIN_BATCH_INTERVAL_MILLIS,
+            repository.batchStartedAt[1] - repository.batchStartedAt[0],
+        )
+    }
+
+    @Test
+    fun `T29 cycle a run starting more than the cadence later waits for nothing`() = runTest {
+        val vodDao: VodDao = mock()
+        val seriesDao: SeriesDao = mock()
+        whenever(vodDao.getStreamById(any())).thenReturn(vodRow(1, "pace-late-run"))
+        whenever(vodDao.getStreamsByLinkKey(any(), anyOrNull(), any())).thenReturn(emptyList())
+        val repository = PacingRepository(testScheduler, batchDurationMillis = 0L)
+        // Départ réseau mémorisé 3 s avant le début du run : la cadence est déjà satisfaite.
+        val cadence = ExternalMetadataBatchCadence(InMemoryBatchCadenceStore(initialStartedAt = -3_000L))
+
+        val dao = pacingDao(listOf(ExternalHydrationRequestEntity("movie", 1, "MISSING_METADATA", 1, 1L, 1L, 0)))
+        ExternalMetadataHydrationWorker.drainQueue(dao = dao, vodDao = vodDao, seriesDao = seriesDao, repository = repository, cadence = cadence) { testScheduler.currentTime }
+
+        assertEquals(listOf(0L), repository.batchStartedAt)
+    }
+
+    /** P1 : mémoire restaurée depuis le stockage (process redémarré) — le premier lot attend quand même. */
+    @Test
+    fun `T29 cycle a cadence restored from storage still delays the very first batch of a fresh process`() = runTest {
+        val vodDao: VodDao = mock()
+        val seriesDao: SeriesDao = mock()
+        whenever(vodDao.getStreamById(any())).thenReturn(vodRow(1, "pace-restored"))
+        whenever(vodDao.getStreamsByLinkKey(any(), anyOrNull(), any())).thenReturn(emptyList())
+        val repository = PacingRepository(testScheduler, batchDurationMillis = 0L)
+        val cadence = ExternalMetadataBatchCadence(InMemoryBatchCadenceStore(initialStartedAt = -500L))
+
+        val dao = pacingDao(listOf(ExternalHydrationRequestEntity("movie", 1, "MISSING_METADATA", 1, 1L, 1L, 0)))
+        ExternalMetadataHydrationWorker.drainQueue(dao = dao, vodDao = vodDao, seriesDao = seriesDao, repository = repository, cadence = cadence) { testScheduler.currentTime }
+
+        assertEquals(listOf(1_500L), repository.batchStartedAt) // 2 000 - 500 déjà écoulés
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // T29 cycle backfill P0-1 : un retry de deadline n'est pas une tentative ratée du média.
+    // ---------------------------------------------------------------------------------------
+
+    @Test
+    fun `T29 cycle a batch deadline retry keeps attemptCount untouched and honours the backend delay`() = runTest {
+        val dao: ExternalMetadataDao = mock()
+        val vodDao: VodDao = mock()
+        val seriesDao: SeriesDao = mock()
+        val repository: ExternalMetadataRepository = mock()
+        // attemptCount déjà à 3 : il doit rester intact, la deadline n'est pas un échec du média.
+        val request = ExternalHydrationRequestEntity("movie", 11, "MISSING_METADATA", 1, 1L, 1L, 3)
+        whenever(dao.nextRequests(any(), any())).thenReturn(listOf(request), emptyList())
+        whenever(vodDao.getStreamById(11)).thenReturn(vodRow(11, "deadline-11"))
+        whenever(repository.matchBatch(any())).thenReturn(
+            listOf(ExternalMetadataMatchOutcome.Retry(30_000L, HydrationRetryReason.BATCH_DEADLINE)),
+        )
+
+        ExternalMetadataHydrationWorker.drainQueue(dao, vodDao, seriesDao, repository) { 1_000L }
+
+        val requeued = argumentCaptor<ExternalHydrationRequestEntity>()
+        verify(dao).upsertRequest(requeued.capture())
+        assertEquals(3, requeued.firstValue.attemptCount)
+        assertEquals(31_000L, requeued.firstValue.nextAttemptAt) // now(1 000) + retryAfter(30 000)
+        verify(dao, never()).deleteRequest(any(), any()) // jamais persisté comme unresolved
+    }
+
+    @Test
+    fun `T29 cycle a batch deadline retry without a delay falls back on a short one, never the backoff`() = runTest {
+        val dao: ExternalMetadataDao = mock()
+        val vodDao: VodDao = mock()
+        val seriesDao: SeriesDao = mock()
+        val repository: ExternalMetadataRepository = mock()
+        val request = ExternalHydrationRequestEntity("movie", 12, "MISSING_METADATA", 1, 1L, 1L, 0)
+        whenever(dao.nextRequests(any(), any())).thenReturn(listOf(request), emptyList())
+        whenever(vodDao.getStreamById(12)).thenReturn(vodRow(12, "deadline-12"))
+        whenever(repository.matchBatch(any())).thenReturn(
+            listOf(ExternalMetadataMatchOutcome.Retry(null, HydrationRetryReason.BATCH_DEADLINE)),
+        )
+
+        ExternalMetadataHydrationWorker.drainQueue(dao, vodDao, seriesDao, repository) { 1_000L }
+
+        val requeued = argumentCaptor<ExternalHydrationRequestEntity>()
+        verify(dao).upsertRequest(requeued.capture())
+        assertEquals(0, requeued.firstValue.attemptCount)
+        assertEquals(1_000L + ExternalMetadataHydrationWorker.BATCH_DEADLINE_FALLBACK_DELAY_MILLIS, requeued.firstValue.nextAttemptAt)
+        assertTrue(requeued.firstValue.nextAttemptAt < 1_000L + ExternalMetadataHydrationWorker.backoffDelayMillis(1))
+    }
+
+    /** Le scénario de production : un même média repoussé par la deadline batch après batch. */
+    @Test
+    fun `T29 cycle four successive deadline retries never inflate attemptCount`() = runTest {
+        val dao: ExternalMetadataDao = mock()
+        val vodDao: VodDao = mock()
+        val seriesDao: SeriesDao = mock()
+        val repository: ExternalMetadataRepository = mock()
+        whenever(vodDao.getStreamById(5)).thenReturn(vodRow(5, "deadline-loop"))
+        whenever(repository.matchBatch(any())).thenReturn(
+            listOf(ExternalMetadataMatchOutcome.Retry(30_000L, HydrationRetryReason.BATCH_DEADLINE)),
+        )
+        var request = ExternalHydrationRequestEntity("movie", 5, "MISSING_METADATA", 1, 1L, 1L, 0)
+
+        repeat(4) {
+            val current = request
+            whenever(dao.nextRequests(any(), any())).thenReturn(listOf(current), emptyList())
+            ExternalMetadataHydrationWorker.drainQueue(dao, vodDao, seriesDao, repository) { 1_000L }
+            val requeued = argumentCaptor<ExternalHydrationRequestEntity>()
+            verify(dao, times(it + 1)).upsertRequest(requeued.capture())
+            request = requeued.lastValue
+        }
+
+        assertEquals(0, request.attemptCount)
+    }
+
+    @Test
+    fun `T29 cycle a provider retry still counts as an attempt and keeps the F45 backoff path`() = runTest {
+        val dao: ExternalMetadataDao = mock()
+        val vodDao: VodDao = mock()
+        val seriesDao: SeriesDao = mock()
+        val repository: ExternalMetadataRepository = mock()
+        val request = ExternalHydrationRequestEntity("movie", 21, "MISSING_METADATA", 1, 1L, 1L, 2)
+        whenever(dao.nextRequests(any(), any())).thenReturn(listOf(request), emptyList())
+        whenever(vodDao.getStreamById(21)).thenReturn(vodRow(21, "provider-21"))
+        whenever(repository.matchBatch(any())).thenReturn(
+            listOf(ExternalMetadataMatchOutcome.Retry(9_000L, HydrationRetryReason.PROVIDER)),
+        )
+
+        ExternalMetadataHydrationWorker.drainQueue(dao, vodDao, seriesDao, repository) { 1_000L }
+
+        val requeued = argumentCaptor<ExternalHydrationRequestEntity>()
+        verify(dao).upsertRequest(requeued.capture())
+        assertEquals(3, requeued.firstValue.attemptCount) // vraie tentative : le compteur avance
+        assertEquals(10_000L, requeued.firstValue.nextAttemptAt) // Retry-After fournisseur prioritaire
+        verify(dao, never()).deleteRequest(any(), any())
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // T29 cycle backfill P0-2 : plus de sommeil de 10-22 min tant que le catalogue n'a pas convergé.
+    // ---------------------------------------------------------------------------------------
+
+    @Test
+    fun `T29 cycle a queue parked 20 minutes away still wakes up shortly while the catalog is incomplete`() = runTest {
+        val dao: ExternalMetadataDao = mock()
+        whenever(dao.earliestNextAttemptAt()).thenReturn(1_000L + 20 * 60_000L)
+
+        val delay = ExternalMetadataHydrationWorker.nextWakeupDelayMillis(dao, 1_000L, catalogExhausted = false)
+
+        assertEquals(ExternalMetadataHydrationWorker.BACKFILL_WAKEUP_MAX_DELAY_MILLIS, delay)
+        assertTrue(delay!! < 20 * 60_000L)
+    }
+
+    @Test
+    fun `T29 cycle a nearer deadline is never pushed back to the control wakeup`() = runTest {
+        val dao: ExternalMetadataDao = mock()
+        whenever(dao.earliestNextAttemptAt()).thenReturn(1_000L + 30_000L)
+
+        val delay = ExternalMetadataHydrationWorker.nextWakeupDelayMillis(dao, 1_000L, catalogExhausted = false)
+
+        assertEquals(30_000L, delay)
+    }
+
+    @Test
+    fun `T29 cycle a converged catalog with an empty queue schedules nothing at all`() = runTest {
+        val dao: ExternalMetadataDao = mock()
+        whenever(dao.earliestNextAttemptAt()).thenReturn(null)
+
+        assertNull(ExternalMetadataHydrationWorker.nextWakeupDelayMillis(dao, 1_000L, catalogExhausted = true))
+        // Non convergé mais file vide : un seul réveil de contrôle, pas un sondage plus agressif.
+        assertEquals(
+            ExternalMetadataHydrationWorker.BACKFILL_WAKEUP_MAX_DELAY_MILLIS,
+            ExternalMetadataHydrationWorker.nextWakeupDelayMillis(dao, 1_000L, catalogExhausted = false),
+        )
+    }
+
+    @Test
+    fun `T29 cycle a converged catalog keeps the real queue deadline, however far`() = runTest {
+        val dao: ExternalMetadataDao = mock()
+        whenever(dao.earliestNextAttemptAt()).thenReturn(1_000L + 6 * 3_600_000L)
+
+        val delay = ExternalMetadataHydrationWorker.nextWakeupDelayMillis(dao, 1_000L, catalogExhausted = true)
+
+        assertEquals(6 * 3_600_000L, delay)
     }
 
     @Test
