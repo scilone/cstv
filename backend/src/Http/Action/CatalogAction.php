@@ -57,7 +57,7 @@ final readonly class CatalogAction
                 new CatalogMatchHints(),
             );
         }
-        return $this->respond($response, $this->service->matchBatch($matches, $accountId, ClientIp::rateLimitKey(is_string($ip) ? $ip : '0.0.0.0'), $this->device($request)));
+        return $this->respond($response, $this->service->matchBatch($matches, $accountId, ClientIp::rateLimitKey(is_string($ip) ? $ip : '0.0.0.0'), $this->device($request), $this->retryAware($request)));
     }
 
     public function videos(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
@@ -93,6 +93,21 @@ final readonly class CatalogAction
     private function year(mixed $value): ?int { if ($value === null) return null; if (!is_int($value) || $value < 1888 || $value > (int) date('Y') + 2) throw new ApiException(422, 'INVALID_CATALOG_YEAR', 'year is invalid.'); return $value; }
     private function locale(ServerRequestInterface $request, mixed $bodyLocale = null): string { $value = $bodyLocale ?? ($request->getQueryParams()['locale'] ?? 'fr-FR'); if (!is_string($value) || !in_array($value, ['fr-FR', 'en-US'], true)) throw new ApiException(422, 'INVALID_CATALOG_LOCALE', 'locale is not supported.'); return $value; }
     private function device(ServerRequestInterface $request): DeviceType { return DeviceType::fromHeader($request->getHeaderLine('X-CSTV-Device-Type')); }
+
+    /**
+     * Review T29/R1 : négociation de capacité explicite — seul un client annonçant comprendre le
+     * statut `retry` par item (§8.9/§8.10) peut en recevoir un sur `/matches/batch`. Une APK
+     * pré-T29 n'envoie jamais cet en-tête et conserve donc le comportement d'échec HTTP global déjà
+     * connu de son worker (voir `CatalogService::matchBatch()`).
+     */
+    private function retryAware(ServerRequestInterface $request): bool
+    {
+        $capabilities = array_map(
+            static fn (string $capability): string => strtolower(trim($capability)),
+            explode(',', $request->getHeaderLine('X-CSTV-Catalog-Capabilities')),
+        );
+        return in_array('retry', $capabilities, true);
+    }
     /** @param array<string, mixed> $args */
     private function externalId(array $args): string
     {

@@ -3,7 +3,7 @@
 ## Informations générales
 
 Status:
-REVIEW
+FIXES
 
 Created:
 2026-08-21
@@ -1163,6 +1163,82 @@ batch size
 
 afin de conserver une attribution claire des gains/régressions.
 
+## Corrections (étape 7)
+
+Corrige les 3 points de la review (§12) — 2 majeurs, 1 mineur. Suite complète : **260 tests, 1188
+assertions**, verte.
+
+**Incident de process découvert pendant cette étape** : le conteneur `php-test` utilisé jusqu'ici
+(`docker compose exec php-test vendor/bin/phpunit`) n'a **aucun bind mount** — son code est figé au
+build de l'image. Tous les runs `docker compose exec`/`php -l` de l'étape 5 et du début de l'étape 7
+testaient donc une copie obsolète (antérieure même à l'implémentation T29), pas les fichiers réels du
+dépôt. `tests/Integration/CatalogApiTest.php` contenait de ce fait une erreur de syntaxe PHP passée
+inaperçue (un commentaire `/** ... *requêtes*/min ... */` fermé prématurément par le `*/` involontaire
+au milieu du mot) — présente dans le commit `1b36d77` déjà poussé sur `main`, jamais réellement
+exécutée par PHPUnit avant ce correctif. Corrigée avec les fixes ci-dessous. **Toute vérification
+PHPUnit doit désormais utiliser `docker compose run --rm --no-deps -v "$PWD:/var/www/html" php-test
+vendor/bin/phpunit` (code hôte réellement monté)** — noté pour éviter la récidive.
+
+### R1 — Négociation de capacité pour le statut `retry`
+
+- `CatalogAction::matchBatch()` lit l'en-tête `X-CSTV-Catalog-Capabilities` (liste séparée par
+  virgules) ; `retryAware = in_array('retry', $capabilities, true)`.
+- `CatalogService::matchBatch()`/`matchBatchItems()`/`matchBatchItem()` reçoivent ce booléen —
+  `false` (défaut, absence d'en-tête) : l'erreur provider (429/502/503) continue de se propager telle
+  quelle, la requête entière échoue en HTTP, comportement identique à avant T29. `true` : conversion
+  en item `retry` isolé, comportement T29 (§8.8) inchangé pour les clients qui l'annoncent.
+- Android (`CstvCatalogApiService.matchBatch()`) envoie systématiquement `X-CSTV-Catalog-Capabilities:
+  retry` via `@Headers` (statique, aucun changement de signature côté appelants/tests existants).
+- Tests ajoutés : sans en-tête → 429 global (`CATALOG_PROVIDER_UNAVAILABLE`) sur un item provider en
+  échec ; avec `retry` → isolation par item comme avant ; avec une capacité non reconnue → traité
+  comme legacy (429 global).
+
+### R2 — Lookup PostgreSQL bulk borné par titre + année dans le SQL
+
+Le premier correctif (commit `1b36d77`) corrélait déjà titre+année via `jsonb_to_recordset` +
+`JOIN`, mais **sans prédicat indexable dans le `WHERE`** — mesuré avec `EXPLAIN (ANALYZE, BUFFERS)`
+sur un jeu représentatif, le planificateur ne peut pas estimer la sélectivité d'une valeur JSON
+dynamique et retombe sur un scan complet plutôt que d'utiliser les index existants.
+
+Mesures (PostgreSQL 17, test réel via `docker compose exec postgres-test psql`) :
+
+**Passe titre normalisé**, 20 000 lignes `tmdb_movies` partageant toutes le même titre (cas
+pathologique — un titre unique = 100 % du catalogue) :
+
+| | Plan | Buffers | Temps |
+|---|---|---|---|
+| `jsonb_to_recordset` seul (1er correctif) | scan complet de `tmdb_media` par locale, jointure tardive | 60 190 | 22.8 ms |
+| + prédicat `normalized_title = ANY(:titles)` (correctif final) | `Bitmap`/`Index Scan` sur `tmdb_movies_normalized_title_idx` | 1 234 | 6.1 ms |
+
+**Passe titre alternatif**, cas réaliste : 30 000 films de bruit (titres distincts) + 5 vraies
+homonymes du titre recherché sur des années différentes :
+
+| | Plan | Buffers | Temps |
+|---|---|---|---|
+| `jsonb_to_recordset` seul (1er correctif) | `Seq Scan` sur `tmdb_movies` (30 001 lignes) | 913 | 5.9 ms |
+| + prédicat `LOWER(original_title) = ANY(...) OR alternative_titles_lower && ...` (correctif final) | `BitmapOr` sur l'index d'expression + le GIN | 117 | 1.4 ms |
+
+Le prédicat indexable dans le `WHERE` est donc conservé (`normalized_title = ANY(:titles)` /
+`LOWER(original_title) = ANY(:lowers) OR alternative_titles_lower && :lowers`, comme la version
+unitaire) **en plus** du `JOIN` sur `jsonb_to_recordset`, qui reste nécessaire pour corréler
+chaque ligne à l'année exacte demandée (`x.idx` revient du SQL, l'ambiguïté est toujours détectée en
+comptant les `external_id` distincts par `idx`).
+
+Tests ajoutés : `testFindStrictConsolidatedMatchBatchResolvesTheExactYearAmongManyHomonymYears` (30
+années d'un même titre normalisé, seule l'année demandée résout, sans ambiguïté croisée) — la
+vérification `EXPLAIN (ANALYZE, BUFFERS)` elle-même reste manuelle (pas d'infrastructure de
+benchmark automatisée dans ce dépôt), reproduite ci-dessus pour traçabilité.
+
+### R3 — Frontières anti-abus verrouillées par des tests dédiés
+
+- `testCatalogMatchExactAccountThresholdOfThirtyPerMinute` : 29 tentatives → autorisé, 30 → bloqué
+  (verrouille la frontière exacte, pas seulement "une valeur largement supérieure est rejetée").
+- `testCatalogMatchIsRateLimitedPerIpAtSixtyPerMinuteIndependentlyOfAccount` : flood de 60 tentatives
+  sur l'IP depuis un compte différent du compte testé, qui reste sous son propre plafond de 30 — isole
+  la frontière IP de la frontière compte.
+- `testCatalogMatchBatchAcceptsFiftyItemsAndRejectsFiftyOne` : 50 items → 200, 51 → 422
+  `INVALID_CATALOG_BATCH`.
+
 ---
 
 # 12. Review
@@ -1301,14 +1377,14 @@ comme totalement validée qu’après leur ajout.
 
 ## Corrections demandées
 
-- [ ] R1 — Ajouter une capability/version explicite pour le contrat `retry` par item.
-- [ ] R1 — Préserver un comportement compatible pour les anciennes APK.
-- [ ] R1 — Tester séparément client legacy et client T29 sur 429/502/503.
-- [ ] R2 — Filtrer les lookups bulk PostgreSQL par titre + année directement en SQL.
-- [ ] R2 — Vérifier le plan/coût des deux passes bulk sur un volume représentatif.
-- [ ] R2 — Ajouter un test avec de nombreux homonymes répartis sur plusieurs années.
-- [ ] R3 — Ajouter les tests limite IP 60, batch 50 accepté et batch 51 rejeté.
-- [ ] R3 — Verrouiller le seuil exact de 30 req/min sur l’endpoint unitaire.
+- [x] R1 — Ajouter une capability/version explicite pour le contrat `retry` par item.
+- [x] R1 — Préserver un comportement compatible pour les anciennes APK.
+- [x] R1 — Tester séparément client legacy et client T29 sur 429/502/503.
+- [x] R2 — Filtrer les lookups bulk PostgreSQL par titre + année directement en SQL.
+- [x] R2 — Vérifier le plan/coût des deux passes bulk sur un volume représentatif.
+- [x] R2 — Ajouter un test avec de nombreux homonymes répartis sur plusieurs années.
+- [x] R3 — Ajouter les tests limite IP 60, batch 50 accepté et batch 51 rejeté.
+- [x] R3 — Verrouiller le seuil exact de 30 req/min sur l’endpoint unitaire.
 
 ---
 

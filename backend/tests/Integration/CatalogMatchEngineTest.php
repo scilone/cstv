@@ -484,6 +484,31 @@ final class CatalogMatchEngineTest extends IntegrationTestCase
         self::assertArrayNotHasKey(3, $result, 'an unknown title must simply be absent from the result');
     }
 
+    /**
+     * Review T29/R2 : la corrélation titre+année doit se faire dans le SQL lui-même, pas seulement
+     * dans le regroupement PHP qui suit — sinon un titre partagé par des dizaines d'années charge un
+     * volume de lignes sans rapport avec la taille du batch avant d'être filtré. Ce test sème un même
+     * titre normalisé sur 30 années différentes (un cas réaliste de franchise/reboot) et vérifie que
+     * seule l'année réellement demandée résout, sans qu'aucune autre année ne pollue le résultat.
+     */
+    public function testFindStrictConsolidatedMatchBatchResolvesTheExactYearAmongManyHomonymYears(): void
+    {
+        $expected = [];
+        for ($year = 1990; $year < 2020; $year++) {
+            $expected[$year] = $this->seedStoredMovie($year, 'Franchise Homonym', $year . '-01-01');
+        }
+
+        $requests = [
+            ['index' => 0, 'kind' => 'movie', 'title' => 'Franchise Homonym', 'year' => 2005, 'locale' => 'fr-FR'],
+            ['index' => 1, 'kind' => 'movie', 'title' => 'Franchise Homonym', 'year' => 2018, 'locale' => 'fr-FR'],
+        ];
+
+        $result = $this->externalMedia->findStrictConsolidatedMatchBatch($requests);
+
+        self::assertSame($expected[2005], $result[0]['externalId']);
+        self::assertSame($expected[2018], $result[1]['externalId']);
+    }
+
     public function testFindStrictConsolidatedMatchBatchNeverCrossesKindsOrLocales(): void
     {
         $movie = $this->seedStoredMovie(705, 'Cross Kind Batch', '2021-01-01', locale: 'fr-FR');

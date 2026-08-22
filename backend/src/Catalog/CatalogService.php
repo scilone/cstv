@@ -44,12 +44,20 @@ final readonly class CatalogService
      * T29 §8.3/§8.6 : le throttle CSTV compte désormais une seule unité de requête, indépendamment
      * du nombre d'items — protéger le endpoint, pas le fournisseur (§7.4). Le pipeline lui-même
      * (cache bulk → PostgreSQL-first bulk → provider par item, isolé) vit dans `matchBatchItems()`.
+     *
+     * Review T29/R1 : `retryAware` porte la négociation de capacité — seul un client qui a annoncé
+     * comprendre le statut `retry` par item (`CatalogAction::matchBatch()`, en-tête
+     * `X-CSTV-Catalog-Capabilities`) peut en recevoir un. Une APK pré-T29 ignore ce statut (son
+     * contrat `ExternalMetadataMatch?` traiterait tout item sans `item` comme un `unresolved` réel,
+     * §7.3) : pour elle, `matchBatchItem()` laisse l'erreur provider remonter telle quelle — la
+     * requête entière échoue en HTTP, exactement le comportement pré-T29 que son worker sait déjà
+     * reprogrammer intégralement.
      * @param list<CatalogMatchRequest> $requests @return array{items: list<array<string, mixed>>}
      */
-    public function matchBatch(array $requests, string $accountId, string $ipKey, DeviceType $device): array
+    public function matchBatch(array $requests, string $accountId, string $ipKey, DeviceType $device, bool $retryAware = false): array
     {
         $this->throttleMatchRequest($accountId, $ipKey);
-        return ['items' => $this->matchBatchItems($requests, $device)];
+        return ['items' => $this->matchBatchItems($requests, $device, $retryAware)];
     }
 
     /**
@@ -57,7 +65,7 @@ final readonly class CatalogService
      * provider par item (misses restants, isolé §8.8) → ordre d'origine préservé (§7.6).
      * @param list<CatalogMatchRequest> $requests @return list<array<string, mixed>>
      */
-    private function matchBatchItems(array $requests, DeviceType $device): array
+    private function matchBatchItems(array $requests, DeviceType $device, bool $retryAware): array
     {
         if ($requests === []) return [];
 
@@ -88,7 +96,7 @@ final readonly class CatalogService
             $strictMatches = $strictInputs !== [] ? $this->externalMedia->findStrictConsolidatedMatchBatch($strictInputs) : [];
 
             foreach ($pending as $index => $request) {
-                $results[$index] = $this->matchBatchItem($request, $device, $strictMatches[$index] ?? []);
+                $results[$index] = $this->matchBatchItem($request, $device, $strictMatches[$index] ?? [], $retryAware);
             }
         }
 
@@ -102,15 +110,18 @@ final readonly class CatalogService
      * pour cet item seul, sans invalider les succès déjà calculés dans le lot (§7.6). Toute autre
      * erreur (bug interne, 4xx inattendu) continue de se propager — §8.8 "erreurs non retryables/bugs
      * internes ne doivent pas être silencieusement converties en retry".
+     *
+     * Review T29/R1 : `$retryAware === false` (client legacy, n'a pas annoncé la capacité `retry`)
+     * laisse l'erreur se propager sans la convertir — voir `matchBatch()`.
      * @param array{externalId: string, method: string}|array{} $precomputedStrict
      * @return array<string, mixed>
      */
-    private function matchBatchItem(CatalogMatchRequest $request, DeviceType $device, array $precomputedStrict): array
+    private function matchBatchItem(CatalogMatchRequest $request, DeviceType $device, array $precomputedStrict, bool $retryAware): array
     {
         try {
             return $this->matchWithoutThrottle($request, $device, $precomputedStrict);
         } catch (ApiException $error) {
-            if (!in_array($error->status, [429, 502, 503], true)) throw $error;
+            if (!$retryAware || !in_array($error->status, [429, 502, 503], true)) throw $error;
             $result = CatalogMatchResult::retry(CatalogMatchEngine::ALGORITHM_VERSION, $error->retryAfterSeconds);
             return ['status' => $result->status, 'match' => null, 'item' => null, 'cache' => ['retryAfter' => $result->retryAfterSeconds]];
         }

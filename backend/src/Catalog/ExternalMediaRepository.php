@@ -131,6 +131,16 @@ final readonly class ExternalMediaRepository
     }
 
     /**
+     * Review T29/R2 : la corrélation titre+année se fait dans la requête SQL elle-même, pas
+     * seulement dans le regroupement PHP qui suit. Une première version n'utilisait qu'un `JOIN`
+     * contre `jsonb_to_recordset` sans prédicat indexable dans le `WHERE` — mesuré avec
+     * `EXPLAIN (ANALYZE, BUFFERS)` sur 20 000 lignes `tmdb_movies` partageant un même titre, le
+     * planificateur ne pouvait pas se fier à la sélectivité d'une valeur dynamique et retombait sur
+     * un scan complet de `tmdb_media` (60k+ buffers). Le prédicat `normalized_title = ANY(:titles)`
+     * ci-dessous lui redonne l'usage de `tmdb_movies_normalized_title_idx` ; le `JOIN` sur
+     * `jsonb_to_recordset` reste nécessaire pour corréler chaque ligne à l'année exacte demandée et
+     * borner le résultat par les couples du lot (voir `x.idx`, qui revient directement du SQL — plus
+     * besoin de reconstruire une clé `"titre|année"` en PHP).
      * @param list<array{index: int, kind: string, title: string, year: int, locale: string}> $requests
      * @return array<int, array{externalId: string, method: string}>
      */
@@ -143,33 +153,42 @@ final readonly class ExternalMediaRepository
         foreach ($requests as $request) {
             $normalized = TitleNormalizer::normalize($request['title']);
             if ($normalized === '') continue;
-            $byLocale[$request['locale']][] = ['index' => $request['index'], 'normalized' => $normalized, 'year' => $request['year']];
+            $byLocale[$request['locale']][] = ['idx' => $request['index'], 'normalized_title' => $normalized, 'year' => $request['year']];
         }
 
         $result = [];
         foreach ($byLocale as $locale => $items) {
-            $titles = array_values(array_unique(array_column($items, 'normalized')));
+            $titles = array_values(array_unique(array_column($items, 'normalized_title')));
             $statement = $this->pdo->prepare(
-                "SELECT m.external_id::text AS external_id, m.normalized_title AS normalized_title, EXTRACT(YEAR FROM m.{$dateColumn})::int AS year " .
+                'SELECT x.idx AS idx, m.external_id::text AS external_id ' .
                 "FROM {$table} m JOIN tmdb_media t ON t.external_id = m.external_id " .
+                'JOIN jsonb_to_recordset(CAST(:items AS jsonb)) AS x(idx int, normalized_title text, year int) ' .
+                "ON x.normalized_title = m.normalized_title AND x.year = EXTRACT(YEAR FROM m.{$dateColumn})::int " .
                 'WHERE m.normalized_title = ANY(:titles::text[]) AND t.locale = :locale',
             );
-            $statement->execute(['titles' => PgArray::encode($titles), 'locale' => $locale]);
+            $statement->execute(['items' => json_encode($items, JSON_THROW_ON_ERROR), 'titles' => PgArray::encode($titles), 'locale' => $locale]);
 
             $groups = [];
             foreach ($statement->fetchAll(PDO::FETCH_ASSOC) as $row) {
-                if ($row['year'] === null) continue;
-                $groups[$row['normalized_title'] . '|' . $row['year']][] = $row['external_id'];
+                $groups[(int) $row['idx']][] = $row['external_id'];
             }
-            foreach ($items as $item) {
-                $sole = self::soleMatch(array_values(array_unique($groups[$item['normalized'] . '|' . $item['year']] ?? [])));
-                if ($sole !== null) $result[$item['index']] = ['externalId' => $sole, 'method' => 'postgresql-exact-title-year'];
+            foreach ($groups as $idx => $externalIds) {
+                $sole = self::soleMatch(array_values(array_unique($externalIds)));
+                if ($sole !== null) $result[$idx] = ['externalId' => $sole, 'method' => 'postgresql-exact-title-year'];
             }
         }
         return $result;
     }
 
     /**
+     * Review T29/R2 : même principe que `strictMatchByNormalizedTitleBatch()` — le prédicat
+     * indexable (`LOWER(original_title) = ANY(:lowers)` / `alternative_titles_lower && :lowers`,
+     * expression btree + GIN, migration 013 §8.2 R2) reste dans le `WHERE` pour que le
+     * planificateur puisse s'en servir ; mesuré avec `EXPLAIN (ANALYZE, BUFFERS)` sur 30 000 lignes
+     * dont seulement 5 homonymes réels, ce prédicat fait chuter le coût de 913 à 117 buffers
+     * (`BitmapOr` sur les deux index) par rapport à un `JOIN` `jsonb_to_recordset` seul. Le `JOIN`
+     * sur `jsonb_to_recordset` reste nécessaire pour corréler chaque ligne à l'année exacte
+     * demandée et borner le résultat par les couples du lot.
      * @param list<array{index: int, kind: string, title: string, year: int, locale: string}> $requests
      * @return array<int, array{externalId: string, method: string}>
      */
@@ -182,35 +201,29 @@ final readonly class ExternalMediaRepository
         $byLocale = [];
         foreach ($requests as $request) {
             if (trim($request['title']) === '') continue;
-            $byLocale[$request['locale']][] = ['index' => $request['index'], 'lower' => mb_strtolower($request['title']), 'year' => $request['year']];
+            $byLocale[$request['locale']][] = ['idx' => $request['index'], 'lower_title' => mb_strtolower($request['title']), 'year' => $request['year']];
         }
 
         $result = [];
         foreach ($byLocale as $locale => $items) {
-            $lowers = array_values(array_unique(array_column($items, 'lower')));
+            $lowers = array_values(array_unique(array_column($items, 'lower_title')));
             $statement = $this->pdo->prepare(
-                "SELECT m.external_id::text AS external_id, LOWER(m.{$originalTitleColumn}) AS original_lower, " .
-                "m.alternative_titles_lower AS alt_lower, EXTRACT(YEAR FROM m.{$dateColumn})::int AS year " .
+                'SELECT x.idx AS idx, m.external_id::text AS external_id ' .
                 "FROM {$table} m JOIN tmdb_media t ON t.external_id = m.external_id " .
+                'JOIN jsonb_to_recordset(CAST(:items AS jsonb)) AS x(idx int, lower_title text, year int) ' .
+                "ON x.year = EXTRACT(YEAR FROM m.{$dateColumn})::int " .
+                "AND (LOWER(m.{$originalTitleColumn}) = x.lower_title OR ARRAY[x.lower_title] <@ m.alternative_titles_lower) " .
                 "WHERE t.locale = :locale AND (LOWER(m.{$originalTitleColumn}) = ANY(:lowers::text[]) OR m.alternative_titles_lower && CAST(:lowers AS text[]))",
             );
-            $statement->execute(['locale' => $locale, 'lowers' => PgArray::encode($lowers)]);
+            $statement->execute(['items' => json_encode($items, JSON_THROW_ON_ERROR), 'lowers' => PgArray::encode($lowers), 'locale' => $locale]);
 
             $groups = [];
             foreach ($statement->fetchAll(PDO::FETCH_ASSOC) as $row) {
-                if ($row['year'] === null) continue;
-                $matchedLowers = [];
-                if ($row['original_lower'] !== null && in_array($row['original_lower'], $lowers, true)) $matchedLowers[] = $row['original_lower'];
-                foreach (PgArray::decode($row['alt_lower']) as $alt) {
-                    if (in_array($alt, $lowers, true)) $matchedLowers[] = $alt;
-                }
-                foreach (array_unique($matchedLowers) as $matchedLower) {
-                    $groups[$matchedLower . '|' . $row['year']][] = $row['external_id'];
-                }
+                $groups[(int) $row['idx']][] = $row['external_id'];
             }
-            foreach ($items as $item) {
-                $sole = self::soleMatch(array_values(array_unique($groups[$item['lower'] . '|' . $item['year']] ?? [])));
-                if ($sole !== null) $result[$item['index']] = ['externalId' => $sole, 'method' => 'postgresql-alternative-title-year'];
+            foreach ($groups as $idx => $externalIds) {
+                $sole = self::soleMatch(array_values(array_unique($externalIds)));
+                if ($sole !== null) $result[$idx] = ['externalId' => $sole, 'method' => 'postgresql-alternative-title-year'];
             }
         }
         return $result;

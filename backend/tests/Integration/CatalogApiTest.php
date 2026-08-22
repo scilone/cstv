@@ -43,6 +43,7 @@ final class CatalogApiTest extends IntegrationTestCase
                 // T29 §8.8 : simule un budget TMDB local épuisé / une indisponibilité transitoire —
                 // le seul moyen, avec ce double de test, de déclencher le chemin `retry` par item.
                 if ($title === 'Retry Me') throw new CatalogProviderException(429, retryAfterSeconds: 3);
+                if ($title === 'Provider Down') throw new CatalogProviderException(502);
                 // L'id fournisseur encode l'année pour que `hydrate()` puisse la restituer dans `releaseDate`
                 // sans dépendre d'un état partagé entre les deux méthodes (double de test, pas de vraie recherche).
                 return [new CatalogMatchCandidate($year ?? 999999, $title, $title, $year, [])];
@@ -183,7 +184,7 @@ final class CatalogApiTest extends IntegrationTestCase
     }
 
     /**
-     * T29 §8.3/§11 : le nouveau seuil (30 *requêtes*/min/compte, hypothèse §4.2) s'applique
+     * T29 §8.3/§11 : le nouveau seuil (30 requêtes/min/compte, hypothèse §4.2) s'applique
      * identiquement à une requête batch — un lot de 50 items ne consomme toujours qu'une seule unité
      * de quota, donc une seule requête supplémentaire suffit à faire dépasser un compte déjà à 30.
      */
@@ -199,6 +200,64 @@ final class CatalogApiTest extends IntegrationTestCase
         ], $this->auth($account['token']));
         self::assertSame(429, $response->getStatusCode());
         self::assertSame('CATALOG_MATCH_RATE_LIMITED', $this->json($response)['error']['code']);
+    }
+
+    /**
+     * Review T29/R3 : verrouille le seuil exact (30) sur l'endpoint unitaire — le test historique
+     * (120 tentatives) prouve seulement qu'une valeur très supérieure est rejetée, pas que la
+     * frontière est bien à 30 et pas ailleurs.
+     */
+    public function testCatalogMatchExactAccountThresholdOfThirtyPerMinute(): void
+    {
+        $account = $this->createAccount();
+        for ($i = 0; $i < 29; $i++) {
+            $this->pdo->prepare('INSERT INTO catalog_match_attempts (id, account_id, ip_key) VALUES (:id, :account, :ip)')
+                ->execute(['id' => \Cstv\Backend\Shared\Uuid::v4(), 'account' => $account['id'], 'ip' => '127.0.0.1']);
+        }
+        // 29 déjà consommées + cette requête = 30 : encore autorisé (limite non dépassée).
+        $allowed = $this->jsonRequest('POST', '/v1/catalog/matches', ['kind' => 'movie', 'title' => 'Threshold Ok', 'year' => 2021], $this->auth($account['token']));
+        self::assertSame(200, $allowed->getStatusCode());
+
+        // 30 consommées + cette requête = 31 : dépasse la limite.
+        $blocked = $this->jsonRequest('POST', '/v1/catalog/matches', ['kind' => 'movie', 'title' => 'Threshold Over', 'year' => 2021], $this->auth($account['token']));
+        self::assertSame(429, $blocked->getStatusCode());
+        self::assertSame('CATALOG_MATCH_RATE_LIMITED', $this->json($blocked)['error']['code']);
+    }
+
+    /**
+     * Review T29/R3 : le seuil IP (60/min, indépendant du compte) n'était pas verrouillé par un test
+     * dédié — flood réalisé depuis plusieurs comptes distincts pour isoler la frontière IP de la
+     * frontière compte (chaque compte reste sous 30, seule l'IP partagée atteint 60).
+     */
+    public function testCatalogMatchIsRateLimitedPerIpAtSixtyPerMinuteIndependentlyOfAccount(): void
+    {
+        $flooder = $this->createAccount('ip-flood@example.com');
+        for ($i = 0; $i < 60; $i++) {
+            $this->pdo->prepare('INSERT INTO catalog_match_attempts (id, account_id, ip_key) VALUES (:id, :account, :ip)')
+                ->execute(['id' => \Cstv\Backend\Shared\Uuid::v4(), 'account' => $flooder['id'], 'ip' => '127.0.0.1']);
+        }
+
+        $victim = $this->createAccount('ip-victim@example.com');
+        $response = $this->jsonRequest('POST', '/v1/catalog/matches', ['kind' => 'movie', 'title' => 'Dune'], $this->auth($victim['token']));
+
+        self::assertSame(429, $response->getStatusCode());
+        self::assertSame('CATALOG_MATCH_RATE_LIMITED', $this->json($response)['error']['code']);
+    }
+
+    /** Review T29/R3 : le plafond de payload (§7.4/§8.16) reste 50 — verrouille les deux bornes. */
+    public function testCatalogMatchBatchAcceptsFiftyItemsAndRejectsFiftyOne(): void
+    {
+        $account = $this->createAccount();
+        $item = ['kind' => 'movie', 'title' => 'Bulk Size Item', 'year' => 2021];
+
+        $fifty = $this->jsonRequest('POST', '/v1/catalog/matches/batch', ['items' => array_fill(0, 50, $item)], $this->auth($account['token']));
+        self::assertSame(200, $fifty->getStatusCode());
+        self::assertCount(50, $this->json($fifty)['items']);
+
+        $account2 = $this->createAccount('bulk-fifty-one@example.com');
+        $fiftyOne = $this->jsonRequest('POST', '/v1/catalog/matches/batch', ['items' => array_fill(0, 51, $item)], $this->auth($account2['token']));
+        self::assertSame(422, $fiftyOne->getStatusCode());
+        self::assertSame('INVALID_CATALOG_BATCH', $this->json($fiftyOne)['error']['code']);
     }
 
     /**
@@ -227,6 +286,7 @@ final class CatalogApiTest extends IntegrationTestCase
      * T29 §7.6/§8.8 : un item en échec technique (budget provider épuisé) doit devenir `retry` sans
      * faire perdre les résultats des autres items du même batch, et sans perturber leur ordre.
      */
+    /** Review T29/R1 : seul un client ayant annoncé la capacité `retry` peut recevoir ce statut. */
     public function testCatalogMatchBatchIsolatesProviderErrorsPerItemAndPreservesOrder(): void
     {
         $account = $this->createAccount();
@@ -236,7 +296,7 @@ final class CatalogApiTest extends IntegrationTestCase
                 ['kind' => 'movie', 'title' => 'Retry Me', 'year' => 2021],
                 ['kind' => 'movie', 'title' => 'Missing', 'year' => 2021],
             ],
-        ], $this->auth($account['token']));
+        ], [...$this->auth($account['token']), 'X-CSTV-Catalog-Capabilities' => 'retry']);
 
         self::assertSame(200, $response->getStatusCode());
         $items = $this->json($response)['items'];
@@ -247,6 +307,60 @@ final class CatalogApiTest extends IntegrationTestCase
         self::assertNull($items[1]['match']);
         self::assertSame(3, $items[1]['cache']['retryAfter']);
         self::assertSame('not_found', $items[2]['status']);
+    }
+
+    /**
+     * Review T29/R1 : une APK pré-T29 n'envoie jamais `X-CSTV-Catalog-Capabilities` — son contrat ne
+     * distingue pas `retry` d'un `unresolved` réel (§7.3). Le backend doit donc laisser l'erreur
+     * provider faire échouer la requête entière, exactement le comportement pré-T29 que son worker
+     * sait déjà reprogrammer intégralement, plutôt que de renvoyer un statut qu'elle interpréterait
+     * à tort comme un résultat métier terminé.
+     */
+    public function testCatalogMatchBatchWithoutCapabilityHeaderFailsTheWholeRequestOnProviderError(): void
+    {
+        $account = $this->createAccount();
+        $response = $this->jsonRequest('POST', '/v1/catalog/matches/batch', [
+            'items' => [
+                ['kind' => 'movie', 'title' => 'Batch Isolation Matched', 'year' => 2021],
+                ['kind' => 'movie', 'title' => 'Retry Me', 'year' => 2021],
+            ],
+        ], $this->auth($account['token']));
+
+        self::assertSame(429, $response->getStatusCode());
+        self::assertSame('CATALOG_PROVIDER_UNAVAILABLE', $this->json($response)['error']['code']);
+    }
+
+    /** Review T29/R1 : une valeur de capacité inconnue/vide se comporte comme un client legacy. */
+    public function testCatalogMatchBatchWithUnrelatedCapabilityHeaderIsTreatedAsLegacy(): void
+    {
+        $account = $this->createAccount();
+        $response = $this->jsonRequest('POST', '/v1/catalog/matches/batch', [
+            'items' => [['kind' => 'movie', 'title' => 'Retry Me', 'year' => 2021]],
+        ], [...$this->auth($account['token']), 'X-CSTV-Catalog-Capabilities' => 'some-other-feature']);
+
+        self::assertSame(429, $response->getStatusCode());
+    }
+
+    /**
+     * Review T29/R1 : le filet de compatibilité legacy (`!$retryAware`) doit couvrir les trois
+     * statuts provider retryables (429/502/503), pas seulement le 429 déjà exercé ci-dessus —
+     * `CatalogService::matchBatchItem()` les traite via le même `in_array`, ce test verrouille le 502.
+     */
+    public function testCatalogMatchBatchWithoutCapabilityHeaderFailsWholeRequestOn502(): void
+    {
+        $account = $this->createAccount();
+        $legacy = $this->jsonRequest('POST', '/v1/catalog/matches/batch', [
+            'items' => [['kind' => 'movie', 'title' => 'Provider Down', 'year' => 2021]],
+        ], $this->auth($account['token']));
+        self::assertSame(502, $legacy->getStatusCode());
+        self::assertSame('CATALOG_PROVIDER_BAD_RESPONSE', $this->json($legacy)['error']['code']);
+
+        $account2 = $this->createAccount('provider-down-retry-aware@example.com');
+        $retryAware = $this->jsonRequest('POST', '/v1/catalog/matches/batch', [
+            'items' => [['kind' => 'movie', 'title' => 'Provider Down', 'year' => 2021]],
+        ], [...$this->auth($account2['token']), 'X-CSTV-Catalog-Capabilities' => 'retry']);
+        self::assertSame(200, $retryAware->getStatusCode());
+        self::assertSame('retry', $this->json($retryAware)['items'][0]['status']);
     }
 
     /** T29 §8.4 : un batch entièrement servi par le cache ne doit jamais rappeler le moteur/le fournisseur. */

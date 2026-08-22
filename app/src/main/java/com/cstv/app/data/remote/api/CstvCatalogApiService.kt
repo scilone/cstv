@@ -12,6 +12,7 @@ import com.cstv.app.data.remote.dto.CatalogVideosResponseDto
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.Header
+import retrofit2.http.Headers
 import retrofit2.http.POST
 import retrofit2.http.Path
 import retrofit2.http.Query
@@ -26,6 +27,10 @@ interface CstvCatalogApiService {
     @POST("v1/catalog/matches")
     suspend fun match(@Body request: CatalogMatchRequestDto, @Header("X-CSTV-Device-Type") deviceType: String = "mobile"): CatalogMatchResponseDto
 
+    // T29 review R1 : annonce explicite de la capacité à comprendre le statut `retry` par item —
+    // sans cet en-tête, le backend garde le comportement pré-T29 (erreur HTTP globale) pour ne
+    // jamais envoyer `retry` à une APK qui ne saurait pas le distinguer d'un `unresolved` (§7.3).
+    @Headers("X-CSTV-Catalog-Capabilities: retry")
     @POST("v1/catalog/matches/batch")
     suspend fun matchBatch(@Body request: CatalogMatchBatchRequestDto, @Header("X-CSTV-Device-Type") deviceType: String = "mobile"): CatalogMatchBatchResponseDto
 
