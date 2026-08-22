@@ -3,7 +3,7 @@
 ## Informations générales
 
 Status:
-FIXES
+VALIDATED
 
 Created:
 2026-08-21
@@ -1165,8 +1165,8 @@ afin de conserver une attribution claire des gains/régressions.
 
 ## Corrections (étape 7)
 
-Corrige les 3 points de la review (§12) — 2 majeurs, 1 mineur. Suite complète : **260 tests, 1188
-assertions**, verte.
+Corrige les 3 points de la review (§12) — 2 majeurs, 1 mineur. Suite complète finale :
+**261 tests, 1192 assertions**, verte.
 
 **Incident de process découvert pendant cette étape** : le conteneur `php-test` utilisé jusqu'ici
 (`docker compose exec php-test vendor/bin/phpunit`) n'a **aucun bind mount** — son code est figé au
@@ -1239,6 +1239,78 @@ benchmark automatisée dans ce dépôt), reproduite ci-dessus pour traçabilité
 - `testCatalogMatchBatchAcceptsFiftyItemsAndRejectsFiftyOne` : 50 items → 200, 51 → 422
   `INVALID_CATALOG_BATCH`.
 
+## Validation finale (étape 8)
+
+Validation effectuée le 2026-08-22 sur le commit de correction
+`2151939a997081a98472362d22424e7c03ba778c`.
+
+Résultat :
+**VALIDATED**
+
+### Comportement attendu
+
+- Le endpoint batch reste borné à `1..50` items.
+- Android utilise `MAX_ITEMS_PER_BATCH = 50` et conserve `MAX_ITEMS_PER_RUN = 200`.
+- Une requête batch consomme une seule unité du throttle CSTV, avec les seuils
+  `30 req/min/compte` et `60 req/min/IP`.
+- Le pipeline conserve l'ordre cible :
+  `cache bulk → PostgreSQL backend-first bulk → provider par item`.
+- Les hits locaux n'augmentent pas le budget fournisseur TMDB.
+- Le token bucket TMDB reste inchangé (`capacity = 12`, `refill = 4/s`).
+- Un client T29 annonce explicitement `X-CSTV-Catalog-Capabilities: retry`.
+- Pour un client T29, un 429/502/503 retryable peut être isolé par item sans annuler les succès du
+  reste du batch.
+- Pour un client legacy ne déclarant pas cette capacité, l'erreur provider continue de provoquer
+  l'échec HTTP global connu par les anciennes APK : aucun nouveau statut `retry` ne leur est envoyé.
+- Côté Android, `retry` est traité avant toute persistance métier : il ne crée jamais de tentative
+  `unresolved` et seul l'item concerné reste/revient dans `external_hydration_queue`.
+- L'ordre des réponses est conservé et la taille de la réponse doit rester identique à celle de la
+  requête.
+
+### Qualité technique et performances
+
+- Le cache est lu en bulk.
+- Le lookup PostgreSQL-first est effectué en bulk.
+- Les requêtes PostgreSQL corrigées corrèlent directement titre + année via
+  `jsonb_to_recordset`, tout en conservant un prédicat indexable dans le `WHERE`.
+- Les mesures `EXPLAIN (ANALYZE, BUFFERS)` consignées à l'étape 7 confirment que le correctif R2
+  évite le scan complet observé avec la première version.
+- Aucun parallélisme TMDB massif n'a été introduit.
+- Aucun changement de schéma/migration n'est nécessaire pour T29.
+
+### Non-régression et tests
+
+Backend :
+
+- suite complète finale : **261 tests, 1192 assertions**, verte avec le code hôte réellement monté
+  dans `php-test`;
+- seuil exact compte : 29 tentatives existantes autorisent la suivante, 30 la bloquent;
+- seuil IP : 60 req/min verrouillé indépendamment du quota compte;
+- batch 50 accepté / batch 51 rejeté;
+- contrat legacy sans capability testé;
+- contrat T29 avec capability `retry` testé;
+- erreurs provider retryables couvertes, notamment 429 et 502;
+- lookup bulk exact sur l'année testé avec de nombreux homonymes.
+
+Android :
+
+- `testDebugUnitTest` : vert;
+- `assembleDebug` : vert;
+- `lintDebug` : vert;
+- le worker distingue `Matched`, `Unresolved` et `Retry`;
+- `Retry` utilise `retryAfter` lorsque disponible, sinon le backoff existant.
+
+### Contrôles post-release
+
+Les Tâches 11 et 12 restent volontairement ouvertes :
+
+- Tâche 11 : mesurer le gain de débit réel après déploiement;
+- Tâche 12 : observer F46 sur une APK réelle.
+
+Elles constituent des contrôles d'observation/tuning post-release et ne remettent pas en cause la
+validation technique automatisée de T29. La vérification sur device de la Tâche 12 est explicitement
+exclue des critères de validation finale de l'agent par `AGENTS.md`.
+
 ---
 
 # 12. Review
@@ -1246,8 +1318,11 @@ benchmark automatisée dans ce dépôt), reproduite ci-dessus pour traçabilité
 Review effectuée le 2026-08-22 sur le commit d’implémentation
 `1b36d77db0f6d8d2ebe5d30e6b23ecb5dbc306e0`.
 
-Verdict:
+Verdict initial:
 CHANGES_REQUESTED
+
+Status:
+RESOLVED
 
 ## Critique
 
@@ -1391,7 +1466,49 @@ comme totalement validée qu’après leur ajout.
 # 13. Release
 
 Version:
+v1.93.0
 
 Commit:
+2151939
 
 Date:
+2026-08-22
+
+Notes:
+
+T29 augmente fortement le débit du backfill de métadonnées (dépendance T28) sans augmenter la
+pression sur TMDB, en séparant explicitement le throttle anti-abus CSTV du budget fournisseur.
+
+Backend :
+
+- Throttle CSTV : quota de **requêtes** de matching (30/min/compte, 60/min/IP) plutôt qu'un quota
+  par média — un batch de 50 items ne coûte plus qu'une unité.
+- `/v1/catalog/matches/batch` : pipeline cache bulk → PostgreSQL backend-first bulk (T28, misses
+  seulement) → provider par item, isolé (un 429/502/503 fournisseur ne fait plus échouer tout le
+  batch).
+- Nouveau statut `retry` par item, jamais persisté comme `unresolved` — négocié explicitement via
+  l'en-tête `X-CSTV-Catalog-Capabilities: retry` pour préserver la compatibilité des APK
+  antérieures à T29 (celles-ci conservent l'ancien comportement d'échec HTTP global).
+- Lookups PostgreSQL bulk corrélant titre + année directement en SQL (`jsonb_to_recordset` +
+  prédicat indexé), mesurés 5-49× plus efficaces qu'une première version sans prédicat indexable.
+- Token bucket TMDB inchangé (`capacity = 12`, `refill = 4/s`) — aucune migration nécessaire.
+
+Android :
+
+- `MAX_ITEMS_PER_BATCH` : 20 → 50 (`MAX_ITEMS_PER_RUN` inchangé, 200 — isolé pour mesurer le gain
+  du seul batching).
+- `ExternalMetadataMatchOutcome` (`Matched`/`Unresolved`/`Retry`) remplace l'ancien
+  `ExternalMetadataMatch?` ambigu ; seul `Retry` reste en file d'hydratation, reprogrammé via le
+  `Retry-After` backend ou le backoff exponentiel F45 existant.
+
+Impacts mesurables :
+
+- Batch 100 % servi par le cache/PostgreSQL → 0 appel TMDB, 1 seule unité de throttle CSTV.
+- Batch partiellement froid → seuls les misses réels atteignent TMDB, les échecs fournisseur
+  isolés par item plutôt que d'invalider tout le lot.
+- Suite de tests backend (261 tests) et Android (`testDebugUnitTest`/`assembleDebug`/`lintDebug`)
+  vertes, vérifiées avec le code hôte réellement monté dans `php-test` (voir §11, incident de
+  process corrigé à l'étape 7).
+
+Tâches 11 (benchmark débit réel) et 12 (vérification F46 sur APK) restent des contrôles
+d'observation post-release, hors périmètre de validation automatisée (voir §10, §12).
