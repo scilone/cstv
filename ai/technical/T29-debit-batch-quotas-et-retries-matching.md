@@ -3,7 +3,7 @@
 ## Informations générales
 
 Status:
-IMPLEMENTATION
+REVIEW
 
 Created:
 2026-08-21
@@ -1167,15 +1167,148 @@ afin de conserver une attribution claire des gains/régressions.
 
 # 12. Review
 
-À compléter à l’étape 6.
+Review effectuée le 2026-08-22 sur le commit d’implémentation
+`1b36d77db0f6d8d2ebe5d30e6b23ecb5dbc306e0`.
+
+Verdict:
+CHANGES_REQUESTED
 
 ## Critique
 
+Aucun problème critique identifié.
+
 ## Majeur
+
+### R1 — Le nouveau statut `retry` n’est pas compatible avec les APK déjà publiées
+
+Description:
+
+T29 renvoie désormais un succès HTTP contenant un item :
+
+```json
+{
+  "status": "retry",
+  "match": null,
+  "item": null
+}
+```
+
+sur le même endpoint `/v1/catalog/matches/batch` déjà consommé par les anciennes APK.
+
+Or le client pré-T29 ne connaît pas `retry` : son contrat repose sur
+`ExternalMetadataMatch?` et `persistNetworkMatch()` interprète toute réponse sans `item` comme un
+résultat métier non résolu. Il persiste alors une tentative `unresolved`, puis le worker retire la
+demande de `external_hydration_queue`.
+
+La mitigation actuellement documentée (« déployer le backend juste avant/accompagner l’APK »)
+n’est pas suffisante : les installations qui n’ont pas encore reçu la nouvelle APK continuent
+d’appeler le même endpoint.
+
+Impact:
+
+- un 429/502/503 fournisseur peut être transformé en faux `unresolved` sur une ancienne APK ;
+- l’item n’est plus reprogrammé comme échec technique ;
+- le comportement dépend de la vitesse de rollout de l’APK ;
+- la règle centrale de T29 « ne jamais enregistrer un échec technique comme `UNRESOLVED` » n’est
+  donc garantie que pour les clients déjà migrés.
+
+Correction attendue:
+
+Introduire une négociation explicite de capacité/version avant d’émettre `status=retry` par item.
+
+Solution recommandée :
+
+- la nouvelle APK annonce qu’elle comprend le retry par item via un header/capability explicite ;
+- le backend n’émet `status=retry` que pour ces clients ;
+- pour un client legacy, conserver le comportement compatible précédent sur une erreur provider
+  retryable, c’est-à-dire une erreur HTTP globale afin que l’ancien worker reprogramme le batch au
+  lieu de persister un faux `unresolved` ;
+- ajouter des tests backend couvrant les deux contrats : client legacy et client T29.
+
+### R2 — Le lookup PostgreSQL bulk n’est pas borné par les couples titre + année
+
+Description:
+
+Les méthodes batch de `ExternalMediaRepository` regroupent correctement les résultats par année en
+PHP, mais leurs requêtes SQL ne filtrent pas l’année demandée :
+
+- `strictMatchByNormalizedTitleBatch()` filtre seulement
+  `normalized_title = ANY(:titles)` + locale ;
+- `strictMatchByAlternativeTitleBatch()` filtre seulement les titres originaux/alternatifs + locale.
+
+PostgreSQL renvoie donc toutes les œuvres portant l’un des titres demandés, pour toutes les années,
+puis PHP élimine les années inutiles.
+
+Avec un titre fréquent ou un catalogue consolidé important, un batch de 50 entrées peut ainsi
+charger un nombre de lignes sans rapport avec la taille du batch. La seconde passe est
+particulièrement sensible car elle combine plusieurs titres via l’index GIN des alternatives.
+
+Impact:
+
+- consommation mémoire et trafic PostgreSQL non bornés par les 50 entrées du batch ;
+- risque de déplacer le goulet d’étranglement de TMDB vers PostgreSQL ;
+- comportement contraire à l’objectif T29 de lookup bulk borné et performant ;
+- le coût augmente avec la taille historique du catalogue, même lorsque seules quelques années sont
+  demandées.
+
+Correction attendue:
+
+Faire porter le couple attendu par la requête SQL, pas uniquement par le regroupement PHP.
+
+Solution recommandée :
+
+- construire une relation d’entrée `(idx, title, year)` avec `jsonb_to_recordset`, `VALUES` ou une
+  stratégie équivalente paramétrée ;
+- joindre les tables TMDB sur titre **et année** dès PostgreSQL ;
+- conserver ensuite la détection d’unicité par `idx` ;
+- appliquer le même principe à la passe titre original/alternatif ;
+- ajouter un test montrant que des dizaines d’homonymes sur d’autres années ne sont pas ramenés dans
+  le jeu de candidats du batch, ainsi qu’un `EXPLAIN (ANALYZE, BUFFERS)` sur un volume représentatif.
 
 ## Mineur
 
+### R3 — La Tâche 10 est marquée terminée alors que plusieurs frontières anti-abus ne sont pas verrouillées par des tests dédiés
+
+Description:
+
+La review retrouve les nouveaux tests :
+
+- quota compte au niveau requête ;
+- batch compté comme une seule unité ;
+- isolation `retry` par item ;
+- cache bulk.
+
+En revanche, les scénarios explicitement demandés par la Tâche 10 ne sont pas tous couverts par un
+test T29 dédié :
+
+- limite IP à 60 req/min ;
+- batch de 51 rejeté ;
+- batch de 50 accepté ;
+- seuil exact du endpoint unitaire à 30 req/min.
+
+Le test unitaire historique du quota compte injecte encore 120 tentatives : il prouve qu’une valeur
+très supérieure est rejetée, mais ne verrouille pas la nouvelle frontière à 30.
+
+Impact:
+
+Faible sur le code actuel — le plafond HTTP de 50 existait déjà — mais ces valeurs sont maintenant
+des invariants structurants de T29 et peuvent régresser sans alerte.
+
+Correction attendue:
+
+Compléter les tests d’intégration avec les quatre frontières ci-dessus et ne considérer la Tâche 10
+comme totalement validée qu’après leur ajout.
+
 ## Corrections demandées
+
+- [ ] R1 — Ajouter une capability/version explicite pour le contrat `retry` par item.
+- [ ] R1 — Préserver un comportement compatible pour les anciennes APK.
+- [ ] R1 — Tester séparément client legacy et client T29 sur 429/502/503.
+- [ ] R2 — Filtrer les lookups bulk PostgreSQL par titre + année directement en SQL.
+- [ ] R2 — Vérifier le plan/coût des deux passes bulk sur un volume représentatif.
+- [ ] R2 — Ajouter un test avec de nombreux homonymes répartis sur plusieurs années.
+- [ ] R3 — Ajouter les tests limite IP 60, batch 50 accepté et batch 51 rejeté.
+- [ ] R3 — Verrouiller le seuil exact de 30 req/min sur l’endpoint unitaire.
 
 ---
 
